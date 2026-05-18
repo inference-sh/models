@@ -14,6 +14,98 @@ import (
 )
 
 // --------------------
+// source: affinity.go
+// --------------------
+
+// AffinityKey represents the fingerprint for task-to-worker matching.
+// Combines session binding (strict) with warm container matching (soft).
+// Format: AppID:VersionID@Setup#SessionID
+type AffinityKey struct {
+	AppID string `json:"app_id"`
+	VersionID string `json:"version_id"`
+	Setup string `json:"setup,omitempty"`
+	SessionID *string `json:"session_id,omitempty"`
+}
+
+// FromTaskDTO creates an AffinityKey from a TaskDTO.
+// Usage: key := AffinityKey{}.FromTaskDTO(task)
+func (AffinityKey) FromTaskDTO(task *TaskDTO) AffinityKey {
+	key := AffinityKey{AppID: task.AppID, VersionID: task.AppVersionID, SessionID: task.SessionID}
+	if task.Setup != nil {
+		key.Setup = string(*task.Setup)
+	}
+	return key
+}
+
+// HasSession returns true if this key has a session binding.
+func (k AffinityKey) HasSession() bool {
+	return k.SessionID != nil && *k.SessionID != ""
+}
+
+// SameAs checks if two keys represent the same affinity (exact match including setup).
+func (a AffinityKey) SameAs(b AffinityKey) bool {
+	return a.AppID == b.AppID && a.VersionID == b.VersionID && a.Setup == b.Setup && (a.SessionID == nil && b.SessionID == nil || a.SessionID != nil && b.SessionID != nil && *a.SessionID == *b.SessionID)
+}
+
+// MatchesApp checks if keys are for the same app (ignoring version/session/setup).
+func (a AffinityKey) MatchesApp(b AffinityKey) bool {
+	return a.AppID != "" && a.AppID == b.AppID
+}
+
+// MatchesVersion checks if keys are for the same app+version.
+func (a AffinityKey) MatchesVersion(b AffinityKey) bool {
+	return a.MatchesApp(b) && a.VersionID != "" && a.VersionID == b.VersionID
+}
+
+// MatchesSetup checks if keys are for the same app+version+setup (hot container).
+func (a AffinityKey) MatchesSetup(b AffinityKey) bool {
+	return a.MatchesVersion(b) && a.Setup == b.Setup
+}
+
+// CanReuseContainer checks if a task with key `a` can reuse a container
+// currently running with key `b`.
+func (a AffinityKey) CanReuseContainer(b AffinityKey) bool {
+	if !a.MatchesSetup(b) {
+		return false
+	}
+	if a.SessionID != nil && *a.SessionID == "new" {
+		return false
+	}
+	return a.SessionID == nil && b.SessionID == nil || a.SessionID != nil && b.SessionID != nil && *a.SessionID == *b.SessionID
+}
+
+// String returns a compact string representation of the key.
+func (k AffinityKey) String() string {
+	s := k.AppID
+	if k.VersionID != "" {
+		s += ":" + k.VersionID
+	}
+	if k.Setup != "" {
+		setup := k.Setup
+		if len(setup) > 20 {
+			setup = setup[:20] + "..."
+		}
+		s += "@" + setup
+	}
+	if k.SessionID != nil && *k.SessionID != "" {
+		s += "#" + *k.SessionID
+	}
+	return s
+}
+
+// ToWarmApp converts the key to a warm app string.
+func (k AffinityKey) ToWarmApp() string {
+	s := k.AppID
+	if k.VersionID != "" {
+		s += ":" + k.VersionID
+	}
+	if k.Setup != "" {
+		s += "@" + k.Setup
+	}
+	return s
+}
+
+// --------------------
 // source: agent.go
 // --------------------
 
@@ -1872,6 +1964,69 @@ type ProjectDTO struct {
 }
 
 // --------------------
+// source: ref.go
+// --------------------
+
+// Ref is a parsed reference in format "namespace/name@versionID:function".
+type Ref struct {
+	Namespace string `json:"namespace,omitempty"`
+	Name string `json:"name"`
+	VersionID string `json:"version_id,omitempty"`
+	Function string `json:"function,omitempty"`
+}
+
+// Parse parses a reference string in format "namespace/name@shortVersionId:function".
+// "@latest" is treated as unversioned (VersionID = "").
+// Usage: ref := Ref{}.Parse("ns/name@v1:fn")
+func (Ref) Parse(s string) Ref {
+	var r Ref
+	full := s
+	if idx := strings.LastIndex(s, ":"); idx != -1 {
+		atIdx := strings.LastIndex(s, "@")
+		if atIdx == -1 || idx > atIdx {
+			full = s[:idx]
+			r.Function = s[idx + 1:]
+		}
+	}
+	fullName := full
+	if idx := strings.LastIndex(full, "@"); idx != -1 {
+		fullName = full[:idx]
+		r.VersionID = full[idx + 1:]
+	}
+	if r.VersionID == "latest" {
+		r.VersionID = ""
+	}
+	if idx := strings.Index(fullName, "/"); idx != -1 {
+		r.Namespace = fullName[:idx]
+		r.Name = fullName[idx + 1:]
+	} else {
+		r.Name = fullName
+	}
+	return r
+}
+
+// FullName returns "namespace/name".
+func (r Ref) FullName() string {
+	if r.Namespace == "" {
+		return r.Name
+	}
+	return r.Namespace + "/" + r.Name
+}
+
+// String builds the full reference string "namespace/name@versionID:function".
+// Empty components are omitted.
+func (r Ref) String() string {
+	s := r.FullName()
+	if r.VersionID != "" {
+		s += "@" + r.VersionID
+	}
+	if r.Function != "" {
+		s += ":" + r.Function
+	}
+	return s
+}
+
+// --------------------
 // source: requirements.go
 // --------------------
 
@@ -2069,6 +2224,14 @@ type EngineTypes struct {
 	_agentMsgReq CreateAgentMessageRequest
 	_agentMsgResp CreateAgentMessageResponse
 	_capabilities CapabilitiesResponse
+	// Affinity
+	_affinityKey AffinityKey
+	// Contract types
+	_ref Ref
+	// Money types
+	_microcents Microcents
+	_cents Cents
+	_dollars Dollars
 	// System info types
 	_wsl2 WSL2
 	_deletion DeletionStrategy
@@ -3703,6 +3866,44 @@ const (
 )
 
 // --------------------
+// source: money.go
+// --------------------
+
+// Microcents is the base unit for monetary values in the system.
+// 1 dollar = 100 cents = 100,000,000 microcents.
+type Microcents int64
+
+func (m Microcents) Cents() Cents {
+	return Cents(m / 1_000_000)
+}
+
+func (m Microcents) Dollars() Dollars {
+	return Dollars(float64(m) / 100_000_000)
+}
+
+// Cents represents a monetary value in cents.
+type Cents int64
+
+func (c Cents) Microcents() Microcents {
+	return Microcents(c * 1_000_000)
+}
+
+func (c Cents) Dollars() Dollars {
+	return Dollars(float64(c) / 100)
+}
+
+// Dollars represents a monetary value in dollars.
+type Dollars float64
+
+func (d Dollars) Microcents() Microcents {
+	return Microcents(d * 100_000_000)
+}
+
+func (d Dollars) Cents() Cents {
+	return Cents(d * 100)
+}
+
+// --------------------
 // source: task.go
 // --------------------
 
@@ -3713,8 +3914,97 @@ func (v TaskStatus) Value() (driver.Value, error) {
 	return int64(v), nil
 }
 
+func (ts TaskStatus) StatusOrder() int {
+	switch ts {
+	case TaskStatusReceived:
+		return 10
+	case TaskStatusQueued:
+		return 20
+	case TaskStatusDispatched:
+		return 30
+	case TaskStatusPreparing:
+		return 40
+	case TaskStatusServing:
+		return 50
+	case TaskStatusSettingUp:
+		return 60
+	case TaskStatusRunning:
+		return 70
+	case TaskStatusCancelling:
+		return 80
+	case TaskStatusUploading:
+		return 90
+	case TaskStatusCompleted, TaskStatusFailed, TaskStatusCancelled:
+		return 100
+	default:
+		return 0
+	}
+}
+
+func (ts TaskStatus) String() string {
+	switch ts {
+	case TaskStatusReceived:
+		return "received"
+	case TaskStatusQueued:
+		return "queued"
+	case TaskStatusDispatched:
+		return "dispatched"
+	case TaskStatusPreparing:
+		return "preparing"
+	case TaskStatusServing:
+		return "serving"
+	case TaskStatusSettingUp:
+		return "setting_up"
+	case TaskStatusRunning:
+		return "running"
+	case TaskStatusCancelling:
+		return "cancelling"
+	case TaskStatusUploading:
+		return "uploading"
+	case TaskStatusCompleted:
+		return "completed"
+	case TaskStatusFailed:
+		return "failed"
+	case TaskStatusCancelled:
+		return "cancelled"
+	default:
+		return "unknown"
+	}
+}
+
+func (ts TaskStatus) IsTerminal() bool {
+	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled
+}
+
+func (ts TaskStatus) IsQueued() bool {
+	return ts == TaskStatusReceived || ts == TaskStatusQueued
+}
+
+func (ts TaskStatus) IsInProgress() bool {
+	return ts == TaskStatusDispatched || ts == TaskStatusPreparing || ts == TaskStatusServing || ts == TaskStatusSettingUp || ts == TaskStatusRunning || ts == TaskStatusCancelling || ts == TaskStatusUploading
+}
+
 func (ts TaskStatus) IsCancelling() bool {
 	return ts == TaskStatusCancelling
+}
+
+func (ts TaskStatus) CanTransitionTo(next TaskStatus) bool {
+	if ts.IsTerminal() {
+		return false
+	}
+	if next.IsTerminal() || next == TaskStatusCancelling {
+		return ts != next
+	}
+	if ts == TaskStatusUnknown {
+		return true
+	}
+	if ts.StatusOrder() <= next.StatusOrder() {
+		return true
+	}
+	if ts == TaskStatusDispatched && next == TaskStatusReceived {
+		return true
+	}
+	return false
 }
 
 const (
