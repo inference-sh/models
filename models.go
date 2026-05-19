@@ -1551,10 +1551,10 @@ type InstanceTypeBootTime struct {
 type IntegrationDTO struct {
 	BaseModelDTO `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Provider string `json:"provider"`
-	Type string `json:"type"`
-	Auth string `json:"auth"`
-	Status string `json:"status"`
+	Provider IntegrationProvider `json:"provider"`
+	Type IntegrationAuthType `json:"type"`
+	Auth IntegrationAuthType `json:"auth"`
+	Status IntegrationStatus `json:"status"`
 	DisplayName string `json:"display_name"`
 	IconURL string `json:"icon_url,omitempty"`
 	Scopes StringSlice `json:"scopes"`
@@ -3614,8 +3614,12 @@ func (v InstanceStatus) Value() (driver.Value, error) {
 }
 
 const (
+	InstanceStatusCreating InstanceStatus = "creating"
+	InstanceStatusPendingProvider InstanceStatus = "pending_provider"
 	InstanceStatusPending InstanceStatus = "pending"
 	InstanceStatusActive InstanceStatus = "active"
+	InstanceStatusError InstanceStatus = "error"
+	InstanceStatusDeleting InstanceStatus = "deleting"
 	InstanceStatusDeleted InstanceStatus = "deleted"
 )
 
@@ -3823,6 +3827,27 @@ const (
 	IntegrationProviderGCP IntegrationProvider = "gcp"
 	IntegrationProviderMCP IntegrationProvider = "mcp"
 	IntegrationProviderReddit IntegrationProvider = "reddit"
+)
+
+// IntegrationAuthType describes the authentication mechanism of an integration.
+type IntegrationAuthType string
+
+const (
+	IntegrationAuthTypeServiceAccount IntegrationAuthType = "service_account"
+	IntegrationAuthTypeOAuth IntegrationAuthType = "oauth"
+	IntegrationAuthTypeAPIKey IntegrationAuthType = "api_key"
+	IntegrationAuthTypeWIF IntegrationAuthType = "wif"
+	IntegrationAuthTypeMCP IntegrationAuthType = "mcp"
+)
+
+// IntegrationStatus represents the status of an integration connection.
+type IntegrationStatus string
+
+const (
+	IntegrationStatusConnected IntegrationStatus = "connected"
+	IntegrationStatusDisconnected IntegrationStatus = "disconnected"
+	IntegrationStatusExpired IntegrationStatus = "expired"
+	IntegrationStatusError IntegrationStatus = "error"
 )
 
 type WidgetNodeType string
@@ -4113,9 +4138,11 @@ type ToolCallType string
 // ToolParamType represents a JSON Schema parameter type for tool definitions.
 type ToolParamType string
 
-// Tool types and parameter types
+// Tool call types
+const ToolTypeFunction ToolCallType = "function"
+
+// Tool parameter types
 const (
-	ToolTypeFunction ToolCallType = "function"
 	ToolParamTypeObject ToolParamType = "object"
 	ToolParamTypeString ToolParamType = "string"
 	ToolParamTypeInteger ToolParamType = "integer"
