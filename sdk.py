@@ -1846,6 +1846,7 @@ class GraphEdgeType(str, Enum):
     PARENT = "parent"
     ANCESTOR = "ancestor"
     DUPLICATE = "duplicate"
+    REFERENCES = "references"
 
 class EntitlementSource(str, Enum):
     TIER = "tier"

@@ -865,31 +865,31 @@ type AppFunction struct {
 
 // AppImages holds developer-provided images for the app.
 type AppImages struct {
-	Card string `json:"card"`
-	Thumbnail string `json:"thumbnail"`
-	Banner string `json:"banner"`
+	Card string `json:"card" yaml:"card"`
+	Thumbnail string `json:"thumbnail" yaml:"thumbnail"`
+	Banner string `json:"banner" yaml:"banner"`
 }
 
 // AppGPUResource describes GPU requirements.
 type AppGPUResource struct {
-	Count int `json:"count"`
-	Vram int64 `json:"vram"`
-	Type GPUType `json:"type"`
+	Count int `json:"count" yaml:"count"`
+	Vram int64 `json:"vram" yaml:"vram"`
+	Type GPUType `json:"type" yaml:"type"`
 }
 
 // AppResources describes resource requirements.
 type AppResources struct {
-	GPU AppGPUResource `json:"gpu"`
-	RAM int `json:"ram"`
+	GPU AppGPUResource `json:"gpu" yaml:"gpu"`
+	RAM int `json:"ram" yaml:"ram"`
 }
 
 // AppVariant is a named resource/env configuration variant.
 type AppVariant struct {
-	Name string `json:"name"`
-	Order int `json:"order"`
-	Resources AppResources `json:"resources"`
-	Env map[string]string `json:"env"`
-	Python string `json:"python"`
+	Name string `json:"name" yaml:"name"`
+	Order int `json:"order" yaml:"order"`
+	Resources AppResources `json:"resources" yaml:"resources"`
+	Env map[string]string `json:"env" yaml:"env"`
+	Python string `json:"python" yaml:"python"`
 }
 
 // SecretRequirement defines a secret that an app requires to run.
@@ -3459,6 +3459,7 @@ const (
 	GraphEdgeTypeParent GraphEdgeType = "parent"
 	GraphEdgeTypeAncestor GraphEdgeType = "ancestor"
 	GraphEdgeTypeDuplicate GraphEdgeType = "duplicate"
+	GraphEdgeTypeReferences GraphEdgeType = "references"
 )
 
 // --------------------
