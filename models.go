@@ -497,6 +497,12 @@ type SkillPublishRequest struct {
 	Context string `json:"context"`
 }
 
+type CheckoutCreateRequest struct {
+	Amount int64 `json:"amount"`
+	SuccessURL string `json:"success_url"`
+	CancelURL string `json:"cancel_url"`
+}
+
 type AuthResponse struct {
 	User *UserDTO `json:"user"`
 	SessionID string `json:"session_id"`
@@ -582,6 +588,20 @@ type IntegrationConnectResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+type ProjectCreateRequest struct {
+	Name string `json:"name" validate:"required"`
+	Type ProjectType `json:"type" validate:"required"`
+}
+
+type ProjectUpdateRequest struct {
+	Name string `json:"name" validate:"required"`
+}
+
+type MoveAgentToProjectRequest struct {
+	AgentID string `json:"agent_id" validate:"required"`
+	ProjectID string `json:"project_id" validate:"required"`
+}
+
 // --------------------
 // source: api_internal.go
 // --------------------
@@ -647,6 +667,12 @@ type WorkerRunRequest struct {
 type CancelTaskRequest struct {
 	Force bool `json:"force"` // If true, skip graceful cancel and force kill immediately
 	Timeout int `json:"timeout"` // Milliseconds to wait for graceful cancel (default 10000)
+}
+
+type CreateApiKeyRequest struct {
+	Name string `json:"name" validate:"required"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Scopes []string `json:"scopes,omitempty"`
 }
 
 type MenuCreateRequest struct {
@@ -1013,6 +1039,27 @@ type PublicAppStoreDTO struct {
 	Rank int `json:"rank"`
 	HasApprovedVersion bool `json:"has_approved_version"`
 	PageID *string `json:"page_id,omitempty"`
+}
+
+// --------------------
+// source: auth_session.go
+// --------------------
+
+// AuthSessionDTO is a safe representation of AuthSession for API responses.
+type AuthSessionDTO struct {
+	ID string `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	IP string `json:"ip"`
+	City string `json:"city"`
+	Country string `json:"country"`
+	CountryCode string `json:"country_code"`
+	Region string `json:"region"`
+	OS string `json:"os"`
+	Browser string `json:"browser"`
+	BrowserVersion string `json:"browser_version"`
+	AuthMethod string `json:"auth_method"`
+	Current bool `json:"current"`
 }
 
 // --------------------
@@ -1683,6 +1730,23 @@ type KnowledgeVersionDTO struct {
 	LastConfirmedAt *time.Time `json:"last_confirmed_at,omitempty"`
 }
 
+// ResourceRef is a compact reference to any resource (knowledge, app, agent).
+type ResourceRef struct {
+	ID string `json:"id"`
+	Namespace string `json:"namespace"`
+	Name string `json:"name"`
+	Type ResourceType `json:"type"` // knowledge, app, agent
+	ResourceKind string `json:"resource_kind"` // e.g. "skill", "observation", "concept" for knowledge; empty for app/agent
+	Description string `json:"description"`
+}
+
+// ReferencesResponse is returned by the references endpoint.
+type ReferencesResponse struct {
+	Resource ResourceRef `json:"resource"`
+	References []ResourceRef `json:"references"` // outgoing: resources this entry mentions
+	ReferencedBy []ResourceRef `json:"referenced_by"` // incoming: resources that mention this entry
+}
+
 // SkillLineageResponse is returned by the lineage endpoint.
 type SkillLineageResponse struct {
 	Skill SkillLineageSkillRef `json:"skill"`
@@ -1805,6 +1869,22 @@ func (s *StringSlice) Scan(value interface{}) error {
 	return json.Unmarshal(bytes, s)
 }
 
+// MCPServerDTO is the API response shape for the resource.
+type MCPServerDTO struct {
+	ID string `json:"id"`
+	PermissionModelDTO
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+	Description string `json:"description"`
+	IconURL string `json:"icon_url"`
+	ServerURL string `json:"server_url"`
+	AuthType MCPServerAuthType `json:"auth_type"`
+	OAuthClientID string `json:"oauth_client_id,omitempty"`
+	OAuthSecretKey string `json:"-"`
+	DefaultScopes StringSlice `json:"default_scopes"`
+	DocumentationURL string `json:"documentation_url"`
+}
+
 // PublicMCPServerDTO is a lean DTO for the public MCP directory.
 type PublicMCPServerDTO struct {
 	ID string `json:"id"`
@@ -1827,6 +1907,27 @@ type PublicMCPServerDTO struct {
 // --------------------
 // source: notification.go
 // --------------------
+
+// NotificationDTO is the data transfer object
+type NotificationDTO struct {
+	BaseModelDTO `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Type NotificationType `json:"type"`
+	Channel NotificationChannel `json:"channel"`
+	Priority NotificationPriority `json:"priority"`
+	Status NotificationStatus `json:"status"`
+	RecipientEmail string `json:"recipient_email,omitempty"`
+	Subject string `json:"subject"`
+	Body string `json:"body,omitempty"`
+	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
+	SentAt *time.Time `json:"sent_at,omitempty"`
+	DeliveredAt *time.Time `json:"delivered_at,omitempty"`
+	FailedAt *time.Time `json:"failed_at,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	RetryCount int `json:"retry_count"`
+	ReferenceType string `json:"reference_type,omitempty"`
+	ReferenceID string `json:"reference_id,omitempty"`
+}
 
 // NotificationPreferencesDTO is the data transfer object
 type NotificationPreferencesDTO struct {
@@ -1940,6 +2041,38 @@ type MenuDTO struct {
 }
 
 // --------------------
+// source: plan.go
+// --------------------
+
+// PlanLimit defines a single resource limit or feature gate within a plan.
+type PlanLimit struct {
+	Type EntitlementType `json:"type"`
+	Enabled bool `json:"enabled,omitempty"`
+	Unlimited bool `json:"unlimited,omitempty"`
+	Limit int `json:"limit,omitempty"`
+	Enforcement EnforcementMode `json:"enforcement,omitempty"`
+}
+
+// PlanLimits maps entitlement resources to their limits
+type PlanLimits map[EntitlementResource]PlanLimit
+
+// PlanDTO for API responses
+type PlanDTO struct {
+	BaseModelDTO `tstype:",extends"`
+	Name string `json:"name"`
+	Description string `json:"description"`
+	DisplayOrder int `json:"display_order"`
+	Active bool `json:"active"`
+	SelfServe *bool `json:"self_serve"`
+	PriceMonthly *int `json:"price_monthly"`
+	PriceYearly *int `json:"price_yearly"`
+	CreditsMonthly int64 `json:"credits_monthly"`
+	ProviderPriceIDMonthly string `json:"provider_price_id_monthly,omitempty"`
+	ProviderPriceIDYearly string `json:"provider_price_id_yearly,omitempty"`
+	Limits PlanLimits `json:"limits"`
+}
+
+// --------------------
 // source: project.go
 // --------------------
 
@@ -2024,6 +2157,129 @@ func (r Ref) String() string {
 		s += ":" + r.Function
 	}
 	return s
+}
+
+// --------------------
+// source: ref_route.go
+// --------------------
+
+// RefRouteDTO for API responses
+type RefRouteDTO struct {
+	BaseModelDTO `tstype:",extends"`
+	Type RefRouteType `json:"type"`
+	AliasRef string `json:"alias_ref"`
+	TargetRef string `json:"target_ref"`
+	Primary bool `json:"primary"`
+	Description string `json:"description"`
+	Enabled bool `json:"enabled"`
+}
+
+// --------------------
+// source: requests.go
+// --------------------
+
+// KnowledgeCreateRequest is the request body for POST /knowledge.
+type KnowledgeCreateRequest struct {
+	Name string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// Knowledge type: concept, skill, observation, preference, reference, person, project, agent-config
+	Type string `json:"type,omitempty"`
+	// Lifecycle: permanent (no decay) or decay (confidence decreases over time)
+	Lifecycle string `json:"lifecycle,omitempty"`
+	// Version content (inline — creates first version)
+	Version *KnowledgeVersionInput `json:"version,omitempty"`
+}
+
+// KnowledgeVersionInput is the input shape for creating/updating a knowledge version.
+type KnowledgeVersionInput struct {
+	Description string `json:"description,omitempty"`
+	Content *KnowledgeFile `json:"content,omitempty"`
+	Files []KnowledgeFile `json:"files,omitempty"`
+	Tags []string `json:"tags,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+	SourceURL string `json:"source_url,omitempty"`
+	MutationType string `json:"mutation_type,omitempty"`
+	VersionNotes string `json:"version_notes,omitempty"`
+}
+
+// KnowledgeUpdateRequest is the request body for PUT /knowledge/{id}.
+type KnowledgeUpdateRequest struct {
+	Description string `json:"description,omitempty"`
+	Version *KnowledgeVersionInput `json:"version,omitempty"`
+}
+
+// CreateSubscriptionRequest is the request body for POST /subscriptions.
+type CreateSubscriptionRequest struct {
+	PlanID string `json:"plan_id"`
+	Interval string `json:"interval,omitempty"` // "monthly" or "yearly", default "monthly"
+	SuccessURL string `json:"success_url,omitempty"`
+	CancelURL string `json:"cancel_url,omitempty"`
+}
+
+// ChangePlanRequest is the request body for POST /subscriptions/change.
+type ChangePlanRequest struct {
+	PlanID string `json:"plan_id"`
+}
+
+// CancelSubscriptionRequest is the request body for POST /subscriptions/cancel.
+type CancelSubscriptionRequest struct {
+	AtPeriodEnd *bool `json:"at_period_end,omitempty"`
+}
+
+// OAuthAuthorizeInfoResponse is returned by GET /oauth/authorize/info.
+type OAuthAuthorizeInfoResponse struct {
+	ClientName string `json:"client_name"`
+	ClientType string `json:"client_type"`
+	Origin string `json:"origin"`
+	Verified bool `json:"verified"`
+	Scopes []Scope `json:"scopes"`
+	RedirectHost string `json:"redirect_host"`
+}
+
+// OAuthApproveRequest is the request body for POST /oauth/authorize/approve.
+type OAuthApproveRequest struct {
+	ClientID string `json:"client_id"`
+	RedirectURI string `json:"redirect_uri"`
+	CodeChallenge string `json:"code_challenge"`
+	State string `json:"state"`
+	Scope string `json:"scope"`
+}
+
+// OAuthRedirectResponse wraps a redirect URI.
+type OAuthRedirectResponse struct {
+	RedirectURI string `json:"redirect_uri"`
+}
+
+// OAuthConnectedApp represents an authorized OAuth client.
+type OAuthConnectedApp struct {
+	ClientID string `json:"client_id"`
+	ClientName string `json:"client_name"`
+	ClientType string `json:"client_type"`
+	Origin string `json:"origin"`
+	Verified bool `json:"verified"`
+	Scopes string `json:"scopes"`
+	AuthorizedAt time.Time `json:"authorized_at"`
+}
+
+// ChargeAmountRequest is the request for charging a saved payment method.
+type ChargeAmountRequest struct {
+	Amount int64 `json:"amount"`
+}
+
+// CompletePaymentRequest finishes a checkout or payment session.
+type CompletePaymentRequest struct {
+	SessionID string `json:"session_id,omitempty"`
+	PaymentID string `json:"payment_id,omitempty"`
+}
+
+// UpdateIntegrationScopesRequest updates integration scopes.
+type UpdateIntegrationScopesRequest struct {
+	Scopes []string `json:"scopes"`
+}
+
+// UpdateTaskVisibilityRequest sets task visibility.
+type UpdateTaskVisibilityRequest struct {
+	Visibility string `json:"visibility"`
 }
 
 // --------------------
@@ -2123,8 +2379,12 @@ type SDKTypes struct {
 	_instanceType InstanceTypeDTO
 	// Auth/keys
 	_apiKeyDTO ApiKeyDTO
+	_createApiKey CreateApiKeyRequest
 	_authResp AuthResponse
+	_authSessionDTO AuthSessionDTO
 	_scopesResp ScopesResponse
+	_deviceAuthResp DeviceAuthResponse
+	_deviceAuthPoll DeviceAuthPollResponse
 	// Teams
 	_teamCreate TeamCreateRequest
 	_teamSetup TeamSetupRequest
@@ -2134,8 +2394,16 @@ type SDKTypes struct {
 	_teamInvite TeamInviteDTO
 	_teamInviteCreate TeamInviteCreateRequest
 	// Integrations
+	_integConnect IntegrationConnectRequest
 	_integCompleteOAuth IntegrationCompleteOAuthRequest
+	_integConnectResp IntegrationConnectResponse
 	_integConfigDTO IntegrationConfigDTO
+	_integUpdateScopes UpdateIntegrationScopesRequest
+	// OAuth
+	_oauthAuthorizeInfo OAuthAuthorizeInfoResponse
+	_oauthApprove OAuthApproveRequest
+	_oauthRedirect OAuthRedirectResponse
+	_oauthConnectedApp OAuthConnectedApp
 	// Requirements
 	_checkReqs CheckRequirementsRequest
 	_checkReqsResp CheckRequirementsResponse
@@ -2143,9 +2411,60 @@ type SDKTypes struct {
 	_entitlementDTO EntitlementDTO
 	// Output
 	_outputMeta OutputMeta
+	// Knowledge
+	_knowledgeDTO KnowledgeDTO
+	_knowledgeVersion KnowledgeVersionDTO
+	_knowledgeCreate KnowledgeCreateRequest
+	_knowledgeUpdate KnowledgeUpdateRequest
+	_knowledgeVerInput KnowledgeVersionInput
+	_referencesResp ReferencesResponse
+	// Apps
+	_appDTO AppDTO
+	_appVersionDTO AppVersionDTO
+	_appCreate CreateAppRequest
+	_appRun ApiAppRunRequest
+	// Agents
+	_agentDTO AgentDTO
+	_agentVersionDTO AgentVersionDTO
+	_agentRun ApiAgentRunRequest
+	_createAgentMsg CreateAgentMessageRequest
+	_createAgentMsgResp CreateAgentMessageResponse
+	_moveAgentToProject MoveAgentToProjectRequest
+	// Tasks
+	_taskResultDTO TaskResultDTO
+	_taskLogsDTO TaskLogsDTO
+	_taskTimingsDTO TaskTimingsDTO
+	_cancelTask CancelTaskRequest
+	_taskVisibility UpdateTaskVisibilityRequest
+	// Files
+	_fileCreate FileCreateRequest
+	// Secrets
+	_secretDTO SecretDTO
+	_secretCreate SecretCreateRequest
+	_secretUpdate SecretUpdateRequest
+	// Projects
+	_projectDTO ProjectDTO
+	_projectCreate ProjectCreateRequest
+	_projectUpdate ProjectUpdateRequest
+	// Subscriptions
+	_subscriptionDTO SubscriptionDTO
+	_subCreate CreateSubscriptionRequest
+	_subChangePlan ChangePlanRequest
+	_subCancel CancelSubscriptionRequest
+	// Billing
+	_checkoutCreate CheckoutCreateRequest
+	_chargeAmount ChargeAmountRequest
+	_completePayment CompletePaymentRequest
 	// Notifications
+	_notifDTO NotificationDTO
 	_notifPrefs NotificationPreferencesDTO
 	_notifUpdate UpdateNotificationPreferencesRequest
+	// Ref routes
+	_refRouteDTO RefRouteDTO
+	// MCP servers
+	_mcpServerDTO MCPServerDTO
+	// Plans
+	_planDTO PlanDTO
 	// Enums pulled in for const generation
 	_toolInvStatus ToolInvocationStatus
 	_toolType ToolType
@@ -2266,6 +2585,26 @@ type SecretDTO struct {
 	MaskedValue string `json:"masked_value"`
 	Description string `json:"description,omitempty"`
 	Scope SecretScope `json:"scope,omitempty"`
+}
+
+// --------------------
+// source: subscription.go
+// --------------------
+
+// SubscriptionDTO for API responses
+type SubscriptionDTO struct {
+	BaseModelDTO `tstype:",extends"`
+	TeamID string `json:"team_id"`
+	StripeSubscriptionID string `json:"stripe_subscription_id,omitempty"`
+	PlanID string `json:"plan_id"`
+	Plan *PlanDTO `json:"plan,omitempty"`
+	Interval SubscriptionInterval `json:"interval"`
+	Status SubscriptionStatus `json:"status"`
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	CurrentPeriodEnd time.Time `json:"current_period_end"`
+	TrialEnd *time.Time `json:"trial_end,omitempty"`
+	CancelAtPeriodEnd bool `json:"cancel_at_period_end"`
+	CreditsPerPeriod int64 `json:"credits_per_period"`
 }
 
 // --------------------
@@ -2453,6 +2792,20 @@ type TaskDTO struct {
 	UsageEvents []*UsageEventDTO `json:"usage_events"`
 	SessionID *string `json:"session_id,omitempty"`
 	SessionTimeout *int `json:"session_timeout,omitempty"`
+}
+
+// TaskResultDTO is a slim response for task run/result endpoints.
+type TaskResultDTO struct {
+	ID string `json:"id"`
+	ShortID string `json:"short_id"`
+	Status TaskStatus `json:"status"`
+	StatusText string `json:"status_text"`
+	Output json.RawMessage `json:"output"`
+	Error *string `json:"error,omitempty"`
+	SessionID *string `json:"session_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	RunAt *time.Time `json:"run_at,omitempty"`
 }
 
 // TaskLogsDTO is a lightweight response for task logs endpoint.
@@ -3035,6 +3388,35 @@ const (
 )
 
 // --------------------
+// source: billing.go
+// --------------------
+
+type SubscriptionStatus string
+
+func (v SubscriptionStatus) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	SubscriptionStatusTrialing SubscriptionStatus = "trialing"
+	SubscriptionStatusActive SubscriptionStatus = "active"
+	SubscriptionStatusPastDue SubscriptionStatus = "past_due"
+	SubscriptionStatusCanceled SubscriptionStatus = "canceled"
+	SubscriptionStatusPaused SubscriptionStatus = "paused"
+)
+
+type SubscriptionInterval string
+
+func (v SubscriptionInterval) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	SubscriptionIntervalMonthly SubscriptionInterval = "monthly"
+	SubscriptionIntervalYearly SubscriptionInterval = "yearly"
+)
+
+// --------------------
 // source: chat.go
 // --------------------
 
@@ -3444,6 +3826,15 @@ const (
 	GraphNodeStatusBlocked GraphNodeStatus = "blocked"
 )
 
+// ResourceType identifies what kind of resource a graph node represents.
+type ResourceType string
+
+const (
+	ResourceTypeKnowledge ResourceType = "knowledge"
+	ResourceTypeApp ResourceType = "app"
+	ResourceTypeAgent ResourceType = "agent"
+)
+
 // GraphEdgeType defines the type of edge relationship
 type GraphEdgeType string
 
@@ -3735,6 +4126,18 @@ const (
 	TeamInviteStatusRevoked TeamInviteStatus = "revoked"
 )
 
+type RefRouteType string
+
+func (v RefRouteType) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	RefRouteTypeApp RefRouteType = "app"
+	RefRouteTypeAgent RefRouteType = "agent"
+	RefRouteTypeSkill RefRouteType = "skill"
+)
+
 type FilterOperator string
 
 const (
@@ -3928,6 +4331,92 @@ func (d Dollars) Microcents() Microcents {
 func (d Dollars) Cents() Cents {
 	return Cents(d * 100)
 }
+
+// --------------------
+// source: notification.go
+// --------------------
+
+// NotificationChannel represents a delivery channel
+type NotificationChannel string
+
+func (v NotificationChannel) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	NotificationChannelEmail NotificationChannel = "email"
+	NotificationChannelSMS NotificationChannel = "sms"
+	NotificationChannelPush NotificationChannel = "push"
+	NotificationChannelSlack NotificationChannel = "slack"
+)
+
+// NotificationPriority represents notification priority
+type NotificationPriority string
+
+func (v NotificationPriority) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	NotificationPriorityLow NotificationPriority = "low"
+	NotificationPriorityNormal NotificationPriority = "normal"
+	NotificationPriorityHigh NotificationPriority = "high"
+	NotificationPriorityCritical NotificationPriority = "critical"
+)
+
+// NotificationType represents the type/category of notification
+type NotificationType string
+
+func (v NotificationType) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	// Billing notifications
+	NotificationTypeLowBalance NotificationType = "low_balance"
+	NotificationTypeAutoRecharge NotificationType = "auto_recharge"
+	NotificationTypePaymentSuccess NotificationType = "payment_success"
+	NotificationTypePaymentFailed NotificationType = "payment_failed"
+	NotificationTypeUsageSummary NotificationType = "usage_summary"
+	NotificationTypeSpendingLimit NotificationType = "spending_limit"
+	NotificationTypeInvoice NotificationType = "invoice"
+	// Account notifications
+	NotificationTypeWelcome NotificationType = "welcome"
+	NotificationTypeWelcomeAgents NotificationType = "welcome_agents"
+	NotificationTypeWelcomeApps NotificationType = "welcome_apps"
+	NotificationTypeWelcomeFlows NotificationType = "welcome_flows"
+	NotificationTypeWelcomeSDK NotificationType = "welcome_sdk"
+	NotificationTypePasswordReset NotificationType = "password_reset"
+	NotificationTypeEmailVerify NotificationType = "email_verify"
+	NotificationTypeSecurityAlert NotificationType = "security_alert"
+	// Task notifications
+	NotificationTypeTaskComplete NotificationType = "task_complete"
+	NotificationTypeTaskFailed NotificationType = "task_failed"
+	// System notifications
+	NotificationTypeSystemAlert NotificationType = "system_alert"
+	NotificationTypeMaintenance NotificationType = "maintenance"
+	NotificationTypeTosUpdate NotificationType = "tos_update"
+	NotificationTypeServiceNotice NotificationType = "service_notice"
+	// Team notifications
+	NotificationTypeTeamInvite NotificationType = "team_invite"
+)
+
+// NotificationStatus represents the status of a notification
+type NotificationStatus string
+
+func (v NotificationStatus) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	NotificationStatusPending NotificationStatus = "pending"
+	NotificationStatusProcessing NotificationStatus = "processing"
+	NotificationStatusSent NotificationStatus = "sent"
+	NotificationStatusDelivered NotificationStatus = "delivered"
+	NotificationStatusFailed NotificationStatus = "failed"
+	NotificationStatusBounced NotificationStatus = "bounced"
+	NotificationStatusCancelled NotificationStatus = "cancelled"
+)
 
 // --------------------
 // source: task.go
