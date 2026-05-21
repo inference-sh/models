@@ -478,13 +478,13 @@ type CreateAppRequest struct {
 type SkillPublishRequest struct {
 	Namespace string `json:"namespace,omitempty"`
 	Name string `json:"name"`
-	Description string `json:"description"`
-	Category string `json:"category"`
-	RepoURL string `json:"repo_url"`
-	License string `json:"license"`
-	AllowedTools string `json:"allowed_tools"`
-	Compatibility string `json:"compatibility"`
-	Instructions string `json:"instructions"`
+	Description string `json:"description,omitempty"`
+	Category string `json:"category,omitempty"`
+	RepoURL string `json:"repo_url,omitempty"`
+	License string `json:"license,omitempty"`
+	AllowedTools string `json:"allowed_tools,omitempty"`
+	Compatibility string `json:"compatibility,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
 	Files []KnowledgeFile `json:"files"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 	ParentSkillID string `json:"parent_skill_id,omitempty"`
@@ -492,9 +492,9 @@ type SkillPublishRequest struct {
 	SourceURL string `json:"source_url,omitempty"`
 	VersionNotes string `json:"version_notes,omitempty"`
 	IsGitHubImport bool `json:"-"`
-	DisableModelInvocation bool `json:"disable_model_invocation"`
+	DisableModelInvocation bool `json:"disable_model_invocation,omitempty"`
 	UserInvocable *bool `json:"user_invocable,omitempty"`
-	Context string `json:"context"`
+	Context string `json:"context,omitempty"`
 }
 
 type CheckoutCreateRequest struct {
@@ -1647,10 +1647,10 @@ type SecretFieldConfig struct {
 
 // KnowledgeFile represents a file in a knowledge entry
 type KnowledgeFile struct {
-	Path string `json:"path"`
+	Path string `json:"path,omitempty"`
 	URI string `json:"uri,omitempty"`
-	Size int64 `json:"size"`
-	Hash string `json:"hash"`
+	Size int64 `json:"size,omitempty"`
+	Hash string `json:"hash,omitempty"`
 	Content string `json:"content,omitempty"`
 }
 
