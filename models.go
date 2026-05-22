@@ -2284,6 +2284,29 @@ type UpdateIntegrationScopesRequest struct {
 	Scopes []string `json:"scopes"`
 }
 
+// SuggestRequest is the input for the suggest endpoint.
+type SuggestRequest struct {
+	Query string `json:"query"`
+	Limit int `json:"limit,omitempty"`
+	Category string `json:"category,omitempty"`
+	Agent bool `json:"agent,omitempty"`
+}
+
+// SuggestResponse is the output of the suggest endpoint.
+type SuggestResponse struct {
+	Query string `json:"query"`
+	Results []SuggestResult `json:"results"`
+}
+
+// SuggestResult is a single result item from the suggest endpoint.
+type SuggestResult struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+	Description string `json:"description"`
+	Command string `json:"command"`
+	Score float64 `json:"score"`
+}
+
 // --------------------
 // source: requirements.go
 // --------------------
@@ -2467,6 +2490,9 @@ type SDKTypes struct {
 	_mcpServerDTO MCPServerDTO
 	// Plans
 	_planDTO PlanDTO
+	// Suggest
+	_suggestReq SuggestRequest
+	_suggestResp SuggestResponse
 	// Enums pulled in for const generation
 	_toolInvStatus ToolInvocationStatus
 	_toolType ToolType
@@ -3987,18 +4013,32 @@ func (v InstanceCloudProvider) Value() (driver.Value, error) {
 
 const (
 	CloudAWS InstanceCloudProvider = "aws"
+	CloudAmaya InstanceCloudProvider = "amaya"
 	CloudAzure InstanceCloudProvider = "azure"
-	CloudLambdaLabs InstanceCloudProvider = "lambdalabs"
-	CloudTensorDock InstanceCloudProvider = "tensordock"
-	CloudRunPod InstanceCloudProvider = "runpod"
-	CloudLatitude InstanceCloudProvider = "latitude"
+	CloudBoostrun InstanceCloudProvider = "boostrun"
+	CloudCrusoe InstanceCloudProvider = "crusoe"
+	CloudDatacrunch InstanceCloudProvider = "datacrunch"
+	CloudDenvr InstanceCloudProvider = "denvr"
+	CloudDigitalOcean InstanceCloudProvider = "digitalocean"
+	CloudExcessSupply InstanceCloudProvider = "excesssupply"
+	CloudHorizon InstanceCloudProvider = "horizon"
+	CloudHyperstack InstanceCloudProvider = "hyperstack"
+	CloudIMWT InstanceCloudProvider = "imwt"
 	CloudJarvisLabs InstanceCloudProvider = "jarvislabs"
+	CloudLambdaLabs InstanceCloudProvider = "lambdalabs"
+	CloudLatitude InstanceCloudProvider = "latitude"
+	CloudMassedCompute InstanceCloudProvider = "massedcompute"
+	CloudNebius InstanceCloudProvider = "nebius"
 	CloudOblivus InstanceCloudProvider = "oblivus"
 	CloudPaperspace InstanceCloudProvider = "paperspace"
-	CloudDatacrunch InstanceCloudProvider = "datacrunch"
-	CloudMassedCompute InstanceCloudProvider = "massedcompute"
-	CloudVultr InstanceCloudProvider = "vultr"
+	CloudPhyntec InstanceCloudProvider = "phyntec"
+	CloudRunPod InstanceCloudProvider = "runpod"
+	CloudScaleway InstanceCloudProvider = "scaleway"
 	CloudShade InstanceCloudProvider = "shade"
+	CloudTensorDock InstanceCloudProvider = "tensordock"
+	CloudVerda InstanceCloudProvider = "verda"
+	CloudVoltagePark InstanceCloudProvider = "voltagepark"
+	CloudVultr InstanceCloudProvider = "vultr"
 )
 
 type InstanceStatus string
