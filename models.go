@@ -1558,6 +1558,7 @@ type InstanceTypeDTO struct {
 	BaseModelDTO `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
 	Cloud InstanceCloudProvider `json:"cloud"`
+	CloudLogoURL string `json:"cloud_logo_url,omitempty"`
 	Region string `json:"region"`
 	ShadeInstanceType string `json:"shade_instance_type"`
 	CloudInstanceType string `json:"cloud_instance_type"`
