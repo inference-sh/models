@@ -1570,9 +1570,11 @@ type InstanceTypeDTO struct {
 
 type InstanceTypeConfiguration struct {
 	GPUType string `json:"gpu_type"`
+	GPUManufacturer string `json:"gpu_manufacturer"`
 	Interconnect string `json:"interconnect"`
 	MemoryInGB int `json:"memory_in_gb"`
 	NumGPUs int `json:"num_gpus"`
+	NVLink bool `json:"nvlink"`
 	OSOptions []string `json:"os_options"`
 	StorageInGB int `json:"storage_in_gb"`
 	VCPUs int `json:"vcpus"`
