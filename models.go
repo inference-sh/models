@@ -1701,8 +1701,8 @@ type KnowledgeDTO struct {
 	Namespace string `json:"namespace"`
 	Name string `json:"name"`
 	Description string `json:"description"`
-	Type string `json:"type"`
-	Lifecycle string `json:"lifecycle"`
+	Type KnowledgeType `json:"type"`
+	Lifecycle KnowledgeLifecycle `json:"lifecycle"`
 	VersionID string `json:"version_id"`
 	Version *KnowledgeVersionDTO `json:"version"`
 }
@@ -2182,10 +2182,9 @@ type RefRouteDTO struct {
 type KnowledgeCreateRequest struct {
 	Name string `json:"name"`
 	Description string `json:"description,omitempty"`
-	// Knowledge type: concept, skill, observation, preference, reference, person, project, agent-config
-	Type string `json:"type,omitempty"`
-	// Lifecycle: permanent (no decay) or decay (confidence decreases over time)
-	Lifecycle string `json:"lifecycle,omitempty"`
+	RepoURL string `json:"repo_url,omitempty"`
+	Type KnowledgeType `json:"type,omitempty"`
+	Lifecycle KnowledgeLifecycle `json:"lifecycle,omitempty"`
 	// Version content (inline — creates first version)
 	Version *KnowledgeVersionInput `json:"version,omitempty"`
 }
@@ -2261,6 +2260,11 @@ type OAuthConnectedApp struct {
 	AuthorizedAt time.Time `json:"authorized_at"`
 }
 
+// SetVisibilityRequest is used by admin endpoints to set visibility.
+type SetVisibilityRequest struct {
+	Visibility string `json:"visibility"`
+}
+
 // ChargeAmountRequest is the request for charging a saved payment method.
 type ChargeAmountRequest struct {
 	Amount int64 `json:"amount"`
@@ -2275,11 +2279,6 @@ type CompletePaymentRequest struct {
 // UpdateIntegrationScopesRequest updates integration scopes.
 type UpdateIntegrationScopesRequest struct {
 	Scopes []string `json:"scopes"`
-}
-
-// UpdateTaskVisibilityRequest sets task visibility.
-type UpdateTaskVisibilityRequest struct {
-	Visibility string `json:"visibility"`
 }
 
 // --------------------
@@ -2435,7 +2434,7 @@ type SDKTypes struct {
 	_taskLogsDTO TaskLogsDTO
 	_taskTimingsDTO TaskTimingsDTO
 	_cancelTask CancelTaskRequest
-	_taskVisibility UpdateTaskVisibilityRequest
+	_taskVisibility SetVisibilityRequest
 	// Files
 	_fileCreate FileCreateRequest
 	// Secrets
@@ -4136,6 +4135,34 @@ const (
 	RefRouteTypeApp RefRouteType = "app"
 	RefRouteTypeAgent RefRouteType = "agent"
 	RefRouteTypeSkill RefRouteType = "skill"
+)
+
+type KnowledgeType string
+
+func (v KnowledgeType) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	KnowledgeTypeConcept KnowledgeType = "concept"
+	KnowledgeTypeSkill KnowledgeType = "skill"
+	KnowledgeTypeObservation KnowledgeType = "observation"
+	KnowledgeTypePreference KnowledgeType = "preference"
+	KnowledgeTypeReference KnowledgeType = "reference"
+	KnowledgeTypePerson KnowledgeType = "person"
+	KnowledgeTypeProject KnowledgeType = "project"
+	KnowledgeTypeAgentConfig KnowledgeType = "agent-config"
+)
+
+type KnowledgeLifecycle string
+
+func (v KnowledgeLifecycle) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	KnowledgeLifecyclePermanent KnowledgeLifecycle = "permanent"
+	KnowledgeLifecycleDecay KnowledgeLifecycle = "decay"
 )
 
 type FilterOperator string
