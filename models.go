@@ -3268,8 +3268,9 @@ type WsTaskAcceptedPayload struct {
 }
 
 type WsTaskRejectedPayload struct {
-	TaskID string `json:"task_id"`
-	Reason RejectionReason `json:"reason"`
+	TaskID       string          `json:"task_id"`
+	Reason       RejectionReason `json:"reason"`
+	BusyWithTask *string         `json:"busy_with_task,omitempty"`
 }
 
 // WsTaskLifecyclePayload is shared by preparing/serving/setting_up/running/uploading events.
