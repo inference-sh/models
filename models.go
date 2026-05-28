@@ -3288,8 +3288,9 @@ const (
 	WSEventTaskCancel WSEventType = "task_cancel"
 	WSEventTaskForceCancel WSEventType = "task_force_cancel"
 	WSEventTaskCancelResult WSEventType = "task_cancel_result"
-	WSEventEngineStop WSEventType = "engine_stop"
-	WSEventEngineDrain WSEventType = "engine_drain"
+	WSEventEngineStop   WSEventType = "engine_stop"
+	WSEventEngineDrain  WSEventType = "engine_drain"
+	WSEventEngineUpdate WSEventType = "engine_update"
 	WSEventEngineDeleteHFCacheRepo WSEventType = "engine_delete_hfcache_repo"
 	WSEventSessionEnd WSEventType = "session_end"
 )
