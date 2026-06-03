@@ -4559,6 +4559,37 @@ func (ts TaskStatus) String() string {
 	}
 }
 
+func ParseTaskStatus(s string) (TaskStatus, bool) {
+	switch strings.ToLower(s) {
+	case "received":
+		return TaskStatusReceived, true
+	case "queued":
+		return TaskStatusQueued, true
+	case "dispatched":
+		return TaskStatusDispatched, true
+	case "preparing":
+		return TaskStatusPreparing, true
+	case "serving":
+		return TaskStatusServing, true
+	case "setting_up":
+		return TaskStatusSettingUp, true
+	case "running":
+		return TaskStatusRunning, true
+	case "cancelling":
+		return TaskStatusCancelling, true
+	case "uploading":
+		return TaskStatusUploading, true
+	case "completed":
+		return TaskStatusCompleted, true
+	case "failed":
+		return TaskStatusFailed, true
+	case "cancelled":
+		return TaskStatusCancelled, true
+	default:
+		return 0, false
+	}
+}
+
 func (ts TaskStatus) IsTerminal() bool {
 	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled
 }
