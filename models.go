@@ -1208,6 +1208,9 @@ type EngineConfig struct {
 	GPUs []string `json:"gpus" yaml:"gpus"`
 	CallbackBasePort int `json:"callback_base_port" yaml:"callback_base_port"`
 	EngineInternalAPIURL string `json:"engine_internal_api_url" yaml:"engine_internal_api_url"`
+	// Runtime selects the worker runtime: "docker" (default on linux) or "bare" (default on macOS).
+	// "bare" runs visor as a native process, enabling Metal/MPS GPU access on macOS.
+	Runtime string `json:"runtime" yaml:"runtime"`
 }
 
 // WorkerGPUConfig defines GPU allocation for a worker.
