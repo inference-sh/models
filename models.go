@@ -1208,9 +1208,6 @@ type EngineConfig struct {
 	GPUs []string `json:"gpus" yaml:"gpus"`
 	CallbackBasePort int `json:"callback_base_port" yaml:"callback_base_port"`
 	EngineInternalAPIURL string `json:"engine_internal_api_url" yaml:"engine_internal_api_url"`
-	// Runtime selects the worker runtime: "docker" (default on linux) or "bare" (default on macOS).
-	// "bare" runs visor as a native process, enabling Metal/MPS GPU access on macOS.
-	Runtime string `json:"runtime" yaml:"runtime"`
 }
 
 // WorkerGPUConfig defines GPU allocation for a worker.
@@ -1604,6 +1601,7 @@ type InstanceTypeBootTime struct {
 type IntegrationDTO struct {
 	BaseModelDTO `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
+	Scope IntegrationScope `json:"scope"`
 	Provider IntegrationProvider `json:"provider"`
 	Type IntegrationAuthType `json:"type"`
 	Auth IntegrationAuthType `json:"auth"`
@@ -2053,6 +2051,8 @@ type MenuDTO struct {
 // PlanLimit defines a single resource limit or feature gate within a plan.
 type PlanLimit struct {
 	Type EntitlementType `json:"type"`
+	Label string `json:"label,omitempty"`
+	Unit string `json:"unit,omitempty"`
 	Enabled bool `json:"enabled,omitempty"`
 	Unlimited bool `json:"unlimited,omitempty"`
 	Limit int `json:"limit,omitempty"`
@@ -3271,9 +3271,9 @@ type WsTaskAcceptedPayload struct {
 }
 
 type WsTaskRejectedPayload struct {
-	TaskID       string          `json:"task_id"`
-	Reason       RejectionReason `json:"reason"`
-	BusyWithTask *string         `json:"busy_with_task,omitempty"`
+	TaskID string `json:"task_id"`
+	Reason RejectionReason `json:"reason"`
+	BusyWithTask *string `json:"busy_with_task,omitempty"`
 }
 
 // WsTaskLifecyclePayload is shared by preparing/serving/setting_up/running/uploading events.
@@ -3291,8 +3291,8 @@ const (
 	WSEventTaskCancel WSEventType = "task_cancel"
 	WSEventTaskForceCancel WSEventType = "task_force_cancel"
 	WSEventTaskCancelResult WSEventType = "task_cancel_result"
-	WSEventEngineStop   WSEventType = "engine_stop"
-	WSEventEngineDrain  WSEventType = "engine_drain"
+	WSEventEngineStop WSEventType = "engine_stop"
+	WSEventEngineDrain WSEventType = "engine_drain"
 	WSEventEngineUpdate WSEventType = "engine_update"
 	WSEventEngineDeleteHFCacheRepo WSEventType = "engine_delete_hfcache_repo"
 	WSEventSessionEnd WSEventType = "session_end"
@@ -4257,18 +4257,24 @@ func (v EntitlementResource) Value() (driver.Value, error) {
 }
 
 const (
+	// Capacity limits — scale with tier
 	ResourceAPIKeys EntitlementResource = "api_keys"
 	ResourceConnectors EntitlementResource = "connectors"
 	ResourceKnowledgeBases EntitlementResource = "knowledge_bases"
-	ResourcePrivateApps EntitlementResource = "private_apps"
 	ResourceStorageMB EntitlementResource = "storage_mb"
 	ResourceConcurrency EntitlementResource = "concurrency"
 	ResourceRatePerMin EntitlementResource = "rate_per_min"
 	ResourceSeats EntitlementResource = "seats"
+	ResourceTriggers EntitlementResource = "triggers"
+	ResourceRetentionDays EntitlementResource = "retention_days"
+	// Legacy — kept for DB compatibility, no longer in plan seeds
+	ResourcePrivateApps EntitlementResource = "private_apps"
 	ResourceTaskExecutions EntitlementResource = "task_executions"
+	// Feature gates — only what has real cost/complexity
+	ResourceFeatureBYOK EntitlementResource = "feature:byok"
+	// Legacy feature gates — kept for DB compatibility, no longer gated
 	ResourceFeatureScopes EntitlementResource = "feature:scopes"
 	ResourceFeatureWebhooks EntitlementResource = "feature:webhooks"
-	ResourceFeatureBYOK EntitlementResource = "feature:byok"
 	ResourceFeatureTeamBilling EntitlementResource = "feature:team_billing"
 	ResourceFeatureAutoRecharge EntitlementResource = "feature:auto_recharge"
 	ResourceFeatureInvoices EntitlementResource = "feature:invoices"
@@ -4327,6 +4333,16 @@ const (
 	IntegrationStatusDisconnected IntegrationStatus = "disconnected"
 	IntegrationStatusExpired IntegrationStatus = "expired"
 	IntegrationStatusError IntegrationStatus = "error"
+)
+
+// IntegrationScope distinguishes platform-provided vs team-owned integrations.
+type IntegrationScope string
+
+const (
+	// IntegrationScopeTeam is owned by a user/team (BYOK credentials, user connections)
+	IntegrationScopeTeam IntegrationScope = "team"
+	// IntegrationScopePlatform is owned by the platform (managed credentials, admin-configured)
+	IntegrationScopePlatform IntegrationScope = "platform"
 )
 
 type WidgetNodeType string
@@ -4455,6 +4471,10 @@ const (
 	NotificationTypeUsageSummary NotificationType = "usage_summary"
 	NotificationTypeSpendingLimit NotificationType = "spending_limit"
 	NotificationTypeInvoice NotificationType = "invoice"
+	NotificationTypeSubscriptionCreated NotificationType = "subscription_created"
+	NotificationTypeSubscriptionCredit NotificationType = "subscription_credit"
+	NotificationTypeSubscriptionCanceled NotificationType = "subscription_canceled"
+	NotificationTypeSubscriptionTrialEnding NotificationType = "subscription_trial_ending"
 	// Account notifications
 	NotificationTypeWelcome NotificationType = "welcome"
 	NotificationTypeWelcomeAgents NotificationType = "welcome_agents"
@@ -4562,37 +4582,6 @@ func (ts TaskStatus) String() string {
 	}
 }
 
-func ParseTaskStatus(s string) (TaskStatus, bool) {
-	switch strings.ToLower(s) {
-	case "received":
-		return TaskStatusReceived, true
-	case "queued":
-		return TaskStatusQueued, true
-	case "dispatched":
-		return TaskStatusDispatched, true
-	case "preparing":
-		return TaskStatusPreparing, true
-	case "serving":
-		return TaskStatusServing, true
-	case "setting_up":
-		return TaskStatusSettingUp, true
-	case "running":
-		return TaskStatusRunning, true
-	case "cancelling":
-		return TaskStatusCancelling, true
-	case "uploading":
-		return TaskStatusUploading, true
-	case "completed":
-		return TaskStatusCompleted, true
-	case "failed":
-		return TaskStatusFailed, true
-	case "cancelled":
-		return TaskStatusCancelled, true
-	default:
-		return 0, false
-	}
-}
-
 func (ts TaskStatus) IsTerminal() bool {
 	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled
 }
@@ -4622,7 +4611,7 @@ func (ts TaskStatus) CanTransitionTo(next TaskStatus) bool {
 	if ts.StatusOrder() <= next.StatusOrder() {
 		return true
 	}
-	if ts == TaskStatusDispatched && next == TaskStatusReceived {
+	if ts == TaskStatusDispatched && (next == TaskStatusReceived || next == TaskStatusQueued) {
 		return true
 	}
 	return false
