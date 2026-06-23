@@ -925,11 +925,16 @@ type SecretRequirement struct {
 	Optional bool `json:"optional,omitempty" yaml:"optional,omitempty"`
 }
 
-// IntegrationRequirement defines an integration capability that an app requires.
+// IntegrationRequirement defines an integration that an app requires.
+// Key is the provider slug (e.g. "bytedance", "google").
+// Secrets lists the specific env var names to inject from this integration.
+// Scopes lists OAuth scopes needed (for OAuth integrations).
 type IntegrationRequirement struct {
 	Key string `json:"key" yaml:"key"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	Optional bool `json:"optional,omitempty" yaml:"optional,omitempty"`
+	Secrets []string `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	Scopes []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
 }
 
 // AppDTO is the API response for a full app.
@@ -3835,6 +3840,7 @@ const (
 	GraphNodeTypeApproval GraphNodeType = "approval"
 	GraphNodeTypeConditional GraphNodeType = "conditional"
 	GraphNodeTypeFlowNode GraphNodeType = "flow_node"
+	GraphNodeTypeTrigger GraphNodeType = "trigger"
 )
 
 // GraphNodeStatus represents the status of a node
