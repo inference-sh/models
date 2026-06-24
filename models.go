@@ -2319,6 +2319,13 @@ type SuggestResult struct {
 // source: requirements.go
 // --------------------
 
+// Requirement error types
+const (
+	RequirementTypeSecret      = "secret"
+	RequirementTypeIntegration = "integration"
+	RequirementTypeScope       = "scope"
+)
+
 // RequirementError represents a single missing requirement with actionable info
 type RequirementError struct {
 	Type string `json:"type"` // "secret" | "integration" | "scope"
