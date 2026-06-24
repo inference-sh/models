@@ -1026,7 +1026,7 @@ class SuggestResult(TypedDict, total=False):
 
 # RequirementError represents a single missing requirement with actionable info
 class RequirementError(TypedDict, total=False):
-    type: str
+    type: RequirementType
     key: str
     message: str
     action: Optional[SetupAction]
@@ -2167,6 +2167,12 @@ class ScopeGroup(str, Enum):
     API_KEYS = "apikeys"
     USER = "user"
     SETTINGS = "settings"
+
+# Requirement error types
+class RequirementType(str, Enum):
+    SECRET = "secret"
+    INTEGRATION = "integration"
+    SCOPE = "scope"
 
 class AppCategory(str, Enum):
     IMAGE = "image"

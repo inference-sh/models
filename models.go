@@ -2320,9 +2320,19 @@ type SuggestResult struct {
 // source: requirements.go
 // --------------------
 
+// RequirementType identifies the kind of missing requirement.
+type RequirementType string
+
+// Requirement error types
+const (
+	RequirementTypeSecret RequirementType = "secret"
+	RequirementTypeIntegration RequirementType = "integration"
+	RequirementTypeScope RequirementType = "scope"
+)
+
 // RequirementError represents a single missing requirement with actionable info
 type RequirementError struct {
-	Type string `json:"type"` // "secret" | "integration" | "scope"
+	Type RequirementType `json:"type"` // "secret" | "integration" | "scope"
 	Key string `json:"key"` // The requirement key that's missing
 	Message string `json:"message"` // Human-readable error message
 	Action *SetupAction `json:"action,omitempty"`

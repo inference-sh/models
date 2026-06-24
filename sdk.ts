@@ -1942,10 +1942,26 @@ export interface SuggestResult {
   score: number /* float64 */;
 }
 /**
+ * RequirementType identifies the kind of missing requirement.
+ */
+export type RequirementType = string;
+/**
+ * Requirement error types
+ */
+export const RequirementTypeSecret: RequirementType = "secret";
+/**
+ * Requirement error types
+ */
+export const RequirementTypeIntegration: RequirementType = "integration";
+/**
+ * Requirement error types
+ */
+export const RequirementTypeScope: RequirementType = "scope";
+/**
  * RequirementError represents a single missing requirement with actionable info
  */
 export interface RequirementError {
-  type: string; // "secret" | "integration" | "scope"
+  type: RequirementType; // "secret" | "integration" | "scope"
   key: string; // The requirement key that's missing
   message: string; // Human-readable error message
   action?: SetupAction;
