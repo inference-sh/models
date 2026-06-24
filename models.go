@@ -1625,6 +1625,7 @@ type IntegrationDTO struct {
 
 // IntegrationConfigDTO is the API response for integration configuration
 type IntegrationConfigDTO struct {
+	Slug string `json:"slug"`
 	Provider string `json:"provider"`
 	Type string `json:"type"`
 	Auth string `json:"auth"`
@@ -2318,13 +2319,6 @@ type SuggestResult struct {
 // --------------------
 // source: requirements.go
 // --------------------
-
-// Requirement error types
-const (
-	RequirementTypeSecret      = "secret"
-	RequirementTypeIntegration = "integration"
-	RequirementTypeScope       = "scope"
-)
 
 // RequirementError represents a single missing requirement with actionable info
 type RequirementError struct {

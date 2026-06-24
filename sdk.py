@@ -752,6 +752,7 @@ class InstanceTypeBootTime(TypedDict, total=False):
 
 # IntegrationConfigDTO is the API response for integration configuration
 class IntegrationConfigDTO(TypedDict, total=False):
+    slug: str
     provider: str
     type: str
     auth: str

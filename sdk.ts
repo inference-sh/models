@@ -1449,6 +1449,7 @@ export interface IntegrationDTO extends BaseModelDTO, PermissionModelDTO {
  * IntegrationConfigDTO is the API response for integration configuration
  */
 export interface IntegrationConfigDTO {
+  slug: string;
   provider: string;
   type: string;
   auth: string;
