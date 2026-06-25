@@ -3756,6 +3756,23 @@ func (ts FlowRunStatus) IsTerminal() bool {
 	return ts == FlowRunStatusCompleted || ts == FlowRunStatusFailed || ts == FlowRunStatusCancelled
 }
 
+func (ts FlowRunStatus) String() string {
+	switch ts {
+	case FlowRunStatusPending:
+		return "pending"
+	case FlowRunStatusRunning:
+		return "running"
+	case FlowRunStatusCompleted:
+		return "completed"
+	case FlowRunStatusFailed:
+		return "failed"
+	case FlowRunStatusCancelled:
+		return "cancelled"
+	default:
+		return "unknown"
+	}
+}
+
 func (v FlowRunStatus) Value() (driver.Value, error) {
 	return int64(v), nil
 }
