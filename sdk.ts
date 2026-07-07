@@ -3020,6 +3020,7 @@ export const ContentUnrated: ContentRating = "unrated";
  */
 export type IntegrationProvider = string;
 export const IntegrationProviderGoogle: IntegrationProvider = "google";
+export const IntegrationProviderGoogleSA: IntegrationProvider = "google-sa";
 export const IntegrationProviderSlack: IntegrationProvider = "slack";
 export const IntegrationProviderNotion: IntegrationProvider = "notion";
 export const IntegrationProviderGitHub: IntegrationProvider = "github";

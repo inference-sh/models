@@ -2519,6 +2519,7 @@ class ContentRating(str, Enum):
 
 class IntegrationProvider(str, Enum):
     GOOGLE = "google"
+    GOOGLE_SA = "google-sa"
     SLACK = "slack"
     NOTION = "notion"
     GIT_HUB = "github"

@@ -4336,6 +4336,7 @@ type IntegrationProvider string
 
 const (
 	IntegrationProviderGoogle IntegrationProvider = "google"
+	IntegrationProviderGoogleSA IntegrationProvider = "google-sa"
 	IntegrationProviderSlack IntegrationProvider = "slack"
 	IntegrationProviderNotion IntegrationProvider = "notion"
 	IntegrationProviderGitHub IntegrationProvider = "github"
