@@ -511,6 +511,13 @@ type AuthResponse struct {
 	Provider string `json:"provider,omitempty"`
 }
 
+// DeviceAuthInitRequest is the optional body for initiating device auth.
+// TokenKind selects the credential minted on approval; empty means
+// DeviceTokenKindAPIKey (legacy CLIs send no body).
+type DeviceAuthInitRequest struct {
+	TokenKind DeviceTokenKind `json:"token_kind,omitempty"`
+}
+
 type DeviceAuthResponse struct {
 	UserCode string `json:"user_code"`
 	DeviceCode string `json:"device_code"`
@@ -522,7 +529,11 @@ type DeviceAuthResponse struct {
 
 type DeviceAuthPollResponse struct {
 	Status DeviceAuthStatus `json:"status"`
+	// ApiKey is set for legacy device-auth API key logins.
+	// TODO: remove once CLIs older than the session-token release are retired.
 	ApiKey string `json:"api_key,omitempty"`
+	// SessionToken is set when the flow was initiated with token_kind=session.
+	SessionToken string `json:"session_token,omitempty"`
 	TeamID string `json:"team_id,omitempty"`
 }
 
@@ -2427,6 +2438,7 @@ type SDKTypes struct {
 	_authResp AuthResponse
 	_authSessionDTO AuthSessionDTO
 	_scopesResp ScopesResponse
+	_deviceAuthInit DeviceAuthInitRequest
 	_deviceAuthResp DeviceAuthResponse
 	_deviceAuthPoll DeviceAuthPollResponse
 	// Teams
@@ -4282,6 +4294,18 @@ const (
 	DeviceAuthStatusValid DeviceAuthStatus = "valid"
 	DeviceAuthStatusInvalid DeviceAuthStatus = "invalid"
 	DeviceAuthStatusLoading DeviceAuthStatus = "loading"
+)
+
+// DeviceTokenKind selects the credential minted when a device auth flow is approved.
+type DeviceTokenKind string
+
+const (
+	// DeviceTokenKindSession mints a revocable CLI session (acts as the user,
+	// supports team switching via X-Team-ID).
+	DeviceTokenKindSession DeviceTokenKind = "session"
+	// DeviceTokenKindAPIKey mints a device-scoped API key.
+	// TODO: retire once CLIs older than the session-token release are gone.
+	DeviceTokenKindAPIKey DeviceTokenKind = "api_key"
 )
 
 type EntitlementResource string
