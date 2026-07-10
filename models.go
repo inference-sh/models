@@ -3731,17 +3731,22 @@ func (m *StringEncodedMap) ToString() (string, error) {
 // EngineStatus represents the status of an engine.
 type EngineStatus string
 
+// EngineTerminal returns true if the engine is in a final, non-recoverable state.
+func (s EngineStatus) EngineTerminal() bool {
+	return s == EngineStatusStopped
+}
+
 func (v EngineStatus) Value() (driver.Value, error) {
 	return string(v), nil
 }
 
 const (
-	EngineStatusRunning      EngineStatus = "running"
-	EngineStatusPending      EngineStatus = "pending"
-	EngineStatusDraining     EngineStatus = "draining"
+	EngineStatusRunning EngineStatus = "running"
+	EngineStatusPending EngineStatus = "pending"
+	EngineStatusDraining EngineStatus = "draining"
 	EngineStatusDisconnected EngineStatus = "disconnected"
-	EngineStatusStopping     EngineStatus = "stopping"
-	EngineStatusStopped      EngineStatus = "stopped"
+	EngineStatusStopping EngineStatus = "stopping"
+	EngineStatusStopped EngineStatus = "stopped"
 )
 
 // WorkerStatus represents the status of a worker.

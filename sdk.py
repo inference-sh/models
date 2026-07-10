@@ -2259,6 +2259,7 @@ class EngineStatus(str, Enum):
     RUNNING = "running"
     PENDING = "pending"
     DRAINING = "draining"
+    DISCONNECTED = "disconnected"
     STOPPING = "stopping"
     STOPPED = "stopped"
 
