@@ -3736,11 +3736,12 @@ func (v EngineStatus) Value() (driver.Value, error) {
 }
 
 const (
-	EngineStatusRunning EngineStatus = "running"
-	EngineStatusPending EngineStatus = "pending"
-	EngineStatusDraining EngineStatus = "draining"
-	EngineStatusStopping EngineStatus = "stopping"
-	EngineStatusStopped EngineStatus = "stopped"
+	EngineStatusRunning      EngineStatus = "running"
+	EngineStatusPending      EngineStatus = "pending"
+	EngineStatusDraining     EngineStatus = "draining"
+	EngineStatusDisconnected EngineStatus = "disconnected"
+	EngineStatusStopping     EngineStatus = "stopping"
+	EngineStatusStopped      EngineStatus = "stopped"
 )
 
 // WorkerStatus represents the status of a worker.
