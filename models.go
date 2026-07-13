@@ -1075,6 +1075,7 @@ type AuthSessionDTO struct {
 	Browser string `json:"browser"`
 	BrowserVersion string `json:"browser_version"`
 	AuthMethod string `json:"auth_method"`
+	Scopes []Scope `json:"scopes,omitempty"`
 	Current bool `json:"current"`
 }
 
@@ -2349,11 +2350,22 @@ type RequirementError struct {
 	Action *SetupAction `json:"action,omitempty"`
 }
 
+// SetupActionType identifies the kind of action needed to resolve a requirement.
+type SetupActionType string
+
+const (
+	SetupActionAddSecret SetupActionType = "add_secret"
+	SetupActionConnect SetupActionType = "connect"
+	SetupActionAddScopes SetupActionType = "add_scopes"
+)
+
 // SetupAction provides actionable info for resolving a missing requirement
 type SetupAction struct {
-	Type string `json:"type"` // "add_secret" | "connect" | "add_scopes"
-	Provider string `json:"provider,omitempty"` // For integration actions
+	Type SetupActionType `json:"type"` // add_secret | connect | add_scopes
+	Provider string `json:"provider,omitempty"` // Provider key (e.g. "google")
+	ProviderName string `json:"provider_name,omitempty"` // Display name (e.g. "Google Account")
 	Scopes []string `json:"scopes,omitempty"` // Scopes to request
+	ScopeDescriptions map[string]string `json:"scope_descriptions,omitempty"` // Scope key → friendly description
 }
 
 // Capability represents an integration capability that can be requested by apps
@@ -3887,6 +3899,7 @@ const (
 	GraphNodeTypeConditional GraphNodeType = "conditional"
 	GraphNodeTypeFlowNode GraphNodeType = "flow_node"
 	GraphNodeTypeTrigger GraphNodeType = "trigger"
+	GraphNodeTypeIntegrationRequirement GraphNodeType = "integration_requirement"
 )
 
 // GraphNodeStatus represents the status of a node
@@ -4394,6 +4407,7 @@ const (
 type IntegrationStatus string
 
 const (
+	IntegrationStatusPending IntegrationStatus = "pending"
 	IntegrationStatusConnected IntegrationStatus = "connected"
 	IntegrationStatusDisconnected IntegrationStatus = "disconnected"
 	IntegrationStatusExpired IntegrationStatus = "expired"
