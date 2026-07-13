@@ -1038,6 +1038,7 @@ type AppStoreListingDTO struct {
 	AllowsCloudWorkers bool `json:"allows_cloud_workers"`
 	MaxConcurrency int `json:"max_concurrency"`
 	MaxConcurrencyPerTeam int `json:"max_concurrency_per_team"`
+	MinConcurrency int `json:"min_concurrency"`
 	Tags []string `json:"tags,omitempty"`
 }
 
@@ -3157,6 +3158,8 @@ type UserMetadataDTO struct {
 	UseCaseReason string `json:"use_case_reason"`
 	UseCasePrivacy string `json:"use_case_privacy"`
 	SignupSource string `json:"signup_source"`
+	TermsAcceptedAt *time.Time `json:"terms_accepted_at"`
+	TermsVersion string `json:"terms_version"`
 }
 
 // --------------------
