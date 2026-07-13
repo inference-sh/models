@@ -2308,11 +2308,11 @@ type UpdateIntegrationScopesRequest struct {
 
 // SuggestRequest is the input for the suggest endpoint.
 type SuggestRequest struct {
-	Query   string `json:"query"`
-	Context string `json:"context,omitempty"` // conversation context — used for embedding enrichment, not keyword search
-	Limit   int    `json:"limit,omitempty"`
+	Query string `json:"query"`
+	Context string `json:"context,omitempty"` // conversation context for embedding enrichment
+	Limit int `json:"limit,omitempty"`
 	Category string `json:"category,omitempty"`
-	Agent   bool   `json:"agent,omitempty"`
+	Agent bool `json:"agent,omitempty"`
 }
 
 // SuggestResponse is the output of the suggest endpoint.
