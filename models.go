@@ -3376,6 +3376,7 @@ type WsEngineHeartbeatPayload struct {
 type EngineTelemetry struct {
 	EngineID string `json:"engine_id"`
 	Status EngineStatus `json:"status"`
+	EngineVersion string `json:"engine_version,omitempty"`
 	SystemInfo *SystemInfo `json:"system_info"`
 	Workers []WorkerTelemetry `json:"workers"`
 }
