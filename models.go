@@ -1278,6 +1278,7 @@ type EngineDTO struct {
 	Name string `json:"name"`
 	APIURL string `json:"api_url"`
 	Status EngineStatus `json:"status"`
+	EngineVersion string `json:"engine_version"`
 	SystemInfo *SystemInfo `json:"system_info"`
 	Workers []*WorkerDTO `json:"workers"`
 }
@@ -3954,6 +3955,7 @@ const (
 	GraphEdgeTypeAncestor GraphEdgeType = "ancestor"
 	GraphEdgeTypeDuplicate GraphEdgeType = "duplicate"
 	GraphEdgeTypeReferences GraphEdgeType = "references"
+	GraphEdgeTypeSupersedes GraphEdgeType = "supersedes"
 )
 
 // --------------------
@@ -4571,6 +4573,8 @@ const (
 	// Task notifications
 	NotificationTypeTaskComplete NotificationType = "task_complete"
 	NotificationTypeTaskFailed NotificationType = "task_failed"
+	// Data export
+	NotificationTypeDataExport NotificationType = "data_export"
 	// System notifications
 	NotificationTypeSystemAlert NotificationType = "system_alert"
 	NotificationTypeMaintenance NotificationType = "maintenance"

@@ -1828,6 +1828,7 @@ class EngineDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     name: str
     api_url: str
     status: EngineStatus
+    engine_version: str
     system_info: Optional[SystemInfo]
     workers: List[Optional[WorkerDTO]]
 
@@ -2325,6 +2326,7 @@ class GraphEdgeType(str, Enum):
     ANCESTOR = "ancestor"
     DUPLICATE = "duplicate"
     REFERENCES = "references"
+    SUPERSEDES = "supersedes"
 
 class SecretScope(str, Enum):
     # SecretScopeTeam is a normal user secret, visible in team secret lists
@@ -2648,6 +2650,8 @@ class NotificationType(str, Enum):
     # Task notifications
     TASK_COMPLETE = "task_complete"
     TASK_FAILED = "task_failed"
+    # Data export
+    DATA_EXPORT = "data_export"
     # System notifications
     SYSTEM_ALERT = "system_alert"
     MAINTENANCE = "maintenance"
