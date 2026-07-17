@@ -2325,6 +2325,7 @@ type SuggestResponse struct {
 // SuggestResult is a single result item from the suggest endpoint.
 type SuggestResult struct {
 	Type string `json:"type"`
+	Tag string `json:"tag,omitempty"`
 	Name string `json:"name"`
 	Description string `json:"description"`
 	Command string `json:"command"`
