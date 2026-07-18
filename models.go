@@ -2670,7 +2670,6 @@ type SecretDTO struct {
 type SubscriptionDTO struct {
 	BaseModelDTO `tstype:",extends"`
 	TeamID string `json:"team_id"`
-	StripeSubscriptionID string `json:"stripe_subscription_id,omitempty"`
 	PlanID string `json:"plan_id"`
 	Plan *PlanDTO `json:"plan,omitempty"`
 	Interval SubscriptionInterval `json:"interval"`
