@@ -1039,6 +1039,7 @@ type AppStoreListingDTO struct {
 	MaxConcurrency int `json:"max_concurrency"`
 	MaxConcurrencyPerTeam int `json:"max_concurrency_per_team"`
 	MinConcurrency int `json:"min_concurrency"`
+	RequiredFeature string `json:"required_feature,omitempty"`
 	Tags []string `json:"tags,omitempty"`
 }
 
