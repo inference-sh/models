@@ -1841,6 +1841,7 @@ export interface KnowledgeVersionInput {
   content?: KnowledgeFile;
   files?: KnowledgeFile[];
   tags?: string[];
+  scope?: string[]; // environment signals for project scoping
   metadata?: { [key: string]: string};
   source_url?: string;
   mutation_type?: string;

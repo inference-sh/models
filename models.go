@@ -2225,6 +2225,7 @@ type KnowledgeVersionInput struct {
 	Content *KnowledgeFile `json:"content,omitempty"`
 	Files []KnowledgeFile `json:"files,omitempty"`
 	Tags []string `json:"tags,omitempty"`
+	Scope []string `json:"scope,omitempty"` // environment signals for project scoping
 	Metadata map[string]string `json:"metadata,omitempty"`
 	SourceURL string `json:"source_url,omitempty"`
 	MutationType string `json:"mutation_type,omitempty"`

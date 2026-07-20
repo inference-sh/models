@@ -944,6 +944,7 @@ class KnowledgeVersionInput(TypedDict, total=False):
     content: Optional[KnowledgeFile]
     files: List[KnowledgeFile]
     tags: List[str]
+    scope: List[str]
     metadata: Dict[str, str]
     source_url: str
     mutation_type: str
