@@ -1024,6 +1024,7 @@ class SuggestRequest(TypedDict, total=False):
     limit: int
     category: str
     agent: bool
+    scope: List[str]
 
 # SuggestResponse is the output of the suggest endpoint.
 class SuggestResponse(TypedDict, total=False):
@@ -1697,6 +1698,7 @@ class KnowledgeVersionDTO(BaseModelDTO, TypedDict, total=False):
     content_hash: str
     description: str
     tags: List[str]
+    scope: List[str]
     metadata: Dict[str, str]
     source_url: str
     mutation_type: str

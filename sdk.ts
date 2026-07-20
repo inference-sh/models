@@ -1554,6 +1554,7 @@ export interface KnowledgeVersionDTO extends BaseModelDTO {
   content_hash: string;
   description: string;
   tags: string[];
+  scope?: string[]; // environment signals for project scoping
   metadata?: { [key: string]: string};
   source_url?: string;
   mutation_type?: string;
@@ -1946,6 +1947,7 @@ export interface SuggestRequest {
   limit?: number /* int */;
   category?: string;
   agent?: boolean;
+  scope?: string[]; // environment signals for overlap ranking (e.g. "git:user/repo", "lang:go")
 }
 /**
  * SuggestResponse is the output of the suggest endpoint.
