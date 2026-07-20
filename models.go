@@ -1383,6 +1383,7 @@ type EntitlementDTO struct {
 	Source EntitlementSource `json:"source"`
 	Enforcement EnforcementMode `json:"enforcement"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	TeamPlanID *string `json:"team_plan_id,omitempty"`
 }
 
 // --------------------
@@ -1748,6 +1749,7 @@ type KnowledgeVersionDTO struct {
 	ContentHash string `json:"content_hash"`
 	Description string `json:"description"`
 	Tags []string `json:"tags"`
+	Scope []string `json:"scope,omitempty"` // environment signals for project scoping
 	Metadata map[string]string `json:"metadata,omitempty"`
 	SourceURL string `json:"source_url,omitempty"`
 	MutationType string `json:"mutation_type,omitempty"`
@@ -2091,6 +2093,7 @@ type PlanDTO struct {
 	DisplayOrder int `json:"display_order"`
 	Active bool `json:"active"`
 	SelfServe *bool `json:"self_serve"`
+	PlanType PlanType `json:"plan_type"`
 	PriceMonthly *int `json:"price_monthly"`
 	PriceYearly *int `json:"price_yearly"`
 	CreditsMonthly int64 `json:"credits_monthly"`
@@ -2315,6 +2318,7 @@ type SuggestRequest struct {
 	Limit int `json:"limit,omitempty"`
 	Category string `json:"category,omitempty"`
 	Agent bool `json:"agent,omitempty"`
+	Scope []string `json:"scope,omitempty"` // environment signals for overlap ranking (e.g. "git:user/repo", "lang:go")
 }
 
 // SuggestResponse is the output of the suggest endpoint.
@@ -3496,6 +3500,49 @@ const (
 	SubscriptionIntervalYearly SubscriptionInterval = "yearly"
 )
 
+type PlanType string
+
+const (
+	PlanTypeBase PlanType = "base"
+	PlanTypeAddon PlanType = "addon"
+)
+
+type EntitlementSource string
+
+func (v EntitlementSource) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	EntitlementSourceTier EntitlementSource = "tier"
+	EntitlementSourceOverride EntitlementSource = "override"
+	EntitlementSourceWhitelist EntitlementSource = "whitelist"
+	EntitlementSourceTrial EntitlementSource = "trial"
+	EntitlementSourceAddon EntitlementSource = "addon"
+)
+
+type EntitlementType string
+
+func (v EntitlementType) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	EntitlementTypeBoolean EntitlementType = "boolean"
+	EntitlementTypeLimit EntitlementType = "limit"
+)
+
+type EnforcementMode string
+
+func (v EnforcementMode) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	EnforcementBlock EnforcementMode = "block"
+	EnforcementWarn EnforcementMode = "warn"
+)
+
 // --------------------
 // source: chat.go
 // --------------------
@@ -3977,42 +4024,6 @@ const (
 	SecretScopeInternal SecretScope = "internal"
 	// SecretScopeSystem is a global system setting, owned by system team, admin-only
 	SecretScopeSystem SecretScope = "system"
-)
-
-type EntitlementSource string
-
-func (v EntitlementSource) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	EntitlementSourceTier EntitlementSource = "tier"
-	EntitlementSourceOverride EntitlementSource = "override"
-	EntitlementSourceWhitelist EntitlementSource = "whitelist"
-	EntitlementSourceTrial EntitlementSource = "trial"
-)
-
-type EntitlementType string
-
-func (v EntitlementType) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	EntitlementTypeBoolean EntitlementType = "boolean"
-	EntitlementTypeLimit EntitlementType = "limit"
-)
-
-// EnforcementMode controls how limit violations are handled.
-type EnforcementMode string
-
-func (v EnforcementMode) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	EnforcementBlock EnforcementMode = "block"
-	EnforcementWarn EnforcementMode = "warn"
 )
 
 type PageStatus int

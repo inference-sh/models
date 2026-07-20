@@ -1235,6 +1235,7 @@ export interface EntitlementDTO extends BaseModelDTO {
   source: EntitlementSource;
   enforcement: EnforcementMode;
   expires_at?: string /* RFC3339 */;
+  team_plan_id?: string;
 }
 /**
  * FileMetadata holds probed media metadata cached on File records.
@@ -1778,6 +1779,7 @@ export interface PlanDTO extends BaseModelDTO {
   display_order: number /* int */;
   active: boolean;
   self_serve?: boolean;
+  plan_type: PlanType;
   price_monthly?: number /* int */;
   price_yearly?: number /* int */;
   credits_monthly: number /* int64 */;
@@ -2572,6 +2574,21 @@ export const SubscriptionStatusPaused: SubscriptionStatus = "paused";
 export type SubscriptionInterval = string;
 export const SubscriptionIntervalMonthly: SubscriptionInterval = "monthly";
 export const SubscriptionIntervalYearly: SubscriptionInterval = "yearly";
+export type PlanType = string;
+export const PlanTypeBase: PlanType = "base";
+export const PlanTypeAddon: PlanType = "addon";
+export type EntitlementSource = string;
+export const EntitlementSourceTier: EntitlementSource = "tier";
+export const EntitlementSourceOverride: EntitlementSource = "override";
+export const EntitlementSourceWhitelist: EntitlementSource = "whitelist";
+export const EntitlementSourceTrial: EntitlementSource = "trial";
+export const EntitlementSourceAddon: EntitlementSource = "addon";
+export type EntitlementType = string;
+export const EntitlementTypeBoolean: EntitlementType = "boolean";
+export const EntitlementTypeLimit: EntitlementType = "limit";
+export type EnforcementMode = string;
+export const EnforcementBlock: EnforcementMode = "block";
+export const EnforcementWarn: EnforcementMode = "warn";
 export type ChatStatus = string;
 export const ChatStatusBusy: ChatStatus = "busy";
 export const ChatStatusIdle: ChatStatus = "idle";
@@ -2832,20 +2849,6 @@ export const SecretScopeInternal: SecretScope = "internal";
  * SecretScopeSystem is a global system setting, owned by system team, admin-only
  */
 export const SecretScopeSystem: SecretScope = "system";
-export type EntitlementSource = string;
-export const EntitlementSourceTier: EntitlementSource = "tier";
-export const EntitlementSourceOverride: EntitlementSource = "override";
-export const EntitlementSourceWhitelist: EntitlementSource = "whitelist";
-export const EntitlementSourceTrial: EntitlementSource = "trial";
-export type EntitlementType = string;
-export const EntitlementTypeBoolean: EntitlementType = "boolean";
-export const EntitlementTypeLimit: EntitlementType = "limit";
-/**
- * EnforcementMode controls how limit violations are handled.
- */
-export type EnforcementMode = string;
-export const EnforcementBlock: EnforcementMode = "block";
-export const EnforcementWarn: EnforcementMode = "warn";
 export type PageStatus = number /* int */;
 export const PageStatusUnknown: PageStatus = 0;
 export const PageStatusDraft: PageStatus = 1;

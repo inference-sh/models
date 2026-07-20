@@ -1638,6 +1638,7 @@ class EntitlementDTO(BaseModelDTO, TypedDict, total=False):
     source: EntitlementSource
     enforcement: EnforcementMode
     expires_at: Optional[str]
+    team_plan_id: Optional[str]
 
 # FlowVersionDTO for API responses
 class FlowVersionDTO(BaseModelDTO, TypedDict, total=False):
@@ -1709,6 +1710,7 @@ class PlanDTO(BaseModelDTO, TypedDict, total=False):
     display_order: int
     active: bool
     self_serve: Optional[bool]
+    plan_type: PlanType
     price_monthly: Optional[int]
     price_yearly: Optional[int]
     credits_monthly: int
@@ -2232,6 +2234,25 @@ class SubscriptionInterval(str, Enum):
     MONTHLY = "monthly"
     YEARLY = "yearly"
 
+class PlanType(str, Enum):
+    BASE = "base"
+    ADDON = "addon"
+
+class EntitlementSource(str, Enum):
+    TIER = "tier"
+    OVERRIDE = "override"
+    WHITELIST = "whitelist"
+    TRIAL = "trial"
+    ADDON = "addon"
+
+class EntitlementType(str, Enum):
+    BOOLEAN = "boolean"
+    LIMIT = "limit"
+
+class EnforcementMode(str, Enum):
+    ENFORCEMENT_BLOCK = "block"
+    ENFORCEMENT_WARN = "warn"
+
 class ChatStatus(str, Enum):
     BUSY = "busy"
     IDLE = "idle"
@@ -2336,20 +2357,6 @@ class SecretScope(str, Enum):
     INTERNAL = "internal"
     # SecretScopeSystem is a global system setting, owned by system team, admin-only
     SYSTEM = "system"
-
-class EntitlementSource(str, Enum):
-    TIER = "tier"
-    OVERRIDE = "override"
-    WHITELIST = "whitelist"
-    TRIAL = "trial"
-
-class EntitlementType(str, Enum):
-    BOOLEAN = "boolean"
-    LIMIT = "limit"
-
-class EnforcementMode(str, Enum):
-    ENFORCEMENT_BLOCK = "block"
-    ENFORCEMENT_WARN = "warn"
 
 class PageStatus(IntEnum):
     UNKNOWN = 0
