@@ -693,6 +693,28 @@ type MenuCreateRequest struct {
 	Items []MenuItem `json:"items"`
 }
 
+// EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
+type EstimateCostRequest struct {
+	Input map[string]any `json:"input"`
+	Function string `json:"function,omitempty"`
+}
+
+// EstimateCostResponse is the response from the cost estimation endpoint.
+type EstimateCostResponse struct {
+	// Confidence: "exact" (all fees input-based), "range" (estimate expression),
+	// or "unknown" (output-dependent, no estimate expression).
+	Confidence string `json:"confidence"`
+	// Microcents is set when confidence is "exact".
+	Microcents *int64 `json:"microcents,omitempty"`
+	// Min/Max are set when confidence is "range".
+	Min *int64 `json:"min,omitempty"`
+	Max *int64 `json:"max,omitempty"`
+	// DependsOn lists post-execution variables the pricing needs (when not exact).
+	DependsOn []string `json:"depends_on,omitempty"`
+	// PricingDescription is the rendered human-readable pricing string.
+	PricingDescription string `json:"pricing_description,omitempty"`
+}
+
 // --------------------
 // source: api_key_scopes.go
 // --------------------
@@ -849,6 +871,15 @@ type AppPricing struct {
 	RoyaltyExpression string `json:"royalty_expression"`
 	PartnerExpression string `json:"partner_expression"`
 	TotalExpression string `json:"total_expression"`
+	// Estimate is a single CEL expression for pre-execution cost estimation.
+	// Returns either an int (exact total in microcents) or a {"min": int, "max": int} map.
+	// Only has access to pre-execution variables: task_inputs, prices, fees, task_function.
+	// Used by the /estimate endpoint when the real expressions depend on post-execution data.
+	// Not needed when all fee expressions are already input-based (the system evaluates those directly).
+	Estimate string `json:"estimate,omitempty"`
+	// Estimable is computed at save time. True when all fee expressions can be
+	// evaluated from pre-execution data alone (task_inputs, prices, fees, task_function).
+	Estimable *bool `json:"estimable,omitempty"`
 	Description string `json:"description"`
 	DescriptionRendered string `json:"description_rendered,omitempty"`
 }
@@ -878,6 +909,7 @@ func (p *AppPricing) Merge(patch *AppPricing) {
 	p.RoyaltyExpression = patch.RoyaltyExpression
 	p.PartnerExpression = patch.PartnerExpression
 	p.TotalExpression = patch.TotalExpression
+	p.Estimate = patch.Estimate
 	p.Description = patch.Description
 }
 
@@ -891,6 +923,7 @@ func (p *AppPricing) Sanitize() {
 	p.RoyaltyExpression = normalize(p.RoyaltyExpression)
 	p.PartnerExpression = normalize(p.PartnerExpression)
 	p.TotalExpression = normalize(p.TotalExpression)
+	p.Estimate = normalize(p.Estimate)
 	p.Description = normalize(p.Description)
 }
 
@@ -2461,6 +2494,8 @@ type SDKTypes struct {
 	_publicAppStore PublicAppStoreDTO
 	_publicSkillStore PublicSkillStoreDTO
 	_appPricing AppPricing
+	_estimateCostReq EstimateCostRequest
+	_estimateCostResp EstimateCostResponse
 	_toolInvocation ToolInvocationDTO
 	_agentConfigIn AgentConfigInput
 	_coreAppConfigIn CoreAppConfigInput
