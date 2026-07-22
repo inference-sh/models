@@ -2200,6 +2200,7 @@ type RefRouteDTO struct {
 	AliasRef string `json:"alias_ref"`
 	TargetRef string `json:"target_ref"`
 	Primary bool `json:"primary"`
+	Mode RefRouteMode `json:"mode"`
 	Description string `json:"description"`
 	Enabled bool `json:"enabled"`
 }
@@ -4005,6 +4006,8 @@ const (
 	GraphEdgeTypeDuplicate GraphEdgeType = "duplicate"
 	GraphEdgeTypeReferences GraphEdgeType = "references"
 	GraphEdgeTypeSupersedes GraphEdgeType = "supersedes"
+	GraphEdgeTypeInput GraphEdgeType = "input"
+	GraphEdgeTypeOutput GraphEdgeType = "output"
 )
 
 // --------------------
@@ -4270,6 +4273,24 @@ const (
 	RefRouteTypeSkill RefRouteType = "skill"
 )
 
+type RefRouteMode string
+
+func (m RefRouteMode) OrDefault() RefRouteMode {
+	if m == "" {
+		return RefRouteModeRewrite
+	}
+	return m
+}
+
+func (v RefRouteMode) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	RefRouteModeRewrite RefRouteMode = "rewrite"
+	RefRouteModeRedirect RefRouteMode = "redirect"
+)
+
 type KnowledgeType string
 
 func (v KnowledgeType) Value() (driver.Value, error) {
@@ -4369,6 +4390,7 @@ const (
 	ResourceTaskExecutions EntitlementResource = "task_executions"
 	// Feature gates — only what has real cost/complexity
 	ResourceFeatureBYOK EntitlementResource = "feature:byok"
+	ResourceFeatureSeedance EntitlementResource = "feature:seedance"
 	// Legacy feature gates — kept for DB compatibility, no longer gated
 	ResourceFeatureScopes EntitlementResource = "feature:scopes"
 	ResourceFeatureWebhooks EntitlementResource = "feature:webhooks"

@@ -1727,6 +1727,7 @@ class RefRouteDTO(BaseModelDTO, TypedDict, total=False):
     alias_ref: str
     target_ref: str
     primary: bool
+    mode: RefRouteMode
     description: str
     enabled: bool
 
@@ -2352,6 +2353,8 @@ class GraphEdgeType(str, Enum):
     DUPLICATE = "duplicate"
     REFERENCES = "references"
     SUPERSEDES = "supersedes"
+    INPUT = "input"
+    OUTPUT = "output"
 
 class SecretScope(str, Enum):
     # SecretScopeTeam is a normal user secret, visible in team secret lists
@@ -2480,6 +2483,10 @@ class RefRouteType(str, Enum):
     AGENT = "agent"
     SKILL = "skill"
 
+class RefRouteMode(str, Enum):
+    REWRITE = "rewrite"
+    REDIRECT = "redirect"
+
 class KnowledgeType(str, Enum):
     CONCEPT = "concept"
     SKILL = "skill"
@@ -2545,6 +2552,7 @@ class EntitlementResource(str, Enum):
     RESOURCE_TASK_EXECUTIONS = "task_executions"
     # Feature gates — only what has real cost/complexity
     RESOURCE_FEATURE_BYOK = "feature:byok"
+    RESOURCE_FEATURE_SEEDANCE = "feature:seedance"
     # Legacy feature gates — kept for DB compatibility, no longer gated
     RESOURCE_FEATURE_SCOPES = "feature:scopes"
     RESOURCE_FEATURE_WEBHOOKS = "feature:webhooks"
