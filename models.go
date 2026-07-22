@@ -2099,6 +2099,7 @@ type PlanDTO struct {
 	CreditsMonthly int64 `json:"credits_monthly"`
 	ProviderPriceIDMonthly string `json:"provider_price_id_monthly,omitempty"`
 	ProviderPriceIDYearly string `json:"provider_price_id_yearly,omitempty"`
+	RequiredPlanIDs []string `json:"required_plan_ids,omitempty"`
 	Limits PlanLimits `json:"limits"`
 }
 
