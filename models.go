@@ -746,7 +746,7 @@ const (
 	// Action-level scopes for Billing
 	ScopeBillingRead Scope = "billing:read"
 	ScopeBillingWrite Scope = "billing:write"
-	// Action-level scopes for Secrets (sensitive - not in read/run presets)
+	// Action-level scopes for Secrets (sensitive - excluded from read-only preset)
 	ScopeSecretsRead Scope = "secrets:read"
 	ScopeSecretsWrite Scope = "secrets:write"
 	// Action-level scopes for Integrations
@@ -815,6 +815,8 @@ type ScopePreset struct {
 	Label string `json:"label"`
 	Description string `json:"description"`
 	Scopes []Scope `json:"scopes"`
+	Summary []string `json:"summary,omitempty"`
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // --------------------
