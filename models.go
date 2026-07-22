@@ -711,6 +711,8 @@ type EstimateCostResponse struct {
 	Max *int64 `json:"max,omitempty"`
 	// DependsOn lists post-execution variables the pricing needs (when not exact).
 	DependsOn []string `json:"depends_on,omitempty"`
+	// EstimateError is set when an estimate expression exists but failed to evaluate.
+	EstimateError string `json:"estimate_error,omitempty"`
 	// PricingDescription is the rendered human-readable pricing string.
 	PricingDescription string `json:"pricing_description,omitempty"`
 }
@@ -2148,6 +2150,7 @@ type PlanDTO struct {
 	ProviderPriceIDYearly string `json:"provider_price_id_yearly,omitempty"`
 	RequiredPlanIDs []string `json:"required_plan_ids,omitempty"`
 	RequiredPlanNames []string `json:"required_plan_names,omitempty"`
+	Stackable bool `json:"stackable"`
 	Limits PlanLimits `json:"limits"`
 }
 
