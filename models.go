@@ -1386,6 +1386,18 @@ type EntitlementDTO struct {
 	TeamPlanID *string `json:"team_plan_id,omitempty"`
 }
 
+// EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
+type EntitlementErrorMeta struct {
+	Resource EntitlementResource `json:"resource"`
+	ResourceLabel string `json:"resource_label,omitempty"`
+	Limit *int `json:"limit,omitempty"`
+	Current *int `json:"current,omitempty"`
+	UpgradeAvailable bool `json:"upgrade_available"`
+	AddonPlanID string `json:"addon_plan_id,omitempty"`
+	AddonPlanName string `json:"addon_plan_name,omitempty"`
+	AddonPlanPrice *int `json:"addon_plan_price,omitempty"`
+}
+
 // --------------------
 // source: file.go
 // --------------------
@@ -2100,6 +2112,7 @@ type PlanDTO struct {
 	ProviderPriceIDMonthly string `json:"provider_price_id_monthly,omitempty"`
 	ProviderPriceIDYearly string `json:"provider_price_id_yearly,omitempty"`
 	RequiredPlanIDs []string `json:"required_plan_ids,omitempty"`
+	RequiredPlanNames []string `json:"required_plan_names,omitempty"`
 	Limits PlanLimits `json:"limits"`
 }
 
@@ -2489,6 +2502,7 @@ type SDKTypes struct {
 	_checkReqsResp CheckRequirementsResponse
 	// Entitlements
 	_entitlementDTO EntitlementDTO
+	_entitlementErrMeta EntitlementErrorMeta
 	// Output
 	_outputMeta OutputMeta
 	// Knowledge
