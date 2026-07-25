@@ -1758,15 +1758,22 @@ class PlanDTO(BaseModelDTO, TypedDict, total=False):
     active: bool
     self_serve: Optional[bool]
     plan_type: PlanType
-    price_monthly: Optional[int]
-    price_yearly: Optional[int]
     credits_monthly: int
-    provider_price_id_monthly: str
-    provider_price_id_yearly: str
+    active_version: Optional[PlanVersionDTO]
     required_plan_ids: List[str]
     required_plan_names: List[str]
     stackable: bool
     limits: PlanLimits
+
+class PlanVersionDTO(BaseModelDTO, TypedDict, total=False):
+    plan_id: str
+    amount_monthly: int
+    amount_yearly: int
+    provider_price_id_monthly: str
+    provider_price_id_yearly: str
+    credits_monthly: int
+    limits: PlanLimits
+    active: bool
 
 # RefRouteDTO for API responses
 class RefRouteDTO(BaseModelDTO, TypedDict, total=False):
@@ -1831,6 +1838,9 @@ class AppDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     images: AppImages
     version_id: str
     version: Optional[AppVersionDTO]
+    status: AppStatus
+    status_message: str
+    status_changed_at: Optional[str]
 
 # AppSessionDTO is the external representation
 class AppSessionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -2008,6 +2018,8 @@ class SkillDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     repo_url: str
     version_id: str
     version: Optional[SkillVersionDTO]
+    uses: int
+    installs: int
 
 # KnowledgeDTO — generic DTO for /knowledge endpoints (all types)
 class KnowledgeDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -2018,6 +2030,8 @@ class KnowledgeDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     lifecycle: KnowledgeLifecycle
     version_id: str
     version: Optional[KnowledgeVersionDTO]
+    uses: int
+    installs: int
 
 # NotificationDTO is the data transfer object
 class NotificationDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -2260,6 +2274,12 @@ class AppCategory(str, Enum):
     _3D = "3d"
     OTHER = "other"
     FLOW = "flow"
+
+class AppStatus(str, Enum):
+    ACTIVE = "active"
+    MAINTENANCE = "maintenance"
+    DEPRECATED = "deprecated"
+    RETIRED = "retired"
 
 class GPUType(str, Enum):
     ANY = "any"

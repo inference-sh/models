@@ -997,6 +997,9 @@ type AppDTO struct {
 	Images AppImages `json:"images"`
 	VersionID string `json:"version_id"`
 	Version *AppVersionDTO `json:"version"`
+	Status AppStatus `json:"status"`
+	StatusMessage string `json:"status_message,omitempty"`
+	StatusChangedAt *time.Time `json:"status_changed_at,omitempty"`
 }
 
 // FullName returns the full name in the format "namespace/name".
@@ -1432,7 +1435,7 @@ type EntitlementErrorMeta struct {
 	UpgradeAvailable bool `json:"upgrade_available"`
 	AddonPlanID string `json:"addon_plan_id,omitempty"`
 	AddonPlanName string `json:"addon_plan_name,omitempty"`
-	AddonPlanPrice *int `json:"addon_plan_price,omitempty"`
+	AddonPlanVersion *int `json:"addon_plan_price,omitempty"`
 }
 
 // --------------------
@@ -1739,6 +1742,8 @@ type SkillDTO struct {
 	RepoURL string `json:"repo_url,omitempty"`
 	VersionID string `json:"version_id"`
 	Version *SkillVersionDTO `json:"version"`
+	Uses int64 `json:"uses"`
+	Installs int64 `json:"installs"`
 }
 
 // FullName returns "namespace/name"
@@ -1780,6 +1785,8 @@ type KnowledgeDTO struct {
 	Lifecycle KnowledgeLifecycle `json:"lifecycle"`
 	VersionID string `json:"version_id"`
 	Version *KnowledgeVersionDTO `json:"version"`
+	Uses int64 `json:"uses"`
+	Installs int64 `json:"installs"`
 }
 
 // FullName returns "namespace/name"
@@ -2143,15 +2150,28 @@ type PlanDTO struct {
 	Active bool `json:"active"`
 	SelfServe *bool `json:"self_serve"`
 	PlanType PlanType `json:"plan_type"`
-	PriceMonthly *int `json:"price_monthly"`
-	PriceYearly *int `json:"price_yearly"`
 	CreditsMonthly int64 `json:"credits_monthly"`
-	ProviderPriceIDMonthly string `json:"provider_price_id_monthly,omitempty"`
-	ProviderPriceIDYearly string `json:"provider_price_id_yearly,omitempty"`
+	ActiveVersion *PlanVersionDTO `json:"active_version,omitempty"`
 	RequiredPlanIDs []string `json:"required_plan_ids,omitempty"`
 	RequiredPlanNames []string `json:"required_plan_names,omitempty"`
 	Stackable bool `json:"stackable"`
 	Limits PlanLimits `json:"limits"`
+}
+
+// --------------------
+// source: plan_version.go
+// --------------------
+
+type PlanVersionDTO struct {
+	BaseModelDTO `tstype:",extends"`
+	PlanID string `json:"plan_id,omitempty"`
+	AmountMonthly int `json:"amount_monthly"` // cents
+	AmountYearly int `json:"amount_yearly"` // cents
+	ProviderPriceIDMonthly string `json:"provider_price_id_monthly,omitempty"`
+	ProviderPriceIDYearly string `json:"provider_price_id_yearly,omitempty"`
+	CreditsMonthly int64 `json:"credits_monthly"` // microcents
+	Limits PlanLimits `json:"limits,omitempty"`
+	Active bool `json:"active"`
 }
 
 // --------------------
@@ -3485,6 +3505,19 @@ const (
 	AppCategory3D AppCategory = "3d"
 	AppCategoryOther AppCategory = "other"
 	AppCategoryFlow AppCategory = "flow"
+)
+
+type AppStatus string
+
+func (s AppStatus) IsRunnable() bool {
+	return s == AppStatusActive || s == AppStatusDeprecated
+}
+
+const (
+	AppStatusActive AppStatus = "active"
+	AppStatusMaintenance AppStatus = "maintenance"
+	AppStatusDeprecated AppStatus = "deprecated"
+	AppStatusRetired AppStatus = "retired"
 )
 
 type GPUType string

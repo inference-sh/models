@@ -932,6 +932,9 @@ export interface AppDTO extends BaseModelDTO, PermissionModelDTO {
   images: AppImages;
   version_id: string;
   version?: AppVersionDTO;
+  status: AppStatus;
+  status_message?: string;
+  status_changed_at?: string /* RFC3339 */;
 }
 /**
  * AppVersionDTO is the API response for an app version.
@@ -1582,6 +1585,8 @@ export interface SkillDTO extends BaseModelDTO, PermissionModelDTO {
   repo_url?: string;
   version_id: string;
   version?: SkillVersionDTO;
+  uses: number /* int64 */;
+  installs: number /* int64 */;
 }
 export interface SkillVersionDTO extends BaseModelDTO {
   skill_id: string;
@@ -1612,6 +1617,8 @@ export interface KnowledgeDTO extends BaseModelDTO, PermissionModelDTO {
   lifecycle: KnowledgeLifecycle;
   version_id: string;
   version?: KnowledgeVersionDTO;
+  uses: number /* int64 */;
+  installs: number /* int64 */;
 }
 export interface KnowledgeVersionDTO extends BaseModelDTO {
   knowledge_id: string;
@@ -1847,15 +1854,22 @@ export interface PlanDTO extends BaseModelDTO {
   active: boolean;
   self_serve?: boolean;
   plan_type: PlanType;
-  price_monthly?: number /* int */;
-  price_yearly?: number /* int */;
   credits_monthly: number /* int64 */;
-  provider_price_id_monthly?: string;
-  provider_price_id_yearly?: string;
+  active_version?: PlanVersionDTO;
   required_plan_ids?: string[];
   required_plan_names?: string[];
   stackable: boolean;
   limits: PlanLimits;
+}
+export interface PlanVersionDTO extends BaseModelDTO {
+  plan_id?: string;
+  amount_monthly: number /* int */; // cents
+  amount_yearly: number /* int */; // cents
+  provider_price_id_monthly?: string;
+  provider_price_id_yearly?: string;
+  credits_monthly: number /* int64 */; // microcents
+  limits?: PlanLimits;
+  active: boolean;
 }
 /**
  * ProjectModelDTO provides optional project association for DTOs
@@ -2624,6 +2638,11 @@ export const AppCategoryChat: AppCategory = "chat";
 export const AppCategory3D: AppCategory = "3d";
 export const AppCategoryOther: AppCategory = "other";
 export const AppCategoryFlow: AppCategory = "flow";
+export type AppStatus = string;
+export const AppStatusActive: AppStatus = "active";
+export const AppStatusMaintenance: AppStatus = "maintenance";
+export const AppStatusDeprecated: AppStatus = "deprecated";
+export const AppStatusRetired: AppStatus = "retired";
 export type GPUType = string;
 export const GPUTypeAny: GPUType = "any";
 export const GPUTypeNone: GPUType = "none";
