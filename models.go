@@ -516,6 +516,8 @@ type AuthResponse struct {
 // DeviceTokenKindAPIKey (legacy CLIs send no body).
 type DeviceAuthInitRequest struct {
 	TokenKind DeviceTokenKind `json:"token_kind,omitempty"`
+	CodeChallenge string `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 }
 
 type DeviceAuthResponse struct {
@@ -534,6 +536,17 @@ type DeviceAuthPollResponse struct {
 	ApiKey string `json:"api_key,omitempty"`
 	// SessionToken is set when the flow was initiated with token_kind=session.
 	SessionToken string `json:"session_token,omitempty"`
+	TeamID string `json:"team_id,omitempty"`
+}
+
+type DeviceAuthClaimRequest struct {
+	Code string `json:"code"`
+	CodeVerifier string `json:"code_verifier"`
+}
+
+type DeviceAuthClaimResponse struct {
+	SessionToken string `json:"session_token,omitempty"`
+	ApiKey string `json:"api_key,omitempty"`
 	TeamID string `json:"team_id,omitempty"`
 }
 
@@ -2673,6 +2686,8 @@ type EngineTypes struct {
 	// CLI types
 	_deviceAuth DeviceAuthResponse
 	_deviceAuthPoll DeviceAuthPollResponse
+	_deviceAuthClaim DeviceAuthClaimResponse
+	_deviceAuthClaimReq DeviceAuthClaimRequest
 	_meResp MeResponse
 	_secretDTO SecretDTO
 	_secretCreate SecretCreateRequest
