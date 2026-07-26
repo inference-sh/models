@@ -21,9 +21,9 @@ import (
 // Combines session binding (strict) with warm container matching (soft).
 // Format: AppID:VersionID@Setup#SessionID
 type AffinityKey struct {
-	AppID string `json:"app_id"`
-	VersionID string `json:"version_id"`
-	Setup string `json:"setup,omitempty"`
+	AppID     string  `json:"app_id"`
+	VersionID string  `json:"version_id"`
+	Setup     string  `json:"setup,omitempty"`
 	SessionID *string `json:"session_id,omitempty"`
 }
 
@@ -111,194 +111,194 @@ func (k AffinityKey) ToWarmApp() string {
 
 // InternalToolsConfig controls which built-in tools are enabled for an agent
 type InternalToolsConfig struct {
-	Plan *bool `json:"plan,omitempty" yaml:"plan,omitempty"`
-	Memory *bool `json:"memory,omitempty" yaml:"memory,omitempty"`
-	Widget *bool `json:"widget,omitempty" yaml:"widget,omitempty"`
-	Finish *bool `json:"finish,omitempty" yaml:"finish,omitempty"`
-	Skills *bool `json:"skills,omitempty" yaml:"skills,omitempty"`
+	Plan        *bool `json:"plan,omitempty" yaml:"plan,omitempty"`
+	Memory      *bool `json:"memory,omitempty" yaml:"memory,omitempty"`
+	Widget      *bool `json:"widget,omitempty" yaml:"widget,omitempty"`
+	Finish      *bool `json:"finish,omitempty" yaml:"finish,omitempty"`
+	Skills      *bool `json:"skills,omitempty" yaml:"skills,omitempty"`
 	HostContext *bool `json:"host_context,omitempty" yaml:"host_context,omitempty"`
 }
 
 // AgentTool represents a unified tool that can be used by an agent
 type AgentTool struct {
-	Name string `json:"name" yaml:"name"`
-	DisplayName string `json:"display_name,omitempty" yaml:"display_name,omitempty"`
-	Description string `json:"description" yaml:"description"`
-	Type ToolType `json:"type" yaml:"type"`
-	RequireApproval bool `json:"require_approval,omitempty" yaml:"require_approval,omitempty"`
-	App *AppToolConfig `json:"app,omitempty" yaml:"app,omitempty"`
-	Agent *AgentToolConfig `json:"agent,omitempty" yaml:"agent,omitempty"`
-	Hook *HookToolConfig `json:"hook,omitempty" yaml:"hook,omitempty"`
-	HTTP *HTTPToolConfig `json:"http,omitempty" yaml:"http,omitempty"`
-	Call *HTTPToolConfig `json:"call,omitempty" yaml:"call,omitempty"`
-	MCP *MCPToolConfig `json:"mcp,omitempty" yaml:"mcp,omitempty"`
-	Client *ClientToolConfig `json:"client,omitempty" yaml:"client,omitempty"`
-	Internal *InternalToolConfig `json:"internal,omitempty" yaml:"internal,omitempty"`
+	Name            string              `json:"name" yaml:"name"`
+	DisplayName     string              `json:"display_name,omitempty" yaml:"display_name,omitempty"`
+	Description     string              `json:"description" yaml:"description"`
+	Type            ToolType            `json:"type" yaml:"type"`
+	RequireApproval bool                `json:"require_approval,omitempty" yaml:"require_approval,omitempty"`
+	App             *AppToolConfig      `json:"app,omitempty" yaml:"app,omitempty"`
+	Agent           *AgentToolConfig    `json:"agent,omitempty" yaml:"agent,omitempty"`
+	Hook            *HookToolConfig     `json:"hook,omitempty" yaml:"hook,omitempty"`
+	HTTP            *HTTPToolConfig     `json:"http,omitempty" yaml:"http,omitempty"`
+	Call            *HTTPToolConfig     `json:"call,omitempty" yaml:"call,omitempty"`
+	MCP             *MCPToolConfig      `json:"mcp,omitempty" yaml:"mcp,omitempty"`
+	Client          *ClientToolConfig   `json:"client,omitempty" yaml:"client,omitempty"`
+	Internal        *InternalToolConfig `json:"internal,omitempty" yaml:"internal,omitempty"`
 }
 
 // InternalToolConfig contains configuration for internal/built-in tools
 type InternalToolConfig struct {
-	Category string `json:"category"`
+	Category  string `json:"category"`
 	Operation string `json:"operation"`
 }
 
 // SkillConfig defines a skill available to the agent.
 type SkillConfig struct {
-	Name string `json:"name" yaml:"name"`
+	Name        string `json:"name" yaml:"name"`
 	Description string `json:"description" yaml:"description"`
-	SkillID string `json:"skill_id,omitempty" yaml:"skill_id,omitempty"`
-	VersionID string `json:"version_id,omitempty" yaml:"version_id,omitempty"`
-	URL string `json:"url,omitempty" yaml:"url,omitempty"`
-	Content string `json:"content,omitempty" yaml:"content,omitempty"`
-	Preload bool `json:"preload,omitempty" yaml:"preload,omitempty"`
+	SkillID     string `json:"skill_id,omitempty" yaml:"skill_id,omitempty"`
+	VersionID   string `json:"version_id,omitempty" yaml:"version_id,omitempty"`
+	URL         string `json:"url,omitempty" yaml:"url,omitempty"`
+	Content     string `json:"content,omitempty" yaml:"content,omitempty"`
+	Preload     bool   `json:"preload,omitempty" yaml:"preload,omitempty"`
 }
 
 // ContextField declares a context parameter expected by the agent.
 type ContextField struct {
-	Name string `json:"name" yaml:"name"`
+	Name        string `json:"name" yaml:"name"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
-	Required bool `json:"required,omitempty" yaml:"required,omitempty"`
-	Default string `json:"default,omitempty" yaml:"default,omitempty"`
+	Required    bool   `json:"required,omitempty" yaml:"required,omitempty"`
+	Default     string `json:"default,omitempty" yaml:"default,omitempty"`
 }
 
 // AgentToolDTO for API responses
 type AgentToolDTO struct {
-	Name string `json:"name"`
-	DisplayName string `json:"display_name,omitempty"`
-	Description string `json:"description"`
-	Type ToolType `json:"type"`
-	RequireApproval bool `json:"require_approval,omitempty"`
-	App *AppToolConfigDTO `json:"app,omitempty"`
-	Agent *AgentToolConfigDTO `json:"agent,omitempty"`
-	Hook *HookToolConfigDTO `json:"hook,omitempty"`
-	HTTP *HTTPToolConfigDTO `json:"http,omitempty"`
-	Call *HTTPToolConfigDTO `json:"call,omitempty"`
-	MCP *MCPToolConfigDTO `json:"mcp,omitempty"`
-	Client *ClientToolConfigDTO `json:"client,omitempty"`
+	Name            string               `json:"name"`
+	DisplayName     string               `json:"display_name,omitempty"`
+	Description     string               `json:"description"`
+	Type            ToolType             `json:"type"`
+	RequireApproval bool                 `json:"require_approval,omitempty"`
+	App             *AppToolConfigDTO    `json:"app,omitempty"`
+	Agent           *AgentToolConfigDTO  `json:"agent,omitempty"`
+	Hook            *HookToolConfigDTO   `json:"hook,omitempty"`
+	HTTP            *HTTPToolConfigDTO   `json:"http,omitempty"`
+	Call            *HTTPToolConfigDTO   `json:"call,omitempty"`
+	MCP             *MCPToolConfigDTO    `json:"mcp,omitempty"`
+	Client          *ClientToolConfigDTO `json:"client,omitempty"`
 }
 
 type AppToolConfig struct {
-	Ref string `json:"ref"`
-	ID string `json:"id,omitempty"`
-	VersionID string `json:"version_id,omitempty"`
-	Function string `json:"function,omitempty"`
-	SessionEnabled bool `json:"session_enabled,omitempty"`
-	Setup *json.RawMessage `json:"setup,omitempty"`
-	Input *json.RawMessage `json:"input,omitempty"`
+	Ref            string           `json:"ref"`
+	ID             string           `json:"id,omitempty"`
+	VersionID      string           `json:"version_id,omitempty"`
+	Function       string           `json:"function,omitempty"`
+	SessionEnabled bool             `json:"session_enabled,omitempty"`
+	Setup          *json.RawMessage `json:"setup,omitempty"`
+	Input          *json.RawMessage `json:"input,omitempty"`
 }
 
 type AgentToolConfig struct {
-	Ref string `json:"ref"`
-	ID string `json:"id,omitempty"`
+	Ref       string `json:"ref"`
+	ID        string `json:"id,omitempty"`
 	VersionID string `json:"version_id,omitempty"`
 }
 
 type HookToolConfig struct {
-	URL string `json:"url"`
-	Secret string `json:"secret,omitempty"`
-	InputSchema *json.RawMessage `json:"input_schema,omitempty"`
+	URL          string           `json:"url"`
+	Secret       string           `json:"secret,omitempty"`
+	InputSchema  *json.RawMessage `json:"input_schema,omitempty"`
 	OutputSchema *json.RawMessage `json:"output_schema,omitempty"`
 }
 
 type ClientToolConfig struct {
-	InputSchema *json.RawMessage `json:"input_schema,omitempty"`
+	InputSchema  *json.RawMessage `json:"input_schema,omitempty"`
 	OutputSchema *json.RawMessage `json:"output_schema,omitempty"`
 }
 
 // ToolAuthConfig declares how a tool authenticates.
 type ToolAuthConfig struct {
-	Type string `json:"type" yaml:"type"`
-	Provider string `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Type          string `json:"type" yaml:"type"`
+	Provider      string `json:"provider,omitempty" yaml:"provider,omitempty"`
 	IntegrationID string `json:"integration_id,omitempty" yaml:"integration_id,omitempty"`
-	Secret string `json:"secret,omitempty" yaml:"secret,omitempty"`
-	Header string `json:"header,omitempty" yaml:"header,omitempty"`
+	Secret        string `json:"secret,omitempty" yaml:"secret,omitempty"`
+	Header        string `json:"header,omitempty" yaml:"header,omitempty"`
 }
 
 type HTTPToolConfig struct {
-	URL string `json:"url" yaml:"url"`
-	Method string `json:"method,omitempty" yaml:"method,omitempty"`
-	Auth *ToolAuthConfig `json:"auth,omitempty" yaml:"auth,omitempty"`
-	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema,omitempty" yaml:"input_schema,omitempty"`
-	OutputSchema json.RawMessage `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
+	URL          string            `json:"url" yaml:"url"`
+	Method       string            `json:"method,omitempty" yaml:"method,omitempty"`
+	Auth         *ToolAuthConfig   `json:"auth,omitempty" yaml:"auth,omitempty"`
+	Headers      map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
+	InputSchema  json.RawMessage   `json:"input_schema,omitempty" yaml:"input_schema,omitempty"`
+	OutputSchema json.RawMessage   `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
 type MCPToolConfig struct {
 	IntegrationID string `json:"integration_id"`
-	ToolName string `json:"tool_name"`
+	ToolName      string `json:"tool_name"`
 }
 
 type AppToolConfigDTO struct {
-	Ref string `json:"ref"`
-	ID string `json:"id,omitempty"`
-	VersionID string `json:"version_id,omitempty"`
-	App *AppDTO `json:"app,omitempty"`
-	Function string `json:"function,omitempty"`
-	SessionEnabled bool `json:"session_enabled,omitempty"`
-	Setup *json.RawMessage `json:"setup,omitempty"`
-	Input *json.RawMessage `json:"input,omitempty"`
+	Ref            string           `json:"ref"`
+	ID             string           `json:"id,omitempty"`
+	VersionID      string           `json:"version_id,omitempty"`
+	App            *AppDTO          `json:"app,omitempty"`
+	Function       string           `json:"function,omitempty"`
+	SessionEnabled bool             `json:"session_enabled,omitempty"`
+	Setup          *json.RawMessage `json:"setup,omitempty"`
+	Input          *json.RawMessage `json:"input,omitempty"`
 }
 
 type AgentToolConfigDTO struct {
-	Ref string `json:"ref"`
-	ID string `json:"id,omitempty"`
-	VersionID string `json:"version_id,omitempty"`
-	Agent *AgentDTO `json:"agent,omitempty"`
+	Ref       string    `json:"ref"`
+	ID        string    `json:"id,omitempty"`
+	VersionID string    `json:"version_id,omitempty"`
+	Agent     *AgentDTO `json:"agent,omitempty"`
 }
 
 type HookToolConfigDTO struct {
-	URL string `json:"url"`
-	Secret string `json:"secret,omitempty"`
-	InputSchema *json.RawMessage `json:"input_schema,omitempty"`
+	URL          string           `json:"url"`
+	Secret       string           `json:"secret,omitempty"`
+	InputSchema  *json.RawMessage `json:"input_schema,omitempty"`
 	OutputSchema *json.RawMessage `json:"output_schema,omitempty"`
 }
 
 type ClientToolConfigDTO struct {
-	InputSchema *json.RawMessage `json:"input_schema,omitempty"`
+	InputSchema  *json.RawMessage `json:"input_schema,omitempty"`
 	OutputSchema *json.RawMessage `json:"output_schema,omitempty"`
 }
 
 type HTTPToolConfigDTO struct {
-	URL string `json:"url"`
-	Method string `json:"method,omitempty"`
-	Auth *ToolAuthConfig `json:"auth,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema,omitempty"`
-	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
+	URL          string            `json:"url"`
+	Method       string            `json:"method,omitempty"`
+	Auth         *ToolAuthConfig   `json:"auth,omitempty"`
+	Headers      map[string]string `json:"headers,omitempty"`
+	InputSchema  json.RawMessage   `json:"input_schema,omitempty"`
+	OutputSchema json.RawMessage   `json:"output_schema,omitempty"`
 }
 
 type MCPToolConfigDTO struct {
 	IntegrationID string `json:"integration_id"`
-	ToolName string `json:"tool_name"`
+	ToolName      string `json:"tool_name"`
 }
 
 // AgentImages contains display images for an agent
 type AgentImages struct {
-	Card string `json:"card"`
+	Card      string `json:"card"`
 	Thumbnail string `json:"thumbnail"`
-	Banner string `json:"banner"`
+	Banner    string `json:"banner"`
 }
 
 // CoreAppConfigDTO references an app used as the agent's core
 type CoreAppConfigDTO struct {
-	ID *string `json:"id"`
-	VersionID *string `json:"version_id"`
-	Ref *string `json:"ref"`
-	App *AppDTO `json:"app"`
-	Setup *json.RawMessage `json:"setup,omitempty"`
-	Input *json.RawMessage `json:"input,omitempty"`
+	ID        *string          `json:"id"`
+	VersionID *string          `json:"version_id"`
+	Ref       *string          `json:"ref"`
+	App       *AppDTO          `json:"app"`
+	Setup     *json.RawMessage `json:"setup,omitempty"`
+	Input     *json.RawMessage `json:"input,omitempty"`
 }
 
 // AgentDTO for API responses
 type AgentDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	ProjectModelDTO `tstype:",extends"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Images AgentImages `json:"images"`
-	VersionID string `json:"version_id"`
-	Version *AgentVersionDTO `json:"version"`
+	ProjectModelDTO    `tstype:",extends"`
+	Namespace          string           `json:"namespace"`
+	Name               string           `json:"name"`
+	Images             AgentImages      `json:"images"`
+	VersionID          string           `json:"version_id"`
+	Version            *AgentVersionDTO `json:"version"`
 }
 
 // FullName returns the full name in the format "namespace/name"
@@ -310,27 +310,27 @@ func (a *AgentDTO) FullName() string {
 }
 
 type AgentVersionDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Description string `json:"description"`
-	SystemPrompt string `json:"system_prompt"`
-	ExamplePrompts []string `json:"example_prompts"`
-	CoreApp *CoreAppConfigDTO `json:"core_app"`
-	Tools []*AgentToolDTO `json:"tools"`
-	Skills []SkillConfig `json:"skills"`
-	Context []ContextField `json:"context,omitempty"`
-	InternalTools *InternalToolsConfig `json:"internal_tools"`
-	OutputSchema *json.RawMessage `json:"output_schema"`
+	Description        string               `json:"description"`
+	SystemPrompt       string               `json:"system_prompt"`
+	ExamplePrompts     []string             `json:"example_prompts"`
+	CoreApp            *CoreAppConfigDTO    `json:"core_app"`
+	Tools              []*AgentToolDTO      `json:"tools"`
+	Skills             []SkillConfig        `json:"skills"`
+	Context            []ContextField       `json:"context,omitempty"`
+	InternalTools      *InternalToolsConfig `json:"internal_tools"`
+	OutputSchema       *json.RawMessage     `json:"output_schema"`
 }
 
 // CreateAgentRequest is the request body for POST /agents
 // For new agents: omit ID, backend generates it
 // For new version of existing agent: include ID
 type CreateAgentRequest struct {
-	ID string `json:"id,omitempty"`
-	Name string `json:"name"`
-	Namespace string `json:"namespace,omitempty"`
-	Images AgentImages `json:"images,omitempty"`
+	ID        string      `json:"id,omitempty"`
+	Name      string      `json:"name"`
+	Namespace string      `json:"namespace,omitempty"`
+	Images    AgentImages `json:"images,omitempty"`
 	// Version config (embedded - backend generates version ID, timestamps, etc)
 	Version *AgentConfigInput `json:"version,omitempty"`
 }
@@ -338,25 +338,25 @@ type CreateAgentRequest struct {
 // AgentConfigInput is the API input shape for agent version config.
 // Mirrors AgentConfig's JSON contract without gorm tags or runtime pointers.
 type AgentConfigInput struct {
-	Name string `json:"name,omitempty" yaml:"name,omitempty"`
-	Description string `json:"description,omitempty" yaml:"description,omitempty"`
-	SystemPrompt string `json:"system_prompt,omitempty" yaml:"system_prompt,omitempty"`
-	ExamplePrompts []string `json:"example_prompts,omitempty" yaml:"example_prompts,omitempty"`
-	CoreApp *CoreAppConfigInput `json:"core_app,omitempty" yaml:"core_app,omitempty"`
-	Tools []*AgentTool `json:"tools,omitempty" yaml:"tools,omitempty"`
-	Skills []SkillConfig `json:"skills,omitempty" yaml:"skills,omitempty"`
-	Context []ContextField `json:"context,omitempty" yaml:"context,omitempty"`
-	InternalTools *InternalToolsConfig `json:"internal_tools,omitempty" yaml:"internal_tools,omitempty"`
-	OutputSchema *json.RawMessage `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
+	Name           string               `json:"name,omitempty" yaml:"name,omitempty"`
+	Description    string               `json:"description,omitempty" yaml:"description,omitempty"`
+	SystemPrompt   string               `json:"system_prompt,omitempty" yaml:"system_prompt,omitempty"`
+	ExamplePrompts []string             `json:"example_prompts,omitempty" yaml:"example_prompts,omitempty"`
+	CoreApp        *CoreAppConfigInput  `json:"core_app,omitempty" yaml:"core_app,omitempty"`
+	Tools          []*AgentTool         `json:"tools,omitempty" yaml:"tools,omitempty"`
+	Skills         []SkillConfig        `json:"skills,omitempty" yaml:"skills,omitempty"`
+	Context        []ContextField       `json:"context,omitempty" yaml:"context,omitempty"`
+	InternalTools  *InternalToolsConfig `json:"internal_tools,omitempty" yaml:"internal_tools,omitempty"`
+	OutputSchema   *json.RawMessage     `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
 // CoreAppConfigInput is the API input shape for core app configuration.
 type CoreAppConfigInput struct {
-	ID *string `json:"id" yaml:"id"`
-	VersionID *string `json:"version_id" yaml:"version_id"`
-	Ref *string `json:"ref,omitempty" yaml:"ref,omitempty"`
-	Setup *json.RawMessage `json:"setup,omitempty" yaml:"setup,omitempty"`
-	Input *json.RawMessage `json:"input,omitempty" yaml:"input,omitempty"`
+	ID        *string          `json:"id" yaml:"id"`
+	VersionID *string          `json:"version_id" yaml:"version_id"`
+	Ref       *string          `json:"ref,omitempty" yaml:"ref,omitempty"`
+	Setup     *json.RawMessage `json:"setup,omitempty" yaml:"setup,omitempty"`
+	Input     *json.RawMessage `json:"input,omitempty" yaml:"input,omitempty"`
 }
 
 // --------------------
@@ -364,65 +364,65 @@ type CoreAppConfigInput struct {
 // --------------------
 
 type APIResponse[T any] struct {
-	Success bool `json:"success"`
-	Status int `json:"status"`
-	Data T `json:"data"`
-	Error *APIError `json:"error,omitempty"`
+	Success bool      `json:"success"`
+	Status  int       `json:"status"`
+	Data    T         `json:"data"`
+	Error   *APIError `json:"error,omitempty"`
 }
 
 type APIError struct {
-	Code string `json:"code"`
-	Message string `json:"message"`
-	Suggestions []string `json:"suggestions,omitempty"`
-	Meta map[string]any `json:"meta,omitempty"`
+	Code        string         `json:"code"`
+	Message     string         `json:"message"`
+	Suggestions []string       `json:"suggestions,omitempty"`
+	Meta        map[string]any `json:"meta,omitempty"`
 }
 
 // ApiAppRunRequest is the request body for /apps/run endpoint.
 type ApiAppRunRequest struct {
-	App string `json:"app,omitempty"`
-	AppID string `json:"app_id,omitempty"`
-	VersionID string `json:"version_id,omitempty"`
-	Infra *Infra `json:"infra,omitempty"`
-	Workers *[]string `json:"workers,omitempty"`
-	Webhook *string `json:"webhook,omitempty"`
-	Setup *json.RawMessage `json:"setup,omitempty"`
-	Input json.RawMessage `json:"input" validate:"required"`
-	Stream bool `json:"stream,omitempty"`
-	Wait bool `json:"wait,omitempty"`
-	Function *string `json:"function,omitempty"`
-	Session *string `json:"session,omitempty"`
-	SessionTimeout *int `json:"session_timeout,omitempty"`
-	RunAt *string `json:"run_at,omitempty"`
-	Metadata *TaskMetadata `json:"metadata,omitempty"`
+	App            string           `json:"app,omitempty"`
+	AppID          string           `json:"app_id,omitempty"`
+	VersionID      string           `json:"version_id,omitempty"`
+	Infra          *Infra           `json:"infra,omitempty"`
+	Workers        *[]string        `json:"workers,omitempty"`
+	Webhook        *string          `json:"webhook,omitempty"`
+	Setup          *json.RawMessage `json:"setup,omitempty"`
+	Input          json.RawMessage  `json:"input" validate:"required"`
+	Stream         bool             `json:"stream,omitempty"`
+	Wait           bool             `json:"wait,omitempty"`
+	Function       *string          `json:"function,omitempty"`
+	Session        *string          `json:"session,omitempty"`
+	SessionTimeout *int             `json:"session_timeout,omitempty"`
+	RunAt          *string          `json:"run_at,omitempty"`
+	Metadata       *TaskMetadata    `json:"metadata,omitempty"`
 }
 
 // ApiAgentRunRequest is the request body for /agents/run endpoint.
 type ApiAgentRunRequest struct {
-	ChatID *string `json:"chat_id,omitempty"`
-	AgentRef *string `json:"agent,omitempty"`
+	ChatID      *string           `json:"chat_id,omitempty"`
+	AgentRef    *string           `json:"agent,omitempty"`
 	AgentConfig *AgentConfigInput `json:"agent_config,omitempty"`
-	AgentName *string `json:"agent_name,omitempty"`
-	Input ChatTaskInput `json:"input" validate:"required"`
-	Context map[string]string `json:"context,omitempty"`
-	Stream bool `json:"stream,omitempty"`
+	AgentName   *string           `json:"agent_name,omitempty"`
+	Input       ChatTaskInput     `json:"input" validate:"required"`
+	Context     map[string]string `json:"context,omitempty"`
+	Stream      bool              `json:"stream,omitempty"`
 }
 
 // CreateAgentMessageRequest is the request for creating agent messages.
 type CreateAgentMessageRequest struct {
-	ChatID *string `json:"chat_id,omitempty"`
-	AgentID *string `json:"agent_id,omitempty"`
-	AgentVersionID *string `json:"agent_version_id,omitempty"`
-	Agent *string `json:"agent,omitempty"`
-	ToolCallID *string `json:"tool_call_id,omitempty"`
-	Input ChatTaskInput `json:"input" validate:"required"`
+	ChatID             *string             `json:"chat_id,omitempty"`
+	AgentID            *string             `json:"agent_id,omitempty"`
+	AgentVersionID     *string             `json:"agent_version_id,omitempty"`
+	Agent              *string             `json:"agent,omitempty"`
+	ToolCallID         *string             `json:"tool_call_id,omitempty"`
+	Input              ChatTaskInput       `json:"input" validate:"required"`
 	IntegrationContext *IntegrationContext `json:"integration_context,omitempty"`
-	AgentConfig *AgentConfigInput `json:"agent_config,omitempty"`
-	AgentName *string `json:"agent_name,omitempty"`
-	Context map[string]string `json:"context,omitempty"`
+	AgentConfig        *AgentConfigInput   `json:"agent_config,omitempty"`
+	AgentName          *string             `json:"agent_name,omitempty"`
+	Context            map[string]string   `json:"context,omitempty"`
 }
 
 type CreateAgentMessageResponse struct {
-	UserMessage *ChatMessageDTO `json:"user_message"`
+	UserMessage      *ChatMessageDTO `json:"user_message"`
 	AssistantMessage *ChatMessageDTO `json:"assistant_message"`
 }
 
@@ -433,100 +433,100 @@ type ToolResultRequest struct {
 
 // PartialFile is the clean DTO version (no gorm tags).
 type PartialFile struct {
-	URI string `json:"uri"`
-	Path *string `json:"path"`
+	URI         string  `json:"uri"`
+	Path        *string `json:"path"`
 	ContentType *string `json:"content_type"`
-	Size *int64 `json:"size"`
-	Filename *string `json:"filename"`
+	Size        *int64  `json:"size"`
+	Filename    *string `json:"filename"`
 }
 
 type FileCreateRequest struct {
-	Category string `json:"category,omitempty"`
-	Files []PartialFile `json:"files"`
+	Category string        `json:"category,omitempty"`
+	Files    []PartialFile `json:"files"`
 }
 
 // AppVersionInput is the API input shape for app version config (no gorm tags).
 type AppVersionInput struct {
-	Metadata map[string]any `json:"metadata,omitempty"`
-	Repository string `json:"repository,omitempty"`
-	SetupSchema json.RawMessage `json:"setup_schema,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema,omitempty"`
-	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
-	Functions map[string]AppFunction `json:"functions,omitempty"`
-	DefaultFunction string `json:"default_function,omitempty"`
-	Variants map[string]AppVariant `json:"variants,omitempty"`
-	Env map[string]string `json:"env,omitempty"`
-	Kernel string `json:"kernel,omitempty"`
-	RequiredSecrets []SecretRequirement `json:"required_secrets,omitempty"`
+	Metadata             map[string]any           `json:"metadata,omitempty"`
+	Repository           string                   `json:"repository,omitempty"`
+	SetupSchema          json.RawMessage          `json:"setup_schema,omitempty"`
+	InputSchema          json.RawMessage          `json:"input_schema,omitempty"`
+	OutputSchema         json.RawMessage          `json:"output_schema,omitempty"`
+	Functions            map[string]AppFunction   `json:"functions,omitempty"`
+	DefaultFunction      string                   `json:"default_function,omitempty"`
+	Variants             map[string]AppVariant    `json:"variants,omitempty"`
+	Env                  map[string]string        `json:"env,omitempty"`
+	Kernel               string                   `json:"kernel,omitempty"`
+	RequiredSecrets      []SecretRequirement      `json:"required_secrets,omitempty"`
 	RequiredIntegrations []IntegrationRequirement `json:"required_integrations,omitempty"`
-	RequiredResources AppResources `json:"resources,omitempty"`
+	RequiredResources    AppResources             `json:"resources,omitempty"`
 }
 
 // CreateAppRequest is the request body for POST /apps
 type CreateAppRequest struct {
-	ID string `json:"id,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-	Name string `json:"name"`
-	Description string `json:"description,omitempty"`
-	AgentDescription string `json:"agent_description,omitempty"`
-	Category AppCategory `json:"category,omitempty"`
-	Images AppImages `json:"images,omitempty"`
-	Version *AppVersionInput `json:"version,omitempty"`
-	PreserveCurrentVersion bool `json:"preserve_current_version,omitempty"`
+	ID                     string           `json:"id,omitempty"`
+	Namespace              string           `json:"namespace,omitempty"`
+	Name                   string           `json:"name"`
+	Description            string           `json:"description,omitempty"`
+	AgentDescription       string           `json:"agent_description,omitempty"`
+	Category               AppCategory      `json:"category,omitempty"`
+	Images                 AppImages        `json:"images,omitempty"`
+	Version                *AppVersionInput `json:"version,omitempty"`
+	PreserveCurrentVersion bool             `json:"preserve_current_version,omitempty"`
 }
 
 type SkillPublishRequest struct {
-	Namespace string `json:"namespace,omitempty"`
-	Name string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Category string `json:"category,omitempty"`
-	RepoURL string `json:"repo_url,omitempty"`
-	License string `json:"license,omitempty"`
-	AllowedTools string `json:"allowed_tools,omitempty"`
-	Compatibility string `json:"compatibility,omitempty"`
-	Instructions string `json:"instructions,omitempty"`
-	Files []KnowledgeFile `json:"files"`
-	Metadata map[string]string `json:"metadata,omitempty"`
-	ParentSkillID string `json:"parent_skill_id,omitempty"`
-	ParentVersionID string `json:"parent_version_id,omitempty"`
-	SourceURL string `json:"source_url,omitempty"`
-	VersionNotes string `json:"version_notes,omitempty"`
-	IsGitHubImport bool `json:"-"`
-	DisableModelInvocation bool `json:"disable_model_invocation,omitempty"`
-	UserInvocable *bool `json:"user_invocable,omitempty"`
-	Context string `json:"context,omitempty"`
+	Namespace              string            `json:"namespace,omitempty"`
+	Name                   string            `json:"name"`
+	Description            string            `json:"description,omitempty"`
+	Category               string            `json:"category,omitempty"`
+	RepoURL                string            `json:"repo_url,omitempty"`
+	License                string            `json:"license,omitempty"`
+	AllowedTools           string            `json:"allowed_tools,omitempty"`
+	Compatibility          string            `json:"compatibility,omitempty"`
+	Instructions           string            `json:"instructions,omitempty"`
+	Files                  []KnowledgeFile   `json:"files"`
+	Metadata               map[string]string `json:"metadata,omitempty"`
+	ParentSkillID          string            `json:"parent_skill_id,omitempty"`
+	ParentVersionID        string            `json:"parent_version_id,omitempty"`
+	SourceURL              string            `json:"source_url,omitempty"`
+	VersionNotes           string            `json:"version_notes,omitempty"`
+	IsGitHubImport         bool              `json:"-"`
+	DisableModelInvocation bool              `json:"disable_model_invocation,omitempty"`
+	UserInvocable          *bool             `json:"user_invocable,omitempty"`
+	Context                string            `json:"context,omitempty"`
 }
 
 type CheckoutCreateRequest struct {
-	Amount int64 `json:"amount"`
+	Amount     int64  `json:"amount"`
 	SuccessURL string `json:"success_url"`
-	CancelURL string `json:"cancel_url"`
+	CancelURL  string `json:"cancel_url"`
 }
 
 type AuthResponse struct {
-	User *UserDTO `json:"user"`
-	SessionID string `json:"session_id"`
-	OTPRequired bool `json:"otp_required,omitempty"`
-	RedirectTo string `json:"redirect_to,omitempty"`
-	Provider string `json:"provider,omitempty"`
+	User        *UserDTO `json:"user"`
+	SessionID   string   `json:"session_id"`
+	OTPRequired bool     `json:"otp_required,omitempty"`
+	RedirectTo  string   `json:"redirect_to,omitempty"`
+	Provider    string   `json:"provider,omitempty"`
 }
 
 // DeviceAuthInitRequest is the optional body for initiating device auth.
 // TokenKind selects the credential minted on approval; empty means
 // DeviceTokenKindAPIKey (legacy CLIs send no body).
 type DeviceAuthInitRequest struct {
-	TokenKind DeviceTokenKind `json:"token_kind,omitempty"`
-	CodeChallenge string `json:"code_challenge,omitempty"`
-	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+	TokenKind           DeviceTokenKind `json:"token_kind,omitempty"`
+	CodeChallenge       string          `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string          `json:"code_challenge_method,omitempty"`
 }
 
 type DeviceAuthResponse struct {
-	UserCode string `json:"user_code"`
+	UserCode   string `json:"user_code"`
 	DeviceCode string `json:"device_code"`
-	PollURL string `json:"poll_url"`
+	PollURL    string `json:"poll_url"`
 	ApproveURL string `json:"approve_url"`
-	ExpiresIn int `json:"expires_in"`
-	Interval int `json:"interval"`
+	ExpiresIn  int    `json:"expires_in"`
+	Interval   int    `json:"interval"`
 }
 
 type DeviceAuthPollResponse struct {
@@ -536,18 +536,18 @@ type DeviceAuthPollResponse struct {
 	ApiKey string `json:"api_key,omitempty"`
 	// SessionToken is set when the flow was initiated with token_kind=session.
 	SessionToken string `json:"session_token,omitempty"`
-	TeamID string `json:"team_id,omitempty"`
+	TeamID       string `json:"team_id,omitempty"`
 }
 
 type DeviceAuthClaimRequest struct {
-	Code string `json:"code"`
+	Code         string `json:"code"`
 	CodeVerifier string `json:"code_verifier"`
 }
 
 type DeviceAuthClaimResponse struct {
 	SessionToken string `json:"session_token,omitempty"`
-	ApiKey string `json:"api_key,omitempty"`
-	TeamID string `json:"team_id,omitempty"`
+	ApiKey       string `json:"api_key,omitempty"`
+	TeamID       string `json:"team_id,omitempty"`
 }
 
 type MeResponse struct {
@@ -556,9 +556,9 @@ type MeResponse struct {
 }
 
 type TeamCreateRequest struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
 	Username string `json:"username"`
-	Email string `json:"email"`
+	Email    string `json:"email"`
 }
 
 type TeamSetupRequest struct {
@@ -566,8 +566,8 @@ type TeamSetupRequest struct {
 }
 
 type TeamMemberAddRequest struct {
-	Email string `json:"email"`
-	Role TeamRole `json:"role"`
+	Email string   `json:"email"`
+	Role  TeamRole `json:"role"`
 }
 
 type TeamMemberUpdateRoleRequest struct {
@@ -575,45 +575,45 @@ type TeamMemberUpdateRoleRequest struct {
 }
 
 type SecretCreateRequest struct {
-	Key string `json:"key"`
-	Value string `json:"value"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
 	Description string `json:"description,omitempty"`
 }
 
 type SecretUpdateRequest struct {
-	Value string `json:"value"`
+	Value       string  `json:"value"`
 	Description *string `json:"description,omitempty"`
 }
 
 type IntegrationConnectRequest struct {
-	Provider string `json:"provider"`
-	Type string `json:"type"`
-	Scopes []string `json:"scopes,omitempty"`
-	APIKey string `json:"api_key,omitempty"`
+	Provider string         `json:"provider"`
+	Type     string         `json:"type"`
+	Scopes   []string       `json:"scopes,omitempty"`
+	APIKey   string         `json:"api_key,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 type IntegrationCompleteOAuthRequest struct {
-	Provider string `json:"provider"`
-	Type string `json:"type"`
-	Code string `json:"code"`
-	State string `json:"state"`
+	Provider     string `json:"provider"`
+	Type         string `json:"type"`
+	Code         string `json:"code"`
+	State        string `json:"state"`
 	CodeVerifier string `json:"code_verifier,omitempty"`
 }
 
 type IntegrationConnectResponse struct {
-	Integration *IntegrationDTO `json:"integration"`
-	AuthURL string `json:"auth_url,omitempty"`
-	State string `json:"state,omitempty"`
-	CodeVerifier string `json:"code_verifier,omitempty"`
-	Instructions string `json:"instructions,omitempty"`
-	RequiresConfirmation bool `json:"requires_confirmation,omitempty"`
-	ConfirmationType string `json:"confirmation_type,omitempty"`
-	Message string `json:"message,omitempty"`
+	Integration          *IntegrationDTO `json:"integration"`
+	AuthURL              string          `json:"auth_url,omitempty"`
+	State                string          `json:"state,omitempty"`
+	CodeVerifier         string          `json:"code_verifier,omitempty"`
+	Instructions         string          `json:"instructions,omitempty"`
+	RequiresConfirmation bool            `json:"requires_confirmation,omitempty"`
+	ConfirmationType     string          `json:"confirmation_type,omitempty"`
+	Message              string          `json:"message,omitempty"`
 }
 
 type ProjectCreateRequest struct {
-	Name string `json:"name" validate:"required"`
+	Name string      `json:"name" validate:"required"`
 	Type ProjectType `json:"type" validate:"required"`
 }
 
@@ -622,7 +622,7 @@ type ProjectUpdateRequest struct {
 }
 
 type MoveAgentToProjectRequest struct {
-	AgentID string `json:"agent_id" validate:"required"`
+	AgentID   string `json:"agent_id" validate:"required"`
 	ProjectID string `json:"project_id" validate:"required"`
 }
 
@@ -632,19 +632,19 @@ type MoveAgentToProjectRequest struct {
 
 type EngineRegisterRequest struct {
 	LocalEngineState *LocalEngineState `json:"local_engine_state"`
-	APIURL string `json:"api_url"`
-	SystemInfo *SystemInfo `json:"system_info"`
-	WorkerConfig WorkerConfig `json:"worker_config"`
+	APIURL           string            `json:"api_url"`
+	SystemInfo       *SystemInfo       `json:"system_info"`
+	WorkerConfig     WorkerConfig      `json:"worker_config"`
 }
 
 type EngineRegisterResponse struct {
-	EngineID string `json:"engine_id"`
-	Workers []AllocatedWorker `json:"workers"`
+	EngineID string            `json:"engine_id"`
+	Workers  []AllocatedWorker `json:"workers"`
 }
 
 // AllocatedWorker is the minimal info engine needs from a register response.
 type AllocatedWorker struct {
-	ID string `json:"id"`
+	ID   string      `json:"id"`
 	GPUs []WorkerGPU `json:"gpus"`
 	CPUs []WorkerCPU `json:"cpus"`
 	RAMs []WorkerRAM `json:"rams"`
@@ -652,64 +652,64 @@ type AllocatedWorker struct {
 
 // Request/Response Types for Engine-to-API communication
 type EngineAPIRequest struct {
-	Data map[string]any `json:"data"`
+	Data     map[string]any           `json:"data"`
 	Metadata EngineAPIRequestMetadata `json:"metadata"`
 }
 
 type EngineAPIRequestMetadata struct {
-	WorkerID string `json:"worker_id"`
-	AppID string `json:"app_id"`
-	AppVersionID string `json:"app_version_id"`
-	AppVariant string `json:"app_variant"`
-	GPUIDs []string `json:"gpu_ids"`
-	TaskID string `json:"task_id"`
+	WorkerID     string   `json:"worker_id"`
+	AppID        string   `json:"app_id"`
+	AppVersionID string   `json:"app_version_id"`
+	AppVariant   string   `json:"app_variant"`
+	GPUIDs       []string `json:"gpu_ids"`
+	TaskID       string   `json:"task_id"`
 }
 
 type WorkerAPIRequestMetadata struct {
-	WorkerID string `json:"worker_id"`
-	AppID string `json:"app_id"`
-	AppVersionID string `json:"app_version_id"`
-	AppVariant string `json:"app_variant"`
-	GPUIDs []string `json:"gpu_ids"`
-	TaskID string `json:"task_id"`
+	WorkerID     string   `json:"worker_id"`
+	AppID        string   `json:"app_id"`
+	AppVersionID string   `json:"app_version_id"`
+	AppVariant   string   `json:"app_variant"`
+	GPUIDs       []string `json:"gpu_ids"`
+	TaskID       string   `json:"task_id"`
 }
 
 // WorkerSetupRequest is the request body for worker /setup endpoint.
 type WorkerSetupRequest struct {
-	Setup *json.RawMessage `json:"setup,omitempty"`
+	Setup    *json.RawMessage         `json:"setup,omitempty"`
 	Metadata WorkerAPIRequestMetadata `json:"metadata"`
 }
 
 // WorkerRunRequest is the request body for worker /run endpoint.
 type WorkerRunRequest struct {
-	Input json.RawMessage `json:"input"`
-	Function string `json:"function,omitempty"` // Function to call on multi-function apps (defaults to "run")
+	Input    json.RawMessage          `json:"input"`
+	Function string                   `json:"function,omitempty"` // Function to call on multi-function apps (defaults to "run")
 	Metadata WorkerAPIRequestMetadata `json:"metadata"`
 }
 
 // CancelTaskRequest is the optional request body for task cancellation.
 type CancelTaskRequest struct {
-	Force bool `json:"force"` // If true, skip graceful cancel and force kill immediately
-	Timeout int `json:"timeout"` // Milliseconds to wait for graceful cancel (default 10000)
+	Force   bool `json:"force"`   // If true, skip graceful cancel and force kill immediately
+	Timeout int  `json:"timeout"` // Milliseconds to wait for graceful cancel (default 10000)
 }
 
 type CreateApiKeyRequest struct {
-	Name string `json:"name" validate:"required"`
+	Name      string     `json:"name" validate:"required"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	Scopes []string `json:"scopes,omitempty"`
+	Scopes    []string   `json:"scopes,omitempty"`
 }
 
 type MenuCreateRequest struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-	Description string `json:"description"`
-	Items []MenuItem `json:"items"`
+	Name        string     `json:"name"`
+	Slug        string     `json:"slug"`
+	Description string     `json:"description"`
+	Items       []MenuItem `json:"items"`
 }
 
 // EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
 type EstimateCostRequest struct {
-	Input map[string]any `json:"input"`
-	Function string `json:"function,omitempty"`
+	Input    map[string]any `json:"input"`
+	Function string         `json:"function,omitempty"`
 }
 
 // EstimateCostResponse is the response from the cost estimation endpoint.
@@ -743,63 +743,63 @@ type Scope string
 const (
 	ScopeAll Scope = "*"
 	// Resource-level scopes (implies all actions)
-	ScopeAgents Scope = "agents"
-	ScopeApps Scope = "apps"
+	ScopeAgents        Scope = "agents"
+	ScopeApps          Scope = "apps"
 	ScopeConversations Scope = "conversations"
-	ScopeFiles Scope = "files"
-	ScopeDatastores Scope = "datastores"
-	ScopeTemplates Scope = "templates"
-	ScopeFlows Scope = "flows"
-	ScopeProjects Scope = "projects"
-	ScopeTeams Scope = "teams"
-	ScopeBilling Scope = "billing"
+	ScopeFiles         Scope = "files"
+	ScopeDatastores    Scope = "datastores"
+	ScopeTemplates     Scope = "templates"
+	ScopeFlows         Scope = "flows"
+	ScopeProjects      Scope = "projects"
+	ScopeTeams         Scope = "teams"
+	ScopeBilling       Scope = "billing"
 	// Action-level scopes for Agents
-	ScopeAgentsRead Scope = "agents:read"
-	ScopeAgentsWrite Scope = "agents:write"
+	ScopeAgentsRead    Scope = "agents:read"
+	ScopeAgentsWrite   Scope = "agents:write"
 	ScopeAgentsExecute Scope = "agents:execute"
 	// Action-level scopes for Apps
-	ScopeAppsRead Scope = "apps:read"
-	ScopeAppsWrite Scope = "apps:write"
+	ScopeAppsRead    Scope = "apps:read"
+	ScopeAppsWrite   Scope = "apps:write"
 	ScopeAppsExecute Scope = "apps:execute"
 	// Action-level scopes for Conversations/Chats
-	ScopeConversationsRead Scope = "conversations:read"
+	ScopeConversationsRead  Scope = "conversations:read"
 	ScopeConversationsWrite Scope = "conversations:write"
 	// Action-level scopes for Files
-	ScopeFilesRead Scope = "files:read"
+	ScopeFilesRead  Scope = "files:read"
 	ScopeFilesWrite Scope = "files:write"
 	// Action-level scopes for Datastores
-	ScopeDatastoresRead Scope = "datastores:read"
+	ScopeDatastoresRead  Scope = "datastores:read"
 	ScopeDatastoresWrite Scope = "datastores:write"
 	// Action-level scopes for Flows
-	ScopeFlowsRead Scope = "flows:read"
-	ScopeFlowsWrite Scope = "flows:write"
+	ScopeFlowsRead    Scope = "flows:read"
+	ScopeFlowsWrite   Scope = "flows:write"
 	ScopeFlowsExecute Scope = "flows:execute"
 	// Action-level scopes for Projects
-	ScopeProjectsRead Scope = "projects:read"
+	ScopeProjectsRead  Scope = "projects:read"
 	ScopeProjectsWrite Scope = "projects:write"
 	// Action-level scopes for Teams
-	ScopeTeamsRead Scope = "teams:read"
+	ScopeTeamsRead  Scope = "teams:read"
 	ScopeTeamsWrite Scope = "teams:write"
 	// Action-level scopes for Billing
-	ScopeBillingRead Scope = "billing:read"
+	ScopeBillingRead  Scope = "billing:read"
 	ScopeBillingWrite Scope = "billing:write"
 	// Action-level scopes for Secrets (sensitive - excluded from read-only preset)
-	ScopeSecretsRead Scope = "secrets:read"
+	ScopeSecretsRead  Scope = "secrets:read"
 	ScopeSecretsWrite Scope = "secrets:write"
 	// Action-level scopes for Integrations
-	ScopeIntegrationsRead Scope = "integrations:read"
+	ScopeIntegrationsRead  Scope = "integrations:read"
 	ScopeIntegrationsWrite Scope = "integrations:write"
 	// Action-level scopes for Engines
-	ScopeEnginesRead Scope = "engines:read"
+	ScopeEnginesRead  Scope = "engines:read"
 	ScopeEnginesWrite Scope = "engines:write"
 	// Action-level scopes for API Keys
-	ScopeApiKeysRead Scope = "apikeys:read"
+	ScopeApiKeysRead  Scope = "apikeys:read"
 	ScopeApiKeysWrite Scope = "apikeys:write"
 	// Action-level scopes for User profile
-	ScopeUserRead Scope = "user:read"
+	ScopeUserRead  Scope = "user:read"
 	ScopeUserWrite Scope = "user:write"
 	// Action-level scopes for Settings/Notifications
-	ScopeSettingsRead Scope = "settings:read"
+	ScopeSettingsRead  Scope = "settings:read"
 	ScopeSettingsWrite Scope = "settings:write"
 )
 
@@ -807,53 +807,53 @@ const (
 type ScopeGroup string
 
 const (
-	ScopeGroupAgents ScopeGroup = "agents"
-	ScopeGroupApps ScopeGroup = "apps"
+	ScopeGroupAgents        ScopeGroup = "agents"
+	ScopeGroupApps          ScopeGroup = "apps"
 	ScopeGroupConversations ScopeGroup = "conversations"
-	ScopeGroupFiles ScopeGroup = "files"
-	ScopeGroupDatastores ScopeGroup = "datastores"
-	ScopeGroupFlows ScopeGroup = "flows"
-	ScopeGroupProjects ScopeGroup = "projects"
-	ScopeGroupTeams ScopeGroup = "teams"
-	ScopeGroupBilling ScopeGroup = "billing"
-	ScopeGroupSecrets ScopeGroup = "secrets"
-	ScopeGroupIntegrations ScopeGroup = "integrations"
-	ScopeGroupEngines ScopeGroup = "engines"
-	ScopeGroupApiKeys ScopeGroup = "apikeys"
-	ScopeGroupUser ScopeGroup = "user"
-	ScopeGroupSettings ScopeGroup = "settings"
+	ScopeGroupFiles         ScopeGroup = "files"
+	ScopeGroupDatastores    ScopeGroup = "datastores"
+	ScopeGroupFlows         ScopeGroup = "flows"
+	ScopeGroupProjects      ScopeGroup = "projects"
+	ScopeGroupTeams         ScopeGroup = "teams"
+	ScopeGroupBilling       ScopeGroup = "billing"
+	ScopeGroupSecrets       ScopeGroup = "secrets"
+	ScopeGroupIntegrations  ScopeGroup = "integrations"
+	ScopeGroupEngines       ScopeGroup = "engines"
+	ScopeGroupApiKeys       ScopeGroup = "apikeys"
+	ScopeGroupUser          ScopeGroup = "user"
+	ScopeGroupSettings      ScopeGroup = "settings"
 )
 
 // ScopeDefinition describes a single scope for UI rendering
 type ScopeDefinition struct {
-	Value Scope `json:"value"` // The scope string (e.g., "agents:read")
-	Label string `json:"label"` // Human-readable label
-	Description string `json:"description"` // Longer description
-	Group ScopeGroup `json:"group"` // Category for grouping
+	Value       Scope      `json:"value"`       // The scope string (e.g., "agents:read")
+	Label       string     `json:"label"`       // Human-readable label
+	Description string     `json:"description"` // Longer description
+	Group       ScopeGroup `json:"group"`       // Category for grouping
 }
 
 // ScopeGroupDefinition describes a group of scopes for UI rendering
 type ScopeGroupDefinition struct {
-	ID ScopeGroup `json:"id"`
-	Label string `json:"label"`
-	Description string `json:"description"`
+	ID          ScopeGroup `json:"id"`
+	Label       string     `json:"label"`
+	Description string     `json:"description"`
 }
 
 // ScopesResponse is the API response for GET /scopes
 type ScopesResponse struct {
-	Scopes []ScopeDefinition `json:"scopes"`
-	Groups []ScopeGroupDefinition `json:"groups"`
-	Presets []ScopePreset `json:"presets"`
+	Scopes  []ScopeDefinition      `json:"scopes"`
+	Groups  []ScopeGroupDefinition `json:"groups"`
+	Presets []ScopePreset          `json:"presets"`
 }
 
 // ScopePreset represents a predefined bundle of scopes for common use cases
 type ScopePreset struct {
-	ID string `json:"id"`
-	Label string `json:"label"`
-	Description string `json:"description"`
-	Scopes []Scope `json:"scopes"`
-	Summary []string `json:"summary,omitempty"`
-	Hidden bool `json:"hidden,omitempty"`
+	ID          string   `json:"id"`
+	Label       string   `json:"label"`
+	Description string   `json:"description"`
+	Scopes      []Scope  `json:"scopes"`
+	Summary     []string `json:"summary,omitempty"`
+	Hidden      bool     `json:"hidden,omitempty"`
 }
 
 // --------------------
@@ -862,14 +862,14 @@ type ScopePreset struct {
 
 // ApiKeyDTO for API responses
 type ApiKeyDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Name string `json:"name"`
-	Key string `json:"key"`
-	LastUsedAt time.Time `json:"last_used_at"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	Scopes []Scope `json:"scopes"`
-	Source string `json:"source,omitempty"`
+	Name               string     `json:"name"`
+	Key                string     `json:"key"`
+	LastUsedAt         time.Time  `json:"last_used_at"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	Scopes             []Scope    `json:"scopes"`
+	Source             string     `json:"source,omitempty"`
 }
 
 // --------------------
@@ -879,13 +879,13 @@ type ApiKeyDTO struct {
 // AppPricing configures all pricing using CEL expressions.
 // Empty expressions use defaults. All values in microcents.
 type AppPricing struct {
-	Prices map[string]int64 `json:"prices"`
-	UpstreamPricing string `json:"upstream_pricing,omitempty"`
-	ResourceExpression string `json:"resource_expression"`
-	InferenceExpression string `json:"inference_expression"`
-	RoyaltyExpression string `json:"royalty_expression"`
-	PartnerExpression string `json:"partner_expression"`
-	TotalExpression string `json:"total_expression"`
+	Prices              map[string]int64 `json:"prices"`
+	UpstreamPricing     string           `json:"upstream_pricing,omitempty"`
+	ResourceExpression  string           `json:"resource_expression"`
+	InferenceExpression string           `json:"inference_expression"`
+	RoyaltyExpression   string           `json:"royalty_expression"`
+	PartnerExpression   string           `json:"partner_expression"`
+	TotalExpression     string           `json:"total_expression"`
 	// Estimate is a single CEL expression for pre-execution cost estimation.
 	// Returns either an int (exact total in microcents) or a {"min": int, "max": int} map.
 	// Only has access to pre-execution variables: task_inputs, prices, fees, task_function.
@@ -894,8 +894,8 @@ type AppPricing struct {
 	Estimate string `json:"estimate,omitempty"`
 	// Estimable is computed at save time. True when all fee expressions can be
 	// evaluated from pre-execution data alone (task_inputs, prices, fees, task_function).
-	Estimable *bool `json:"estimable,omitempty"`
-	Description string `json:"description"`
+	Estimable           *bool  `json:"estimable,omitempty"`
+	Description         string `json:"description"`
 	DescriptionRendered string `json:"description_rendered,omitempty"`
 }
 
@@ -931,8 +931,8 @@ func (p *AppPricing) Merge(patch *AppPricing) {
 // Sanitize trims CEL expressions
 func (p *AppPricing) Sanitize() {
 	normalize := func(s string) string {
-	return strings.TrimSpace(s)
-}
+		return strings.TrimSpace(s)
+	}
 	p.ResourceExpression = normalize(p.ResourceExpression)
 	p.InferenceExpression = normalize(p.InferenceExpression)
 	p.RoyaltyExpression = normalize(p.RoyaltyExpression)
@@ -944,46 +944,46 @@ func (p *AppPricing) Sanitize() {
 
 // AppFunction represents a callable entry point within an app version.
 type AppFunction struct {
-	Name string `json:"name"`
-	Description string `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description,omitempty"`
+	InputSchema  json.RawMessage `json:"input_schema"`
 	OutputSchema json.RawMessage `json:"output_schema"`
 }
 
 // AppImages holds developer-provided images for the app.
 type AppImages struct {
-	Card string `json:"card" yaml:"card"`
+	Card      string `json:"card" yaml:"card"`
 	Thumbnail string `json:"thumbnail" yaml:"thumbnail"`
-	Banner string `json:"banner" yaml:"banner"`
+	Banner    string `json:"banner" yaml:"banner"`
 }
 
 // AppGPUResource describes GPU requirements.
 type AppGPUResource struct {
-	Count int `json:"count" yaml:"count"`
-	Vram int64 `json:"vram" yaml:"vram"`
-	Type GPUType `json:"type" yaml:"type"`
+	Count int     `json:"count" yaml:"count"`
+	Vram  int64   `json:"vram" yaml:"vram"`
+	Type  GPUType `json:"type" yaml:"type"`
 }
 
 // AppResources describes resource requirements.
 type AppResources struct {
 	GPU AppGPUResource `json:"gpu" yaml:"gpu"`
-	RAM int `json:"ram" yaml:"ram"`
+	RAM int            `json:"ram" yaml:"ram"`
 }
 
 // AppVariant is a named resource/env configuration variant.
 type AppVariant struct {
-	Name string `json:"name" yaml:"name"`
-	Order int `json:"order" yaml:"order"`
-	Resources AppResources `json:"resources" yaml:"resources"`
-	Env map[string]string `json:"env" yaml:"env"`
-	Python string `json:"python" yaml:"python"`
+	Name      string            `json:"name" yaml:"name"`
+	Order     int               `json:"order" yaml:"order"`
+	Resources AppResources      `json:"resources" yaml:"resources"`
+	Env       map[string]string `json:"env" yaml:"env"`
+	Python    string            `json:"python" yaml:"python"`
 }
 
 // SecretRequirement defines a secret that an app requires to run.
 type SecretRequirement struct {
-	Key string `json:"key" yaml:"key"`
+	Key         string `json:"key" yaml:"key"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
-	Optional bool `json:"optional,omitempty" yaml:"optional,omitempty"`
+	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
 }
 
 // IntegrationRequirement defines an integration that an app requires.
@@ -991,28 +991,28 @@ type SecretRequirement struct {
 // Secrets lists the specific env var names to inject from this integration.
 // Scopes lists OAuth scopes needed (for OAuth integrations).
 type IntegrationRequirement struct {
-	Key string `json:"key" yaml:"key"`
-	Description string `json:"description,omitempty" yaml:"description,omitempty"`
-	Optional bool `json:"optional,omitempty" yaml:"optional,omitempty"`
-	Secrets []string `json:"secrets,omitempty" yaml:"secrets,omitempty"`
-	Scopes []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+	Key         string   `json:"key" yaml:"key"`
+	Description string   `json:"description,omitempty" yaml:"description,omitempty"`
+	Optional    bool     `json:"optional,omitempty" yaml:"optional,omitempty"`
+	Secrets     []string `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	Scopes      []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
 }
 
 // AppDTO is the API response for a full app.
 type AppDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	AgentDescription string `json:"agent_description"`
-	Category AppCategory `json:"category"`
-	Images AppImages `json:"images"`
-	VersionID string `json:"version_id"`
-	Version *AppVersionDTO `json:"version"`
-	Status AppStatus `json:"status"`
-	StatusMessage string `json:"status_message,omitempty"`
-	StatusChangedAt *time.Time `json:"status_changed_at,omitempty"`
+	Namespace          string         `json:"namespace"`
+	Name               string         `json:"name"`
+	Description        string         `json:"description"`
+	AgentDescription   string         `json:"agent_description"`
+	Category           AppCategory    `json:"category"`
+	Images             AppImages      `json:"images"`
+	VersionID          string         `json:"version_id"`
+	Version            *AppVersionDTO `json:"version"`
+	Status             AppStatus      `json:"status"`
+	StatusMessage      string         `json:"status_message,omitempty"`
+	StatusChangedAt    *time.Time     `json:"status_changed_at,omitempty"`
 }
 
 // FullName returns the full name in the format "namespace/name".
@@ -1025,31 +1025,31 @@ func (a *AppDTO) FullName() string {
 
 // AppVersionDTO is the API response for an app version.
 type AppVersionDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	Metadata map[string]any `json:"metadata"`
-	Repository string `json:"repository"`
-	FlowVersionID *string `json:"flow_version_id"`
-	FlowVersion *FlowVersionDTO `json:"flow_version"`
-	SetupSchema json.RawMessage `json:"setup_schema"`
-	InputSchema json.RawMessage `json:"input_schema"`
-	OutputSchema json.RawMessage `json:"output_schema"`
-	Functions map[string]AppFunction `json:"functions,omitempty"`
-	DefaultFunction string `json:"default_function,omitempty"`
-	Variants map[string]AppVariant `json:"variants"`
-	Env map[string]string `json:"env"`
-	Kernel string `json:"kernel"`
-	RequiredSecrets []SecretRequirement `json:"required_secrets,omitempty"`
+	BaseModelDTO         `tstype:",extends"`
+	Metadata             map[string]any           `json:"metadata"`
+	Repository           string                   `json:"repository"`
+	FlowVersionID        *string                  `json:"flow_version_id"`
+	FlowVersion          *FlowVersionDTO          `json:"flow_version"`
+	SetupSchema          json.RawMessage          `json:"setup_schema"`
+	InputSchema          json.RawMessage          `json:"input_schema"`
+	OutputSchema         json.RawMessage          `json:"output_schema"`
+	Functions            map[string]AppFunction   `json:"functions,omitempty"`
+	DefaultFunction      string                   `json:"default_function,omitempty"`
+	Variants             map[string]AppVariant    `json:"variants"`
+	Env                  map[string]string        `json:"env"`
+	Kernel               string                   `json:"kernel"`
+	RequiredSecrets      []SecretRequirement      `json:"required_secrets,omitempty"`
 	RequiredIntegrations []IntegrationRequirement `json:"required_integrations,omitempty"`
-	RequiredResources AppResources `json:"resources"`
-	Checksum string `json:"checksum,omitempty"`
+	RequiredResources    AppResources             `json:"resources"`
+	Checksum             string                   `json:"checksum,omitempty"`
 }
 
 // LicenseRecordDTO is the API response for a license record.
 type LicenseRecordDTO struct {
 	BaseModelDTO `tstype:",extends"`
-	UserID string `json:"user_id"`
-	AppID string `json:"app_id"`
-	License string `json:"license"`
+	UserID       string `json:"user_id"`
+	AppID        string `json:"app_id"`
+	License      string `json:"license"`
 }
 
 // --------------------
@@ -1058,18 +1058,18 @@ type LicenseRecordDTO struct {
 
 // AppSessionDTO is the external representation
 type AppSessionDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	WorkerID string `json:"worker_id"`
-	AppID string `json:"app_id"`
-	AppVersionID string `json:"app_version_id"`
-	Status AppSessionStatus `json:"status"`
-	ExpiresAt time.Time `json:"expires_at"`
-	EndedAt *time.Time `json:"ended_at"`
-	TaskID *string `json:"task_id"`
-	CallCount int `json:"call_count"`
-	LastCallAt *time.Time `json:"last_call_at"`
-	IdleTimeout *int `json:"idle_timeout,omitempty"`
+	WorkerID           string           `json:"worker_id"`
+	AppID              string           `json:"app_id"`
+	AppVersionID       string           `json:"app_version_id"`
+	Status             AppSessionStatus `json:"status"`
+	ExpiresAt          time.Time        `json:"expires_at"`
+	EndedAt            *time.Time       `json:"ended_at"`
+	TaskID             *string          `json:"task_id"`
+	CallCount          int              `json:"call_count"`
+	LastCallAt         *time.Time       `json:"last_call_at"`
+	IdleTimeout        *int             `json:"idle_timeout,omitempty"`
 }
 
 // --------------------
@@ -1078,38 +1078,38 @@ type AppSessionDTO struct {
 
 // AppStoreListingDTO for API responses
 type AppStoreListingDTO struct {
-	ID string `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-	Category string `json:"category"`
-	Subcategory string `json:"subcategory,omitempty"`
-	PageID *string `json:"page_id,omitempty"`
-	IsFeatured bool `json:"is_featured"`
-	Rank int `json:"rank"`
-	AllowsPrivateWorkers bool `json:"allows_private_workers"`
-	AllowsCloudWorkers bool `json:"allows_cloud_workers"`
-	MaxConcurrency int `json:"max_concurrency"`
-	MaxConcurrencyPerTeam int `json:"max_concurrency_per_team"`
-	MinConcurrency int `json:"min_concurrency"`
-	RequiredFeature string `json:"required_feature,omitempty"`
-	Tags []string `json:"tags,omitempty"`
+	ID                    string     `json:"id"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+	DeletedAt             *time.Time `json:"deleted_at,omitempty"`
+	Category              string     `json:"category"`
+	Subcategory           string     `json:"subcategory,omitempty"`
+	PageID                *string    `json:"page_id,omitempty"`
+	IsFeatured            bool       `json:"is_featured"`
+	Rank                  int        `json:"rank"`
+	AllowsPrivateWorkers  bool       `json:"allows_private_workers"`
+	AllowsCloudWorkers    bool       `json:"allows_cloud_workers"`
+	MaxConcurrency        int        `json:"max_concurrency"`
+	MaxConcurrencyPerTeam int        `json:"max_concurrency_per_team"`
+	MinConcurrency        int        `json:"min_concurrency"`
+	RequiredFeature       string     `json:"required_feature,omitempty"`
+	Tags                  []string   `json:"tags,omitempty"`
 }
 
 // PublicAppStoreDTO is a lean DTO for public app store display.
 type PublicAppStoreDTO struct {
-	ID string `json:"id"`
-	Category string `json:"category"`
-	Subcategory string `json:"subcategory,omitempty"`
-	Tags []string `json:"tags,omitempty"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	Images AppImages `json:"images"`
-	IsFeatured bool `json:"is_featured"`
-	Rank int `json:"rank"`
-	HasApprovedVersion bool `json:"has_approved_version"`
-	PageID *string `json:"page_id,omitempty"`
+	ID                 string    `json:"id"`
+	Category           string    `json:"category"`
+	Subcategory        string    `json:"subcategory,omitempty"`
+	Tags               []string  `json:"tags,omitempty"`
+	Namespace          string    `json:"namespace"`
+	Name               string    `json:"name"`
+	Description        string    `json:"description"`
+	Images             AppImages `json:"images"`
+	IsFeatured         bool      `json:"is_featured"`
+	Rank               int       `json:"rank"`
+	HasApprovedVersion bool      `json:"has_approved_version"`
+	PageID             *string   `json:"page_id,omitempty"`
 }
 
 // --------------------
@@ -1118,20 +1118,20 @@ type PublicAppStoreDTO struct {
 
 // AuthSessionDTO is a safe representation of AuthSession for API responses.
 type AuthSessionDTO struct {
-	ID string `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
-	IP string `json:"ip"`
-	City string `json:"city"`
-	Country string `json:"country"`
-	CountryCode string `json:"country_code"`
-	Region string `json:"region"`
-	OS string `json:"os"`
-	Browser string `json:"browser"`
-	BrowserVersion string `json:"browser_version"`
-	AuthMethod string `json:"auth_method"`
-	Scopes []Scope `json:"scopes,omitempty"`
-	Current bool `json:"current"`
+	ID             string    `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	IP             string    `json:"ip"`
+	City           string    `json:"city"`
+	Country        string    `json:"country"`
+	CountryCode    string    `json:"country_code"`
+	Region         string    `json:"region"`
+	OS             string    `json:"os"`
+	Browser        string    `json:"browser"`
+	BrowserVersion string    `json:"browser_version"`
+	AuthMethod     string    `json:"auth_method"`
+	Scopes         []Scope   `json:"scopes,omitempty"`
+	Current        bool      `json:"current"`
 }
 
 // --------------------
@@ -1141,26 +1141,26 @@ type AuthSessionDTO struct {
 // BaseModelDTO is the contract-layer base embed — same fields, no gorm tags.
 // All DTOs should embed this instead of BaseModel.
 type BaseModelDTO struct {
-	ID string `json:"id"`
-	ShortID string `json:"short_id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string     `json:"id"`
+	ShortID   string     `json:"short_id"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
 }
 
 // PermissionModelDTO is the contract-layer permission embed.
 type PermissionModelDTO struct {
-	UserID string `json:"user_id"`
-	User *UserRelationDTO `json:"user"`
-	TeamID string `json:"team_id"`
-	Team *TeamRelationDTO `json:"team"`
-	Visibility Visibility `json:"visibility"`
+	UserID     string           `json:"user_id"`
+	User       *UserRelationDTO `json:"user"`
+	TeamID     string           `json:"team_id"`
+	Team       *TeamRelationDTO `json:"team"`
+	Visibility Visibility       `json:"visibility"`
 }
 
 // ResourceStatusDTO is a lightweight status-only response for polling transports.
 type ResourceStatusDTO struct {
-	ID string `json:"id"`
-	Status any `json:"status"`
+	ID        string    `json:"id"`
+	Status    any       `json:"status"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
@@ -1170,38 +1170,38 @@ type ResourceStatusDTO struct {
 
 // ChatDTO for API responses
 type ChatDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	ParentID *string `json:"parent_id"`
-	Parent *ChatDTO `json:"parent"`
-	Children []*ChatDTO `json:"children"`
-	Status ChatStatus `json:"status"`
-	Output *json.RawMessage `json:"output,omitempty"`
-	Context map[string]string `json:"context,omitempty"`
-	AgentID *string `json:"agent_id,omitempty"`
-	Agent *AgentDTO `json:"agent,omitempty"`
-	AgentVersionID *string `json:"agent_version_id,omitempty"`
-	AgentVersion *AgentVersionDTO `json:"agent_version,omitempty"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	ChatMessages []ChatMessageDTO `json:"chat_messages"`
-	AgentData ChatData `json:"agent_data"`
+	ParentID           *string           `json:"parent_id"`
+	Parent             *ChatDTO          `json:"parent"`
+	Children           []*ChatDTO        `json:"children"`
+	Status             ChatStatus        `json:"status"`
+	Output             *json.RawMessage  `json:"output,omitempty"`
+	Context            map[string]string `json:"context,omitempty"`
+	AgentID            *string           `json:"agent_id,omitempty"`
+	Agent              *AgentDTO         `json:"agent,omitempty"`
+	AgentVersionID     *string           `json:"agent_version_id,omitempty"`
+	AgentVersion       *AgentVersionDTO  `json:"agent_version,omitempty"`
+	Name               string            `json:"name"`
+	Description        string            `json:"description"`
+	ChatMessages       []ChatMessageDTO  `json:"chat_messages"`
+	AgentData          ChatData          `json:"agent_data"`
 }
 
 // ChatMessageDTO for API responses
 type ChatMessageDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	ChatID string `json:"chat_id"`
-	Chat *ChatDTO `json:"chat"`
-	Order int `json:"order"`
-	Status ChatMessageStatus `json:"status"`
-	TaskID *string `json:"task_id"`
-	Role ChatMessageRole `json:"role"`
-	Content []ChatMessageContent `json:"content"`
-	Tools *[]Tool `json:"tools"`
-	ToolCallID *string `json:"tool_call_id"`
-	ToolInvocations *[]ToolInvocationDTO `json:"tool_invocations"`
+	ChatID             string               `json:"chat_id"`
+	Chat               *ChatDTO             `json:"chat"`
+	Order              int                  `json:"order"`
+	Status             ChatMessageStatus    `json:"status"`
+	TaskID             *string              `json:"task_id"`
+	Role               ChatMessageRole      `json:"role"`
+	Content            []ChatMessageContent `json:"content"`
+	Tools              *[]Tool              `json:"tools"`
+	ToolCallID         *string              `json:"tool_call_id"`
+	ToolInvocations    *[]ToolInvocationDTO `json:"tool_invocations"`
 }
 
 // --------------------
@@ -1211,55 +1211,55 @@ type ChatMessageDTO struct {
 // SearchRequest represents a search request
 type SearchRequest struct {
 	Fields []string `json:"fields"`
-	Term string `json:"term"`
-	Exact bool `json:"exact"`
+	Term   string   `json:"term"`
+	Exact  bool     `json:"exact"`
 }
 
 type ListResponse[T any] struct {
-	Items []T `json:"items"`
-	Total int `json:"total"`
-	Page int `json:"page"`
-	PageSize int `json:"page_size"`
+	Items      []T `json:"items"`
+	Total      int `json:"total"`
+	Page       int `json:"page"`
+	PageSize   int `json:"page_size"`
 	TotalPages int `json:"total_pages"`
 }
 
 // Filter represents a single filter condition
 type Filter struct {
-	Field string `json:"field"`
+	Field    string         `json:"field"`
 	Operator FilterOperator `json:"operator"`
-	Value any `json:"value"`
+	Value    any            `json:"value"`
 }
 
 // SortOrder represents sorting configuration
 type SortOrder struct {
 	Field string `json:"field"`
-	Dir string `json:"dir"` // "asc" or "desc"
+	Dir   string `json:"dir"` // "asc" or "desc"
 }
 
 // CursorListRequest represents a cursor-based list request with all options
 type CursorListRequest struct {
-	Cursor string `json:"cursor"`
-	Page *int `json:"page,omitempty"` // Page number for offset-based pagination (used when Cursor is empty)
-	Limit int `json:"limit"`
-	Direction string `json:"direction"`
-	Search *SearchRequest `json:"search"`
-	Filters []Filter `json:"filters"`
-	Preloads []string `json:"preloads"`
-	Sort []SortOrder `json:"sort"`
-	Fields []string `json:"fields"` // Fields to select, empty means all fields
-	Permissions []string `json:"permissions"` // Permissions to filter by, empty means all permissions
-	IncludeOthers bool `json:"include_others"` // Include other users' items in the response
+	Cursor        string         `json:"cursor"`
+	Page          *int           `json:"page,omitempty"` // Page number for offset-based pagination (used when Cursor is empty)
+	Limit         int            `json:"limit"`
+	Direction     string         `json:"direction"`
+	Search        *SearchRequest `json:"search"`
+	Filters       []Filter       `json:"filters"`
+	Preloads      []string       `json:"preloads"`
+	Sort          []SortOrder    `json:"sort"`
+	Fields        []string       `json:"fields"`         // Fields to select, empty means all fields
+	Permissions   []string       `json:"permissions"`    // Permissions to filter by, empty means all permissions
+	IncludeOthers bool           `json:"include_others"` // Include other users' items in the response
 }
 
 // CursorListResponse represents a cursor-based paginated response
 type CursorListResponse[T any] struct {
-	Items []T `json:"items"`
-	NextCursor string `json:"next_cursor"` // Base64 encoded timestamp
-	PrevCursor string `json:"prev_cursor"` // Base64 encoded timestamp
-	HasNext bool `json:"has_next"`
-	HasPrevious bool `json:"has_previous"`
-	ItemsPerPage int `json:"items_per_page"`
-	TotalItems int `json:"total_items"`
+	Items        []T    `json:"items"`
+	NextCursor   string `json:"next_cursor"` // Base64 encoded timestamp
+	PrevCursor   string `json:"prev_cursor"` // Base64 encoded timestamp
+	HasNext      bool   `json:"has_next"`
+	HasPrevious  bool   `json:"has_previous"`
+	ItemsPerPage int    `json:"items_per_page"`
+	TotalItems   int    `json:"total_items"`
 }
 
 // --------------------
@@ -1268,18 +1268,18 @@ type CursorListResponse[T any] struct {
 
 // EngineConfig holds engine configuration (no gorm tags).
 type EngineConfig struct {
-	ID string `json:"id" yaml:"id"`
-	Name string `json:"name" yaml:"name"`
-	APIURL string `json:"api_url" yaml:"api_url"`
-	EnginePort string `json:"engine_port" yaml:"engine_port"`
-	Workers WorkerConfig `json:"workers" yaml:"workers"`
-	APIKey string `json:"api_key" yaml:"api_key"`
-	ContainerMode bool `json:"container_mode" yaml:"container_mode"`
-	NetworkName string `json:"network_name" yaml:"network_name"`
-	CachePath string `json:"cache_path" yaml:"cache_path"`
-	GPUs []string `json:"gpus" yaml:"gpus"`
-	CallbackBasePort int `json:"callback_base_port" yaml:"callback_base_port"`
-	EngineInternalAPIURL string `json:"engine_internal_api_url" yaml:"engine_internal_api_url"`
+	ID                   string       `json:"id" yaml:"id"`
+	Name                 string       `json:"name" yaml:"name"`
+	APIURL               string       `json:"api_url" yaml:"api_url"`
+	EnginePort           string       `json:"engine_port" yaml:"engine_port"`
+	Workers              WorkerConfig `json:"workers" yaml:"workers"`
+	APIKey               string       `json:"api_key" yaml:"api_key"`
+	ContainerMode        bool         `json:"container_mode" yaml:"container_mode"`
+	NetworkName          string       `json:"network_name" yaml:"network_name"`
+	CachePath            string       `json:"cache_path" yaml:"cache_path"`
+	GPUs                 []string     `json:"gpus" yaml:"gpus"`
+	CallbackBasePort     int          `json:"callback_base_port" yaml:"callback_base_port"`
+	EngineInternalAPIURL string       `json:"engine_internal_api_url" yaml:"engine_internal_api_url"`
 }
 
 // WorkerGPUConfig defines GPU allocation for a worker.
@@ -1320,104 +1320,104 @@ type WorkerCPUConfig struct {
 // WorkerConfig defines how workers are allocated on an engine.
 type WorkerConfig struct {
 	GPU []WorkerGPUConfig `json:"gpu" yaml:"gpu"`
-	CPU WorkerCPUConfig `json:"cpu" yaml:"cpu"`
+	CPU WorkerCPUConfig   `json:"cpu" yaml:"cpu"`
 }
 
 // EngineDTO is the full API response for an engine.
 type EngineDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Instance *InstanceDTO `json:"instance"`
-	Config EngineConfig `json:"config"`
-	Name string `json:"name"`
-	APIURL string `json:"api_url"`
-	Status EngineStatus `json:"status"`
-	EngineVersion string `json:"engine_version"`
-	SystemInfo *SystemInfo `json:"system_info"`
-	Workers []*WorkerDTO `json:"workers"`
+	Instance           *InstanceDTO `json:"instance"`
+	Config             EngineConfig `json:"config"`
+	Name               string       `json:"name"`
+	APIURL             string       `json:"api_url"`
+	Status             EngineStatus `json:"status"`
+	EngineVersion      string       `json:"engine_version"`
+	SystemInfo         *SystemInfo  `json:"system_info"`
+	Workers            []*WorkerDTO `json:"workers"`
 }
 
 // EngineSummary is a lightweight engine response embedded in tasks.
 type EngineSummary struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Instance *InstanceDTO `json:"instance"`
-	Name string `json:"name"`
-	Status EngineStatus `json:"status"`
-	Workers []*WorkerSummary `json:"workers"`
+	Instance           *InstanceDTO     `json:"instance"`
+	Name               string           `json:"name"`
+	Status             EngineStatus     `json:"status"`
+	Workers            []*WorkerSummary `json:"workers"`
 }
 
 // WorkerDTO is the full API response for a worker.
 type WorkerDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	UserID string `json:"user_id"`
-	TeamID string `json:"team_id"`
-	Index int `json:"index"`
-	Status WorkerStatus `json:"status"`
-	EngineID string `json:"engine_id"`
-	TaskID *string `json:"task_id"`
-	AppID string `json:"app_id"`
-	AppVersionID string `json:"app_version_id"`
-	ActiveSessionID *string `json:"active_session_id"`
-	GPUs []WorkerGPU `json:"gpus,omitempty"`
-	CPUs []WorkerCPU `json:"cpus,omitempty"`
-	RAMs []WorkerRAM `json:"rams,omitempty"`
-	SystemInfo SystemInfo `json:"system_info"`
-	WarmApps []string `json:"warm_apps,omitempty"`
+	BaseModelDTO    `tstype:",extends"`
+	UserID          string       `json:"user_id"`
+	TeamID          string       `json:"team_id"`
+	Index           int          `json:"index"`
+	Status          WorkerStatus `json:"status"`
+	EngineID        string       `json:"engine_id"`
+	TaskID          *string      `json:"task_id"`
+	AppID           string       `json:"app_id"`
+	AppVersionID    string       `json:"app_version_id"`
+	ActiveSessionID *string      `json:"active_session_id"`
+	GPUs            []WorkerGPU  `json:"gpus,omitempty"`
+	CPUs            []WorkerCPU  `json:"cpus,omitempty"`
+	RAMs            []WorkerRAM  `json:"rams,omitempty"`
+	SystemInfo      SystemInfo   `json:"system_info"`
+	WarmApps        []string     `json:"warm_apps,omitempty"`
 }
 
 // WorkerSummary is a lightweight worker response.
 type WorkerSummary struct {
-	ID string `json:"id"`
-	UserID string `json:"user_id"`
-	Index int `json:"index"`
-	Status WorkerStatus `json:"status"`
-	EngineID string `json:"engine_id"`
-	EngineName string `json:"engine_name"`
-	TaskID *string `json:"task_id"`
-	AppID string `json:"app_id"`
-	AppVersionID string `json:"app_version_id"`
-	ActiveSessionID *string `json:"active_session_id"`
-	GPUs []WorkerGPU `json:"gpus,omitempty"`
-	CPUs []WorkerCPU `json:"cpus,omitempty"`
-	RAMs []WorkerRAM `json:"rams,omitempty"`
+	ID              string       `json:"id"`
+	UserID          string       `json:"user_id"`
+	Index           int          `json:"index"`
+	Status          WorkerStatus `json:"status"`
+	EngineID        string       `json:"engine_id"`
+	EngineName      string       `json:"engine_name"`
+	TaskID          *string      `json:"task_id"`
+	AppID           string       `json:"app_id"`
+	AppVersionID    string       `json:"app_version_id"`
+	ActiveSessionID *string      `json:"active_session_id"`
+	GPUs            []WorkerGPU  `json:"gpus,omitempty"`
+	CPUs            []WorkerCPU  `json:"cpus,omitempty"`
+	RAMs            []WorkerRAM  `json:"rams,omitempty"`
 }
 
 // LocalEngineState is the minimal engine state returned to local CLI.
 type LocalEngineState struct {
-	ID string `json:"id"`
-	Name string `json:"name"`
-	Config EngineConfig `json:"config"`
-	PublicKey string `json:"public_key"`
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	Config    EngineConfig `json:"config"`
+	PublicKey string       `json:"public_key"`
 }
 
 // WorkerGPU describes a GPU attached to a worker (contract-only, no gorm).
 type WorkerGPU struct {
-	ID string `json:"id"`
-	WorkerID string `json:"worker_id"`
-	GPUID string `json:"gpu_id"`
-	Type GPUType `json:"type"`
-	Name string `json:"name"`
-	VRAM int64 `json:"vram"`
+	ID       string  `json:"id"`
+	WorkerID string  `json:"worker_id"`
+	GPUID    string  `json:"gpu_id"`
+	Type     GPUType `json:"type"`
+	Name     string  `json:"name"`
+	VRAM     int64   `json:"vram"`
 }
 
 // WorkerCPU describes a CPU attached to a worker (contract-only, no gorm).
 type WorkerCPU struct {
-	ID string `json:"id"`
-	WorkerID string `json:"worker_id"`
-	Name string `json:"name"`
-	VendorID string `json:"vendor_id"`
-	Family string `json:"family"`
-	Model string `json:"model"`
-	Cores int `json:"cores"`
+	ID        string `json:"id"`
+	WorkerID  string `json:"worker_id"`
+	Name      string `json:"name"`
+	VendorID  string `json:"vendor_id"`
+	Family    string `json:"family"`
+	Model     string `json:"model"`
+	Cores     int    `json:"cores"`
 	Frequency string `json:"frequency"`
 }
 
 // WorkerRAM describes RAM attached to a worker (contract-only, no gorm).
 type WorkerRAM struct {
-	ID string `json:"id"`
+	ID       string `json:"id"`
 	WorkerID string `json:"worker_id"`
-	Total uint64 `json:"total"`
+	Total    uint64 `json:"total"`
 }
 
 // --------------------
@@ -1427,28 +1427,28 @@ type WorkerRAM struct {
 // EntitlementDTO for API responses
 type EntitlementDTO struct {
 	BaseModelDTO `tstype:",extends"`
-	TeamID string `json:"team_id"`
-	Resource EntitlementResource `json:"resource"`
-	Type EntitlementType `json:"type"`
-	Enabled bool `json:"enabled"`
-	Unlimited bool `json:"unlimited"`
-	Limit int `json:"limit"`
-	Source EntitlementSource `json:"source"`
-	Enforcement EnforcementMode `json:"enforcement"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	TeamPlanID *string `json:"team_plan_id,omitempty"`
+	TeamID       string              `json:"team_id"`
+	Resource     EntitlementResource `json:"resource"`
+	Type         EntitlementType     `json:"type"`
+	Enabled      bool                `json:"enabled"`
+	Unlimited    bool                `json:"unlimited"`
+	Limit        int                 `json:"limit"`
+	Source       EntitlementSource   `json:"source"`
+	Enforcement  EnforcementMode     `json:"enforcement"`
+	ExpiresAt    *time.Time          `json:"expires_at,omitempty"`
+	TeamPlanID   *string             `json:"team_plan_id,omitempty"`
 }
 
 // EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
 type EntitlementErrorMeta struct {
-	Resource EntitlementResource `json:"resource"`
-	ResourceLabel string `json:"resource_label,omitempty"`
-	Limit *int `json:"limit,omitempty"`
-	Current *int `json:"current,omitempty"`
-	UpgradeAvailable bool `json:"upgrade_available"`
-	AddonPlanID string `json:"addon_plan_id,omitempty"`
-	AddonPlanName string `json:"addon_plan_name,omitempty"`
-	AddonPlanVersion *int `json:"addon_plan_price,omitempty"`
+	Resource         EntitlementResource `json:"resource"`
+	ResourceLabel    string              `json:"resource_label,omitempty"`
+	Limit            *int                `json:"limit,omitempty"`
+	Current          *int                `json:"current,omitempty"`
+	UpgradeAvailable bool                `json:"upgrade_available"`
+	AddonPlanID      string              `json:"addon_plan_id,omitempty"`
+	AddonPlanName    string              `json:"addon_plan_name,omitempty"`
+	AddonPlanVersion *int                `json:"addon_plan_price,omitempty"`
 }
 
 // --------------------
@@ -1457,30 +1457,30 @@ type EntitlementErrorMeta struct {
 
 // FileMetadata holds probed media metadata cached on File records.
 type FileMetadata struct {
-	Type string `json:"type,omitempty"`
-	Width int `json:"width,omitempty"`
-	Height int `json:"height,omitempty"`
-	Duration float64 `json:"duration,omitempty"`
-	FPS float64 `json:"fps,omitempty"`
-	SampleRate int `json:"sample_rate,omitempty"`
-	Channels int `json:"channels,omitempty"`
-	Codec string `json:"codec,omitempty"`
+	Type       string  `json:"type,omitempty"`
+	Width      int     `json:"width,omitempty"`
+	Height     int     `json:"height,omitempty"`
+	Duration   float64 `json:"duration,omitempty"`
+	FPS        float64 `json:"fps,omitempty"`
+	SampleRate int     `json:"sample_rate,omitempty"`
+	Channels   int     `json:"channels,omitempty"`
+	Codec      string  `json:"codec,omitempty"`
 }
 
 // FileDTO for API responses
 type FileDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	LocalPath string `json:"path"`
-	RemotePath string `json:"remote_path"`
-	UploadURL string `json:"upload_url"`
-	URI string `json:"uri"`
-	ContentType string `json:"content_type"`
-	Size int64 `json:"size"`
-	Filename string `json:"filename"`
-	Category string `json:"category"`
-	Rating ContentRating `json:"rating"`
-	Metadata *FileMetadata `json:"metadata,omitempty"`
+	LocalPath          string        `json:"path"`
+	RemotePath         string        `json:"remote_path"`
+	UploadURL          string        `json:"upload_url"`
+	URI                string        `json:"uri"`
+	ContentType        string        `json:"content_type"`
+	Size               int64         `json:"size"`
+	Filename           string        `json:"filename"`
+	Category           string        `json:"category"`
+	Rating             ContentRating `json:"rating"`
+	Metadata           *FileMetadata `json:"metadata,omitempty"`
 }
 
 // --------------------
@@ -1489,16 +1489,16 @@ type FileDTO struct {
 
 // FlowNodeData describes a node's data within a flow
 type FlowNodeData struct {
-	App *AppDTO `json:"app"`
-	AppID string `json:"app_id"`
-	AppVersionID string `json:"app_version_id"`
-	Function string `json:"function,omitempty"`
-	Infra Infra `json:"infra"`
-	Workers []string `json:"workers"`
-	Setup *json.RawMessage `json:"setup,omitempty"`
-	Additional *json.RawMessage `json:"additional"`
-	Task *TaskDTO `json:"task"`
-	TaskID *string `json:"task_id"`
+	App          *AppDTO          `json:"app"`
+	AppID        string           `json:"app_id"`
+	AppVersionID string           `json:"app_version_id"`
+	Function     string           `json:"function,omitempty"`
+	Infra        Infra            `json:"infra"`
+	Workers      []string         `json:"workers"`
+	Setup        *json.RawMessage `json:"setup,omitempty"`
+	Additional   *json.RawMessage `json:"additional"`
+	Task         *TaskDTO         `json:"task"`
+	TaskID       *string          `json:"task_id"`
 }
 
 // FlowNodeDataMap maps node IDs to their data
@@ -1506,64 +1506,64 @@ type FlowNodeDataMap map[string]FlowNodeData
 
 // FlowDTO for API responses
 type FlowDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	CardImage string `json:"card_image"`
-	Thumbnail string `json:"thumbnail"`
-	BannerImage string `json:"banner_image"`
-	DraftVersionID string `json:"draft_version_id"`
-	DraftVersion *FlowVersionDTO `json:"draft_version"`
-	PublishedVersionID string `json:"published_version_id"`
-	PublishedVersion *FlowVersionDTO `json:"published_version"`
-	InputSchema json.RawMessage `json:"input_schema"`
-	Input FlowRunInputs `json:"input"`
-	OutputSchema json.RawMessage `json:"output_schema"`
-	OutputMappings OutputMappings `json:"output_mappings"`
-	NodeData FlowNodeDataMap `json:"node_data"`
-	Nodes []FlowNode `json:"nodes"`
-	Edges []FlowEdge `json:"edges"`
-	Viewport *FlowViewport `json:"viewport"`
+	Name               string          `json:"name"`
+	Description        string          `json:"description"`
+	CardImage          string          `json:"card_image"`
+	Thumbnail          string          `json:"thumbnail"`
+	BannerImage        string          `json:"banner_image"`
+	DraftVersionID     string          `json:"draft_version_id"`
+	DraftVersion       *FlowVersionDTO `json:"draft_version"`
+	PublishedVersionID string          `json:"published_version_id"`
+	PublishedVersion   *FlowVersionDTO `json:"published_version"`
+	InputSchema        json.RawMessage `json:"input_schema"`
+	Input              FlowRunInputs   `json:"input"`
+	OutputSchema       json.RawMessage `json:"output_schema"`
+	OutputMappings     OutputMappings  `json:"output_mappings"`
+	NodeData           FlowNodeDataMap `json:"node_data"`
+	Nodes              []FlowNode      `json:"nodes"`
+	Edges              []FlowEdge      `json:"edges"`
+	Viewport           *FlowViewport   `json:"viewport"`
 }
 
 // FlowVersionDTO for API responses
 type FlowVersionDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	GraphVersion int64 `json:"graph_version"`
-	InputSchema json.RawMessage `json:"input_schema"`
-	Input FlowRunInputs `json:"input"`
-	OutputSchema json.RawMessage `json:"output_schema"`
-	OutputMappings OutputMappings `json:"output_mappings"`
-	NodeData FlowNodeDataMap `json:"node_data"`
-	Nodes []FlowNode `json:"nodes"`
-	Edges []FlowEdge `json:"edges"`
-	Viewport *FlowViewport `json:"viewport"`
+	BaseModelDTO   `tstype:",extends"`
+	GraphVersion   int64           `json:"graph_version"`
+	InputSchema    json.RawMessage `json:"input_schema"`
+	Input          FlowRunInputs   `json:"input"`
+	OutputSchema   json.RawMessage `json:"output_schema"`
+	OutputMappings OutputMappings  `json:"output_mappings"`
+	NodeData       FlowNodeDataMap `json:"node_data"`
+	Nodes          []FlowNode      `json:"nodes"`
+	Edges          []FlowEdge      `json:"edges"`
+	Viewport       *FlowViewport   `json:"viewport"`
 }
 
 // NodeTaskDTO represents a node task reference
 type NodeTaskDTO struct {
-	TaskID string `json:"task_id"`
-	Task *TaskDTO `json:"task"`
+	TaskID string   `json:"task_id"`
+	Task   *TaskDTO `json:"task"`
 }
 
 // FlowRunDTO for API responses
 type FlowRunDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	FlowID string `json:"flow_id"`
-	FlowVersionID string `json:"flow_version_id"`
-	FlowVersion *FlowVersionDTO `json:"flow_version"`
-	TaskID *string `json:"task_id"`
-	Status FlowRunStatus `json:"status"`
-	Error *string `json:"error"`
-	FlowRunStarted *time.Time `json:"flow_run_started"`
-	FlowRunFinished *time.Time `json:"flow_run_finished"`
-	FlowRunCancelled *time.Time `json:"flow_run_cancelled"`
-	Input FlowRunInputs `json:"input"`
-	FailOnError bool `json:"fail_on_error"`
-	Output json.RawMessage `json:"output"`
-	NodeTasks map[string]*NodeTaskDTO `json:"node_tasks"`
+	FlowID             string                  `json:"flow_id"`
+	FlowVersionID      string                  `json:"flow_version_id"`
+	FlowVersion        *FlowVersionDTO         `json:"flow_version"`
+	TaskID             *string                 `json:"task_id"`
+	Status             FlowRunStatus           `json:"status"`
+	Error              *string                 `json:"error"`
+	FlowRunStarted     *time.Time              `json:"flow_run_started"`
+	FlowRunFinished    *time.Time              `json:"flow_run_finished"`
+	FlowRunCancelled   *time.Time              `json:"flow_run_cancelled"`
+	Input              FlowRunInputs           `json:"input"`
+	FailOnError        bool                    `json:"fail_on_error"`
+	Output             json.RawMessage         `json:"output"`
+	NodeTasks          map[string]*NodeTaskDTO `json:"node_tasks"`
 }
 
 // --------------------
@@ -1573,36 +1573,36 @@ type FlowRunDTO struct {
 // GraphNodeDTO is the API representation of a graph node
 type GraphNodeDTO struct {
 	BaseModelDTO `tstype:",extends"`
-	GraphID string `json:"graph_id"`
-	Type GraphNodeType `json:"type"`
-	Label string `json:"label"`
-	ResourceID string `json:"resource_id"`
-	ResourceType string `json:"resource_type"`
-	Status GraphNodeStatus `json:"status"`
-	Metadata StringEncodedMap `json:"metadata,omitempty"`
-	ReadyAt *time.Time `json:"ready_at,omitempty"`
-	StartedAt *time.Time `json:"started_at,omitempty"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	DurationMs *int64 `json:"duration_ms,omitempty"`
+	GraphID      string           `json:"graph_id"`
+	Type         GraphNodeType    `json:"type"`
+	Label        string           `json:"label"`
+	ResourceID   string           `json:"resource_id"`
+	ResourceType string           `json:"resource_type"`
+	Status       GraphNodeStatus  `json:"status"`
+	Metadata     StringEncodedMap `json:"metadata,omitempty"`
+	ReadyAt      *time.Time       `json:"ready_at,omitempty"`
+	StartedAt    *time.Time       `json:"started_at,omitempty"`
+	CompletedAt  *time.Time       `json:"completed_at,omitempty"`
+	DurationMs   *int64           `json:"duration_ms,omitempty"`
 }
 
 // GraphEdgeDTO is the API representation of a graph edge
 type GraphEdgeDTO struct {
 	BaseModelDTO `tstype:",extends"`
-	Type GraphEdgeType `json:"type"`
-	FromNode string `json:"from_node"`
-	ToNode string `json:"to_node"`
+	Type         GraphEdgeType `json:"type"`
+	FromNode     string        `json:"from_node"`
+	ToNode       string        `json:"to_node"`
 }
 
 // ChatTraceDTO is the trace response for chat observability
 type ChatTraceDTO struct {
-	GraphID string `json:"graph_id"`
-	Nodes []*GraphNodeDTO `json:"nodes"`
-	Edges []*GraphEdgeDTO `json:"edges"`
-	TotalSteps int `json:"total_steps"`
-	CompletedSteps int `json:"completed_steps"`
-	RunningSteps int `json:"running_steps"`
-	FailedSteps int `json:"failed_steps"`
+	GraphID        string          `json:"graph_id"`
+	Nodes          []*GraphNodeDTO `json:"nodes"`
+	Edges          []*GraphEdgeDTO `json:"edges"`
+	TotalSteps     int             `json:"total_steps"`
+	CompletedSteps int             `json:"completed_steps"`
+	RunningSteps   int             `json:"running_steps"`
+	FailedSteps    int             `json:"failed_steps"`
 }
 
 // --------------------
@@ -1611,72 +1611,72 @@ type ChatTraceDTO struct {
 
 // InstanceDTO is the API representation of a cloud instance.
 type InstanceDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	PermissionModelDTO `tstype:",extends"`
-	Cloud InstanceCloudProvider `json:"cloud"`
-	Name string `json:"name"`
-	Region string `json:"region"`
-	ShadeCloud bool `json:"shade_cloud"`
-	ShadeInstanceType string `json:"shade_instance_type"`
-	CloudInstanceType string `json:"cloud_instance_type"`
-	CloudAssignedID string `json:"cloud_assigned_id"`
-	OS string `json:"os,omitempty"`
-	SSHKeyID string `json:"ssh_key_id,omitempty"`
-	SSHUser string `json:"ssh_user"`
-	SSHPort int `json:"ssh_port"`
-	IP string `json:"ip"`
-	Status InstanceStatus `json:"status"`
-	CostEstimate string `json:"cost_estimate"`
-	HourlyPrice int `json:"hourly_price"`
-	TemplateID string `json:"template_id,omitempty"`
-	VolumeIDs []string `json:"volume_ids,omitempty"`
-	Tags []string `json:"tags,omitempty"`
-	Configuration any `json:"configuration,omitempty"`
-	LaunchConfiguration any `json:"launch_configuration,omitempty"`
-	AutoDelete any `json:"auto_delete,omitempty"`
-	Alert any `json:"alert,omitempty"`
-	VolumeMount any `json:"volume_mount,omitempty"`
-	Envs any `json:"envs,omitempty"`
+	BaseModelDTO        `tstype:",extends"`
+	PermissionModelDTO  `tstype:",extends"`
+	Cloud               InstanceCloudProvider `json:"cloud"`
+	Name                string                `json:"name"`
+	Region              string                `json:"region"`
+	ShadeCloud          bool                  `json:"shade_cloud"`
+	ShadeInstanceType   string                `json:"shade_instance_type"`
+	CloudInstanceType   string                `json:"cloud_instance_type"`
+	CloudAssignedID     string                `json:"cloud_assigned_id"`
+	OS                  string                `json:"os,omitempty"`
+	SSHKeyID            string                `json:"ssh_key_id,omitempty"`
+	SSHUser             string                `json:"ssh_user"`
+	SSHPort             int                   `json:"ssh_port"`
+	IP                  string                `json:"ip"`
+	Status              InstanceStatus        `json:"status"`
+	CostEstimate        string                `json:"cost_estimate"`
+	HourlyPrice         int                   `json:"hourly_price"`
+	TemplateID          string                `json:"template_id,omitempty"`
+	VolumeIDs           []string              `json:"volume_ids,omitempty"`
+	Tags                []string              `json:"tags,omitempty"`
+	Configuration       any                   `json:"configuration,omitempty"`
+	LaunchConfiguration any                   `json:"launch_configuration,omitempty"`
+	AutoDelete          any                   `json:"auto_delete,omitempty"`
+	Alert               any                   `json:"alert,omitempty"`
+	VolumeMount         any                   `json:"volume_mount,omitempty"`
+	Envs                any                   `json:"envs,omitempty"`
 }
 
 // InstanceTypeDTO is the API representation of a cloud instance type.
 type InstanceTypeDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Cloud InstanceCloudProvider `json:"cloud"`
-	CloudLogoURL string `json:"cloud_logo_url,omitempty"`
-	Region string `json:"region"`
-	ShadeInstanceType string `json:"shade_instance_type"`
-	CloudInstanceType string `json:"cloud_instance_type"`
-	DeploymentType InstanceTypeDeploymentType `json:"deployment_type"`
-	HourlyPrice int `json:"hourly_price"`
-	Configuration *InstanceTypeConfiguration `json:"configuration"`
-	Availability []InstanceTypeAvailability `json:"availability"`
-	BootTime *InstanceTypeBootTime `json:"boot_time,omitempty"`
+	Cloud              InstanceCloudProvider      `json:"cloud"`
+	CloudLogoURL       string                     `json:"cloud_logo_url,omitempty"`
+	Region             string                     `json:"region"`
+	ShadeInstanceType  string                     `json:"shade_instance_type"`
+	CloudInstanceType  string                     `json:"cloud_instance_type"`
+	DeploymentType     InstanceTypeDeploymentType `json:"deployment_type"`
+	HourlyPrice        int                        `json:"hourly_price"`
+	Configuration      *InstanceTypeConfiguration `json:"configuration"`
+	Availability       []InstanceTypeAvailability `json:"availability"`
+	BootTime           *InstanceTypeBootTime      `json:"boot_time,omitempty"`
 }
 
 type InstanceTypeConfiguration struct {
-	GPUType string `json:"gpu_type"`
-	GPUManufacturer string `json:"gpu_manufacturer"`
-	Interconnect string `json:"interconnect"`
-	MemoryInGB int `json:"memory_in_gb"`
-	NumGPUs int `json:"num_gpus"`
-	NVLink bool `json:"nvlink"`
-	OSOptions []string `json:"os_options"`
-	StorageInGB int `json:"storage_in_gb"`
-	VCPUs int `json:"vcpus"`
-	VRAMPerGPUInGB int `json:"vram_per_gpu_in_gb"`
+	GPUType         string   `json:"gpu_type"`
+	GPUManufacturer string   `json:"gpu_manufacturer"`
+	Interconnect    string   `json:"interconnect"`
+	MemoryInGB      int      `json:"memory_in_gb"`
+	NumGPUs         int      `json:"num_gpus"`
+	NVLink          bool     `json:"nvlink"`
+	OSOptions       []string `json:"os_options"`
+	StorageInGB     int      `json:"storage_in_gb"`
+	VCPUs           int      `json:"vcpus"`
+	VRAMPerGPUInGB  int      `json:"vram_per_gpu_in_gb"`
 }
 
 type InstanceTypeAvailability struct {
-	Available bool `json:"available"`
-	Region string `json:"region"`
+	Available bool   `json:"available"`
+	Region    string `json:"region"`
 }
 
 type InstanceTypeBootTime struct {
-	AverageSeconds int `json:"average_seconds"`
-	UpdatedAt string `json:"updated_at"`
-	SampleSize int `json:"sample_size"`
+	AverageSeconds int    `json:"average_seconds"`
+	UpdatedAt      string `json:"updated_at"`
+	SampleSize     int    `json:"sample_size"`
 }
 
 // --------------------
@@ -1685,51 +1685,51 @@ type InstanceTypeBootTime struct {
 
 // IntegrationDTO for API responses (never exposes tokens)
 type IntegrationDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	PermissionModelDTO `tstype:",extends"`
-	Scope IntegrationScope `json:"scope"`
-	Provider IntegrationProvider `json:"provider"`
-	Type IntegrationAuthType `json:"type"`
-	Auth IntegrationAuthType `json:"auth"`
-	Status IntegrationStatus `json:"status"`
-	DisplayName string `json:"display_name"`
-	IconURL string `json:"icon_url,omitempty"`
-	Scopes StringSlice `json:"scopes"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	ServiceAccountEmail string `json:"service_account_email,omitempty"`
-	Metadata map[string]any `json:"metadata,omitempty"`
-	AccountIdentifier string `json:"account_identifier,omitempty"`
-	AccountName string `json:"account_name,omitempty"`
-	IsPrimary bool `json:"is_primary"`
-	ErrorMessage string `json:"error_message,omitempty"`
+	BaseModelDTO        `tstype:",extends"`
+	PermissionModelDTO  `tstype:",extends"`
+	Scope               IntegrationScope    `json:"scope"`
+	Provider            IntegrationProvider `json:"provider"`
+	Type                IntegrationAuthType `json:"type"`
+	Auth                IntegrationAuthType `json:"auth"`
+	Status              IntegrationStatus   `json:"status"`
+	DisplayName         string              `json:"display_name"`
+	IconURL             string              `json:"icon_url,omitempty"`
+	Scopes              StringSlice         `json:"scopes"`
+	ExpiresAt           *time.Time          `json:"expires_at,omitempty"`
+	ServiceAccountEmail string              `json:"service_account_email,omitempty"`
+	Metadata            map[string]any      `json:"metadata,omitempty"`
+	AccountIdentifier   string              `json:"account_identifier,omitempty"`
+	AccountName         string              `json:"account_name,omitempty"`
+	IsPrimary           bool                `json:"is_primary"`
+	ErrorMessage        string              `json:"error_message,omitempty"`
 }
 
 // IntegrationConfigDTO is the API response for integration configuration
 type IntegrationConfigDTO struct {
-	Slug string `json:"slug"`
-	Provider string `json:"provider"`
-	Type string `json:"type"`
-	Auth string `json:"auth"`
-	Name string `json:"name"`
-	ShortName string `json:"short_name"`
-	Description string `json:"description"`
-	IconURL string `json:"icon_url,omitempty"`
-	HowItWorks []string `json:"how_it_works,omitempty"`
-	DocsURL string `json:"docs_url,omitempty"`
+	Slug         string              `json:"slug"`
+	Provider     string              `json:"provider"`
+	Type         string              `json:"type"`
+	Auth         string              `json:"auth"`
+	Name         string              `json:"name"`
+	ShortName    string              `json:"short_name"`
+	Description  string              `json:"description"`
+	IconURL      string              `json:"icon_url,omitempty"`
+	HowItWorks   []string            `json:"how_it_works,omitempty"`
+	DocsURL      string              `json:"docs_url,omitempty"`
 	SecretFields []SecretFieldConfig `json:"secret_fields,omitempty"`
-	AllowsBYOK bool `json:"allows_byok"`
-	Available bool `json:"available"`
-	HasManaged bool `json:"has_managed"`
-	Integration *IntegrationDTO `json:"integration,omitempty"`
+	AllowsBYOK   bool                `json:"allows_byok"`
+	Available    bool                `json:"available"`
+	HasManaged   bool                `json:"has_managed"`
+	Integration  *IntegrationDTO     `json:"integration,omitempty"`
 }
 
 // SecretFieldConfig defines a secret field for the UI
 type SecretFieldConfig struct {
-	Key string `json:"key"`
-	Label string `json:"label"`
+	Key         string `json:"key"`
+	Label       string `json:"label"`
 	Placeholder string `json:"placeholder"`
-	Sensitive bool `json:"sensitive"`
-	Optional bool `json:"optional"`
+	Sensitive   bool   `json:"sensitive"`
+	Optional    bool   `json:"optional"`
 }
 
 // --------------------
@@ -1738,25 +1738,25 @@ type SecretFieldConfig struct {
 
 // KnowledgeFile represents a file in a knowledge entry
 type KnowledgeFile struct {
-	Path string `json:"path,omitempty"`
-	URI string `json:"uri,omitempty"`
-	Size int64 `json:"size,omitempty"`
-	Hash string `json:"hash,omitempty"`
+	Path    string `json:"path,omitempty"`
+	URI     string `json:"uri,omitempty"`
+	Size    int64  `json:"size,omitempty"`
+	Hash    string `json:"hash,omitempty"`
 	Content string `json:"content,omitempty"`
 }
 
 // SkillDTO for API responses (backward-compatible naming)
 type SkillDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	RepoURL string `json:"repo_url,omitempty"`
-	VersionID string `json:"version_id"`
-	Version *SkillVersionDTO `json:"version"`
-	Uses int64 `json:"uses"`
-	Installs int64 `json:"installs"`
+	Namespace          string           `json:"namespace"`
+	Name               string           `json:"name"`
+	Description        string           `json:"description"`
+	RepoURL            string           `json:"repo_url,omitempty"`
+	VersionID          string           `json:"version_id"`
+	Version            *SkillVersionDTO `json:"version"`
+	Uses               int64            `json:"uses"`
+	Installs           int64            `json:"installs"`
 }
 
 // FullName returns "namespace/name"
@@ -1768,38 +1768,38 @@ func (s *SkillDTO) FullName() string {
 }
 
 type SkillVersionDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	SkillID string `json:"skill_id"`
-	Instructions KnowledgeFile `json:"instructions"`
-	Files []KnowledgeFile `json:"files"`
-	ContentHash string `json:"content_hash"`
-	Description string `json:"description"`
-	Tags []string `json:"tags"`
-	AllowedTools string `json:"allowed_tools,omitempty"`
-	Compatibility string `json:"compatibility,omitempty"`
-	License string `json:"license,omitempty"`
-	SourceURL string `json:"source_url,omitempty"`
-	MutationType string `json:"mutation_type,omitempty"`
-	VersionNotes string `json:"version_notes,omitempty"`
-	DisableModelInvocation bool `json:"disable_model_invocation,omitempty"`
-	UserInvocable *bool `json:"user_invocable,omitempty"`
-	Context string `json:"context,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	BaseModelDTO           `tstype:",extends"`
+	SkillID                string            `json:"skill_id"`
+	Instructions           KnowledgeFile     `json:"instructions"`
+	Files                  []KnowledgeFile   `json:"files"`
+	ContentHash            string            `json:"content_hash"`
+	Description            string            `json:"description"`
+	Tags                   []string          `json:"tags"`
+	AllowedTools           string            `json:"allowed_tools,omitempty"`
+	Compatibility          string            `json:"compatibility,omitempty"`
+	License                string            `json:"license,omitempty"`
+	SourceURL              string            `json:"source_url,omitempty"`
+	MutationType           string            `json:"mutation_type,omitempty"`
+	VersionNotes           string            `json:"version_notes,omitempty"`
+	DisableModelInvocation bool              `json:"disable_model_invocation,omitempty"`
+	UserInvocable          *bool             `json:"user_invocable,omitempty"`
+	Context                string            `json:"context,omitempty"`
+	Metadata               map[string]string `json:"metadata,omitempty"`
 }
 
 // KnowledgeDTO — generic DTO for /knowledge endpoints (all types)
 type KnowledgeDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	Type KnowledgeType `json:"type"`
-	Lifecycle KnowledgeLifecycle `json:"lifecycle"`
-	VersionID string `json:"version_id"`
-	Version *KnowledgeVersionDTO `json:"version"`
-	Uses int64 `json:"uses"`
-	Installs int64 `json:"installs"`
+	Namespace          string               `json:"namespace"`
+	Name               string               `json:"name"`
+	Description        string               `json:"description"`
+	Type               KnowledgeType        `json:"type"`
+	Lifecycle          KnowledgeLifecycle   `json:"lifecycle"`
+	VersionID          string               `json:"version_id"`
+	Version            *KnowledgeVersionDTO `json:"version"`
+	Uses               int64                `json:"uses"`
+	Installs           int64                `json:"installs"`
 }
 
 // FullName returns "namespace/name"
@@ -1811,84 +1811,84 @@ func (k *KnowledgeDTO) FullName() string {
 }
 
 type KnowledgeVersionDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	KnowledgeID string `json:"knowledge_id"`
-	Content KnowledgeFile `json:"content"`
-	Files []KnowledgeFile `json:"files"`
-	ContentHash string `json:"content_hash"`
-	Description string `json:"description"`
-	Tags []string `json:"tags"`
-	Scope []string `json:"scope,omitempty"` // environment signals for project scoping
-	Metadata map[string]string `json:"metadata,omitempty"`
-	SourceURL string `json:"source_url,omitempty"`
-	MutationType string `json:"mutation_type,omitempty"`
-	VersionNotes string `json:"version_notes,omitempty"`
-	LastConfirmedAt *time.Time `json:"last_confirmed_at,omitempty"`
+	BaseModelDTO    `tstype:",extends"`
+	KnowledgeID     string            `json:"knowledge_id"`
+	Content         KnowledgeFile     `json:"content"`
+	Files           []KnowledgeFile   `json:"files"`
+	ContentHash     string            `json:"content_hash"`
+	Description     string            `json:"description"`
+	Tags            []string          `json:"tags"`
+	Scope           []string          `json:"scope,omitempty"` // environment signals for project scoping
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	SourceURL       string            `json:"source_url,omitempty"`
+	MutationType    string            `json:"mutation_type,omitempty"`
+	VersionNotes    string            `json:"version_notes,omitempty"`
+	LastConfirmedAt *time.Time        `json:"last_confirmed_at,omitempty"`
 }
 
 // ResourceRef is a compact reference to any resource (knowledge, app, agent).
 type ResourceRef struct {
-	ID string `json:"id"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Type ResourceType `json:"type"` // knowledge, app, agent
-	ResourceKind string `json:"resource_kind"` // e.g. "skill", "observation", "concept" for knowledge; empty for app/agent
-	Description string `json:"description"`
+	ID           string       `json:"id"`
+	Namespace    string       `json:"namespace"`
+	Name         string       `json:"name"`
+	Type         ResourceType `json:"type"`          // knowledge, app, agent
+	ResourceKind string       `json:"resource_kind"` // e.g. "skill", "observation", "concept" for knowledge; empty for app/agent
+	Description  string       `json:"description"`
 }
 
 // ReferencesResponse is returned by the references endpoint.
 type ReferencesResponse struct {
-	Resource ResourceRef `json:"resource"`
-	References []ResourceRef `json:"references"` // outgoing: resources this entry mentions
+	Resource     ResourceRef   `json:"resource"`
+	References   []ResourceRef `json:"references"`    // outgoing: resources this entry mentions
 	ReferencedBy []ResourceRef `json:"referenced_by"` // incoming: resources that mention this entry
 }
 
 // SkillLineageResponse is returned by the lineage endpoint.
 type SkillLineageResponse struct {
-	Skill SkillLineageSkillRef `json:"skill"`
-	Parents []SkillLineageSkillRef `json:"parents"`
-	Siblings []SkillLineageSkillRef `json:"siblings"`
-	Forks []SkillLineageSkillRef `json:"forks"`
+	Skill      SkillLineageSkillRef   `json:"skill"`
+	Parents    []SkillLineageSkillRef `json:"parents"`
+	Siblings   []SkillLineageSkillRef `json:"siblings"`
+	Forks      []SkillLineageSkillRef `json:"forks"`
 	Duplicates []SkillLineageSkillRef `json:"duplicates"`
-	ForkDepth int `json:"fork_depth"`
+	ForkDepth  int                    `json:"fork_depth"`
 }
 
 // SkillLineageSkillRef is a compact skill reference for lineage responses.
 type SkillLineageSkillRef struct {
-	ID string `json:"id"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	VersionCount int `json:"version_count,omitempty"`
-	ParentVersionID string `json:"parent_version_id,omitempty"`
-	VersionsSinceFork int `json:"versions_since_fork,omitempty"`
+	ID                string `json:"id"`
+	Namespace         string `json:"namespace"`
+	Name              string `json:"name"`
+	VersionCount      int    `json:"version_count,omitempty"`
+	ParentVersionID   string `json:"parent_version_id,omitempty"`
+	VersionsSinceFork int    `json:"versions_since_fork,omitempty"`
 }
 
 // SkillLineageRef is a compact parent reference included in download responses.
 type SkillLineageRef struct {
 	Namespace string `json:"namespace"`
-	Name string `json:"name"`
+	Name      string `json:"name"`
 }
 
 // SkillResolveResult is returned by the resolve endpoint.
 type SkillResolveResult struct {
-	Source SkillSource `json:"source"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Content string `json:"content"`
-	Files []KnowledgeFile `json:"files,omitempty"`
+	Source    SkillSource     `json:"source"`
+	Namespace string          `json:"namespace"`
+	Name      string          `json:"name"`
+	Content   string          `json:"content"`
+	Files     []KnowledgeFile `json:"files,omitempty"`
 }
 
 // SkillDownloadResponse is returned by the download endpoint
 type SkillDownloadResponse struct {
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Version string `json:"version"`
-	Description string `json:"description"`
-	Files []KnowledgeFile `json:"files"`
-	SourceURL string `json:"source_url,omitempty"`
-	MutationType string `json:"mutation_type,omitempty"`
-	VersionNotes string `json:"version_notes,omitempty"`
-	Parents []SkillLineageRef `json:"parents,omitempty"`
+	Namespace    string            `json:"namespace"`
+	Name         string            `json:"name"`
+	Version      string            `json:"version"`
+	Description  string            `json:"description"`
+	Files        []KnowledgeFile   `json:"files"`
+	SourceURL    string            `json:"source_url,omitempty"`
+	MutationType string            `json:"mutation_type,omitempty"`
+	VersionNotes string            `json:"version_notes,omitempty"`
+	Parents      []SkillLineageRef `json:"parents,omitempty"`
 }
 
 // --------------------
@@ -1897,29 +1897,29 @@ type SkillDownloadResponse struct {
 
 // PublicSkillStoreDTO for public skill store display
 type PublicSkillStoreDTO struct {
-	ID string `json:"id"`
-	Category string `json:"category"`
-	Tags []string `json:"tags,omitempty"`
-	Namespace string `json:"namespace"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	IsFeatured bool `json:"is_featured"`
-	Rank int `json:"rank"`
-	HasApprovedVersion bool `json:"has_approved_version"`
+	ID                 string   `json:"id"`
+	Category           string   `json:"category"`
+	Tags               []string `json:"tags,omitempty"`
+	Namespace          string   `json:"namespace"`
+	Name               string   `json:"name"`
+	Description        string   `json:"description"`
+	IsFeatured         bool     `json:"is_featured"`
+	Rank               int      `json:"rank"`
+	HasApprovedVersion bool     `json:"has_approved_version"`
 }
 
 // SkillStoreListingDTO for API responses
 type SkillStoreListingDTO struct {
-	ID string `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-	Category string `json:"category"`
-	IsFeatured bool `json:"is_featured"`
-	Rank int `json:"rank"`
-	Installs int64 `json:"installs"`
-	Uses int64 `json:"uses"`
-	Tags []string `json:"tags,omitempty"`
+	ID         string     `json:"id"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
+	Category   string     `json:"category"`
+	IsFeatured bool       `json:"is_featured"`
+	Rank       int        `json:"rank"`
+	Installs   int64      `json:"installs"`
+	Uses       int64      `json:"uses"`
+	Tags       []string   `json:"tags,omitempty"`
 }
 
 // --------------------
@@ -1928,11 +1928,11 @@ type SkillStoreListingDTO struct {
 
 // Tool represents a tool item
 type MCPTool struct {
-	Name string `json:"name"`
-	Title string `json:"title,omitempty"`
-	Description string `json:"description"`
-	InputSchema any `json:"inputSchema"`
-	OutputSchema any `json:"outputSchema,omitempty"`
+	Name         string `json:"name"`
+	Title        string `json:"title,omitempty"`
+	Description  string `json:"description"`
+	InputSchema  any    `json:"inputSchema"`
+	OutputSchema any    `json:"outputSchema,omitempty"`
 }
 
 // --------------------
@@ -1969,35 +1969,35 @@ func (s *StringSlice) Scan(value interface{}) error {
 type MCPServerDTO struct {
 	ID string `json:"id"`
 	PermissionModelDTO
-	Slug string `json:"slug"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	IconURL string `json:"icon_url"`
-	ServerURL string `json:"server_url"`
-	AuthType MCPServerAuthType `json:"auth_type"`
-	OAuthClientID string `json:"oauth_client_id,omitempty"`
-	OAuthSecretKey string `json:"-"`
-	DefaultScopes StringSlice `json:"default_scopes"`
-	DocumentationURL string `json:"documentation_url"`
+	Slug             string            `json:"slug"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	IconURL          string            `json:"icon_url"`
+	ServerURL        string            `json:"server_url"`
+	AuthType         MCPServerAuthType `json:"auth_type"`
+	OAuthClientID    string            `json:"oauth_client_id,omitempty"`
+	OAuthSecretKey   string            `json:"-"`
+	DefaultScopes    StringSlice       `json:"default_scopes"`
+	DocumentationURL string            `json:"documentation_url"`
 }
 
 // PublicMCPServerDTO is a lean DTO for the public MCP directory.
 type PublicMCPServerDTO struct {
-	ID string `json:"id"`
-	Slug string `json:"slug"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	IconURL string `json:"icon_url"`
-	Category MCPServerCategory `json:"category"`
-	ServerURL string `json:"server_url"`
-	AuthType MCPServerAuthType `json:"auth_type"`
-	DefaultScopes StringSlice `json:"default_scopes"`
-	DocumentationURL string `json:"documentation_url"`
-	Namespace string `json:"namespace"`
-	IsFeatured bool `json:"is_featured"`
-	Rank int `json:"rank"`
-	Installs int64 `json:"installs"`
-	Uses int64 `json:"uses"`
+	ID               string            `json:"id"`
+	Slug             string            `json:"slug"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	IconURL          string            `json:"icon_url"`
+	Category         MCPServerCategory `json:"category"`
+	ServerURL        string            `json:"server_url"`
+	AuthType         MCPServerAuthType `json:"auth_type"`
+	DefaultScopes    StringSlice       `json:"default_scopes"`
+	DocumentationURL string            `json:"documentation_url"`
+	Namespace        string            `json:"namespace"`
+	IsFeatured       bool              `json:"is_featured"`
+	Rank             int               `json:"rank"`
+	Installs         int64             `json:"installs"`
+	Uses             int64             `json:"uses"`
 }
 
 // --------------------
@@ -2006,57 +2006,57 @@ type PublicMCPServerDTO struct {
 
 // NotificationDTO is the data transfer object
 type NotificationDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Type NotificationType `json:"type"`
-	Channel NotificationChannel `json:"channel"`
-	Priority NotificationPriority `json:"priority"`
-	Status NotificationStatus `json:"status"`
-	RecipientEmail string `json:"recipient_email,omitempty"`
-	Subject string `json:"subject"`
-	Body string `json:"body,omitempty"`
-	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
-	SentAt *time.Time `json:"sent_at,omitempty"`
-	DeliveredAt *time.Time `json:"delivered_at,omitempty"`
-	FailedAt *time.Time `json:"failed_at,omitempty"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	RetryCount int `json:"retry_count"`
-	ReferenceType string `json:"reference_type,omitempty"`
-	ReferenceID string `json:"reference_id,omitempty"`
+	Type               NotificationType     `json:"type"`
+	Channel            NotificationChannel  `json:"channel"`
+	Priority           NotificationPriority `json:"priority"`
+	Status             NotificationStatus   `json:"status"`
+	RecipientEmail     string               `json:"recipient_email,omitempty"`
+	Subject            string               `json:"subject"`
+	Body               string               `json:"body,omitempty"`
+	ScheduledAt        *time.Time           `json:"scheduled_at,omitempty"`
+	SentAt             *time.Time           `json:"sent_at,omitempty"`
+	DeliveredAt        *time.Time           `json:"delivered_at,omitempty"`
+	FailedAt           *time.Time           `json:"failed_at,omitempty"`
+	ErrorMessage       string               `json:"error_message,omitempty"`
+	RetryCount         int                  `json:"retry_count"`
+	ReferenceType      string               `json:"reference_type,omitempty"`
+	ReferenceID        string               `json:"reference_id,omitempty"`
 }
 
 // NotificationPreferencesDTO is the data transfer object
 type NotificationPreferencesDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	PermissionModelDTO `tstype:",extends"`
-	EmailEnabled bool `json:"email_enabled"`
-	SMSEnabled bool `json:"sms_enabled"`
-	PushEnabled bool `json:"push_enabled"`
-	SlackEnabled bool `json:"slack_enabled"`
-	BillingNotifications bool `json:"billing_notifications"`
-	TaskNotifications bool `json:"task_notifications"`
-	SystemNotifications bool `json:"system_notifications"`
-	MarketingEmails bool `json:"marketing_emails"`
-	QuietHoursEnabled bool `json:"quiet_hours_enabled"`
-	QuietHoursStart string `json:"quiet_hours_start,omitempty"`
-	QuietHoursEnd string `json:"quiet_hours_end,omitempty"`
-	Timezone string `json:"timezone"`
+	BaseModelDTO         `tstype:",extends"`
+	PermissionModelDTO   `tstype:",extends"`
+	EmailEnabled         bool   `json:"email_enabled"`
+	SMSEnabled           bool   `json:"sms_enabled"`
+	PushEnabled          bool   `json:"push_enabled"`
+	SlackEnabled         bool   `json:"slack_enabled"`
+	BillingNotifications bool   `json:"billing_notifications"`
+	TaskNotifications    bool   `json:"task_notifications"`
+	SystemNotifications  bool   `json:"system_notifications"`
+	MarketingEmails      bool   `json:"marketing_emails"`
+	QuietHoursEnabled    bool   `json:"quiet_hours_enabled"`
+	QuietHoursStart      string `json:"quiet_hours_start,omitempty"`
+	QuietHoursEnd        string `json:"quiet_hours_end,omitempty"`
+	Timezone             string `json:"timezone"`
 }
 
 // UpdateNotificationPreferencesRequest is the request to update preferences
 type UpdateNotificationPreferencesRequest struct {
-	EmailEnabled *bool `json:"email_enabled,omitempty"`
-	SMSEnabled *bool `json:"sms_enabled,omitempty"`
-	PushEnabled *bool `json:"push_enabled,omitempty"`
-	SlackEnabled *bool `json:"slack_enabled,omitempty"`
-	BillingNotifications *bool `json:"billing_notifications,omitempty"`
-	TaskNotifications *bool `json:"task_notifications,omitempty"`
-	SystemNotifications *bool `json:"system_notifications,omitempty"`
-	MarketingEmails *bool `json:"marketing_emails,omitempty"`
-	QuietHoursEnabled *bool `json:"quiet_hours_enabled,omitempty"`
-	QuietHoursStart *string `json:"quiet_hours_start,omitempty"`
-	QuietHoursEnd *string `json:"quiet_hours_end,omitempty"`
-	Timezone *string `json:"timezone,omitempty"`
+	EmailEnabled         *bool   `json:"email_enabled,omitempty"`
+	SMSEnabled           *bool   `json:"sms_enabled,omitempty"`
+	PushEnabled          *bool   `json:"push_enabled,omitempty"`
+	SlackEnabled         *bool   `json:"slack_enabled,omitempty"`
+	BillingNotifications *bool   `json:"billing_notifications,omitempty"`
+	TaskNotifications    *bool   `json:"task_notifications,omitempty"`
+	SystemNotifications  *bool   `json:"system_notifications,omitempty"`
+	MarketingEmails      *bool   `json:"marketing_emails,omitempty"`
+	QuietHoursEnabled    *bool   `json:"quiet_hours_enabled,omitempty"`
+	QuietHoursStart      *string `json:"quiet_hours_start,omitempty"`
+	QuietHoursEnd        *string `json:"quiet_hours_end,omitempty"`
+	Timezone             *string `json:"timezone,omitempty"`
 }
 
 // --------------------
@@ -2065,42 +2065,42 @@ type UpdateNotificationPreferencesRequest struct {
 
 // PageMetadata holds metadata for a page
 type PageMetadata struct {
-	Title string `json:"title"`
-	Description string `json:"description"`
-	Image string `json:"image"`
-	Tags []string `json:"tags"`
-	Order int `json:"order,omitempty"`
-	Type string `json:"type,omitempty"`
-	Icon string `json:"icon,omitempty"`
-	HideFromNav bool `json:"hide_from_nav,omitempty"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Image       string   `json:"image"`
+	Tags        []string `json:"tags"`
+	Order       int      `json:"order,omitempty"`
+	Type        string   `json:"type,omitempty"`
+	Icon        string   `json:"icon,omitempty"`
+	HideFromNav bool     `json:"hide_from_nav,omitempty"`
 }
 
 // MenuItem represents an item in a menu (can be nested)
 type MenuItem struct {
-	ID string `json:"id"`
-	Label string `json:"label"`
-	Slug string `json:"slug,omitempty"`
-	PageID string `json:"page_id,omitempty"`
-	URL string `json:"url,omitempty"`
-	Icon string `json:"icon,omitempty"`
-	Order int `json:"order"`
-	IsGroup bool `json:"is_group,omitempty"`
-	Expanded bool `json:"expanded,omitempty"`
+	ID       string     `json:"id"`
+	Label    string     `json:"label"`
+	Slug     string     `json:"slug,omitempty"`
+	PageID   string     `json:"page_id,omitempty"`
+	URL      string     `json:"url,omitempty"`
+	Icon     string     `json:"icon,omitempty"`
+	Order    int        `json:"order"`
+	IsGroup  bool       `json:"is_group,omitempty"`
+	Expanded bool       `json:"expanded,omitempty"`
 	Children []MenuItem `json:"children,omitempty"`
 }
 
 // PageDTO for API responses
 type PageDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	IsFeatured bool `json:"is_featured"`
-	Title string `json:"title"`
-	Content string `json:"content"`
-	Excerpt string `json:"excerpt"`
-	Status PageStatus `json:"status"`
-	Type PageType `json:"type"`
-	Metadata PageMetadata `json:"metadata"`
-	Slug string `json:"slug"`
+	IsFeatured         bool         `json:"is_featured"`
+	Title              string       `json:"title"`
+	Content            string       `json:"content"`
+	Excerpt            string       `json:"excerpt"`
+	Status             PageStatus   `json:"status"`
+	Type               PageType     `json:"type"`
+	Metadata           PageMetadata `json:"metadata"`
+	Slug               string       `json:"slug"`
 }
 
 func (p *PageDTO) ToCreateRequest() *PageCreateRequest {
@@ -2109,15 +2109,15 @@ func (p *PageDTO) ToCreateRequest() *PageCreateRequest {
 
 // PageCreateRequest is the request body for creating/updating a page.
 type PageCreateRequest struct {
-	Title string `json:"title"`
-	Content string `json:"content"`
-	Excerpt string `json:"excerpt"`
-	Status PageStatus `json:"status"`
-	Type PageType `json:"type"`
-	Metadata PageMetadata `json:"metadata"`
-	Slug string `json:"slug"`
-	Visibility Visibility `json:"visibility"`
-	IsFeatured bool `json:"is_featured"`
+	Title      string       `json:"title"`
+	Content    string       `json:"content"`
+	Excerpt    string       `json:"excerpt"`
+	Status     PageStatus   `json:"status"`
+	Type       PageType     `json:"type"`
+	Metadata   PageMetadata `json:"metadata"`
+	Slug       string       `json:"slug"`
+	Visibility Visibility   `json:"visibility"`
+	IsFeatured bool         `json:"is_featured"`
 }
 
 func (r *PageCreateRequest) ContentHash() string {
@@ -2128,12 +2128,12 @@ func (r *PageCreateRequest) ContentHash() string {
 
 // MenuDTO for API responses
 type MenuDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-	Description string `json:"description"`
-	Items []MenuItem `json:"items"`
+	Name               string     `json:"name"`
+	Slug               string     `json:"slug"`
+	Description        string     `json:"description"`
+	Items              []MenuItem `json:"items"`
 }
 
 // --------------------
@@ -2142,12 +2142,12 @@ type MenuDTO struct {
 
 // PlanLimit defines a single resource limit or feature gate within a plan.
 type PlanLimit struct {
-	Type EntitlementType `json:"type"`
-	Label string `json:"label,omitempty"`
-	Unit string `json:"unit,omitempty"`
-	Enabled bool `json:"enabled,omitempty"`
-	Unlimited bool `json:"unlimited,omitempty"`
-	Limit int `json:"limit,omitempty"`
+	Type        EntitlementType `json:"type"`
+	Label       string          `json:"label,omitempty"`
+	Unit        string          `json:"unit,omitempty"`
+	Enabled     bool            `json:"enabled,omitempty"`
+	Unlimited   bool            `json:"unlimited,omitempty"`
+	Limit       int             `json:"limit,omitempty"`
 	Enforcement EnforcementMode `json:"enforcement,omitempty"`
 }
 
@@ -2156,19 +2156,19 @@ type PlanLimits map[EntitlementResource]PlanLimit
 
 // PlanDTO for API responses
 type PlanDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	DisplayOrder int `json:"display_order"`
-	Active bool `json:"active"`
-	SelfServe *bool `json:"self_serve"`
-	PlanType PlanType `json:"plan_type"`
-	CreditsMonthly int64 `json:"credits_monthly"`
-	ActiveVersion *PlanVersionDTO `json:"active_version,omitempty"`
-	RequiredPlanIDs []string `json:"required_plan_ids,omitempty"`
-	RequiredPlanNames []string `json:"required_plan_names,omitempty"`
-	Stackable bool `json:"stackable"`
-	Limits PlanLimits `json:"limits"`
+	BaseModelDTO      `tstype:",extends"`
+	Name              string          `json:"name"`
+	Description       string          `json:"description"`
+	DisplayOrder      int             `json:"display_order"`
+	Active            bool            `json:"active"`
+	SelfServe         *bool           `json:"self_serve"`
+	PlanType          PlanType        `json:"plan_type"`
+	CreditsMonthly    int64           `json:"credits_monthly"`
+	ActiveVersion     *PlanVersionDTO `json:"active_version,omitempty"`
+	RequiredPlanIDs   []string        `json:"required_plan_ids,omitempty"`
+	RequiredPlanNames []string        `json:"required_plan_names,omitempty"`
+	Stackable         bool            `json:"stackable"`
+	Limits            PlanLimits      `json:"limits"`
 }
 
 // --------------------
@@ -2176,15 +2176,15 @@ type PlanDTO struct {
 // --------------------
 
 type PlanVersionDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	PlanID string `json:"plan_id,omitempty"`
-	AmountMonthly int `json:"amount_monthly"` // cents
-	AmountYearly int `json:"amount_yearly"` // cents
-	ProviderPriceIDMonthly string `json:"provider_price_id_monthly,omitempty"`
-	ProviderPriceIDYearly string `json:"provider_price_id_yearly,omitempty"`
-	CreditsMonthly int64 `json:"credits_monthly"` // microcents
-	Limits PlanLimits `json:"limits,omitempty"`
-	Active bool `json:"active"`
+	BaseModelDTO           `tstype:",extends"`
+	PlanID                 string     `json:"plan_id,omitempty"`
+	AmountMonthly          int        `json:"amount_monthly"` // cents
+	AmountYearly           int        `json:"amount_yearly"`  // cents
+	ProviderPriceIDMonthly string     `json:"provider_price_id_monthly,omitempty"`
+	ProviderPriceIDYearly  string     `json:"provider_price_id_yearly,omitempty"`
+	CreditsMonthly         int64      `json:"credits_monthly"` // microcents
+	Limits                 PlanLimits `json:"limits,omitempty"`
+	Active                 bool       `json:"active"`
 }
 
 // --------------------
@@ -2193,22 +2193,22 @@ type PlanVersionDTO struct {
 
 // ProjectModelDTO provides optional project association for DTOs
 type ProjectModelDTO struct {
-	ProjectID *string `json:"project_id"`
-	Project *ProjectDTO `json:"project"`
+	ProjectID *string     `json:"project_id"`
+	Project   *ProjectDTO `json:"project"`
 }
 
 // ProjectDTO for API responses
 type ProjectDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	Type ProjectType `json:"type"`
-	Color *string `json:"color"`
-	Icon *string `json:"icon"`
-	ParentID *string `json:"parent_id"`
-	Parent *ProjectDTO `json:"parent"`
-	Children []*ProjectDTO `json:"children"`
+	Name               string        `json:"name"`
+	Description        string        `json:"description"`
+	Type               ProjectType   `json:"type"`
+	Color              *string       `json:"color"`
+	Icon               *string       `json:"icon"`
+	ParentID           *string       `json:"parent_id"`
+	Parent             *ProjectDTO   `json:"parent"`
+	Children           []*ProjectDTO `json:"children"`
 }
 
 // --------------------
@@ -2218,9 +2218,9 @@ type ProjectDTO struct {
 // Ref is a parsed reference in format "namespace/name@versionID:function".
 type Ref struct {
 	Namespace string `json:"namespace,omitempty"`
-	Name string `json:"name"`
+	Name      string `json:"name"`
 	VersionID string `json:"version_id,omitempty"`
-	Function string `json:"function,omitempty"`
+	Function  string `json:"function,omitempty"`
 }
 
 // Parse parses a reference string in format "namespace/name@shortVersionId:function".
@@ -2233,20 +2233,20 @@ func (Ref) Parse(s string) Ref {
 		atIdx := strings.LastIndex(s, "@")
 		if atIdx == -1 || idx > atIdx {
 			full = s[:idx]
-			r.Function = s[idx + 1:]
+			r.Function = s[idx+1:]
 		}
 	}
 	fullName := full
 	if idx := strings.LastIndex(full, "@"); idx != -1 {
 		fullName = full[:idx]
-		r.VersionID = full[idx + 1:]
+		r.VersionID = full[idx+1:]
 	}
 	if r.VersionID == "latest" {
 		r.VersionID = ""
 	}
 	if idx := strings.Index(fullName, "/"); idx != -1 {
 		r.Namespace = fullName[:idx]
-		r.Name = fullName[idx + 1:]
+		r.Name = fullName[idx+1:]
 	} else {
 		r.Name = fullName
 	}
@@ -2281,13 +2281,13 @@ func (r Ref) String() string {
 // RefRouteDTO for API responses
 type RefRouteDTO struct {
 	BaseModelDTO `tstype:",extends"`
-	Type RefRouteType `json:"type"`
-	AliasRef string `json:"alias_ref"`
-	TargetRef string `json:"target_ref"`
-	Primary bool `json:"primary"`
-	Mode RefRouteMode `json:"mode"`
-	Description string `json:"description"`
-	Enabled bool `json:"enabled"`
+	Type         RefRouteType `json:"type"`
+	AliasRef     string       `json:"alias_ref"`
+	TargetRef    string       `json:"target_ref"`
+	Primary      bool         `json:"primary"`
+	Mode         RefRouteMode `json:"mode"`
+	Description  string       `json:"description"`
+	Enabled      bool         `json:"enabled"`
 }
 
 // --------------------
@@ -2296,40 +2296,40 @@ type RefRouteDTO struct {
 
 // KnowledgeCreateRequest is the request body for POST /knowledge.
 type KnowledgeCreateRequest struct {
-	Name string `json:"name"`
-	Description string `json:"description,omitempty"`
-	RepoURL string `json:"repo_url,omitempty"`
-	Type KnowledgeType `json:"type,omitempty"`
-	Lifecycle KnowledgeLifecycle `json:"lifecycle,omitempty"`
+	Name        string             `json:"name"`
+	Description string             `json:"description,omitempty"`
+	RepoURL     string             `json:"repo_url,omitempty"`
+	Type        KnowledgeType      `json:"type,omitempty"`
+	Lifecycle   KnowledgeLifecycle `json:"lifecycle,omitempty"`
 	// Version content (inline — creates first version)
 	Version *KnowledgeVersionInput `json:"version,omitempty"`
 }
 
 // KnowledgeVersionInput is the input shape for creating/updating a knowledge version.
 type KnowledgeVersionInput struct {
-	Description string `json:"description,omitempty"`
-	Content *KnowledgeFile `json:"content,omitempty"`
-	Files []KnowledgeFile `json:"files,omitempty"`
-	Tags []string `json:"tags,omitempty"`
-	Scope []string `json:"scope,omitempty"` // environment signals for project scoping
-	Metadata map[string]string `json:"metadata,omitempty"`
-	SourceURL string `json:"source_url,omitempty"`
-	MutationType string `json:"mutation_type,omitempty"`
-	VersionNotes string `json:"version_notes,omitempty"`
+	Description  string            `json:"description,omitempty"`
+	Content      *KnowledgeFile    `json:"content,omitempty"`
+	Files        []KnowledgeFile   `json:"files,omitempty"`
+	Tags         []string          `json:"tags,omitempty"`
+	Scope        []string          `json:"scope,omitempty"` // environment signals for project scoping
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	SourceURL    string            `json:"source_url,omitempty"`
+	MutationType string            `json:"mutation_type,omitempty"`
+	VersionNotes string            `json:"version_notes,omitempty"`
 }
 
 // KnowledgeUpdateRequest is the request body for PUT /knowledge/{id}.
 type KnowledgeUpdateRequest struct {
-	Description string `json:"description,omitempty"`
-	Version *KnowledgeVersionInput `json:"version,omitempty"`
+	Description string                 `json:"description,omitempty"`
+	Version     *KnowledgeVersionInput `json:"version,omitempty"`
 }
 
 // CreateSubscriptionRequest is the request body for POST /subscriptions.
 type CreateSubscriptionRequest struct {
-	PlanID string `json:"plan_id"`
-	Interval string `json:"interval,omitempty"` // "monthly" or "yearly", default "monthly"
+	PlanID     string `json:"plan_id"`
+	Interval   string `json:"interval,omitempty"` // "monthly" or "yearly", default "monthly"
 	SuccessURL string `json:"success_url,omitempty"`
-	CancelURL string `json:"cancel_url,omitempty"`
+	CancelURL  string `json:"cancel_url,omitempty"`
 }
 
 // ChangePlanRequest is the request body for POST /subscriptions/change.
@@ -2344,21 +2344,21 @@ type CancelSubscriptionRequest struct {
 
 // OAuthAuthorizeInfoResponse is returned by GET /oauth/authorize/info.
 type OAuthAuthorizeInfoResponse struct {
-	ClientName string `json:"client_name"`
-	ClientType string `json:"client_type"`
-	Origin string `json:"origin"`
-	Verified bool `json:"verified"`
-	Scopes []Scope `json:"scopes"`
-	RedirectHost string `json:"redirect_host"`
+	ClientName   string  `json:"client_name"`
+	ClientType   string  `json:"client_type"`
+	Origin       string  `json:"origin"`
+	Verified     bool    `json:"verified"`
+	Scopes       []Scope `json:"scopes"`
+	RedirectHost string  `json:"redirect_host"`
 }
 
 // OAuthApproveRequest is the request body for POST /oauth/authorize/approve.
 type OAuthApproveRequest struct {
-	ClientID string `json:"client_id"`
-	RedirectURI string `json:"redirect_uri"`
+	ClientID      string `json:"client_id"`
+	RedirectURI   string `json:"redirect_uri"`
 	CodeChallenge string `json:"code_challenge"`
-	State string `json:"state"`
-	Scope string `json:"scope"`
+	State         string `json:"state"`
+	Scope         string `json:"scope"`
 }
 
 // OAuthRedirectResponse wraps a redirect URI.
@@ -2368,12 +2368,12 @@ type OAuthRedirectResponse struct {
 
 // OAuthConnectedApp represents an authorized OAuth client.
 type OAuthConnectedApp struct {
-	ClientID string `json:"client_id"`
-	ClientName string `json:"client_name"`
-	ClientType string `json:"client_type"`
-	Origin string `json:"origin"`
-	Verified bool `json:"verified"`
-	Scopes string `json:"scopes"`
+	ClientID     string    `json:"client_id"`
+	ClientName   string    `json:"client_name"`
+	ClientType   string    `json:"client_type"`
+	Origin       string    `json:"origin"`
+	Verified     bool      `json:"verified"`
+	Scopes       string    `json:"scopes"`
 	AuthorizedAt time.Time `json:"authorized_at"`
 }
 
@@ -2400,28 +2400,28 @@ type UpdateIntegrationScopesRequest struct {
 
 // SuggestRequest is the input for the suggest endpoint.
 type SuggestRequest struct {
-	Query string `json:"query"`
-	Context string `json:"context,omitempty"` // conversation context for embedding enrichment
-	Limit int `json:"limit,omitempty"`
-	Category string `json:"category,omitempty"`
-	Agent bool `json:"agent,omitempty"`
-	Scope []string `json:"scope,omitempty"` // environment signals for overlap ranking (e.g. "git:user/repo", "lang:go")
+	Query    string   `json:"query"`
+	Context  string   `json:"context,omitempty"` // conversation context for embedding enrichment
+	Limit    int      `json:"limit,omitempty"`
+	Category string   `json:"category,omitempty"`
+	Agent    bool     `json:"agent,omitempty"`
+	Scope    []string `json:"scope,omitempty"` // environment signals for overlap ranking (e.g. "git:user/repo", "lang:go")
 }
 
 // SuggestResponse is the output of the suggest endpoint.
 type SuggestResponse struct {
-	Query string `json:"query"`
+	Query   string          `json:"query"`
 	Results []SuggestResult `json:"results"`
 }
 
 // SuggestResult is a single result item from the suggest endpoint.
 type SuggestResult struct {
-	Type string `json:"type"`
-	Tag string `json:"tag,omitempty"`
-	Name string `json:"name"`
-	Description string `json:"description"`
-	Command string `json:"command"`
-	Score float64 `json:"score"`
+	Type        string  `json:"type"`
+	Tag         string  `json:"tag,omitempty"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Command     string  `json:"command"`
+	Score       float64 `json:"score"`
 }
 
 // --------------------
@@ -2433,17 +2433,17 @@ type RequirementType string
 
 // Requirement error types
 const (
-	RequirementTypeSecret RequirementType = "secret"
+	RequirementTypeSecret      RequirementType = "secret"
 	RequirementTypeIntegration RequirementType = "integration"
-	RequirementTypeScope RequirementType = "scope"
+	RequirementTypeScope       RequirementType = "scope"
 )
 
 // RequirementError represents a single missing requirement with actionable info
 type RequirementError struct {
-	Type RequirementType `json:"type"` // "secret" | "integration" | "scope"
-	Key string `json:"key"` // The requirement key that's missing
-	Message string `json:"message"` // Human-readable error message
-	Action *SetupAction `json:"action,omitempty"`
+	Type    RequirementType `json:"type"`    // "secret" | "integration" | "scope"
+	Key     string          `json:"key"`     // The requirement key that's missing
+	Message string          `json:"message"` // Human-readable error message
+	Action  *SetupAction    `json:"action,omitempty"`
 }
 
 // SetupActionType identifies the kind of action needed to resolve a requirement.
@@ -2451,29 +2451,29 @@ type SetupActionType string
 
 const (
 	SetupActionAddSecret SetupActionType = "add_secret"
-	SetupActionConnect SetupActionType = "connect"
+	SetupActionConnect   SetupActionType = "connect"
 	SetupActionAddScopes SetupActionType = "add_scopes"
 )
 
 // SetupAction provides actionable info for resolving a missing requirement
 type SetupAction struct {
-	Type SetupActionType `json:"type"` // add_secret | connect | add_scopes
-	Provider string `json:"provider,omitempty"` // Provider key (e.g. "google")
-	ProviderName string `json:"provider_name,omitempty"` // Display name (e.g. "Google Account")
-	Scopes []string `json:"scopes,omitempty"` // Scopes to request
+	Type              SetupActionType   `json:"type"`                         // add_secret | connect | add_scopes
+	Provider          string            `json:"provider,omitempty"`           // Provider key (e.g. "google")
+	ProviderName      string            `json:"provider_name,omitempty"`      // Display name (e.g. "Google Account")
+	Scopes            []string          `json:"scopes,omitempty"`             // Scopes to request
 	ScopeDescriptions map[string]string `json:"scope_descriptions,omitempty"` // Scope key → friendly description
 }
 
 // Capability represents an integration capability that can be requested by apps
 type Capability struct {
-	Key string `json:"key"` // e.g., "google.sheets"
-	Provider string `json:"provider"` // e.g., "google"
-	Type string `json:"type"` // e.g., "oauth", "service_account"
-	Scopes []string `json:"scopes,omitempty"` // OAuth scopes needed for this capability
-	Satisfies []string `json:"satisfies,omitempty"` // Other capabilities this satisfies
-	DisplayName string `json:"display_name"` // Human-readable name
-	Description string `json:"description,omitempty"` // Description of what this capability provides
-	Available bool `json:"available"` // Whether this capability is available on this server
+	Key         string   `json:"key"`                   // e.g., "google.sheets"
+	Provider    string   `json:"provider"`              // e.g., "google"
+	Type        string   `json:"type"`                  // e.g., "oauth", "service_account"
+	Scopes      []string `json:"scopes,omitempty"`      // OAuth scopes needed for this capability
+	Satisfies   []string `json:"satisfies,omitempty"`   // Other capabilities this satisfies
+	DisplayName string   `json:"display_name"`          // Human-readable name
+	Description string   `json:"description,omitempty"` // Description of what this capability provides
+	Available   bool     `json:"available"`             // Whether this capability is available on this server
 }
 
 // CapabilitiesResponse is the API response for listing available capabilities
@@ -2483,14 +2483,14 @@ type CapabilitiesResponse struct {
 
 // CheckRequirementsRequest is the request body for checking requirements
 type CheckRequirementsRequest struct {
-	Secrets []SecretRequirement `json:"secrets,omitempty"`
+	Secrets      []SecretRequirement      `json:"secrets,omitempty"`
 	Integrations []IntegrationRequirement `json:"integrations,omitempty"`
 }
 
 // CheckRequirementsResponse is the API response for checking requirements
 type CheckRequirementsResponse struct {
-	Satisfied bool `json:"satisfied"`
-	Errors []RequirementError `json:"errors,omitempty"`
+	Satisfied bool               `json:"satisfied"`
+	Errors    []RequirementError `json:"errors,omitempty"`
 }
 
 // --------------------
@@ -2503,128 +2503,128 @@ type CheckRequirementsResponse struct {
 //
 // To expose a type to SDK consumers: reference it in this struct.
 type SDKTypes struct {
-	_flow FlowDTO
-	_flowRun FlowRunDTO
-	_flowVer FlowVersionDTO
-	_engine EngineDTO
-	_cursor CursorListRequest
-	_cursorResp CursorListResponse[any]
-	_chatTrace ChatTraceDTO
-	_chatDTO ChatDTO
-	_chatMsg ChatMessageDTO
-	_graphNode GraphNodeDTO
-	_createAgent CreateAgentRequest
-	_graphEdge GraphEdgeDTO
-	_appSession AppSessionDTO
-	_licenseRecord LicenseRecordDTO
-	_resourceStatus ResourceStatusDTO
-	_file FileDTO
-	_fileRef FileRef
-	_partialFile PartialFile
-	_requirementErr RequirementError
-	_scopeDef ScopeDefinition
-	_scopeGroupDef ScopeGroupDefinition
-	_scopePreset ScopePreset
-	_page PageDTO
-	_menu MenuDTO
-	_publicAppStore PublicAppStoreDTO
-	_publicSkillStore PublicSkillStoreDTO
-	_appPricing AppPricing
-	_estimateCostReq EstimateCostRequest
-	_estimateCostResp EstimateCostResponse
-	_toolInvocation ToolInvocationDTO
-	_agentConfigIn AgentConfigInput
-	_coreAppConfigIn CoreAppConfigInput
-	_toolResult ToolResultRequest
-	_skillLineage SkillLineageResponse
-	_skillDTO SkillDTO
-	_skillVersion SkillVersionDTO
-	_appStoreListing AppStoreListingDTO
+	_flow              FlowDTO
+	_flowRun           FlowRunDTO
+	_flowVer           FlowVersionDTO
+	_engine            EngineDTO
+	_cursor            CursorListRequest
+	_cursorResp        CursorListResponse[any]
+	_chatTrace         ChatTraceDTO
+	_chatDTO           ChatDTO
+	_chatMsg           ChatMessageDTO
+	_graphNode         GraphNodeDTO
+	_createAgent       CreateAgentRequest
+	_graphEdge         GraphEdgeDTO
+	_appSession        AppSessionDTO
+	_licenseRecord     LicenseRecordDTO
+	_resourceStatus    ResourceStatusDTO
+	_file              FileDTO
+	_fileRef           FileRef
+	_partialFile       PartialFile
+	_requirementErr    RequirementError
+	_scopeDef          ScopeDefinition
+	_scopeGroupDef     ScopeGroupDefinition
+	_scopePreset       ScopePreset
+	_page              PageDTO
+	_menu              MenuDTO
+	_publicAppStore    PublicAppStoreDTO
+	_publicSkillStore  PublicSkillStoreDTO
+	_appPricing        AppPricing
+	_estimateCostReq   EstimateCostRequest
+	_estimateCostResp  EstimateCostResponse
+	_toolInvocation    ToolInvocationDTO
+	_agentConfigIn     AgentConfigInput
+	_coreAppConfigIn   CoreAppConfigInput
+	_toolResult        ToolResultRequest
+	_skillLineage      SkillLineageResponse
+	_skillDTO          SkillDTO
+	_skillVersion      SkillVersionDTO
+	_appStoreListing   AppStoreListingDTO
 	_skillStoreListing SkillStoreListingDTO
-	_instanceType InstanceTypeDTO
+	_instanceType      InstanceTypeDTO
 	// Auth/keys
-	_apiKeyDTO ApiKeyDTO
-	_createApiKey CreateApiKeyRequest
-	_authResp AuthResponse
+	_apiKeyDTO      ApiKeyDTO
+	_createApiKey   CreateApiKeyRequest
+	_authResp       AuthResponse
 	_authSessionDTO AuthSessionDTO
-	_scopesResp ScopesResponse
+	_scopesResp     ScopesResponse
 	_deviceAuthInit DeviceAuthInitRequest
 	_deviceAuthResp DeviceAuthResponse
 	_deviceAuthPoll DeviceAuthPollResponse
 	// Teams
-	_teamCreate TeamCreateRequest
-	_teamSetup TeamSetupRequest
-	_teamMemberDTO TeamMemberDTO
-	_teamMemberAdd TeamMemberAddRequest
-	_teamMemberRole TeamMemberUpdateRoleRequest
-	_teamInvite TeamInviteDTO
+	_teamCreate       TeamCreateRequest
+	_teamSetup        TeamSetupRequest
+	_teamMemberDTO    TeamMemberDTO
+	_teamMemberAdd    TeamMemberAddRequest
+	_teamMemberRole   TeamMemberUpdateRoleRequest
+	_teamInvite       TeamInviteDTO
 	_teamInviteCreate TeamInviteCreateRequest
 	// Integrations
-	_integConnect IntegrationConnectRequest
+	_integConnect       IntegrationConnectRequest
 	_integCompleteOAuth IntegrationCompleteOAuthRequest
-	_integConnectResp IntegrationConnectResponse
-	_integConfigDTO IntegrationConfigDTO
-	_integUpdateScopes UpdateIntegrationScopesRequest
+	_integConnectResp   IntegrationConnectResponse
+	_integConfigDTO     IntegrationConfigDTO
+	_integUpdateScopes  UpdateIntegrationScopesRequest
 	// OAuth
 	_oauthAuthorizeInfo OAuthAuthorizeInfoResponse
-	_oauthApprove OAuthApproveRequest
-	_oauthRedirect OAuthRedirectResponse
-	_oauthConnectedApp OAuthConnectedApp
+	_oauthApprove       OAuthApproveRequest
+	_oauthRedirect      OAuthRedirectResponse
+	_oauthConnectedApp  OAuthConnectedApp
 	// Requirements
-	_checkReqs CheckRequirementsRequest
+	_checkReqs     CheckRequirementsRequest
 	_checkReqsResp CheckRequirementsResponse
 	// Entitlements
-	_entitlementDTO EntitlementDTO
+	_entitlementDTO     EntitlementDTO
 	_entitlementErrMeta EntitlementErrorMeta
 	// Output
 	_outputMeta OutputMeta
 	// Knowledge
-	_knowledgeDTO KnowledgeDTO
-	_knowledgeVersion KnowledgeVersionDTO
-	_knowledgeCreate KnowledgeCreateRequest
-	_knowledgeUpdate KnowledgeUpdateRequest
+	_knowledgeDTO      KnowledgeDTO
+	_knowledgeVersion  KnowledgeVersionDTO
+	_knowledgeCreate   KnowledgeCreateRequest
+	_knowledgeUpdate   KnowledgeUpdateRequest
 	_knowledgeVerInput KnowledgeVersionInput
-	_referencesResp ReferencesResponse
+	_referencesResp    ReferencesResponse
 	// Apps
-	_appDTO AppDTO
+	_appDTO        AppDTO
 	_appVersionDTO AppVersionDTO
-	_appCreate CreateAppRequest
-	_appRun ApiAppRunRequest
+	_appCreate     CreateAppRequest
+	_appRun        ApiAppRunRequest
 	// Agents
-	_agentDTO AgentDTO
-	_agentVersionDTO AgentVersionDTO
-	_agentRun ApiAgentRunRequest
-	_createAgentMsg CreateAgentMessageRequest
+	_agentDTO           AgentDTO
+	_agentVersionDTO    AgentVersionDTO
+	_agentRun           ApiAgentRunRequest
+	_createAgentMsg     CreateAgentMessageRequest
 	_createAgentMsgResp CreateAgentMessageResponse
 	_moveAgentToProject MoveAgentToProjectRequest
 	// Tasks
-	_taskResultDTO TaskResultDTO
-	_taskLogsDTO TaskLogsDTO
+	_taskResultDTO  TaskResultDTO
+	_taskLogsDTO    TaskLogsDTO
 	_taskTimingsDTO TaskTimingsDTO
-	_cancelTask CancelTaskRequest
+	_cancelTask     CancelTaskRequest
 	_taskVisibility SetVisibilityRequest
 	// Files
 	_fileCreate FileCreateRequest
 	// Secrets
-	_secretDTO SecretDTO
+	_secretDTO    SecretDTO
 	_secretCreate SecretCreateRequest
 	_secretUpdate SecretUpdateRequest
 	// Projects
-	_projectDTO ProjectDTO
+	_projectDTO    ProjectDTO
 	_projectCreate ProjectCreateRequest
 	_projectUpdate ProjectUpdateRequest
 	// Subscriptions
 	_subscriptionDTO SubscriptionDTO
-	_subCreate CreateSubscriptionRequest
-	_subChangePlan ChangePlanRequest
-	_subCancel CancelSubscriptionRequest
+	_subCreate       CreateSubscriptionRequest
+	_subChangePlan   ChangePlanRequest
+	_subCancel       CancelSubscriptionRequest
 	// Billing
-	_checkoutCreate CheckoutCreateRequest
-	_chargeAmount ChargeAmountRequest
+	_checkoutCreate  CheckoutCreateRequest
+	_chargeAmount    ChargeAmountRequest
 	_completePayment CompletePaymentRequest
 	// Notifications
-	_notifDTO NotificationDTO
-	_notifPrefs NotificationPreferencesDTO
+	_notifDTO    NotificationDTO
+	_notifPrefs  NotificationPreferencesDTO
 	_notifUpdate UpdateNotificationPreferencesRequest
 	// Ref routes
 	_refRouteDTO RefRouteDTO
@@ -2633,21 +2633,21 @@ type SDKTypes struct {
 	// Plans
 	_planDTO PlanDTO
 	// Suggest
-	_suggestReq SuggestRequest
+	_suggestReq  SuggestRequest
 	_suggestResp SuggestResponse
 	// Enums pulled in for const generation
-	_toolInvStatus ToolInvocationStatus
-	_toolType ToolType
-	_chatStatus ChatStatus
-	_chatMsgRole ChatMessageRole
-	_chatMsgStatus ChatMessageStatus
-	_chatMsgCType ChatMessageContentType
-	_taskStatus TaskStatus
-	_visibility Visibility
-	_appCategory AppCategory
+	_toolInvStatus   ToolInvocationStatus
+	_toolType        ToolType
+	_chatStatus      ChatStatus
+	_chatMsgRole     ChatMessageRole
+	_chatMsgStatus   ChatMessageStatus
+	_chatMsgCType    ChatMessageContentType
+	_taskStatus      TaskStatus
+	_visibility      Visibility
+	_appCategory     AppCategory
 	_entitlementType EntitlementType
-	_teamType TeamType
-	_teamStatus TeamStatus
+	_teamType        TeamType
+	_teamStatus      TeamStatus
 }
 
 // --------------------
@@ -2661,88 +2661,88 @@ type SDKTypes struct {
 // These are types used by engine and CLI that aren't reachable from SDKTypes.
 type EngineTypes struct {
 	// WS payloads (engine ↔ API)
-	_wsTaskRun WsTaskRunPayload
-	_wsTaskLog WsTaskLogPayload
-	_wsTaskOutput WsTaskOutputPayload
-	_wsTaskFailed WsTaskFailedPayload
-	_wsTaskAccepted WsTaskAcceptedPayload
-	_wsTaskRejected WsTaskRejectedPayload
-	_wsTaskLifecycle WsTaskLifecyclePayload
-	_wsTaskCompleted WsTaskCompletedPayload
-	_wsTaskCancel WsTaskCancelPayload
+	_wsTaskRun         WsTaskRunPayload
+	_wsTaskLog         WsTaskLogPayload
+	_wsTaskOutput      WsTaskOutputPayload
+	_wsTaskFailed      WsTaskFailedPayload
+	_wsTaskAccepted    WsTaskAcceptedPayload
+	_wsTaskRejected    WsTaskRejectedPayload
+	_wsTaskLifecycle   WsTaskLifecyclePayload
+	_wsTaskCompleted   WsTaskCompletedPayload
+	_wsTaskCancel      WsTaskCancelPayload
 	_wsTaskForceCancel WsTaskForceCancelPayload
-	_wsHeartbeat WsEngineHeartbeatPayload
-	_wsTelemetry EngineTelemetry
-	_wsDeleteCache WsEngineDeleteHFCacheRepoPayload
-	_wsSessionEnd WsSessionEndPayload
+	_wsHeartbeat       WsEngineHeartbeatPayload
+	_wsTelemetry       EngineTelemetry
+	_wsDeleteCache     WsEngineDeleteHFCacheRepoPayload
+	_wsSessionEnd      WsSessionEndPayload
 	// Engine registration + internal API
-	_engineRegReq EngineRegisterRequest
+	_engineRegReq  EngineRegisterRequest
 	_engineRegResp EngineRegisterResponse
-	_engineAPIReq EngineAPIRequest
-	_workerSetup WorkerSetupRequest
-	_workerRun WorkerRunRequest
-	_cancelTask CancelTaskRequest
-	_localEngine LocalEngineState
+	_engineAPIReq  EngineAPIRequest
+	_workerSetup   WorkerSetupRequest
+	_workerRun     WorkerRunRequest
+	_cancelTask    CancelTaskRequest
+	_localEngine   LocalEngineState
 	// CLI types
-	_deviceAuth DeviceAuthResponse
-	_deviceAuthPoll DeviceAuthPollResponse
-	_deviceAuthClaim DeviceAuthClaimResponse
+	_deviceAuth         DeviceAuthResponse
+	_deviceAuthPoll     DeviceAuthPollResponse
+	_deviceAuthClaim    DeviceAuthClaimResponse
 	_deviceAuthClaimReq DeviceAuthClaimRequest
-	_meResp MeResponse
-	_secretDTO SecretDTO
-	_secretCreate SecretCreateRequest
-	_secretUpdate SecretUpdateRequest
-	_integConnect IntegrationConnectRequest
-	_integResp IntegrationConnectResponse
-	_integDTO IntegrationDTO
-	_skillResolve SkillResolveResult
-	_skillDownload SkillDownloadResponse
-	_skillDTO SkillDTO
-	_knowledgeDTO KnowledgeDTO
-	_knowledgeVersion KnowledgeVersionDTO
-	_searchReq SearchRequest
-	_hfCache HFCacheInfo
-	_publicMCP PublicMCPServerDTO
-	_menuCreate MenuCreateRequest
-	_pageCreate PageCreateRequest
-	_createApp CreateAppRequest
-	_listResp ListResponse[any]
-	_fileCreate FileCreateRequest
-	_mcpTool MCPTool
-	_taskCost TaskCostDTO
-	_taskLogs TaskLogsDTO
-	_taskTimings TaskTimingsDTO
-	_agentMsgReq CreateAgentMessageRequest
-	_agentMsgResp CreateAgentMessageResponse
-	_capabilities CapabilitiesResponse
+	_meResp             MeResponse
+	_secretDTO          SecretDTO
+	_secretCreate       SecretCreateRequest
+	_secretUpdate       SecretUpdateRequest
+	_integConnect       IntegrationConnectRequest
+	_integResp          IntegrationConnectResponse
+	_integDTO           IntegrationDTO
+	_skillResolve       SkillResolveResult
+	_skillDownload      SkillDownloadResponse
+	_skillDTO           SkillDTO
+	_knowledgeDTO       KnowledgeDTO
+	_knowledgeVersion   KnowledgeVersionDTO
+	_searchReq          SearchRequest
+	_hfCache            HFCacheInfo
+	_publicMCP          PublicMCPServerDTO
+	_menuCreate         MenuCreateRequest
+	_pageCreate         PageCreateRequest
+	_createApp          CreateAppRequest
+	_listResp           ListResponse[any]
+	_fileCreate         FileCreateRequest
+	_mcpTool            MCPTool
+	_taskCost           TaskCostDTO
+	_taskLogs           TaskLogsDTO
+	_taskTimings        TaskTimingsDTO
+	_agentMsgReq        CreateAgentMessageRequest
+	_agentMsgResp       CreateAgentMessageResponse
+	_capabilities       CapabilitiesResponse
 	// Affinity
 	_affinityKey AffinityKey
 	// Contract types
 	_ref Ref
 	// Money types
 	_microcents Microcents
-	_cents Cents
-	_dollars Dollars
+	_cents      Cents
+	_dollars    Dollars
 	// System info types
-	_wsl2 WSL2
+	_wsl2     WSL2
 	_deletion DeletionStrategy
 	// Enums not already in SDKTypes
-	_engineStatus EngineStatus
-	_workerStatus WorkerStatus
-	_rejectionReason RejectionReason
-	_taskLogType TaskLogType
-	_gpuType GPUType
-	_pageType PageType
-	_pageStatus PageStatus
+	_engineStatus     EngineStatus
+	_workerStatus     WorkerStatus
+	_rejectionReason  RejectionReason
+	_taskLogType      TaskLogType
+	_gpuType          GPUType
+	_pageType         PageType
+	_pageStatus       PageStatus
 	_deviceAuthStatus DeviceAuthStatus
 	// Newly typed enums (were untyped string constants)
-	_wsEventType WSEventType
+	_wsEventType   WSEventType
 	_integProvider IntegrationProvider
-	_permission Permission
+	_permission    Permission
 	_toolParamType ToolParamType
-	_toolCallType ToolCallType
-	_scope Scope
-	_widgetType WidgetType
+	_toolCallType  ToolCallType
+	_scope         Scope
+	_widgetType    WidgetType
 }
 
 // --------------------
@@ -2751,12 +2751,12 @@ type EngineTypes struct {
 
 // SecretDTO for API responses - VALUE IS NEVER EXPOSED
 type SecretDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Key string `json:"key"`
-	MaskedValue string `json:"masked_value"`
-	Description string `json:"description,omitempty"`
-	Scope SecretScope `json:"scope,omitempty"`
+	Key                string      `json:"key"`
+	MaskedValue        string      `json:"masked_value"`
+	Description        string      `json:"description,omitempty"`
+	Scope              SecretScope `json:"scope,omitempty"`
 }
 
 // --------------------
@@ -2765,17 +2765,17 @@ type SecretDTO struct {
 
 // SubscriptionDTO for API responses
 type SubscriptionDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	TeamID string `json:"team_id"`
-	PlanID string `json:"plan_id"`
-	Plan *PlanDTO `json:"plan,omitempty"`
-	Interval SubscriptionInterval `json:"interval"`
-	Status SubscriptionStatus `json:"status"`
-	CurrentPeriodStart time.Time `json:"current_period_start"`
-	CurrentPeriodEnd time.Time `json:"current_period_end"`
-	TrialEnd *time.Time `json:"trial_end,omitempty"`
-	CancelAtPeriodEnd bool `json:"cancel_at_period_end"`
-	CreditsPerPeriod int64 `json:"credits_per_period"`
+	BaseModelDTO       `tstype:",extends"`
+	TeamID             string               `json:"team_id"`
+	PlanID             string               `json:"plan_id"`
+	Plan               *PlanDTO             `json:"plan,omitempty"`
+	Interval           SubscriptionInterval `json:"interval"`
+	Status             SubscriptionStatus   `json:"status"`
+	CurrentPeriodStart time.Time            `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time            `json:"current_period_end"`
+	TrialEnd           *time.Time           `json:"trial_end,omitempty"`
+	CancelAtPeriodEnd  bool                 `json:"cancel_at_period_end"`
+	CreditsPerPeriod   int64                `json:"credits_per_period"`
 }
 
 // --------------------
@@ -2784,120 +2784,120 @@ type SubscriptionDTO struct {
 
 // Hardware/System related types
 type SystemInfo struct {
-	Hostname string `json:"hostname"`
-	EngineVersion string `json:"engine_version"`
-	IPv4 string `json:"ipv4"`
-	IPv6 string `json:"ipv6"`
-	MACAddress string `json:"mac_address"`
-	OS string `json:"os"`
-	Docker Docker `json:"docker"`
-	WSL2 WSL2 `json:"wsl2"`
-	CPUs []CPU `json:"cpus"`
-	RAM RAM `json:"ram"`
-	Volumes []Volume `json:"volumes"`
-	HFCacheInfo HFCacheInfo `json:"hf_cache"`
-	GPUs []GPU `json:"gpus"`
+	Hostname      string      `json:"hostname"`
+	EngineVersion string      `json:"engine_version"`
+	IPv4          string      `json:"ipv4"`
+	IPv6          string      `json:"ipv6"`
+	MACAddress    string      `json:"mac_address"`
+	OS            string      `json:"os"`
+	Docker        Docker      `json:"docker"`
+	WSL2          WSL2        `json:"wsl2"`
+	CPUs          []CPU       `json:"cpus"`
+	RAM           RAM         `json:"ram"`
+	Volumes       []Volume    `json:"volumes"`
+	HFCacheInfo   HFCacheInfo `json:"hf_cache"`
+	GPUs          []GPU       `json:"gpus"`
 }
 
 type Docker struct {
-	BinaryPath string `json:"binary_path"`
-	Installed bool `json:"installed"`
-	SocketPath string `json:"socket_path"`
-	SocketAvailable bool `json:"socket_available"`
-	Running bool `json:"running"`
-	Version string `json:"version"`
+	BinaryPath      string `json:"binary_path"`
+	Installed       bool   `json:"installed"`
+	SocketPath      string `json:"socket_path"`
+	SocketAvailable bool   `json:"socket_available"`
+	Running         bool   `json:"running"`
+	Version         string `json:"version"`
 }
 
 type WSL2 struct {
-	Installed bool `json:"installed"`
-	Enabled bool `json:"enabled"`
-	Version string `json:"version"`
+	Installed bool   `json:"installed"`
+	Enabled   bool   `json:"enabled"`
+	Version   string `json:"version"`
 }
 
 type CPU struct {
-	Name string `json:"name"`
-	VendorID string `json:"vendor_id"`
-	Family string `json:"family"`
-	Model string `json:"model"`
-	Cores int `json:"cores"`
-	Frequency string `json:"frequency"`
-	Usage float64 `json:"usage"`
+	Name            string  `json:"name"`
+	VendorID        string  `json:"vendor_id"`
+	Family          string  `json:"family"`
+	Model           string  `json:"model"`
+	Cores           int     `json:"cores"`
+	Frequency       string  `json:"frequency"`
+	Usage           float64 `json:"usage"`
 	NormalizedUsage float64 `json:"normalized_usage"`
 }
 
 type Volume struct {
-	Name string `json:"name"`
-	Size uint64 `json:"size"`
-	Used uint64 `json:"used"`
-	Free uint64 `json:"free"`
+	Name  string  `json:"name"`
+	Size  uint64  `json:"size"`
+	Used  uint64  `json:"used"`
+	Free  uint64  `json:"free"`
 	Usage float64 `json:"usage"`
 }
 
 type RAM struct {
-	Total uint64 `json:"total"`
-	Available uint64 `json:"available"`
-	Used uint64 `json:"used"`
-	Free uint64 `json:"free"`
-	Usage float64 `json:"usage"`
-	TotalPhysical uint64 `json:"total_physical"`
-	TotalUsable uint64 `json:"total_usable"`
-	BootloaderUsage uint64 `json:"bootloader_usage"`
-	SwapTotal uint64 `json:"swap_total"`
-	SwapUsed uint64 `json:"swap_used"`
-	SwapFree uint64 `json:"swap_free"`
-	SwapUsage float64 `json:"swap_usage"`
+	Total           uint64  `json:"total"`
+	Available       uint64  `json:"available"`
+	Used            uint64  `json:"used"`
+	Free            uint64  `json:"free"`
+	Usage           float64 `json:"usage"`
+	TotalPhysical   uint64  `json:"total_physical"`
+	TotalUsable     uint64  `json:"total_usable"`
+	BootloaderUsage uint64  `json:"bootloader_usage"`
+	SwapTotal       uint64  `json:"swap_total"`
+	SwapUsed        uint64  `json:"swap_used"`
+	SwapFree        uint64  `json:"swap_free"`
+	SwapUsage       float64 `json:"swap_usage"`
 }
 
 type GPU struct {
-	ID string `json:"id"`
-	Name string `json:"name"`
-	Index int `json:"index"`
-	CUDAVersion string `json:"cuda_version"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Index         int    `json:"index"`
+	CUDAVersion   string `json:"cuda_version"`
 	DriverVersion string `json:"driver_version"`
-	MemoryUsed uint64 `json:"memory_used"`
-	MemoryTotal uint64 `json:"memory_total"`
-	Temperature uint32 `json:"temperature"`
+	MemoryUsed    uint64 `json:"memory_used"`
+	MemoryTotal   uint64 `json:"memory_total"`
+	Temperature   uint32 `json:"temperature"`
 }
 
 // CachedRevisionInfo represents information about a cached revision
 type CachedRevisionInfo struct {
-	CommitHash string `json:"commit_hash"`
-	SnapshotPath string `json:"snapshot_path"`
-	LastModified time.Time `json:"last_modified"`
-	SizeOnDisk int64 `json:"size_on_disk"`
-	SizeOnDiskStr string `json:"size_on_disk_str"`
-	NbFiles int `json:"nb_files"`
-	Refs []string `json:"refs"`
+	CommitHash    string    `json:"commit_hash"`
+	SnapshotPath  string    `json:"snapshot_path"`
+	LastModified  time.Time `json:"last_modified"`
+	SizeOnDisk    int64     `json:"size_on_disk"`
+	SizeOnDiskStr string    `json:"size_on_disk_str"`
+	NbFiles       int       `json:"nb_files"`
+	Refs          []string  `json:"refs"`
 }
 
 // CachedRepoInfo represents information about a cached repository
 type CachedRepoInfo struct {
-	RepoID string `json:"repo_id"`
-	RepoType string `json:"repo_type"`
-	RepoPath string `json:"repo_path"`
-	LastAccessed time.Time `json:"last_accessed"`
-	LastModified time.Time `json:"last_modified"`
-	SizeOnDisk int64 `json:"size_on_disk"`
-	SizeOnDiskStr string `json:"size_on_disk_str"`
-	NbFiles int `json:"nb_files"`
-	Refs []string `json:"refs"`
-	Revisions []CachedRevisionInfo `json:"revisions"`
+	RepoID        string               `json:"repo_id"`
+	RepoType      string               `json:"repo_type"`
+	RepoPath      string               `json:"repo_path"`
+	LastAccessed  time.Time            `json:"last_accessed"`
+	LastModified  time.Time            `json:"last_modified"`
+	SizeOnDisk    int64                `json:"size_on_disk"`
+	SizeOnDiskStr string               `json:"size_on_disk_str"`
+	NbFiles       int                  `json:"nb_files"`
+	Refs          []string             `json:"refs"`
+	Revisions     []CachedRevisionInfo `json:"revisions"`
 }
 
 // HFCacheInfo represents information about the Huggingface cache
 type HFCacheInfo struct {
-	CacheDir string `json:"cache_dir"`
-	Repos []CachedRepoInfo `json:"repos"`
-	SizeOnDisk int64 `json:"size_on_disk"`
-	Warnings []string `json:"warnings"`
+	CacheDir   string           `json:"cache_dir"`
+	Repos      []CachedRepoInfo `json:"repos"`
+	SizeOnDisk int64            `json:"size_on_disk"`
+	Warnings   []string         `json:"warnings"`
 }
 
 // DeletionStrategy represents a strategy for deleting revisions
 type DeletionStrategy struct {
-	Repos []CachedRepoInfo `json:"repos"`
-	Snapshots []string `json:"snapshots"`
-	ExpectedFreedSize int64 `json:"expected_freed_size"`
-	ExpectedFreedSizeStr string `json:"expected_freed_size_str"`
+	Repos                []CachedRepoInfo `json:"repos"`
+	Snapshots            []string         `json:"snapshots"`
+	ExpectedFreedSize    int64            `json:"expected_freed_size"`
+	ExpectedFreedSizeStr string           `json:"expected_freed_size_str"`
 }
 
 // --------------------
@@ -2907,112 +2907,112 @@ type DeletionStrategy struct {
 // TaskEvent represents a single status transition event.
 // Duplicated here (no gorm tags) so DTOs can reference it without importing models.
 type TaskEvent struct {
-	ID string `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	EventTime time.Time `json:"event_time"`
-	TaskID string `json:"task_id"`
-	Status TaskStatus `json:"status"`
+	ID        string     `json:"id"`
+	CreatedAt time.Time  `json:"created_at"`
+	EventTime time.Time  `json:"event_time"`
+	TaskID    string     `json:"task_id"`
+	Status    TaskStatus `json:"status"`
 }
 
 // TaskLog represents a single log entry for a task.
 type TaskLog struct {
-	ID string `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	TaskID string `json:"task_id"`
-	LogType TaskLogType `json:"log_type"`
-	Content []byte `json:"content"`
+	ID        string      `json:"id"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	TaskID    string      `json:"task_id"`
+	LogType   TaskLogType `json:"log_type"`
+	Content   []byte      `json:"content"`
 }
 
 // TaskDTO is the full API response for a task.
 type TaskDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	GraphID *string `json:"graph_id"`
-	UserPublicKey []byte `json:"user_public_key"`
-	EnginePublicKey []byte `json:"engine_public_key"`
-	IsFeatured bool `json:"is_featured"`
-	Status TaskStatus `json:"status"`
-	AppID string `json:"app_id"`
-	App *AppDTO `json:"app"`
-	AppVersionID string `json:"app_version_id"`
-	AppVersion *AppVersionDTO `json:"app_version"`
-	AppVariant string `json:"app_variant"`
-	Function string `json:"function"`
-	Infra Infra `json:"infra"`
-	Workers []string `json:"workers"`
-	FlowRunID *string `json:"flow_run_id"`
-	ChatID *string `json:"chat_id"`
-	SubFlowRunID *string `json:"sub_flow_run_id"`
-	AgentID *string `json:"agent_id"`
-	AgentVersionID *string `json:"agent_version_id"`
-	Agent *AgentDTO `json:"agent"`
-	EngineID *string `json:"engine_id"`
-	Engine *EngineSummary `json:"engine"`
-	WorkerID *string `json:"worker_id"`
-	Worker *WorkerSummary `json:"worker"`
-	RunAt *time.Time `json:"run_at"`
-	Webhook *string `json:"webhook"`
-	Setup *json.RawMessage `json:"setup,omitempty"`
-	Input json.RawMessage `json:"input"`
-	Output json.RawMessage `json:"output"`
-	Error *string `json:"error,omitempty"`
-	Rating ContentRating `json:"rating"`
-	Events []TaskEvent `json:"events"`
-	Logs []TaskLog `json:"logs"`
-	UsageEvents []*UsageEventDTO `json:"usage_events"`
-	SessionID *string `json:"session_id,omitempty"`
-	SessionTimeout *int `json:"session_timeout,omitempty"`
+	GraphID            *string          `json:"graph_id"`
+	UserPublicKey      []byte           `json:"user_public_key"`
+	EnginePublicKey    []byte           `json:"engine_public_key"`
+	IsFeatured         bool             `json:"is_featured"`
+	Status             TaskStatus       `json:"status"`
+	AppID              string           `json:"app_id"`
+	App                *AppDTO          `json:"app"`
+	AppVersionID       string           `json:"app_version_id"`
+	AppVersion         *AppVersionDTO   `json:"app_version"`
+	AppVariant         string           `json:"app_variant"`
+	Function           string           `json:"function"`
+	Infra              Infra            `json:"infra"`
+	Workers            []string         `json:"workers"`
+	FlowRunID          *string          `json:"flow_run_id"`
+	ChatID             *string          `json:"chat_id"`
+	SubFlowRunID       *string          `json:"sub_flow_run_id"`
+	AgentID            *string          `json:"agent_id"`
+	AgentVersionID     *string          `json:"agent_version_id"`
+	Agent              *AgentDTO        `json:"agent"`
+	EngineID           *string          `json:"engine_id"`
+	Engine             *EngineSummary   `json:"engine"`
+	WorkerID           *string          `json:"worker_id"`
+	Worker             *WorkerSummary   `json:"worker"`
+	RunAt              *time.Time       `json:"run_at"`
+	Webhook            *string          `json:"webhook"`
+	Setup              *json.RawMessage `json:"setup,omitempty"`
+	Input              json.RawMessage  `json:"input"`
+	Output             json.RawMessage  `json:"output"`
+	Error              *string          `json:"error,omitempty"`
+	Rating             ContentRating    `json:"rating"`
+	Events             []TaskEvent      `json:"events"`
+	Logs               []TaskLog        `json:"logs"`
+	UsageEvents        []*UsageEventDTO `json:"usage_events"`
+	SessionID          *string          `json:"session_id,omitempty"`
+	SessionTimeout     *int             `json:"session_timeout,omitempty"`
 }
 
 // TaskResultDTO is a slim response for task run/result endpoints.
 type TaskResultDTO struct {
-	ID string `json:"id"`
-	ShortID string `json:"short_id"`
-	Status TaskStatus `json:"status"`
-	StatusText string `json:"status_text"`
-	Output json.RawMessage `json:"output"`
-	Error *string `json:"error,omitempty"`
-	SessionID *string `json:"session_id,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	RunAt *time.Time `json:"run_at,omitempty"`
+	ID         string          `json:"id"`
+	ShortID    string          `json:"short_id"`
+	Status     TaskStatus      `json:"status"`
+	StatusText string          `json:"status_text"`
+	Output     json.RawMessage `json:"output"`
+	Error      *string         `json:"error,omitempty"`
+	SessionID  *string         `json:"session_id,omitempty"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+	RunAt      *time.Time      `json:"run_at,omitempty"`
 }
 
 // TaskLogsDTO is a lightweight response for task logs endpoint.
 type TaskLogsDTO struct {
-	TaskID string `json:"task_id"`
-	Status TaskStatus `json:"status"`
+	TaskID string      `json:"task_id"`
+	Status TaskStatus  `json:"status"`
 	Events []TaskEvent `json:"events"`
-	Logs []TaskLog `json:"logs"`
+	Logs   []TaskLog   `json:"logs"`
 }
 
 // TaskTimingGroup represents a high-level phase of task execution with its duration.
 type TaskTimingGroup struct {
-	Label string `json:"label"`
-	StartAt string `json:"start_at"`
-	EndAt string `json:"end_at,omitempty"`
-	Duration string `json:"duration"`
-	DurationMs int64 `json:"duration_ms"`
+	Label      string `json:"label"`
+	StartAt    string `json:"start_at"`
+	EndAt      string `json:"end_at,omitempty"`
+	Duration   string `json:"duration"`
+	DurationMs int64  `json:"duration_ms"`
 }
 
 // TaskTimingEvent represents a single status transition with the time spent before the next transition.
 type TaskTimingEvent struct {
-	Status string `json:"status"`
-	Timestamp string `json:"timestamp"`
-	Duration string `json:"duration,omitempty"`
-	DurationMs int64 `json:"duration_ms,omitempty"`
+	Status     string `json:"status"`
+	Timestamp  string `json:"timestamp"`
+	Duration   string `json:"duration,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
 	NextStatus string `json:"next_status,omitempty"`
 }
 
 // TaskTimingsDTO is the response for the task timings endpoint.
 type TaskTimingsDTO struct {
-	TaskID string `json:"task_id"`
-	Status TaskStatus `json:"status"`
-	TotalDuration string `json:"total_duration"`
-	TotalDurationMs int64 `json:"total_duration_ms"`
-	Groups []TaskTimingGroup `json:"groups"`
-	Events []TaskTimingEvent `json:"events"`
+	TaskID          string            `json:"task_id"`
+	Status          TaskStatus        `json:"status"`
+	TotalDuration   string            `json:"total_duration"`
+	TotalDurationMs int64             `json:"total_duration_ms"`
+	Groups          []TaskTimingGroup `json:"groups"`
+	Events          []TaskTimingEvent `json:"events"`
 }
 
 // --------------------
@@ -3021,44 +3021,44 @@ type TaskTimingsDTO struct {
 
 // TeamDTO is the API response for a full team.
 type TeamDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	Type TeamType `json:"type"`
-	Name string `json:"name"`
-	Username string `json:"username"`
-	AvatarURL string `json:"avatar_url"`
-	Email string `json:"email"`
-	SetupCompleted bool `json:"setup_completed"`
-	MaxConcurrency int `json:"max_concurrency"`
-	Status TeamStatus `json:"status"`
+	BaseModelDTO   `tstype:",extends"`
+	Type           TeamType   `json:"type"`
+	Name           string     `json:"name"`
+	Username       string     `json:"username"`
+	AvatarURL      string     `json:"avatar_url"`
+	Email          string     `json:"email"`
+	SetupCompleted bool       `json:"setup_completed"`
+	MaxConcurrency int        `json:"max_concurrency"`
+	Status         TeamStatus `json:"status"`
 }
 
 // TeamMemberDTO is the API response for a team member.
 type TeamMemberDTO struct {
-	ID string `json:"id"`
-	UserID string `json:"user_id"`
-	TeamID string `json:"team_id"`
-	Role TeamRole `json:"role"`
-	User *TeamMemberUserDTO `json:"user"`
+	ID     string             `json:"id"`
+	UserID string             `json:"user_id"`
+	TeamID string             `json:"team_id"`
+	Role   TeamRole           `json:"role"`
+	User   *TeamMemberUserDTO `json:"user"`
 }
 
 // TeamMemberUserDTO is a lightweight user view within team membership.
 type TeamMemberUserDTO struct {
-	ID string `json:"id"`
-	Email string `json:"email"`
-	Name string `json:"name"`
-	FullName string `json:"full_name"`
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	FullName  string `json:"full_name"`
 	AvatarURL string `json:"avatar_url"`
 }
 
 // TeamRelationDTO is a lightweight team reference embedded in other DTOs.
 type TeamRelationDTO struct {
-	ID string `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Type TeamType `json:"type"`
-	Username string `json:"username"`
-	AvatarURL string `json:"avatar_url"`
-	SetupCompleted bool `json:"setup_completed"`
+	ID             string    `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	Type           TeamType  `json:"type"`
+	Username       string    `json:"username"`
+	AvatarURL      string    `json:"avatar_url"`
+	SetupCompleted bool      `json:"setup_completed"`
 }
 
 // --------------------
@@ -3067,21 +3067,21 @@ type TeamRelationDTO struct {
 
 // TeamInviteDTO is the public representation of an invite
 type TeamInviteDTO struct {
-	ID string `json:"id"`
-	TeamID string `json:"team_id"`
-	Email string `json:"email"`
-	Role TeamRole `json:"role"`
-	Status TeamInviteStatus `json:"status"`
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string             `json:"id"`
+	TeamID    string             `json:"team_id"`
+	Email     string             `json:"email"`
+	Role      TeamRole           `json:"role"`
+	Status    TeamInviteStatus   `json:"status"`
+	ExpiresAt time.Time          `json:"expires_at"`
+	CreatedAt time.Time          `json:"created_at"`
 	InvitedBy *TeamMemberUserDTO `json:"invited_by,omitempty"`
-	Team *TeamRelationDTO `json:"team,omitempty"`
+	Team      *TeamRelationDTO   `json:"team,omitempty"`
 }
 
 // TeamInviteCreateRequest is used when creating a team invite
 type TeamInviteCreateRequest struct {
-	Email string `json:"email"`
-	Role TeamRole `json:"role"`
+	Email string   `json:"email"`
+	Role  TeamRole `json:"role"`
 }
 
 // --------------------
@@ -3090,16 +3090,16 @@ type TeamInviteCreateRequest struct {
 
 // ToolInvocationFunction contains the function details for a tool invocation
 type ToolInvocationFunction struct {
-	Name string `json:"name"`
+	Name      string           `json:"name"`
 	Arguments StringEncodedMap `json:"arguments"`
 }
 
 // UnmarshalJSON implements custom unmarshaling for ToolInvocationFunction to handle empty string arguments
 func (t *ToolInvocationFunction) UnmarshalJSON(data []byte) error {
 	type Aux struct {
-	Name string `json:"name"`
-	Arguments json.RawMessage `json:"arguments"`
-}
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
 	var aux Aux
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -3109,35 +3109,35 @@ func (t *ToolInvocationFunction) UnmarshalJSON(data []byte) error {
 	if argStr == "" || argStr == `""` || argStr == `null` || argStr == `"{}"` {
 		t.Arguments = make(StringEncodedMap)
 	} else if strings.HasPrefix(argStr, `"`) && strings.HasSuffix(argStr, `"`) {
-	unquoted, err := strconv.Unquote(argStr)
-	if err != nil {
-		return err
+		unquoted, err := strconv.Unquote(argStr)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal([]byte(unquoted), &t.Arguments); err != nil {
+			return err
+		}
+	} else {
+		if err := json.Unmarshal(aux.Arguments, &t.Arguments); err != nil {
+			return err
+		}
 	}
-	if err := json.Unmarshal([]byte(unquoted), &t.Arguments); err != nil {
-		return err
-	}
-} else {
-	if err := json.Unmarshal(aux.Arguments, &t.Arguments); err != nil {
-		return err
-	}
-}
 	return nil
 }
 
 // ToolInvocationDTO for API responses
 type ToolInvocationDTO struct {
-	BaseModelDTO `tstype:",extends"`
+	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	ChatMessageID string `json:"chat_message_id"`
-	ToolInvocationID string `json:"tool_invocation_id"`
-	Type ToolType `json:"type"`
-	DisplayName string `json:"display_name,omitempty"`
-	ExecutionID *string `json:"execution_id"`
-	Function ToolInvocationFunction `json:"function"`
-	Status ToolInvocationStatus `json:"status"`
-	Result *string `json:"result"`
-	Data *json.RawMessage `json:"data,omitempty"`
-	Widget *Widget `json:"widget,omitempty"`
+	ChatMessageID      string                 `json:"chat_message_id"`
+	ToolInvocationID   string                 `json:"tool_invocation_id"`
+	Type               ToolType               `json:"type"`
+	DisplayName        string                 `json:"display_name,omitempty"`
+	ExecutionID        *string                `json:"execution_id"`
+	Function           ToolInvocationFunction `json:"function"`
+	Status             ToolInvocationStatus   `json:"status"`
+	Result             *string                `json:"result"`
+	Data               *json.RawMessage       `json:"data,omitempty"`
+	Widget             *Widget                `json:"widget,omitempty"`
 }
 
 // --------------------
@@ -3146,9 +3146,9 @@ type ToolInvocationDTO struct {
 
 // TaskCostDTO is the public-facing cost summary for a task.
 type TaskCostDTO struct {
-	Total int64 `json:"total"`
+	Total    int64 `json:"total"`
 	Discount int64 `json:"discount"`
-	Charged int64 `json:"charged"`
+	Charged  int64 `json:"charged"`
 	Refunded int64 `json:"refunded,omitempty"`
 }
 
@@ -3158,19 +3158,19 @@ type TaskCostDTO struct {
 
 // MetaItem represents metadata about an input or output item
 type MetaItem struct {
-	Type MetaItemType `json:"type"`
-	Tokens int `json:"tokens,omitempty"`
-	Width int `json:"width,omitempty"`
-	Height int `json:"height,omitempty"`
-	ResolutionMP float64 `json:"resolution_mp,omitempty"`
-	Steps int `json:"steps,omitempty"`
-	Count int `json:"count,omitempty"`
-	Resolution VideoResolution `json:"resolution,omitempty"`
-	Seconds float64 `json:"seconds,omitempty"`
-	FPS int `json:"fps,omitempty"`
-	SampleRate int `json:"sample_rate,omitempty"`
-	Cost float64 `json:"cost,omitempty"`
-	Extra map[string]any `json:"extra,omitempty"`
+	Type         MetaItemType    `json:"type"`
+	Tokens       int             `json:"tokens,omitempty"`
+	Width        int             `json:"width,omitempty"`
+	Height       int             `json:"height,omitempty"`
+	ResolutionMP float64         `json:"resolution_mp,omitempty"`
+	Steps        int             `json:"steps,omitempty"`
+	Count        int             `json:"count,omitempty"`
+	Resolution   VideoResolution `json:"resolution,omitempty"`
+	Seconds      float64         `json:"seconds,omitempty"`
+	FPS          int             `json:"fps,omitempty"`
+	SampleRate   int             `json:"sample_rate,omitempty"`
+	Cost         float64         `json:"cost,omitempty"`
+	Extra        map[string]any  `json:"extra,omitempty"`
 }
 
 // ToMap converts MetaItem to a map for CEL evaluation.
@@ -3185,7 +3185,7 @@ func (m *MetaItem) ToMap() map[string]any {
 
 // OutputMeta contains structured metadata about task inputs and outputs for pricing calculation
 type OutputMeta struct {
-	Inputs []MetaItem `json:"inputs"`
+	Inputs  []MetaItem `json:"inputs"`
 	Outputs []MetaItem `json:"outputs"`
 }
 
@@ -3208,16 +3208,16 @@ func (o *OutputMeta) ToMaps() (inputs, outputs []map[string]any) {
 
 // UsageEventDTO is the API representation of a usage event.
 type UsageEventDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	PermissionModelDTO `tstype:",extends"`
-	UsageBillingRecordID string `json:"usage_billing_record_id"`
-	ReferenceID string `json:"reference_id"`
-	ResourceID string `json:"resource_id"`
-	Tier UsageEventResourceTier `json:"tier"`
-	Type string `json:"type"`
-	Model string `json:"model"`
-	Quantity int64 `json:"quantity"`
-	Unit string `json:"unit"`
+	BaseModelDTO         `tstype:",extends"`
+	PermissionModelDTO   `tstype:",extends"`
+	UsageBillingRecordID string                 `json:"usage_billing_record_id"`
+	ReferenceID          string                 `json:"reference_id"`
+	ResourceID           string                 `json:"resource_id"`
+	Tier                 UsageEventResourceTier `json:"tier"`
+	Type                 string                 `json:"type"`
+	Model                string                 `json:"model"`
+	Quantity             int64                  `json:"quantity"`
+	Unit                 string                 `json:"unit"`
 }
 
 // --------------------
@@ -3226,23 +3226,23 @@ type UsageEventDTO struct {
 
 // UserDTO is the API response for a full user.
 type UserDTO struct {
-	BaseModelDTO `tstype:",extends"`
-	DefaultTeamID string `json:"default_team_id"`
-	Role Role `json:"role"`
-	Email string `json:"email"`
-	Name string `json:"name"`
-	FullName string `json:"full_name"`
-	AvatarURL string `json:"avatar_url"`
-	Metadata *UserMetadataDTO `json:"metadata"`
+	BaseModelDTO  `tstype:",extends"`
+	DefaultTeamID string           `json:"default_team_id"`
+	Role          Role             `json:"role"`
+	Email         string           `json:"email"`
+	Name          string           `json:"name"`
+	FullName      string           `json:"full_name"`
+	AvatarURL     string           `json:"avatar_url"`
+	Metadata      *UserMetadataDTO `json:"metadata"`
 }
 
 // UserRelationDTO is a lightweight user reference embedded in other DTOs.
 type UserRelationDTO struct {
-	ID string `json:"id"`
+	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	Role Role `json:"role"`
-	AvatarURL string `json:"avatar_url"`
+	Role      Role      `json:"role"`
+	AvatarURL string    `json:"avatar_url"`
 }
 
 // --------------------
@@ -3251,14 +3251,14 @@ type UserRelationDTO struct {
 
 // UserMetadataDTO is the API representation of user metadata.
 type UserMetadataDTO struct {
-	UserID string `json:"user_id"`
-	CompletedOnboarding bool `json:"completed_onboarding"`
-	UseCase string `json:"use_case"`
-	UseCaseReason string `json:"use_case_reason"`
-	UseCasePrivacy string `json:"use_case_privacy"`
-	SignupSource string `json:"signup_source"`
-	TermsAcceptedAt *time.Time `json:"terms_accepted_at"`
-	TermsVersion string `json:"terms_version"`
+	UserID              string     `json:"user_id"`
+	CompletedOnboarding bool       `json:"completed_onboarding"`
+	UseCase             string     `json:"use_case"`
+	UseCaseReason       string     `json:"use_case_reason"`
+	UseCasePrivacy      string     `json:"use_case_privacy"`
+	SignupSource        string     `json:"signup_source"`
+	TermsAcceptedAt     *time.Time `json:"terms_accepted_at"`
+	TermsVersion        string     `json:"terms_version"`
 }
 
 // --------------------
@@ -3267,74 +3267,74 @@ type UserMetadataDTO struct {
 
 // WidgetAction represents an action triggered by a widget button
 type WidgetAction struct {
-	Type string `json:"type"`
+	Type    string                 `json:"type"`
 	Payload map[string]interface{} `json:"payload,omitempty"`
 }
 
 // WidgetActionButton represents a button in a widget's action bar
 type WidgetActionButton struct {
-	Label string `json:"label"`
-	Action WidgetAction `json:"action"`
-	Variant string `json:"variant,omitempty"` // "default" | "secondary" | "outline" | "ghost" | "destructive"
+	Label   string       `json:"label"`
+	Action  WidgetAction `json:"action"`
+	Variant string       `json:"variant,omitempty"` // "default" | "secondary" | "outline" | "ghost" | "destructive"
 }
 
 // WidgetNode represents a UI element in a widget (text, input, select, etc.)
 type WidgetNode struct {
-	Type WidgetNodeType `json:"type"`
-	Value string `json:"value,omitempty"`
-	Src string `json:"src,omitempty"`
-	Alt string `json:"alt,omitempty"`
-	Label string `json:"label,omitempty"`
-	Name string `json:"name,omitempty"`
-	Placeholder string `json:"placeholder,omitempty"`
-	DefaultValue string `json:"defaultValue,omitempty"`
-	Variant string `json:"variant,omitempty"`
-	Action *WidgetAction `json:"action,omitempty"`
-	Options []WidgetSelectOption `json:"options,omitempty"`
-	DefaultChecked bool `json:"defaultChecked,omitempty"`
-	Children []WidgetNode `json:"children,omitempty"`
-	Gap int `json:"gap,omitempty"`
+	Type           WidgetNodeType       `json:"type"`
+	Value          string               `json:"value,omitempty"`
+	Src            string               `json:"src,omitempty"`
+	Alt            string               `json:"alt,omitempty"`
+	Label          string               `json:"label,omitempty"`
+	Name           string               `json:"name,omitempty"`
+	Placeholder    string               `json:"placeholder,omitempty"`
+	DefaultValue   string               `json:"defaultValue,omitempty"`
+	Variant        string               `json:"variant,omitempty"`
+	Action         *WidgetAction        `json:"action,omitempty"`
+	Options        []WidgetSelectOption `json:"options,omitempty"`
+	DefaultChecked bool                 `json:"defaultChecked,omitempty"`
+	Children       []WidgetNode         `json:"children,omitempty"`
+	Gap            int                  `json:"gap,omitempty"`
 	// Layout props (Box, Row, Col, Form)
-	Align string `json:"align,omitempty"` // start|center|end|baseline|stretch
-	Justify string `json:"justify,omitempty"` // start|center|end|between|around|evenly
-	Padding interface{} `json:"padding,omitempty"` // number or {top,right,bottom,left}
+	Align      string      `json:"align,omitempty"`      // start|center|end|baseline|stretch
+	Justify    string      `json:"justify,omitempty"`    // start|center|end|between|around|evenly
+	Padding    interface{} `json:"padding,omitempty"`    // number or {top,right,bottom,left}
 	Background interface{} `json:"background,omitempty"` // string or {light,dark}
-	Radius string `json:"radius,omitempty"` // 2xs|xs|sm|md|lg|xl|2xl|full|none
-	Direction string `json:"direction,omitempty"` // row|col (for Form)
-	Wrap string `json:"wrap,omitempty"` // nowrap|wrap|wrap-reverse
-	Flex interface{} `json:"flex,omitempty"` // string|number
+	Radius     string      `json:"radius,omitempty"`     // 2xs|xs|sm|md|lg|xl|2xl|full|none
+	Direction  string      `json:"direction,omitempty"`  // row|col (for Form)
+	Wrap       string      `json:"wrap,omitempty"`       // nowrap|wrap|wrap-reverse
+	Flex       interface{} `json:"flex,omitempty"`       // string|number
 	// Typography props (Text, Title, Caption, Label)
-	Size string `json:"size,omitempty"` // xs|sm|md|lg|xl|2xl|3xl
-	Weight string `json:"weight,omitempty"` // normal|medium|semibold|bold
-	Color interface{} `json:"color,omitempty"` // string or {light,dark}
-	TextAlign string `json:"textAlign,omitempty"` // start|center|end
-	Truncate bool `json:"truncate,omitempty"`
-	MaxLines int `json:"maxLines,omitempty"`
+	Size      string      `json:"size,omitempty"`      // xs|sm|md|lg|xl|2xl|3xl
+	Weight    string      `json:"weight,omitempty"`    // normal|medium|semibold|bold
+	Color     interface{} `json:"color,omitempty"`     // string or {light,dark}
+	TextAlign string      `json:"textAlign,omitempty"` // start|center|end
+	Truncate  bool        `json:"truncate,omitempty"`
+	MaxLines  int         `json:"maxLines,omitempty"`
 	// Control props (Input, Textarea, Select, Checkbox, RadioGroup, DatePicker, Button)
-	Disabled bool `json:"disabled,omitempty"`
-	Required bool `json:"required,omitempty"`
-	Rows int `json:"rows,omitempty"` // for Textarea
+	Disabled  bool   `json:"disabled,omitempty"`
+	Required  bool   `json:"required,omitempty"`
+	Rows      int    `json:"rows,omitempty"`      // for Textarea
 	FieldName string `json:"fieldName,omitempty"` // for Label
-	Submit bool `json:"submit,omitempty"` // for Button - makes it a form submit button
-	Pattern string `json:"pattern,omitempty"` // for Input - regex validation
-	Min string `json:"min,omitempty"` // for DatePicker - min date
-	Max string `json:"max,omitempty"` // for DatePicker - max date
-	Clearable bool `json:"clearable,omitempty"` // for Select/DatePicker
+	Submit    bool   `json:"submit,omitempty"`    // for Button - makes it a form submit button
+	Pattern   string `json:"pattern,omitempty"`   // for Input - regex validation
+	Min       string `json:"min,omitempty"`       // for DatePicker - min date
+	Max       string `json:"max,omitempty"`       // for DatePicker - max date
+	Clearable bool   `json:"clearable,omitempty"` // for Select/DatePicker
 	// Action handler for buttons (form data is collected locally and sent with action)
 	OnClickAction *WidgetAction `json:"onClickAction,omitempty"` // for Button
 	// Content props (Icon, Spacer, Divider, Chart)
-	IconName string `json:"iconName,omitempty"` // for Icon
-	Spacing interface{} `json:"spacing,omitempty"` // for Divider
-	MinSize interface{} `json:"minSize,omitempty"` // for Spacer
-	Height interface{} `json:"height,omitempty"` // number or string
-	Width interface{} `json:"width,omitempty"` // number or string
+	IconName string      `json:"iconName,omitempty"` // for Icon
+	Spacing  interface{} `json:"spacing,omitempty"`  // for Divider
+	MinSize  interface{} `json:"minSize,omitempty"`  // for Spacer
+	Height   interface{} `json:"height,omitempty"`   // number or string
+	Width    interface{} `json:"width,omitempty"`    // number or string
 	// Chart specific props
-	ChartData interface{} `json:"chartData,omitempty"` // []map[string]interface{}
+	ChartData   interface{} `json:"chartData,omitempty"`   // []map[string]interface{}
 	ChartSeries interface{} `json:"chartSeries,omitempty"` // []ChartSeries
-	XAxis interface{} `json:"xAxis,omitempty"` // string or XAxisConfig
-	ShowYAxis bool `json:"showYAxis,omitempty"`
-	ShowLegend bool `json:"showLegend,omitempty"`
-	ShowTooltip bool `json:"showTooltip,omitempty"`
+	XAxis       interface{} `json:"xAxis,omitempty"`       // string or XAxisConfig
+	ShowYAxis   bool        `json:"showYAxis,omitempty"`
+	ShowLegend  bool        `json:"showLegend,omitempty"`
+	ShowTooltip bool        `json:"showTooltip,omitempty"`
 	// Form-specific props
 	OnSubmitAction *WidgetAction `json:"onSubmitAction,omitempty"` // for Form
 	// Data binding (deprecated - use templates instead)
@@ -3352,7 +3352,7 @@ type WidgetType string
 
 // Widget type constants - only two fundamental types
 const (
-	WidgetTypeUI WidgetType = "ui"
+	WidgetTypeUI   WidgetType = "ui"
 	WidgetTypeHTML WidgetType = "html"
 )
 
@@ -3360,13 +3360,13 @@ const (
 // Type is either "ui" (structured nodes) or "html" (raw HTML)
 // For "ui" widgets, data-bound nodes read values from ToolInvocation.Data
 type Widget struct {
-	Type string `json:"type"` // "ui" | "html"
-	Interactive bool `json:"interactive,omitempty"`
-	Title string `json:"title,omitempty"`
-	HTML string `json:"html,omitempty"` // For type="html"
-	JSON string `json:"json,omitempty"` // Original JSON for reference
-	Children []WidgetNode `json:"children,omitempty"`
-	Actions []WidgetActionButton `json:"actions,omitempty"`
+	Type        string               `json:"type"` // "ui" | "html"
+	Interactive bool                 `json:"interactive,omitempty"`
+	Title       string               `json:"title,omitempty"`
+	HTML        string               `json:"html,omitempty"` // For type="html"
+	JSON        string               `json:"json,omitempty"` // Original JSON for reference
+	Children    []WidgetNode         `json:"children,omitempty"`
+	Actions     []WidgetActionButton `json:"actions,omitempty"`
 }
 
 // --------------------
@@ -3378,24 +3378,24 @@ type WSEventType string
 
 // Task WebSocket events (Engine → API)
 const (
-	WSEventTaskLog WSEventType = "task_log"
-	WSEventTaskProgress WSEventType = "task_progress"
-	WSEventTaskFailed WSEventType = "task_failed"
-	WSEventTaskAccepted WSEventType = "task_accepted"
-	WSEventTaskRejected WSEventType = "task_rejected"
+	WSEventTaskLog       WSEventType = "task_log"
+	WSEventTaskProgress  WSEventType = "task_progress"
+	WSEventTaskFailed    WSEventType = "task_failed"
+	WSEventTaskAccepted  WSEventType = "task_accepted"
+	WSEventTaskRejected  WSEventType = "task_rejected"
 	WSEventTaskPreparing WSEventType = "task_preparing"
-	WSEventTaskServing WSEventType = "task_serving"
+	WSEventTaskServing   WSEventType = "task_serving"
 	WSEventTaskSettingUp WSEventType = "task_setting_up"
-	WSEventTaskRunning WSEventType = "task_running"
+	WSEventTaskRunning   WSEventType = "task_running"
 	WSEventTaskUploading WSEventType = "task_uploading"
 	WSEventTaskCompleted WSEventType = "task_completed"
 	WSEventTaskCancelled WSEventType = "task_cancelled"
 )
 
 type WsTaskLogPayload struct {
-	TaskID string `json:"task_id"`
+	TaskID  string      `json:"task_id"`
 	LogType TaskLogType `json:"log_type"`
-	Logs []byte `json:"logs"`
+	Logs    []byte      `json:"logs"`
 }
 
 type WsTaskOutputPayload struct {
@@ -3404,8 +3404,8 @@ type WsTaskOutputPayload struct {
 }
 
 type WsTaskFailedPayload struct {
-	TaskID string `json:"task_id"`
-	Error *string `json:"error,omitempty"`
+	TaskID string  `json:"task_id"`
+	Error  *string `json:"error,omitempty"`
 }
 
 type WsTaskAcceptedPayload struct {
@@ -3413,9 +3413,9 @@ type WsTaskAcceptedPayload struct {
 }
 
 type WsTaskRejectedPayload struct {
-	TaskID string `json:"task_id"`
-	Reason RejectionReason `json:"reason"`
-	BusyWithTask *string `json:"busy_with_task,omitempty"`
+	TaskID       string          `json:"task_id"`
+	Reason       RejectionReason `json:"reason"`
+	BusyWithTask *string         `json:"busy_with_task,omitempty"`
 }
 
 // WsTaskLifecyclePayload is shared by preparing/serving/setting_up/running/uploading events.
@@ -3429,26 +3429,26 @@ type WsTaskCompletedPayload struct {
 }
 
 const (
-	WSEventTaskRun WSEventType = "task_run"
-	WSEventTaskCancel WSEventType = "task_cancel"
-	WSEventTaskForceCancel WSEventType = "task_force_cancel"
-	WSEventTaskCancelResult WSEventType = "task_cancel_result"
-	WSEventEngineStop WSEventType = "engine_stop"
-	WSEventEngineDrain WSEventType = "engine_drain"
-	WSEventEngineUpdate WSEventType = "engine_update"
+	WSEventTaskRun                 WSEventType = "task_run"
+	WSEventTaskCancel              WSEventType = "task_cancel"
+	WSEventTaskForceCancel         WSEventType = "task_force_cancel"
+	WSEventTaskCancelResult        WSEventType = "task_cancel_result"
+	WSEventEngineStop              WSEventType = "engine_stop"
+	WSEventEngineDrain             WSEventType = "engine_drain"
+	WSEventEngineUpdate            WSEventType = "engine_update"
 	WSEventEngineDeleteHFCacheRepo WSEventType = "engine_delete_hfcache_repo"
-	WSEventSessionEnd WSEventType = "session_end"
+	WSEventSessionEnd              WSEventType = "session_end"
 )
 
 type WsTaskRunPayload struct {
-	Task TaskDTO `json:"task"`
-	Secrets string `json:"secrets"`
+	Task    TaskDTO `json:"task"`
+	Secrets string  `json:"secrets"`
 }
 
 type WsTaskCancelPayload struct {
-	Task TaskDTO `json:"task"`
-	Force bool `json:"force"` // If true, skip graceful cancel and force kill
-	Timeout int `json:"timeout"` // Milliseconds to wait for graceful cancel (default 10000)
+	Task    TaskDTO `json:"task"`
+	Force   bool    `json:"force"`   // If true, skip graceful cancel and force kill
+	Timeout int     `json:"timeout"` // Milliseconds to wait for graceful cancel (default 10000)
 }
 
 type WsTaskForceCancelPayload struct {
@@ -3464,31 +3464,31 @@ const (
 type WorkerStatusMap map[string]WorkerStatus
 
 type WsEngineHeartbeatPayload struct {
-	EngineID string `json:"engine_id"`
-	EngineStatus EngineStatus `json:"engine_status"`
-	WorkerStatuses WorkerStatusMap `json:"worker_statuses"`
-	WorkerTasks map[string]*string `json:"worker_tasks,omitempty"`
+	EngineID       string             `json:"engine_id"`
+	EngineStatus   EngineStatus       `json:"engine_status"`
+	WorkerStatuses WorkerStatusMap    `json:"worker_statuses"`
+	WorkerTasks    map[string]*string `json:"worker_tasks,omitempty"`
 }
 
 // EngineTelemetry is the clean contract for engine→API telemetry.
 type EngineTelemetry struct {
-	EngineID string `json:"engine_id"`
-	Status EngineStatus `json:"status"`
-	EngineVersion string `json:"engine_version,omitempty"`
-	SystemInfo *SystemInfo `json:"system_info"`
-	Workers []WorkerTelemetry `json:"workers"`
+	EngineID      string            `json:"engine_id"`
+	Status        EngineStatus      `json:"status"`
+	EngineVersion string            `json:"engine_version,omitempty"`
+	SystemInfo    *SystemInfo       `json:"system_info"`
+	Workers       []WorkerTelemetry `json:"workers"`
 }
 
 // WorkerTelemetry is the minimal telemetry data engine sends per worker.
 type WorkerTelemetry struct {
-	ID string `json:"id"`
-	Status WorkerStatus `json:"status"`
-	TaskID *string `json:"task_id"`
-	AppID string `json:"app_id"`
-	AppVersionID string `json:"app_version_id"`
-	ActiveSessionID *string `json:"active_session_id,omitempty"`
-	SystemInfo SystemInfo `json:"system_info"`
-	WarmApps []string `json:"warm_apps,omitempty"`
+	ID              string       `json:"id"`
+	Status          WorkerStatus `json:"status"`
+	TaskID          *string      `json:"task_id"`
+	AppID           string       `json:"app_id"`
+	AppVersionID    string       `json:"app_version_id"`
+	ActiveSessionID *string      `json:"active_session_id,omitempty"`
+	SystemInfo      SystemInfo   `json:"system_info"`
+	WarmApps        []string     `json:"warm_apps,omitempty"`
 }
 
 type WsEngineDeleteHFCacheRepoPayload struct {
@@ -3498,7 +3498,7 @@ type WsEngineDeleteHFCacheRepoPayload struct {
 // WsSessionEndPayload notifies engine to clear worker's session lease
 type WsSessionEndPayload struct {
 	SessionID string `json:"session_id"`
-	WorkerID string `json:"worker_id"`
+	WorkerID  string `json:"worker_id"`
 }
 
 // --------------------
@@ -3515,11 +3515,11 @@ const (
 	AppCategoryImage AppCategory = "image"
 	AppCategoryVideo AppCategory = "video"
 	AppCategoryAudio AppCategory = "audio"
-	AppCategoryText AppCategory = "text"
-	AppCategoryChat AppCategory = "chat"
-	AppCategory3D AppCategory = "3d"
+	AppCategoryText  AppCategory = "text"
+	AppCategoryChat  AppCategory = "chat"
+	AppCategory3D    AppCategory = "3d"
 	AppCategoryOther AppCategory = "other"
-	AppCategoryFlow AppCategory = "flow"
+	AppCategoryFlow  AppCategory = "flow"
 )
 
 type AppStatus string
@@ -3529,10 +3529,10 @@ func (s AppStatus) IsRunnable() bool {
 }
 
 const (
-	AppStatusActive AppStatus = "active"
+	AppStatusActive      AppStatus = "active"
 	AppStatusMaintenance AppStatus = "maintenance"
-	AppStatusDeprecated AppStatus = "deprecated"
-	AppStatusRetired AppStatus = "retired"
+	AppStatusDeprecated  AppStatus = "deprecated"
+	AppStatusRetired     AppStatus = "retired"
 )
 
 type GPUType string
@@ -3542,12 +3542,12 @@ func (v GPUType) Value() (driver.Value, error) {
 }
 
 const (
-	GPUTypeAny GPUType = "any"
-	GPUTypeNone GPUType = "none"
-	GPUTypeIntel GPUType = "intel"
+	GPUTypeAny    GPUType = "any"
+	GPUTypeNone   GPUType = "none"
+	GPUTypeIntel  GPUType = "intel"
 	GPUTypeNvidia GPUType = "nvidia"
-	GPUTypeAMD GPUType = "amd"
-	GPUTypeApple GPUType = "apple"
+	GPUTypeAMD    GPUType = "amd"
+	GPUTypeApple  GPUType = "apple"
 )
 
 // --------------------
@@ -3562,8 +3562,8 @@ func (v Visibility) Value() (driver.Value, error) {
 }
 
 const (
-	VisibilityPrivate Visibility = "private"
-	VisibilityPublic Visibility = "public"
+	VisibilityPrivate  Visibility = "private"
+	VisibilityPublic   Visibility = "public"
 	VisibilityUnlisted Visibility = "unlisted"
 )
 
@@ -3572,7 +3572,7 @@ type Permission string
 
 // Permission levels for ACL checks
 const (
-	PermRead Permission = "read"
+	PermRead  Permission = "read"
 	PermWrite Permission = "write"
 )
 
@@ -3588,10 +3588,10 @@ func (v SubscriptionStatus) Value() (driver.Value, error) {
 
 const (
 	SubscriptionStatusTrialing SubscriptionStatus = "trialing"
-	SubscriptionStatusActive SubscriptionStatus = "active"
-	SubscriptionStatusPastDue SubscriptionStatus = "past_due"
+	SubscriptionStatusActive   SubscriptionStatus = "active"
+	SubscriptionStatusPastDue  SubscriptionStatus = "past_due"
 	SubscriptionStatusCanceled SubscriptionStatus = "canceled"
-	SubscriptionStatusPaused SubscriptionStatus = "paused"
+	SubscriptionStatusPaused   SubscriptionStatus = "paused"
 )
 
 type SubscriptionInterval string
@@ -3602,13 +3602,13 @@ func (v SubscriptionInterval) Value() (driver.Value, error) {
 
 const (
 	SubscriptionIntervalMonthly SubscriptionInterval = "monthly"
-	SubscriptionIntervalYearly SubscriptionInterval = "yearly"
+	SubscriptionIntervalYearly  SubscriptionInterval = "yearly"
 )
 
 type PlanType string
 
 const (
-	PlanTypeBase PlanType = "base"
+	PlanTypeBase  PlanType = "base"
 	PlanTypeAddon PlanType = "addon"
 )
 
@@ -3619,11 +3619,11 @@ func (v EntitlementSource) Value() (driver.Value, error) {
 }
 
 const (
-	EntitlementSourceTier EntitlementSource = "tier"
-	EntitlementSourceOverride EntitlementSource = "override"
+	EntitlementSourceTier      EntitlementSource = "tier"
+	EntitlementSourceOverride  EntitlementSource = "override"
 	EntitlementSourceWhitelist EntitlementSource = "whitelist"
-	EntitlementSourceTrial EntitlementSource = "trial"
-	EntitlementSourceAddon EntitlementSource = "addon"
+	EntitlementSourceTrial     EntitlementSource = "trial"
+	EntitlementSourceAddon     EntitlementSource = "addon"
 )
 
 type EntitlementType string
@@ -3634,7 +3634,7 @@ func (v EntitlementType) Value() (driver.Value, error) {
 
 const (
 	EntitlementTypeBoolean EntitlementType = "boolean"
-	EntitlementTypeLimit EntitlementType = "limit"
+	EntitlementTypeLimit   EntitlementType = "limit"
 )
 
 type EnforcementMode string
@@ -3645,7 +3645,7 @@ func (v EnforcementMode) Value() (driver.Value, error) {
 
 const (
 	EnforcementBlock EnforcementMode = "block"
-	EnforcementWarn EnforcementMode = "warn"
+	EnforcementWarn  EnforcementMode = "warn"
 )
 
 // --------------------
@@ -3659,10 +3659,10 @@ func (v ChatStatus) Value() (driver.Value, error) {
 }
 
 const (
-	ChatStatusBusy ChatStatus = "busy"
-	ChatStatusIdle ChatStatus = "idle"
+	ChatStatusBusy          ChatStatus = "busy"
+	ChatStatusIdle          ChatStatus = "idle"
 	ChatStatusAwaitingInput ChatStatus = "awaiting_input"
-	ChatStatusCompleted ChatStatus = "completed"
+	ChatStatusCompleted     ChatStatus = "completed"
 )
 
 type PlanStepStatus string
@@ -3672,10 +3672,10 @@ func (v PlanStepStatus) Value() (driver.Value, error) {
 }
 
 const (
-	PlanStepStatusPending PlanStepStatus = "pending"
+	PlanStepStatusPending    PlanStepStatus = "pending"
 	PlanStepStatusInProgress PlanStepStatus = "in_progress"
-	PlanStepStatusCompleted PlanStepStatus = "completed"
-	PlanStepStatusCancelled PlanStepStatus = "cancelled"
+	PlanStepStatusCompleted  PlanStepStatus = "completed"
+	PlanStepStatusCancelled  PlanStepStatus = "cancelled"
 )
 
 type ChatMessageRole string
@@ -3685,10 +3685,10 @@ func (v ChatMessageRole) Value() (driver.Value, error) {
 }
 
 const (
-	ChatMessageRoleSystem ChatMessageRole = "system"
-	ChatMessageRoleUser ChatMessageRole = "user"
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
 	ChatMessageRoleAssistant ChatMessageRole = "assistant"
-	ChatMessageRoleTool ChatMessageRole = "tool"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
 )
 
 type ChatMessageStatus string
@@ -3703,28 +3703,28 @@ func (v ChatMessageStatus) Value() (driver.Value, error) {
 }
 
 const (
-	ChatMessageStatusPending ChatMessageStatus = "pending"
-	ChatMessageStatusReady ChatMessageStatus = "ready"
-	ChatMessageStatusFailed ChatMessageStatus = "failed"
+	ChatMessageStatusPending   ChatMessageStatus = "pending"
+	ChatMessageStatusReady     ChatMessageStatus = "ready"
+	ChatMessageStatusFailed    ChatMessageStatus = "failed"
 	ChatMessageStatusCancelled ChatMessageStatus = "cancelled"
 )
 
 type ChatMessageContentType string
 
 const (
-	ChatMessageContentTypeText ChatMessageContentType = "text"
+	ChatMessageContentTypeText      ChatMessageContentType = "text"
 	ChatMessageContentTypeReasoning ChatMessageContentType = "reasoning"
-	ChatMessageContentTypeImage ChatMessageContentType = "image"
-	ChatMessageContentTypeFile ChatMessageContentType = "file"
-	ChatMessageContentTypeTool ChatMessageContentType = "tool"
+	ChatMessageContentTypeImage     ChatMessageContentType = "image"
+	ChatMessageContentTypeFile      ChatMessageContentType = "file"
+	ChatMessageContentTypeTool      ChatMessageContentType = "tool"
 )
 
 type IntegrationType string
 
 const (
-	IntegrationTypeSlack IntegrationType = "slack"
-	IntegrationTypeDiscord IntegrationType = "discord"
-	IntegrationTypeTeams IntegrationType = "teams"
+	IntegrationTypeSlack    IntegrationType = "slack"
+	IntegrationTypeDiscord  IntegrationType = "discord"
+	IntegrationTypeTeams    IntegrationType = "teams"
 	IntegrationTypeTelegram IntegrationType = "telegram"
 )
 
@@ -3734,68 +3734,68 @@ const (
 
 // ChatData contains agent-specific data for a chat session
 type ChatData struct {
-	PlanSteps []PlanStep `json:"plan_steps"`
-	Memory StringEncodedMap `json:"memory"`
-	AlwaysAllowedTools []string `json:"always_allowed_tools"`
+	PlanSteps          []PlanStep       `json:"plan_steps"`
+	Memory             StringEncodedMap `json:"memory"`
+	AlwaysAllowedTools []string         `json:"always_allowed_tools"`
 }
 
 // PlanStep represents a step in an agent's execution plan
 type PlanStep struct {
-	Index int `json:"index"`
-	Title string `json:"title"`
-	Description string `json:"description"`
-	Notes *string `json:"notes"`
-	Status PlanStepStatus `json:"status"`
+	Index       int            `json:"index"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Notes       *string        `json:"notes"`
+	Status      PlanStepStatus `json:"status"`
 }
 
 // ChatMessageContent represents the content of a chat message
 type ChatMessageContent struct {
-	Type ChatMessageContentType `json:"type"`
-	Error *string `json:"error"`
-	Text *string `json:"text"`
-	Image *string `json:"image"`
-	File *string `json:"file"`
-	ToolCalls *[]ToolCall `json:"tool_calls"`
+	Type      ChatMessageContentType `json:"type"`
+	Error     *string                `json:"error"`
+	Text      *string                `json:"text"`
+	Image     *string                `json:"image"`
+	File      *string                `json:"file"`
+	ToolCalls *[]ToolCall            `json:"tool_calls"`
 }
 
 // IntegrationContext holds integration-specific metadata for a chat
 type IntegrationContext struct {
-	IntegrationType *IntegrationType `json:"integration_type,omitempty"`
-	IntegrationMetadata json.RawMessage `json:"integration_metadata,omitempty"`
+	IntegrationType     *IntegrationType `json:"integration_type,omitempty"`
+	IntegrationMetadata json.RawMessage  `json:"integration_metadata,omitempty"`
 }
 
 // ChatTaskInput is the input envelope for a chat LLM task
 type ChatTaskInput struct {
-	Model *string `json:"model"`
-	ContextSize int `json:"context_size"`
-	Temperature *float64 `json:"temperature,omitempty"`
-	TopP *float64 `json:"top_p,omitempty"`
-	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
-	ReasoningMaxTokens *int `json:"reasoning_max_tokens,omitempty"`
-	SystemPrompt string `json:"system_prompt"`
-	Context []ChatTaskContextMessage `json:"context"`
-	Role ChatMessageRole `json:"role,omitempty"`
-	Text *string `json:"text"`
-	Reasoning *string `json:"reasoning"`
+	Model              *string                  `json:"model"`
+	ContextSize        int                      `json:"context_size"`
+	Temperature        *float64                 `json:"temperature,omitempty"`
+	TopP               *float64                 `json:"top_p,omitempty"`
+	ReasoningEffort    *string                  `json:"reasoning_effort,omitempty"`
+	ReasoningMaxTokens *int                     `json:"reasoning_max_tokens,omitempty"`
+	SystemPrompt       string                   `json:"system_prompt"`
+	Context            []ChatTaskContextMessage `json:"context"`
+	Role               ChatMessageRole          `json:"role,omitempty"`
+	Text               *string                  `json:"text"`
+	Reasoning          *string                  `json:"reasoning"`
 	// Attachments is the SDK input field with full file metadata
 	Attachments *[]FileRef `json:"attachments,omitempty"`
 	// Images and Files are internal fields for task workers (filled from Attachments or context)
-	Images *[]string `json:"images,omitempty"`
-	Files *[]string `json:"files,omitempty"`
-	Tools *[]Tool `json:"tools"`
-	ToolCallID *string `json:"tool_call_id,omitempty"`
+	Images     *[]string `json:"images,omitempty"`
+	Files      *[]string `json:"files,omitempty"`
+	Tools      *[]Tool   `json:"tools"`
+	ToolCallID *string   `json:"tool_call_id,omitempty"`
 }
 
 // ChatTaskContextMessage represents a message in the chat context for LLM tasks
 type ChatTaskContextMessage struct {
-	Role ChatMessageRole `json:"role"`
-	Text *string `json:"text"`
-	Reasoning *string `json:"reasoning"`
-	Images *[]string `json:"images"`
-	Files *[]string `json:"files"`
-	Tools *[]Tool `json:"tools"`
-	ToolCalls *[]ToolCall `json:"tool_calls"`
-	ToolCallID *string `json:"tool_call_id,omitempty"`
+	Role       ChatMessageRole `json:"role"`
+	Text       *string         `json:"text"`
+	Reasoning  *string         `json:"reasoning"`
+	Images     *[]string       `json:"images"`
+	Files      *[]string       `json:"files"`
+	Tools      *[]Tool         `json:"tools"`
+	ToolCalls  *[]ToolCall     `json:"tool_calls"`
+	ToolCallID *string         `json:"tool_call_id,omitempty"`
 }
 
 // --------------------
@@ -3912,12 +3912,12 @@ func (v EngineStatus) Value() (driver.Value, error) {
 }
 
 const (
-	EngineStatusRunning EngineStatus = "running"
-	EngineStatusPending EngineStatus = "pending"
-	EngineStatusDraining EngineStatus = "draining"
+	EngineStatusRunning      EngineStatus = "running"
+	EngineStatusPending      EngineStatus = "pending"
+	EngineStatusDraining     EngineStatus = "draining"
 	EngineStatusDisconnected EngineStatus = "disconnected"
-	EngineStatusStopping EngineStatus = "stopping"
-	EngineStatusStopped EngineStatus = "stopped"
+	EngineStatusStopping     EngineStatus = "stopping"
+	EngineStatusStopped      EngineStatus = "stopped"
 )
 
 // WorkerStatus represents the status of a worker.
@@ -3929,8 +3929,8 @@ func (v WorkerStatus) Value() (driver.Value, error) {
 
 const (
 	WorkerStatusReserved WorkerStatus = "reserved"
-	WorkerStatusBusy WorkerStatus = "busy"
-	WorkerStatusIdle WorkerStatus = "idle"
+	WorkerStatusBusy     WorkerStatus = "busy"
+	WorkerStatusIdle     WorkerStatus = "idle"
 	WorkerStatusInactive WorkerStatus = "inactive"
 )
 
@@ -3981,15 +3981,15 @@ const (
 
 // FlowViewport represents the viewport state of a flow canvas
 type FlowViewport struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X    float64 `json:"x"`
+	Y    float64 `json:"y"`
 	Zoom float64 `json:"zoom"`
 }
 
 // FlowNode represents a node in a flow graph
 type FlowNode struct {
-	ID string `json:"id"`
-	Type string `json:"type"`
+	ID       string           `json:"id"`
+	Type     string           `json:"type"`
 	Position FlowNodePosition `json:"position"`
 }
 
@@ -4001,19 +4001,19 @@ type FlowNodePosition struct {
 
 // FlowEdge represents an edge between nodes in a flow graph
 type FlowEdge struct {
-	ID string `json:"id"`
-	Type string `json:"type"`
-	Source string `json:"source"`
-	Target string `json:"target"`
+	ID           string  `json:"id"`
+	Type         string  `json:"type"`
+	Source       string  `json:"source"`
+	Target       string  `json:"target"`
 	SourceHandle *string `json:"source_handle"`
 	TargetHandle *string `json:"target_handle"`
 }
 
 // FlowNodeConnection represents a connection between nodes in a flow
 type FlowNodeConnection struct {
-	NodeID string `json:"nodeId"`
-	Key string `json:"key"`
-	Type string `json:"type"`
+	NodeID        string          `json:"nodeId"`
+	Key           string          `json:"key"`
+	Type          string          `json:"type"`
 	PreviousValue json.RawMessage `json:"previousValue"`
 }
 
@@ -4023,16 +4023,16 @@ type FlowRunInputs map[string]map[string]FlowRunInput
 // FlowRunInput represents a single input value or connection for a flow node
 type FlowRunInput struct {
 	Connection *FlowNodeConnection
-	Value any
+	Value      any
 }
 
 // OutputFieldMapping represents a mapping from a source node's field to an output field
 type OutputFieldMapping struct {
-	SourceNodeID string `json:"sourceNodeId"`
-	SourceFieldPath string `json:"sourceFieldPath"`
-	OutputFieldName string `json:"outputFieldName"`
-	Type string `json:"type"`
-	Schema json.RawMessage `json:"schema"`
+	SourceNodeID    string          `json:"sourceNodeId"`
+	SourceFieldPath string          `json:"sourceFieldPath"`
+	OutputFieldName string          `json:"outputFieldName"`
+	Type            string          `json:"type"`
+	Schema          json.RawMessage `json:"schema"`
 }
 
 // OutputMappings is a map of output field name to OutputFieldMapping
@@ -4049,15 +4049,15 @@ func (v GraphNodeType) Value() (driver.Value, error) {
 }
 
 const (
-	GraphNodeTypeUnknown GraphNodeType = "unknown"
-	GraphNodeTypeJoin GraphNodeType = "join"
-	GraphNodeTypeSplit GraphNodeType = "split"
-	GraphNodeTypeExecution GraphNodeType = "execution"
-	GraphNodeTypeResource GraphNodeType = "resource"
-	GraphNodeTypeApproval GraphNodeType = "approval"
-	GraphNodeTypeConditional GraphNodeType = "conditional"
-	GraphNodeTypeFlowNode GraphNodeType = "flow_node"
-	GraphNodeTypeTrigger GraphNodeType = "trigger"
+	GraphNodeTypeUnknown                GraphNodeType = "unknown"
+	GraphNodeTypeJoin                   GraphNodeType = "join"
+	GraphNodeTypeSplit                  GraphNodeType = "split"
+	GraphNodeTypeExecution              GraphNodeType = "execution"
+	GraphNodeTypeResource               GraphNodeType = "resource"
+	GraphNodeTypeApproval               GraphNodeType = "approval"
+	GraphNodeTypeConditional            GraphNodeType = "conditional"
+	GraphNodeTypeFlowNode               GraphNodeType = "flow_node"
+	GraphNodeTypeTrigger                GraphNodeType = "trigger"
 	GraphNodeTypeIntegrationRequirement GraphNodeType = "integration_requirement"
 )
 
@@ -4073,14 +4073,14 @@ func (v GraphNodeStatus) Value() (driver.Value, error) {
 }
 
 const (
-	GraphNodeStatusPending GraphNodeStatus = "pending"
-	GraphNodeStatusReady GraphNodeStatus = "ready"
-	GraphNodeStatusRunning GraphNodeStatus = "running"
+	GraphNodeStatusPending   GraphNodeStatus = "pending"
+	GraphNodeStatusReady     GraphNodeStatus = "ready"
+	GraphNodeStatusRunning   GraphNodeStatus = "running"
 	GraphNodeStatusCompleted GraphNodeStatus = "completed"
-	GraphNodeStatusFailed GraphNodeStatus = "failed"
+	GraphNodeStatusFailed    GraphNodeStatus = "failed"
 	GraphNodeStatusCancelled GraphNodeStatus = "cancelled"
-	GraphNodeStatusSkipped GraphNodeStatus = "skipped"
-	GraphNodeStatusBlocked GraphNodeStatus = "blocked"
+	GraphNodeStatusSkipped   GraphNodeStatus = "skipped"
+	GraphNodeStatusBlocked   GraphNodeStatus = "blocked"
 )
 
 // ResourceType identifies what kind of resource a graph node represents.
@@ -4088,8 +4088,8 @@ type ResourceType string
 
 const (
 	ResourceTypeKnowledge ResourceType = "knowledge"
-	ResourceTypeApp ResourceType = "app"
-	ResourceTypeAgent ResourceType = "agent"
+	ResourceTypeApp       ResourceType = "app"
+	ResourceTypeAgent     ResourceType = "agent"
 )
 
 // GraphEdgeType defines the type of edge relationship
@@ -4100,17 +4100,17 @@ func (v GraphEdgeType) Value() (driver.Value, error) {
 }
 
 const (
-	GraphEdgeTypeDependency GraphEdgeType = "dependency"
-	GraphEdgeTypeFlow GraphEdgeType = "flow"
+	GraphEdgeTypeDependency  GraphEdgeType = "dependency"
+	GraphEdgeTypeFlow        GraphEdgeType = "flow"
 	GraphEdgeTypeConditional GraphEdgeType = "conditional"
-	GraphEdgeTypeExecution GraphEdgeType = "execution"
-	GraphEdgeTypeParent GraphEdgeType = "parent"
-	GraphEdgeTypeAncestor GraphEdgeType = "ancestor"
-	GraphEdgeTypeDuplicate GraphEdgeType = "duplicate"
-	GraphEdgeTypeReferences GraphEdgeType = "references"
-	GraphEdgeTypeSupersedes GraphEdgeType = "supersedes"
-	GraphEdgeTypeInput GraphEdgeType = "input"
-	GraphEdgeTypeOutput GraphEdgeType = "output"
+	GraphEdgeTypeExecution   GraphEdgeType = "execution"
+	GraphEdgeTypeParent      GraphEdgeType = "parent"
+	GraphEdgeTypeAncestor    GraphEdgeType = "ancestor"
+	GraphEdgeTypeDuplicate   GraphEdgeType = "duplicate"
+	GraphEdgeTypeReferences  GraphEdgeType = "references"
+	GraphEdgeTypeSupersedes  GraphEdgeType = "supersedes"
+	GraphEdgeTypeInput       GraphEdgeType = "input"
+	GraphEdgeTypeOutput      GraphEdgeType = "output"
 )
 
 // --------------------
@@ -4154,7 +4154,7 @@ func (v PageType) Value() (driver.Value, error) {
 }
 
 const (
-	PageTypeDoc PageType = "doc"
+	PageTypeDoc  PageType = "doc"
 	PageTypeBlog PageType = "blog"
 	PageTypePage PageType = "page"
 )
@@ -4167,13 +4167,13 @@ func (v ToolInvocationStatus) Value() (driver.Value, error) {
 }
 
 const (
-	ToolInvocationStatusPending ToolInvocationStatus = "pending"
-	ToolInvocationStatusInProgress ToolInvocationStatus = "in_progress"
-	ToolInvocationStatusAwaitingInput ToolInvocationStatus = "awaiting_input"
+	ToolInvocationStatusPending          ToolInvocationStatus = "pending"
+	ToolInvocationStatusInProgress       ToolInvocationStatus = "in_progress"
+	ToolInvocationStatusAwaitingInput    ToolInvocationStatus = "awaiting_input"
 	ToolInvocationStatusAwaitingApproval ToolInvocationStatus = "awaiting_approval"
-	ToolInvocationStatusCompleted ToolInvocationStatus = "completed"
-	ToolInvocationStatusFailed ToolInvocationStatus = "failed"
-	ToolInvocationStatusCancelled ToolInvocationStatus = "cancelled"
+	ToolInvocationStatusCompleted        ToolInvocationStatus = "completed"
+	ToolInvocationStatusFailed           ToolInvocationStatus = "failed"
+	ToolInvocationStatusCancelled        ToolInvocationStatus = "cancelled"
 )
 
 // ToolType represents the type of tool (used in both AgentTool definition and ToolInvocation)
@@ -4184,20 +4184,20 @@ func (v ToolType) Value() (driver.Value, error) {
 }
 
 const (
-	ToolTypeApp ToolType = "app"
-	ToolTypeAgent ToolType = "agent"
-	ToolTypeHook ToolType = "hook"
-	ToolTypeHTTP ToolType = "http"
-	ToolTypeCall ToolType = "call"
-	ToolTypeMCP ToolType = "mcp"
-	ToolTypeClient ToolType = "client"
+	ToolTypeApp      ToolType = "app"
+	ToolTypeAgent    ToolType = "agent"
+	ToolTypeHook     ToolType = "hook"
+	ToolTypeHTTP     ToolType = "http"
+	ToolTypeCall     ToolType = "call"
+	ToolTypeMCP      ToolType = "mcp"
+	ToolTypeClient   ToolType = "client"
 	ToolTypeInternal ToolType = "internal"
 )
 
 type SkillSource string
 
 const (
-	SkillSourceStore SkillSource = "store"
+	SkillSourceStore  SkillSource = "store"
 	SkillSourceGitHub SkillSource = "github"
 )
 
@@ -4208,33 +4208,33 @@ func (v InstanceCloudProvider) Value() (driver.Value, error) {
 }
 
 const (
-	CloudAWS InstanceCloudProvider = "aws"
-	CloudAmaya InstanceCloudProvider = "amaya"
-	CloudAzure InstanceCloudProvider = "azure"
-	CloudBoostrun InstanceCloudProvider = "boostrun"
-	CloudCrusoe InstanceCloudProvider = "crusoe"
-	CloudDatacrunch InstanceCloudProvider = "datacrunch"
-	CloudDenvr InstanceCloudProvider = "denvr"
-	CloudDigitalOcean InstanceCloudProvider = "digitalocean"
-	CloudExcessSupply InstanceCloudProvider = "excesssupply"
-	CloudHorizon InstanceCloudProvider = "horizon"
-	CloudHyperstack InstanceCloudProvider = "hyperstack"
-	CloudIMWT InstanceCloudProvider = "imwt"
-	CloudJarvisLabs InstanceCloudProvider = "jarvislabs"
-	CloudLambdaLabs InstanceCloudProvider = "lambdalabs"
-	CloudLatitude InstanceCloudProvider = "latitude"
+	CloudAWS           InstanceCloudProvider = "aws"
+	CloudAmaya         InstanceCloudProvider = "amaya"
+	CloudAzure         InstanceCloudProvider = "azure"
+	CloudBoostrun      InstanceCloudProvider = "boostrun"
+	CloudCrusoe        InstanceCloudProvider = "crusoe"
+	CloudDatacrunch    InstanceCloudProvider = "datacrunch"
+	CloudDenvr         InstanceCloudProvider = "denvr"
+	CloudDigitalOcean  InstanceCloudProvider = "digitalocean"
+	CloudExcessSupply  InstanceCloudProvider = "excesssupply"
+	CloudHorizon       InstanceCloudProvider = "horizon"
+	CloudHyperstack    InstanceCloudProvider = "hyperstack"
+	CloudIMWT          InstanceCloudProvider = "imwt"
+	CloudJarvisLabs    InstanceCloudProvider = "jarvislabs"
+	CloudLambdaLabs    InstanceCloudProvider = "lambdalabs"
+	CloudLatitude      InstanceCloudProvider = "latitude"
 	CloudMassedCompute InstanceCloudProvider = "massedcompute"
-	CloudNebius InstanceCloudProvider = "nebius"
-	CloudOblivus InstanceCloudProvider = "oblivus"
-	CloudPaperspace InstanceCloudProvider = "paperspace"
-	CloudPhyntec InstanceCloudProvider = "phyntec"
-	CloudRunPod InstanceCloudProvider = "runpod"
-	CloudScaleway InstanceCloudProvider = "scaleway"
-	CloudShade InstanceCloudProvider = "shade"
-	CloudTensorDock InstanceCloudProvider = "tensordock"
-	CloudVerda InstanceCloudProvider = "verda"
-	CloudVoltagePark InstanceCloudProvider = "voltagepark"
-	CloudVultr InstanceCloudProvider = "vultr"
+	CloudNebius        InstanceCloudProvider = "nebius"
+	CloudOblivus       InstanceCloudProvider = "oblivus"
+	CloudPaperspace    InstanceCloudProvider = "paperspace"
+	CloudPhyntec       InstanceCloudProvider = "phyntec"
+	CloudRunPod        InstanceCloudProvider = "runpod"
+	CloudScaleway      InstanceCloudProvider = "scaleway"
+	CloudShade         InstanceCloudProvider = "shade"
+	CloudTensorDock    InstanceCloudProvider = "tensordock"
+	CloudVerda         InstanceCloudProvider = "verda"
+	CloudVoltagePark   InstanceCloudProvider = "voltagepark"
+	CloudVultr         InstanceCloudProvider = "vultr"
 )
 
 type InstanceStatus string
@@ -4244,13 +4244,13 @@ func (v InstanceStatus) Value() (driver.Value, error) {
 }
 
 const (
-	InstanceStatusCreating InstanceStatus = "creating"
+	InstanceStatusCreating        InstanceStatus = "creating"
 	InstanceStatusPendingProvider InstanceStatus = "pending_provider"
-	InstanceStatusPending InstanceStatus = "pending"
-	InstanceStatusActive InstanceStatus = "active"
-	InstanceStatusError InstanceStatus = "error"
-	InstanceStatusDeleting InstanceStatus = "deleting"
-	InstanceStatusDeleted InstanceStatus = "deleted"
+	InstanceStatusPending         InstanceStatus = "pending"
+	InstanceStatusActive          InstanceStatus = "active"
+	InstanceStatusError           InstanceStatus = "error"
+	InstanceStatusDeleting        InstanceStatus = "deleting"
+	InstanceStatusDeleted         InstanceStatus = "deleted"
 )
 
 type InstanceTypeDeploymentType string
@@ -4260,7 +4260,7 @@ func (v InstanceTypeDeploymentType) Value() (driver.Value, error) {
 }
 
 const (
-	InstanceTypeDeploymentTypeVM InstanceTypeDeploymentType = "vm"
+	InstanceTypeDeploymentTypeVM        InstanceTypeDeploymentType = "vm"
 	InstanceTypeDeploymentTypeContainer InstanceTypeDeploymentType = "container"
 	InstanceTypeDeploymentTypeBaremetal InstanceTypeDeploymentType = "baremetal"
 )
@@ -4272,8 +4272,8 @@ func (v AppSessionStatus) Value() (driver.Value, error) {
 }
 
 const (
-	AppSessionStatusActive AppSessionStatus = "active"
-	AppSessionStatusEnded AppSessionStatus = "ended"
+	AppSessionStatusActive  AppSessionStatus = "active"
+	AppSessionStatusEnded   AppSessionStatus = "ended"
 	AppSessionStatusExpired AppSessionStatus = "expired"
 )
 
@@ -4286,8 +4286,8 @@ func (v ProjectType) Value() (driver.Value, error) {
 
 const (
 	ProjectTypeAgent ProjectType = "agent"
-	ProjectTypeApp ProjectType = "app"
-	ProjectTypeFlow ProjectType = "flow"
+	ProjectTypeApp   ProjectType = "app"
+	ProjectTypeFlow  ProjectType = "flow"
 	ProjectTypeOther ProjectType = "other"
 )
 
@@ -4295,29 +4295,29 @@ type UsageEventResourceTier string
 
 const (
 	UsageEventResourceTierPrivate UsageEventResourceTier = "private"
-	UsageEventResourceTierCloud UsageEventResourceTier = "cloud"
+	UsageEventResourceTierCloud   UsageEventResourceTier = "cloud"
 )
 
 // MetaItemType is the type discriminator for MetaItem
 type MetaItemType string
 
 const (
-	MetaItemTypeText MetaItemType = "text"
+	MetaItemTypeText  MetaItemType = "text"
 	MetaItemTypeImage MetaItemType = "image"
 	MetaItemTypeVideo MetaItemType = "video"
 	MetaItemTypeAudio MetaItemType = "audio"
-	MetaItemTypeRaw MetaItemType = "raw"
+	MetaItemTypeRaw   MetaItemType = "raw"
 )
 
 // VideoResolution represents standard video resolution presets
 type VideoResolution string
 
 const (
-	VideoRes480P VideoResolution = "480p"
-	VideoRes720P VideoResolution = "720p"
+	VideoRes480P  VideoResolution = "480p"
+	VideoRes720P  VideoResolution = "720p"
 	VideoRes1080P VideoResolution = "1080p"
 	VideoRes1440P VideoResolution = "1440p"
-	VideoRes4K VideoResolution = "4k"
+	VideoRes4K    VideoResolution = "4k"
 )
 
 // MCPServerCategory classifies MCP servers.
@@ -4328,12 +4328,12 @@ func (v MCPServerCategory) Value() (driver.Value, error) {
 }
 
 const (
-	MCPServerCategoryDeveloper MCPServerCategory = "developer"
-	MCPServerCategoryProductivity MCPServerCategory = "productivity"
-	MCPServerCategoryData MCPServerCategory = "data"
+	MCPServerCategoryDeveloper     MCPServerCategory = "developer"
+	MCPServerCategoryProductivity  MCPServerCategory = "productivity"
+	MCPServerCategoryData          MCPServerCategory = "data"
 	MCPServerCategoryCommunication MCPServerCategory = "communication"
-	MCPServerCategoryAI MCPServerCategory = "ai"
-	MCPServerCategoryOther MCPServerCategory = "other"
+	MCPServerCategoryAI            MCPServerCategory = "ai"
+	MCPServerCategoryOther         MCPServerCategory = "other"
 )
 
 // MCPServerAuthType describes how a server authenticates clients.
@@ -4344,9 +4344,9 @@ func (v MCPServerAuthType) Value() (driver.Value, error) {
 }
 
 const (
-	MCPServerAuthOAuth MCPServerAuthType = "oauth"
+	MCPServerAuthOAuth  MCPServerAuthType = "oauth"
 	MCPServerAuthAPIKey MCPServerAuthType = "api_key"
-	MCPServerAuthNone MCPServerAuthType = "none"
+	MCPServerAuthNone   MCPServerAuthType = "none"
 )
 
 // TeamInviteStatus represents the status of a team invitation
@@ -4357,11 +4357,11 @@ func (v TeamInviteStatus) Value() (driver.Value, error) {
 }
 
 const (
-	TeamInviteStatusPending TeamInviteStatus = "pending"
+	TeamInviteStatusPending  TeamInviteStatus = "pending"
 	TeamInviteStatusAccepted TeamInviteStatus = "accepted"
 	TeamInviteStatusDeclined TeamInviteStatus = "declined"
-	TeamInviteStatusExpired TeamInviteStatus = "expired"
-	TeamInviteStatusRevoked TeamInviteStatus = "revoked"
+	TeamInviteStatusExpired  TeamInviteStatus = "expired"
+	TeamInviteStatusRevoked  TeamInviteStatus = "revoked"
 )
 
 type RefRouteType string
@@ -4371,7 +4371,7 @@ func (v RefRouteType) Value() (driver.Value, error) {
 }
 
 const (
-	RefRouteTypeApp RefRouteType = "app"
+	RefRouteTypeApp   RefRouteType = "app"
 	RefRouteTypeAgent RefRouteType = "agent"
 	RefRouteTypeSkill RefRouteType = "skill"
 )
@@ -4390,7 +4390,7 @@ func (v RefRouteMode) Value() (driver.Value, error) {
 }
 
 const (
-	RefRouteModeRewrite RefRouteMode = "rewrite"
+	RefRouteModeRewrite  RefRouteMode = "rewrite"
 	RefRouteModeRedirect RefRouteMode = "redirect"
 )
 
@@ -4401,13 +4401,13 @@ func (v KnowledgeType) Value() (driver.Value, error) {
 }
 
 const (
-	KnowledgeTypeConcept KnowledgeType = "concept"
-	KnowledgeTypeSkill KnowledgeType = "skill"
+	KnowledgeTypeConcept     KnowledgeType = "concept"
+	KnowledgeTypeSkill       KnowledgeType = "skill"
 	KnowledgeTypeObservation KnowledgeType = "observation"
-	KnowledgeTypePreference KnowledgeType = "preference"
-	KnowledgeTypeReference KnowledgeType = "reference"
-	KnowledgeTypePerson KnowledgeType = "person"
-	KnowledgeTypeProject KnowledgeType = "project"
+	KnowledgeTypePreference  KnowledgeType = "preference"
+	KnowledgeTypeReference   KnowledgeType = "reference"
+	KnowledgeTypePerson      KnowledgeType = "person"
+	KnowledgeTypeProject     KnowledgeType = "project"
 	KnowledgeTypeAgentConfig KnowledgeType = "agent-config"
 )
 
@@ -4419,28 +4419,28 @@ func (v KnowledgeLifecycle) Value() (driver.Value, error) {
 
 const (
 	KnowledgeLifecyclePermanent KnowledgeLifecycle = "permanent"
-	KnowledgeLifecycleDecay KnowledgeLifecycle = "decay"
+	KnowledgeLifecycleDecay     KnowledgeLifecycle = "decay"
 )
 
 type FilterOperator string
 
 const (
-	OpEqual FilterOperator = "eq"
-	OpNotEqual FilterOperator = "neq"
-	OpIn FilterOperator = "in"
-	OpNotIn FilterOperator = "not_in"
-	OpGreater FilterOperator = "gt"
+	OpEqual        FilterOperator = "eq"
+	OpNotEqual     FilterOperator = "neq"
+	OpIn           FilterOperator = "in"
+	OpNotIn        FilterOperator = "not_in"
+	OpGreater      FilterOperator = "gt"
 	OpGreaterEqual FilterOperator = "gte"
-	OpLess FilterOperator = "lt"
-	OpLessEqual FilterOperator = "lte"
-	OpLike FilterOperator = "like"
-	OpILike FilterOperator = "ilike"
-	OpContains FilterOperator = "contains"
-	OpNotContains FilterOperator = "not_contains"
-	OpIsNull FilterOperator = "is_null"
-	OpIsNotNull FilterOperator = "is_not_null"
-	OpIsEmpty FilterOperator = "is_empty"
-	OpIsNotEmpty FilterOperator = "is_not_empty"
+	OpLess         FilterOperator = "lt"
+	OpLessEqual    FilterOperator = "lte"
+	OpLike         FilterOperator = "like"
+	OpILike        FilterOperator = "ilike"
+	OpContains     FilterOperator = "contains"
+	OpNotContains  FilterOperator = "not_contains"
+	OpIsNull       FilterOperator = "is_null"
+	OpIsNotNull    FilterOperator = "is_not_null"
+	OpIsEmpty      FilterOperator = "is_empty"
+	OpIsNotEmpty   FilterOperator = "is_not_empty"
 )
 
 type DeviceAuthStatus string
@@ -4450,13 +4450,13 @@ func (v DeviceAuthStatus) Value() (driver.Value, error) {
 }
 
 const (
-	DeviceAuthStatusPending DeviceAuthStatus = "pending"
+	DeviceAuthStatusPending  DeviceAuthStatus = "pending"
 	DeviceAuthStatusApproved DeviceAuthStatus = "approved"
-	DeviceAuthStatusExpired DeviceAuthStatus = "expired"
-	DeviceAuthStatusDenied DeviceAuthStatus = "denied"
-	DeviceAuthStatusValid DeviceAuthStatus = "valid"
-	DeviceAuthStatusInvalid DeviceAuthStatus = "invalid"
-	DeviceAuthStatusLoading DeviceAuthStatus = "loading"
+	DeviceAuthStatusExpired  DeviceAuthStatus = "expired"
+	DeviceAuthStatusDenied   DeviceAuthStatus = "denied"
+	DeviceAuthStatusValid    DeviceAuthStatus = "valid"
+	DeviceAuthStatusInvalid  DeviceAuthStatus = "invalid"
+	DeviceAuthStatusLoading  DeviceAuthStatus = "loading"
 )
 
 // DeviceTokenKind selects the credential minted when a device auth flow is approved.
@@ -4479,28 +4479,28 @@ func (v EntitlementResource) Value() (driver.Value, error) {
 
 const (
 	// Capacity limits — scale with tier
-	ResourceAPIKeys EntitlementResource = "api_keys"
-	ResourceConnectors EntitlementResource = "connectors"
+	ResourceAPIKeys        EntitlementResource = "api_keys"
+	ResourceConnectors     EntitlementResource = "connectors"
 	ResourceKnowledgeBases EntitlementResource = "knowledge_bases"
-	ResourceStorageMB EntitlementResource = "storage_mb"
-	ResourceConcurrency EntitlementResource = "concurrency"
-	ResourceRatePerMin EntitlementResource = "rate_per_min"
-	ResourceSeats EntitlementResource = "seats"
-	ResourceTriggers EntitlementResource = "triggers"
-	ResourceRetentionDays EntitlementResource = "retention_days"
+	ResourceStorageMB      EntitlementResource = "storage_mb"
+	ResourceConcurrency    EntitlementResource = "concurrency"
+	ResourceRatePerMin     EntitlementResource = "rate_per_min"
+	ResourceSeats          EntitlementResource = "seats"
+	ResourceTriggers       EntitlementResource = "triggers"
+	ResourceRetentionDays  EntitlementResource = "retention_days"
 	// Legacy — kept for DB compatibility, no longer in plan seeds
-	ResourcePrivateApps EntitlementResource = "private_apps"
+	ResourcePrivateApps    EntitlementResource = "private_apps"
 	ResourceTaskExecutions EntitlementResource = "task_executions"
 	// Feature gates — only what has real cost/complexity
-	ResourceFeatureBYOK EntitlementResource = "feature:byok"
+	ResourceFeatureBYOK     EntitlementResource = "feature:byok"
 	ResourceFeatureSeedance EntitlementResource = "feature:seedance"
 	// Legacy feature gates — kept for DB compatibility, no longer gated
-	ResourceFeatureScopes EntitlementResource = "feature:scopes"
-	ResourceFeatureWebhooks EntitlementResource = "feature:webhooks"
-	ResourceFeatureTeamBilling EntitlementResource = "feature:team_billing"
+	ResourceFeatureScopes       EntitlementResource = "feature:scopes"
+	ResourceFeatureWebhooks     EntitlementResource = "feature:webhooks"
+	ResourceFeatureTeamBilling  EntitlementResource = "feature:team_billing"
 	ResourceFeatureAutoRecharge EntitlementResource = "feature:auto_recharge"
-	ResourceFeatureInvoices EntitlementResource = "feature:invoices"
-	ResourceFeaturePublishApps EntitlementResource = "feature:publish_apps"
+	ResourceFeatureInvoices     EntitlementResource = "feature:invoices"
+	ResourceFeaturePublishApps  EntitlementResource = "feature:publish_apps"
 )
 
 type ContentRating string
@@ -4510,31 +4510,31 @@ func (v ContentRating) Value() (driver.Value, error) {
 }
 
 const (
-	ContentSafe ContentRating = "safe"
-	ContentSexualSuggestive ContentRating = "sexual_suggestive"
-	ContentSexualExplicit ContentRating = "sexual_explicit"
+	ContentSafe               ContentRating = "safe"
+	ContentSexualSuggestive   ContentRating = "sexual_suggestive"
+	ContentSexualExplicit     ContentRating = "sexual_explicit"
 	ContentViolenceNonGraphic ContentRating = "violence_non_graphic"
-	ContentViolenceGraphic ContentRating = "violence_graphic"
-	ContentGore ContentRating = "gore"
-	ContentUnrated ContentRating = "unrated"
+	ContentViolenceGraphic    ContentRating = "violence_graphic"
+	ContentGore               ContentRating = "gore"
+	ContentUnrated            ContentRating = "unrated"
 )
 
 // IntegrationProvider represents an external integration provider.
 type IntegrationProvider string
 
 const (
-	IntegrationProviderGoogle IntegrationProvider = "google"
-	IntegrationProviderGoogleSA IntegrationProvider = "google-sa"
-	IntegrationProviderSlack IntegrationProvider = "slack"
-	IntegrationProviderNotion IntegrationProvider = "notion"
-	IntegrationProviderGitHub IntegrationProvider = "github"
-	IntegrationProviderX IntegrationProvider = "x"
-	IntegrationProviderMicrosoft IntegrationProvider = "microsoft"
+	IntegrationProviderGoogle     IntegrationProvider = "google"
+	IntegrationProviderGoogleSA   IntegrationProvider = "google-sa"
+	IntegrationProviderSlack      IntegrationProvider = "slack"
+	IntegrationProviderNotion     IntegrationProvider = "notion"
+	IntegrationProviderGitHub     IntegrationProvider = "github"
+	IntegrationProviderX          IntegrationProvider = "x"
+	IntegrationProviderMicrosoft  IntegrationProvider = "microsoft"
 	IntegrationProviderSalesforce IntegrationProvider = "salesforce"
-	IntegrationProviderDiscord IntegrationProvider = "discord"
-	IntegrationProviderGCP IntegrationProvider = "gcp"
-	IntegrationProviderMCP IntegrationProvider = "mcp"
-	IntegrationProviderReddit IntegrationProvider = "reddit"
+	IntegrationProviderDiscord    IntegrationProvider = "discord"
+	IntegrationProviderGCP        IntegrationProvider = "gcp"
+	IntegrationProviderMCP        IntegrationProvider = "mcp"
+	IntegrationProviderReddit     IntegrationProvider = "reddit"
 )
 
 // IntegrationAuthType describes the authentication mechanism of an integration.
@@ -4542,21 +4542,21 @@ type IntegrationAuthType string
 
 const (
 	IntegrationAuthTypeServiceAccount IntegrationAuthType = "service_account"
-	IntegrationAuthTypeOAuth IntegrationAuthType = "oauth"
-	IntegrationAuthTypeAPIKey IntegrationAuthType = "api_key"
-	IntegrationAuthTypeWIF IntegrationAuthType = "wif"
-	IntegrationAuthTypeMCP IntegrationAuthType = "mcp"
+	IntegrationAuthTypeOAuth          IntegrationAuthType = "oauth"
+	IntegrationAuthTypeAPIKey         IntegrationAuthType = "api_key"
+	IntegrationAuthTypeWIF            IntegrationAuthType = "wif"
+	IntegrationAuthTypeMCP            IntegrationAuthType = "mcp"
 )
 
 // IntegrationStatus represents the status of an integration connection.
 type IntegrationStatus string
 
 const (
-	IntegrationStatusPending IntegrationStatus = "pending"
-	IntegrationStatusConnected IntegrationStatus = "connected"
+	IntegrationStatusPending      IntegrationStatus = "pending"
+	IntegrationStatusConnected    IntegrationStatus = "connected"
 	IntegrationStatusDisconnected IntegrationStatus = "disconnected"
-	IntegrationStatusExpired IntegrationStatus = "expired"
-	IntegrationStatusError IntegrationStatus = "error"
+	IntegrationStatusExpired      IntegrationStatus = "expired"
+	IntegrationStatusError        IntegrationStatus = "error"
 )
 
 // IntegrationScope distinguishes platform-provided vs team-owned integrations.
@@ -4572,40 +4572,40 @@ const (
 type WidgetNodeType string
 
 const (
-	WidgetNodeTypeText WidgetNodeType = "text"
-	WidgetNodeTypeMarkdown WidgetNodeType = "markdown"
-	WidgetNodeTypeImage WidgetNodeType = "image"
-	WidgetNodeTypeBadge WidgetNodeType = "badge"
-	WidgetNodeTypeButton WidgetNodeType = "button"
-	WidgetNodeTypeInput WidgetNodeType = "input"
-	WidgetNodeTypeSelect WidgetNodeType = "select"
-	WidgetNodeTypeCheckbox WidgetNodeType = "checkbox"
-	WidgetNodeTypeRow WidgetNodeType = "row"
-	WidgetNodeTypeCol WidgetNodeType = "col"
-	WidgetNodeTypeBox WidgetNodeType = "box"
-	WidgetNodeTypeSpacer WidgetNodeType = "spacer"
-	WidgetNodeTypeDivider WidgetNodeType = "divider"
-	WidgetNodeTypeForm WidgetNodeType = "form"
-	WidgetNodeTypeTitle WidgetNodeType = "title"
-	WidgetNodeTypeCaption WidgetNodeType = "caption"
-	WidgetNodeTypeLabel WidgetNodeType = "label"
-	WidgetNodeTypeTextarea WidgetNodeType = "textarea"
-	WidgetNodeTypeRadioGroup WidgetNodeType = "radio-group"
-	WidgetNodeTypeDatePicker WidgetNodeType = "date-picker"
-	WidgetNodeTypeIcon WidgetNodeType = "icon"
-	WidgetNodeTypeChart WidgetNodeType = "chart"
-	WidgetNodeTypeTransition WidgetNodeType = "transition"
-	WidgetNodeTypePlanList WidgetNodeType = "plan-list"
-	WidgetNodeTypeKeyValue WidgetNodeType = "key-value"
+	WidgetNodeTypeText        WidgetNodeType = "text"
+	WidgetNodeTypeMarkdown    WidgetNodeType = "markdown"
+	WidgetNodeTypeImage       WidgetNodeType = "image"
+	WidgetNodeTypeBadge       WidgetNodeType = "badge"
+	WidgetNodeTypeButton      WidgetNodeType = "button"
+	WidgetNodeTypeInput       WidgetNodeType = "input"
+	WidgetNodeTypeSelect      WidgetNodeType = "select"
+	WidgetNodeTypeCheckbox    WidgetNodeType = "checkbox"
+	WidgetNodeTypeRow         WidgetNodeType = "row"
+	WidgetNodeTypeCol         WidgetNodeType = "col"
+	WidgetNodeTypeBox         WidgetNodeType = "box"
+	WidgetNodeTypeSpacer      WidgetNodeType = "spacer"
+	WidgetNodeTypeDivider     WidgetNodeType = "divider"
+	WidgetNodeTypeForm        WidgetNodeType = "form"
+	WidgetNodeTypeTitle       WidgetNodeType = "title"
+	WidgetNodeTypeCaption     WidgetNodeType = "caption"
+	WidgetNodeTypeLabel       WidgetNodeType = "label"
+	WidgetNodeTypeTextarea    WidgetNodeType = "textarea"
+	WidgetNodeTypeRadioGroup  WidgetNodeType = "radio-group"
+	WidgetNodeTypeDatePicker  WidgetNodeType = "date-picker"
+	WidgetNodeTypeIcon        WidgetNodeType = "icon"
+	WidgetNodeTypeChart       WidgetNodeType = "chart"
+	WidgetNodeTypeTransition  WidgetNodeType = "transition"
+	WidgetNodeTypePlanList    WidgetNodeType = "plan-list"
+	WidgetNodeTypeKeyValue    WidgetNodeType = "key-value"
 	WidgetNodeTypeStatusBadge WidgetNodeType = "status-badge"
 )
 
 type RejectionReason string
 
 const (
-	RejectionWorkerBusy RejectionReason = "worker_busy"
+	RejectionWorkerBusy     RejectionReason = "worker_busy"
 	RejectionWorkerNotFound RejectionReason = "worker_not_found"
-	RejectionWorkerIDNil RejectionReason = "worker_id_nil"
+	RejectionWorkerIDNil    RejectionReason = "worker_id_nil"
 	RejectionEngineDraining RejectionReason = "engine_draining"
 )
 
@@ -4660,8 +4660,8 @@ func (v NotificationChannel) Value() (driver.Value, error) {
 
 const (
 	NotificationChannelEmail NotificationChannel = "email"
-	NotificationChannelSMS NotificationChannel = "sms"
-	NotificationChannelPush NotificationChannel = "push"
+	NotificationChannelSMS   NotificationChannel = "sms"
+	NotificationChannelPush  NotificationChannel = "push"
 	NotificationChannelSlack NotificationChannel = "slack"
 )
 
@@ -4673,9 +4673,9 @@ func (v NotificationPriority) Value() (driver.Value, error) {
 }
 
 const (
-	NotificationPriorityLow NotificationPriority = "low"
-	NotificationPriorityNormal NotificationPriority = "normal"
-	NotificationPriorityHigh NotificationPriority = "high"
+	NotificationPriorityLow      NotificationPriority = "low"
+	NotificationPriorityNormal   NotificationPriority = "normal"
+	NotificationPriorityHigh     NotificationPriority = "high"
 	NotificationPriorityCritical NotificationPriority = "critical"
 )
 
@@ -4688,35 +4688,35 @@ func (v NotificationType) Value() (driver.Value, error) {
 
 const (
 	// Billing notifications
-	NotificationTypeLowBalance NotificationType = "low_balance"
-	NotificationTypeAutoRecharge NotificationType = "auto_recharge"
-	NotificationTypePaymentSuccess NotificationType = "payment_success"
-	NotificationTypePaymentFailed NotificationType = "payment_failed"
-	NotificationTypeUsageSummary NotificationType = "usage_summary"
-	NotificationTypeSpendingLimit NotificationType = "spending_limit"
-	NotificationTypeInvoice NotificationType = "invoice"
-	NotificationTypeSubscriptionCreated NotificationType = "subscription_created"
-	NotificationTypeSubscriptionCredit NotificationType = "subscription_credit"
-	NotificationTypeSubscriptionCanceled NotificationType = "subscription_canceled"
+	NotificationTypeLowBalance              NotificationType = "low_balance"
+	NotificationTypeAutoRecharge            NotificationType = "auto_recharge"
+	NotificationTypePaymentSuccess          NotificationType = "payment_success"
+	NotificationTypePaymentFailed           NotificationType = "payment_failed"
+	NotificationTypeUsageSummary            NotificationType = "usage_summary"
+	NotificationTypeSpendingLimit           NotificationType = "spending_limit"
+	NotificationTypeInvoice                 NotificationType = "invoice"
+	NotificationTypeSubscriptionCreated     NotificationType = "subscription_created"
+	NotificationTypeSubscriptionCredit      NotificationType = "subscription_credit"
+	NotificationTypeSubscriptionCanceled    NotificationType = "subscription_canceled"
 	NotificationTypeSubscriptionTrialEnding NotificationType = "subscription_trial_ending"
 	// Account notifications
-	NotificationTypeWelcome NotificationType = "welcome"
+	NotificationTypeWelcome       NotificationType = "welcome"
 	NotificationTypeWelcomeAgents NotificationType = "welcome_agents"
-	NotificationTypeWelcomeApps NotificationType = "welcome_apps"
-	NotificationTypeWelcomeFlows NotificationType = "welcome_flows"
-	NotificationTypeWelcomeSDK NotificationType = "welcome_sdk"
+	NotificationTypeWelcomeApps   NotificationType = "welcome_apps"
+	NotificationTypeWelcomeFlows  NotificationType = "welcome_flows"
+	NotificationTypeWelcomeSDK    NotificationType = "welcome_sdk"
 	NotificationTypePasswordReset NotificationType = "password_reset"
-	NotificationTypeEmailVerify NotificationType = "email_verify"
+	NotificationTypeEmailVerify   NotificationType = "email_verify"
 	NotificationTypeSecurityAlert NotificationType = "security_alert"
 	// Task notifications
 	NotificationTypeTaskComplete NotificationType = "task_complete"
-	NotificationTypeTaskFailed NotificationType = "task_failed"
+	NotificationTypeTaskFailed   NotificationType = "task_failed"
 	// Data export
 	NotificationTypeDataExport NotificationType = "data_export"
 	// System notifications
-	NotificationTypeSystemAlert NotificationType = "system_alert"
-	NotificationTypeMaintenance NotificationType = "maintenance"
-	NotificationTypeTosUpdate NotificationType = "tos_update"
+	NotificationTypeSystemAlert   NotificationType = "system_alert"
+	NotificationTypeMaintenance   NotificationType = "maintenance"
+	NotificationTypeTosUpdate     NotificationType = "tos_update"
 	NotificationTypeServiceNotice NotificationType = "service_notice"
 	// Team notifications
 	NotificationTypeTeamInvite NotificationType = "team_invite"
@@ -4730,13 +4730,13 @@ func (v NotificationStatus) Value() (driver.Value, error) {
 }
 
 const (
-	NotificationStatusPending NotificationStatus = "pending"
+	NotificationStatusPending    NotificationStatus = "pending"
 	NotificationStatusProcessing NotificationStatus = "processing"
-	NotificationStatusSent NotificationStatus = "sent"
-	NotificationStatusDelivered NotificationStatus = "delivered"
-	NotificationStatusFailed NotificationStatus = "failed"
-	NotificationStatusBounced NotificationStatus = "bounced"
-	NotificationStatusCancelled NotificationStatus = "cancelled"
+	NotificationStatusSent       NotificationStatus = "sent"
+	NotificationStatusDelivered  NotificationStatus = "delivered"
+	NotificationStatusFailed     NotificationStatus = "failed"
+	NotificationStatusBounced    NotificationStatus = "bounced"
+	NotificationStatusCancelled  NotificationStatus = "cancelled"
 )
 
 // --------------------
@@ -4867,8 +4867,8 @@ func (v Infra) Value() (driver.Value, error) {
 }
 
 const (
-	InfraPrivate Infra = "private"
-	InfraCloud Infra = "cloud"
+	InfraPrivate      Infra = "private"
+	InfraCloud        Infra = "cloud"
 	InfraPrivateFirst Infra = "private_first"
 )
 
@@ -4889,8 +4889,8 @@ const (
 
 // TaskAction defines an action to execute when a task reaches a specific status.
 type TaskAction struct {
-	Key string `json:"key"`
-	On string `json:"on"`
+	Key    string          `json:"key"`
+	On     string          `json:"on"`
 	Params json.RawMessage `json:"params,omitempty"`
 }
 
@@ -4911,8 +4911,8 @@ func (v TeamType) Value() (driver.Value, error) {
 
 const (
 	TeamTypePersonal TeamType = "personal"
-	TeamTypeTeam TeamType = "team"
-	TeamTypeSystem TeamType = "system"
+	TeamTypeTeam     TeamType = "team"
+	TeamTypeSystem   TeamType = "system"
 )
 
 type TeamStatus string
@@ -4922,8 +4922,8 @@ func (v TeamStatus) Value() (driver.Value, error) {
 }
 
 const (
-	TeamStatusActive TeamStatus = "active"
-	TeamStatusSuspended TeamStatus = "suspended"
+	TeamStatusActive     TeamStatus = "active"
+	TeamStatusSuspended  TeamStatus = "suspended"
 	TeamStatusTerminated TeamStatus = "terminated"
 )
 
@@ -4934,8 +4934,8 @@ func (v TeamRole) Value() (driver.Value, error) {
 }
 
 const (
-	TeamRoleOwner TeamRole = "owner"
-	TeamRoleAdmin TeamRole = "admin"
+	TeamRoleOwner  TeamRole = "owner"
+	TeamRoleAdmin  TeamRole = "admin"
 	TeamRoleMember TeamRole = "member"
 )
 
@@ -4954,35 +4954,35 @@ const ToolTypeFunction ToolCallType = "function"
 
 // Tool parameter types
 const (
-	ToolParamTypeObject ToolParamType = "object"
-	ToolParamTypeString ToolParamType = "string"
+	ToolParamTypeObject  ToolParamType = "object"
+	ToolParamTypeString  ToolParamType = "string"
 	ToolParamTypeInteger ToolParamType = "integer"
-	ToolParamTypeNumber ToolParamType = "number"
+	ToolParamTypeNumber  ToolParamType = "number"
 	ToolParamTypeBoolean ToolParamType = "boolean"
-	ToolParamTypeArray ToolParamType = "array"
-	ToolParamTypeNull ToolParamType = "null"
+	ToolParamTypeArray   ToolParamType = "array"
+	ToolParamTypeNull    ToolParamType = "null"
 )
 
 // ToolCall represents a tool call from an LLM response (wire format)
 // This is a transport object for parsing LLM responses, not a database model
 type ToolCall struct {
-	ID string `json:"id"`
-	Type ToolCallType `json:"type"` // "function"
+	ID       string           `json:"id"`
+	Type     ToolCallType     `json:"type"` // "function"
 	Function ToolCallFunction `json:"function"`
 }
 
 // ToolCallFunction contains the function name and arguments from an LLM tool call
 type ToolCallFunction struct {
-	Name string `json:"name"`
+	Name      string           `json:"name"`
 	Arguments StringEncodedMap `json:"arguments"`
 }
 
 // UnmarshalJSON implements custom unmarshaling for ToolCallFunction to handle empty string arguments
 func (t *ToolCallFunction) UnmarshalJSON(data []byte) error {
 	type Aux struct {
-	Name string `json:"name"`
-	Arguments json.RawMessage `json:"arguments"`
-}
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
 	var aux Aux
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -4992,60 +4992,60 @@ func (t *ToolCallFunction) UnmarshalJSON(data []byte) error {
 	if argStr == "" || argStr == `""` || argStr == `null` || argStr == `"{}"` {
 		t.Arguments = make(StringEncodedMap)
 	} else if strings.HasPrefix(argStr, `"`) && strings.HasSuffix(argStr, `"`) {
-	unquoted, err := strconv.Unquote(argStr)
-	if err != nil {
-		return err
+		unquoted, err := strconv.Unquote(argStr)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal([]byte(unquoted), &t.Arguments); err != nil {
+			return err
+		}
+	} else {
+		if err := json.Unmarshal(aux.Arguments, &t.Arguments); err != nil {
+			return err
+		}
 	}
-	if err := json.Unmarshal([]byte(unquoted), &t.Arguments); err != nil {
-		return err
-	}
-} else {
-	if err := json.Unmarshal(aux.Arguments, &t.Arguments); err != nil {
-		return err
-	}
-}
 	return nil
 }
 
 // FileRef is a lightweight reference to a file with essential metadata.
 // Used in chat inputs/context instead of full File objects.
 type FileRef struct {
-	ID string `json:"id,omitempty"`
-	URI string `json:"uri"`
-	Filename string `json:"filename"`
+	ID          string `json:"id,omitempty"`
+	URI         string `json:"uri"`
+	Filename    string `json:"filename"`
 	ContentType string `json:"content_type"`
-	Size int64 `json:"size,omitempty"`
+	Size        int64  `json:"size,omitempty"`
 }
 
 // Tool represents a tool definition for LLM function calling
 type Tool struct {
-	Type ToolCallType `json:"type"`
+	Type     ToolCallType `json:"type"`
 	Function ToolFunction `json:"function"`
 }
 
 type ToolFunction struct {
-	Name string `json:"name"`
-	Description string `json:"description"`
-	Parameters ToolParameters `json:"parameters,omitempty"`
-	Required *[]string `json:"required,omitempty"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Parameters  ToolParameters `json:"parameters,omitempty"`
+	Required    *[]string      `json:"required,omitempty"`
 }
 
 type ToolParameters struct {
-	Type ToolParamType `json:"type"`
-	Title string `json:"title"`
+	Type       ToolParamType           `json:"type"`
+	Title      string                  `json:"title"`
 	Properties ToolParameterProperties `json:"properties,omitempty"`
-	Required *[]string `json:"required,omitempty"`
+	Required   *[]string               `json:"required,omitempty"`
 }
 
 type ToolParameterProperties map[string]ToolParameterProperty
 
 type ToolParameterProperty struct {
-	Type ToolParamType `json:"type"`
-	Title string `json:"title"`
-	Description string `json:"description"`
-	Properties *ToolParameterProperties `json:"properties,omitempty"`
-	Items *ToolParameterProperty `json:"items,omitempty"`
-	Required *[]string `json:"required,omitempty"`
+	Type        ToolParamType            `json:"type"`
+	Title       string                   `json:"title"`
+	Description string                   `json:"description"`
+	Properties  *ToolParameterProperties `json:"properties,omitempty"`
+	Items       *ToolParameterProperty   `json:"items,omitempty"`
+	Required    *[]string                `json:"required,omitempty"`
 }
 
 // --------------------
@@ -5059,8 +5059,8 @@ func (v Role) Value() (driver.Value, error) {
 }
 
 const (
-	RoleGuest Role = "guest"
-	RoleUser Role = "user"
-	RoleAdmin Role = "admin"
+	RoleGuest  Role = "guest"
+	RoleUser   Role = "user"
+	RoleAdmin  Role = "admin"
 	RoleSystem Role = "system"
 )
