@@ -2073,6 +2073,9 @@ type PageMetadata struct {
 	Type        string   `json:"type,omitempty"`
 	Icon        string   `json:"icon,omitempty"`
 	HideFromNav bool     `json:"hide_from_nav,omitempty"`
+	// PublishAt is when a scheduled page goes live. Only meaningful while the
+	// page's status is PageStatusScheduled.
+	PublishAt *time.Time `json:"publish_at,omitempty"`
 }
 
 // MenuItem represents an item in a menu (can be nested)
@@ -2124,6 +2127,12 @@ func (r *PageCreateRequest) ContentHash() string {
 	b, _ := json.Marshal(r)
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// SlugAvailabilityResponse answers the editor's slug availability check.
+type SlugAvailabilityResponse struct {
+	Slug      string `json:"slug"` // normalized form of the requested slug
+	Available bool   `json:"available"`
 }
 
 // MenuDTO for API responses
@@ -2526,6 +2535,7 @@ type SDKTypes struct {
 	_scopeGroupDef     ScopeGroupDefinition
 	_scopePreset       ScopePreset
 	_page              PageDTO
+	_slugAvailability  SlugAvailabilityResponse
 	_menu              MenuDTO
 	_publicAppStore    PublicAppStoreDTO
 	_publicSkillStore  PublicSkillStoreDTO
@@ -4144,6 +4154,7 @@ const (
 	PageStatusDraft
 	PageStatusPublished
 	PageStatusArchived
+	PageStatusScheduled
 )
 
 // PageType represents the type of page content
