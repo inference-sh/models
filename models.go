@@ -2104,6 +2104,9 @@ type PageDTO struct {
 	Type               PageType     `json:"type"`
 	Metadata           PageMetadata `json:"metadata"`
 	Slug               string       `json:"slug"`
+	// PublishAt mirrors Metadata.PublishAt, which remains the field clients write.
+	// Surfaced here so a reader does not have to reach into the metadata blob.
+	PublishAt *time.Time `json:"publish_at,omitempty"`
 }
 
 func (p *PageDTO) ToCreateRequest() *PageCreateRequest {
@@ -5067,6 +5070,21 @@ type Role string
 
 func (v Role) Value() (driver.Value, error) {
 	return string(v), nil
+}
+
+// IsAssignable reports whether a role may be set on a user through the admin
+// API. Guest is excluded — it is assigned by the anonymous-session flow, never
+// by hand.
+//
+// Lives next to the const block so adding a role puts the question in front of
+// whoever adds it.
+func (r Role) IsAssignable() bool {
+	switch r {
+	case RoleUser, RoleAdmin, RoleSystem:
+		return true
+	default:
+		return false
+	}
 }
 
 const (
