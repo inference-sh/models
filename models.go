@@ -178,31 +178,31 @@ type AgentToolDTO struct {
 }
 
 type AppToolConfig struct {
-	Ref            string           `json:"ref"`
-	ID             string           `json:"id,omitempty"`
-	VersionID      string           `json:"version_id,omitempty"`
-	Function       string           `json:"function,omitempty"`
-	SessionEnabled bool             `json:"session_enabled,omitempty"`
-	Setup          *json.RawMessage `json:"setup,omitempty"`
-	Input          *json.RawMessage `json:"input,omitempty"`
+	Ref            string           `json:"ref" yaml:"ref"`
+	ID             string           `json:"id,omitempty" yaml:"-"`
+	VersionID      string           `json:"version_id,omitempty" yaml:"-"`
+	Function       string           `json:"function,omitempty" yaml:"function,omitempty"`
+	SessionEnabled bool             `json:"session_enabled,omitempty" yaml:"session_enabled,omitempty"`
+	Setup          *json.RawMessage `json:"setup,omitempty" yaml:"setup,omitempty"`
+	Input          *json.RawMessage `json:"input,omitempty" yaml:"input,omitempty"`
 }
 
 type AgentToolConfig struct {
-	Ref       string `json:"ref"`
-	ID        string `json:"id,omitempty"`
-	VersionID string `json:"version_id,omitempty"`
+	Ref       string `json:"ref" yaml:"ref"`
+	ID        string `json:"id,omitempty" yaml:"-"`
+	VersionID string `json:"version_id,omitempty" yaml:"-"`
 }
 
 type HookToolConfig struct {
-	URL          string           `json:"url"`
-	Secret       string           `json:"secret,omitempty"`
-	InputSchema  *json.RawMessage `json:"input_schema,omitempty"`
-	OutputSchema *json.RawMessage `json:"output_schema,omitempty"`
+	URL          string           `json:"url" yaml:"url"`
+	Secret       string           `json:"secret,omitempty" yaml:"secret,omitempty"`
+	InputSchema  *json.RawMessage `json:"input_schema,omitempty" yaml:"input_schema,omitempty"`
+	OutputSchema *json.RawMessage `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
 type ClientToolConfig struct {
-	InputSchema  *json.RawMessage `json:"input_schema,omitempty"`
-	OutputSchema *json.RawMessage `json:"output_schema,omitempty"`
+	InputSchema  *json.RawMessage `json:"input_schema,omitempty" yaml:"input_schema,omitempty"`
+	OutputSchema *json.RawMessage `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
 // ToolAuthConfig declares how a tool authenticates.
@@ -224,8 +224,8 @@ type HTTPToolConfig struct {
 }
 
 type MCPToolConfig struct {
-	IntegrationID string `json:"integration_id"`
-	ToolName      string `json:"tool_name"`
+	IntegrationID string `json:"integration_id" yaml:"integration_id"`
+	ToolName      string `json:"tool_name" yaml:"tool_name"`
 }
 
 type AppToolConfigDTO struct {
