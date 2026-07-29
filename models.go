@@ -1164,6 +1164,23 @@ type ResourceStatusDTO struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// AvailabilityResponse answers "can I use this name?" — for page slugs, team
+// usernames and voucher codes alike.
+//
+// The three checks had three different shapes, and one of them was an untyped
+// map[string]bool that generated no client type at all, so each caller invented
+// its own handling. Reason exists because "not available" was previously
+// indistinguishable from "reserved": every client that wanted to say why had to
+// mirror the server's reserved-name list to guess, and those mirrors went stale.
+type AvailabilityResponse struct {
+	// Value is the normalized form of what was checked — the server may slugify
+	// or lowercase the input, and the client should show what it actually took.
+	Value     string `json:"value"`
+	Available bool   `json:"available"`
+	// Reason is set only when Available is false: "taken" or "reserved".
+	Reason string `json:"reason,omitempty"`
+}
+
 // --------------------
 // source: chat.go
 // --------------------
@@ -2132,12 +2149,6 @@ func (r *PageCreateRequest) ContentHash() string {
 	return hex.EncodeToString(h[:])
 }
 
-// SlugAvailabilityResponse answers the editor's slug availability check.
-type SlugAvailabilityResponse struct {
-	Slug      string `json:"slug"` // normalized form of the requested slug
-	Available bool   `json:"available"`
-}
-
 // MenuDTO for API responses
 type MenuDTO struct {
 	BaseModelDTO       `tstype:",extends"`
@@ -2538,7 +2549,7 @@ type SDKTypes struct {
 	_scopeGroupDef     ScopeGroupDefinition
 	_scopePreset       ScopePreset
 	_page              PageDTO
-	_slugAvailability  SlugAvailabilityResponse
+	_availability      AvailabilityResponse
 	_menu              MenuDTO
 	_publicAppStore    PublicAppStoreDTO
 	_publicSkillStore  PublicSkillStoreDTO
