@@ -652,39 +652,34 @@ type AllocatedWorker struct {
 
 // Request/Response Types for Engine-to-API communication
 type EngineAPIRequest struct {
-	Data     map[string]any           `json:"data"`
-	Metadata EngineAPIRequestMetadata `json:"metadata"`
+	Data     map[string]any  `json:"data"`
+	Metadata RequestMetadata `json:"metadata"`
 }
 
-type EngineAPIRequestMetadata struct {
+// RequestMetadata is the metadata envelope carried in both directions:
+// engine -> worker on /setup and /run, and worker -> engine API on callbacks.
+type RequestMetadata struct {
 	WorkerID     string   `json:"worker_id"`
 	AppID        string   `json:"app_id"`
 	AppVersionID string   `json:"app_version_id"`
 	AppVariant   string   `json:"app_variant"`
 	GPUIDs       []string `json:"gpu_ids"`
 	TaskID       string   `json:"task_id"`
-}
-
-type WorkerAPIRequestMetadata struct {
-	WorkerID     string   `json:"worker_id"`
-	AppID        string   `json:"app_id"`
-	AppVersionID string   `json:"app_version_id"`
-	AppVariant   string   `json:"app_variant"`
-	GPUIDs       []string `json:"gpu_ids"`
-	TaskID       string   `json:"task_id"`
+	TeamID       string   `json:"team_id"`
+	UserID       string   `json:"user_id"`
 }
 
 // WorkerSetupRequest is the request body for worker /setup endpoint.
 type WorkerSetupRequest struct {
-	Setup    *json.RawMessage         `json:"setup,omitempty"`
-	Metadata WorkerAPIRequestMetadata `json:"metadata"`
+	Setup    *json.RawMessage `json:"setup,omitempty"`
+	Metadata RequestMetadata  `json:"metadata"`
 }
 
 // WorkerRunRequest is the request body for worker /run endpoint.
 type WorkerRunRequest struct {
-	Input    json.RawMessage          `json:"input"`
-	Function string                   `json:"function,omitempty"` // Function to call on multi-function apps (defaults to "run")
-	Metadata WorkerAPIRequestMetadata `json:"metadata"`
+	Input    json.RawMessage `json:"input"`
+	Function string          `json:"function,omitempty"` // Function to call on multi-function apps (defaults to "run")
+	Metadata RequestMetadata `json:"metadata"`
 }
 
 // CancelTaskRequest is the optional request body for task cancellation.
