@@ -3947,6 +3947,7 @@ const (
 	EngineStatusPending      EngineStatus = "pending"
 	EngineStatusDraining     EngineStatus = "draining"
 	EngineStatusDisconnected EngineStatus = "disconnected"
+	EngineStatusRestarting   EngineStatus = "restarting"
 	EngineStatusStopping     EngineStatus = "stopping"
 	EngineStatusStopped      EngineStatus = "stopped"
 )
