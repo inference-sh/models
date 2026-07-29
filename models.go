@@ -2670,6 +2670,18 @@ type SDKTypes struct {
 }
 
 // --------------------
+// source: sdk_app.go
+// --------------------
+
+type AppSDKTypes struct {
+	_ MetaItemType
+	_ VideoResolution
+	_ MetaItem
+	_ OutputMeta
+	_ RequestMetadata
+}
+
+// --------------------
 // source: sdk_engine.go
 // --------------------
 
