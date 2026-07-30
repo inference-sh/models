@@ -724,8 +724,8 @@ type MenuCreateRequest struct {
 
 // EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
 type EstimateCostRequest struct {
-	Input    map[string]any `json:"input"`
-	Function string         `json:"function,omitempty"`
+	Input    json.RawMessage `json:"input"`
+	Function string          `json:"function,omitempty"`
 }
 
 // EstimateCostResponse is the response from the cost estimation endpoint.
