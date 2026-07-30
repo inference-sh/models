@@ -3571,6 +3571,12 @@ func (s AgentRunState) IsInterrupted() bool {
 	return s == AgentRunStateInputRequired || s == AgentRunStateAuthRequired
 }
 
+// IsSettled returns true when the run won't produce further events in this
+// turn — either terminal or waiting for external input.
+func (s AgentRunState) IsSettled() bool {
+	return s.IsTerminal() || s.IsInterrupted()
+}
+
 func (s AgentRunState) CanTransitionTo(next AgentRunState) bool {
 	if s.IsTerminal() {
 		return false
