@@ -360,6 +360,27 @@ type CoreAppConfigInput struct {
 }
 
 // --------------------
+// source: agent_run.go
+// --------------------
+
+type AgentRunDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	AgentID            string           `json:"agent_id"`
+	Agent              *AgentDTO        `json:"agent,omitempty"`
+	AgentVersionID     *string          `json:"agent_version_id,omitempty"`
+	ChatID             string           `json:"chat_id"`
+	UserMessageID      *string          `json:"user_message_id,omitempty"`
+	State              AgentRunState    `json:"state"`
+	Error              *string          `json:"error,omitempty"`
+	InterruptReason    *InterruptReason `json:"interrupt_reason,omitempty"`
+	InterruptToolID    *string          `json:"interrupt_tool_id,omitempty"`
+	InterruptMeta      json.RawMessage  `json:"interrupt_meta,omitempty"`
+	TriggerID          *string          `json:"trigger_id,omitempty"`
+	Metadata           json.RawMessage  `json:"metadata,omitempty"`
+}
+
+// --------------------
 // source: api.go
 // --------------------
 
@@ -1198,6 +1219,7 @@ type ChatDTO struct {
 	Description        string            `json:"description"`
 	ChatMessages       []ChatMessageDTO  `json:"chat_messages"`
 	AgentData          ChatData          `json:"agent_data"`
+	ActiveRun          *AgentRunDTO      `json:"active_run,omitempty"`
 }
 
 // ChatMessageDTO for API responses
@@ -3531,6 +3553,69 @@ type WsSessionEndPayload struct {
 	SessionID string `json:"session_id"`
 	WorkerID  string `json:"worker_id"`
 }
+
+// --------------------
+// source: agent_run.go
+// --------------------
+
+// AgentRunState tracks the lifecycle of an agent run (one user→agent turn).
+// Maps to A2A TaskState and AG-UI Run outcome for protocol compliance.
+type AgentRunState string
+
+func (s AgentRunState) IsTerminal() bool {
+	return s == AgentRunStateCompleted || s == AgentRunStateFailed || s == AgentRunStateCanceled || s == AgentRunStateRejected
+}
+
+func (s AgentRunState) IsInterrupted() bool {
+	return s == AgentRunStateInputRequired || s == AgentRunStateAuthRequired
+}
+
+func (s AgentRunState) CanTransitionTo(next AgentRunState) bool {
+	if s.IsTerminal() {
+		return false
+	}
+	switch s {
+	case AgentRunStateSubmitted:
+		return next == AgentRunStateWorking || next == AgentRunStateCompleted || next == AgentRunStateFailed || next == AgentRunStateCanceled
+	case AgentRunStateWorking:
+		return next == AgentRunStateInputRequired || next == AgentRunStateAuthRequired || next == AgentRunStateCompleted || next == AgentRunStateFailed || next == AgentRunStateCanceled
+	case AgentRunStateInputRequired, AgentRunStateAuthRequired:
+		return next == AgentRunStateWorking || next == AgentRunStateFailed || next == AgentRunStateCanceled
+	default:
+		return false
+	}
+}
+
+func (v AgentRunState) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	AgentRunStateSubmitted     AgentRunState = "submitted"
+	AgentRunStateWorking       AgentRunState = "working"
+	AgentRunStateInputRequired AgentRunState = "input_required"
+	AgentRunStateAuthRequired  AgentRunState = "auth_required"
+	AgentRunStateCompleted     AgentRunState = "completed"
+	AgentRunStateFailed        AgentRunState = "failed"
+	AgentRunStateCanceled      AgentRunState = "canceled"
+	AgentRunStateRejected      AgentRunState = "rejected"
+)
+
+// InterruptReason describes why an agent run is in an interrupted state.
+// Aligns with AG-UI interrupt outcome reasons.
+type InterruptReason string
+
+func (v InterruptReason) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	InterruptReasonToolApproval InterruptReason = "tool_approval"
+	InterruptReasonClientTool   InterruptReason = "client_tool"
+	InterruptReasonWidget       InterruptReason = "widget"
+	InterruptReasonAuth         InterruptReason = "auth"
+	InterruptReasonConfirmation InterruptReason = "confirmation"
+)
 
 // --------------------
 // source: app.go
