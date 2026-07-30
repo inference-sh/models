@@ -1228,6 +1228,7 @@ type ChatMessageDTO struct {
 	PermissionModelDTO `tstype:",extends"`
 	ChatID             string               `json:"chat_id"`
 	Chat               *ChatDTO             `json:"chat"`
+	AgentRunID         *string              `json:"agent_run_id,omitempty"`
 	Order              int                  `json:"order"`
 	Status             ChatMessageStatus    `json:"status"`
 	TaskID             *string              `json:"task_id"`
