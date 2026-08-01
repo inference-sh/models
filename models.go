@@ -1243,9 +1243,11 @@ type ChatMessageDTO struct {
 // source: cursor.go
 // --------------------
 
-// SearchRequest represents a search request
+// SearchRequest represents a search request.
+// Fields is accepted for backward compatibility but ignored -- each model
+// declares its own SearchFields() on the repository.
 type SearchRequest struct {
-	Fields []string `json:"fields"`
+	Fields []string `json:"fields,omitempty"`
 	Term   string   `json:"term"`
 	Exact  bool     `json:"exact"`
 }
