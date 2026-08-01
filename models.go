@@ -1244,12 +1244,10 @@ type ChatMessageDTO struct {
 // --------------------
 
 // SearchRequest represents a search request.
-// Fields is accepted for backward compatibility but ignored -- each model
-// declares its own SearchFields() on the repository.
+// Each model declares its own SearchFields() on the repository.
 type SearchRequest struct {
-	Fields []string `json:"fields,omitempty"`
-	Term   string   `json:"term"`
-	Exact  bool     `json:"exact"`
+	Term  string `json:"term"`
+	Exact bool   `json:"exact"`
 }
 
 type ListResponse[T any] struct {
