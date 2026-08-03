@@ -2064,13 +2064,23 @@ type ResourceContent struct {
 	Blob     string `json:"blob,omitempty"`
 }
 
+// ToolAnnotations describes tool behavior so clients can make trust and UX
+// decisions (e.g., auto-approve read-only tools). All fields are optional hints.
+type ToolAnnotations struct {
+	ReadOnlyHint    *bool `json:"readOnlyHint,omitempty"`
+	DestructiveHint *bool `json:"destructiveHint,omitempty"`
+	IdempotentHint  *bool `json:"idempotentHint,omitempty"`
+	OpenWorldHint   *bool `json:"openWorldHint,omitempty"`
+}
+
 // Tool represents a tool item
 type MCPTool struct {
-	Name         string `json:"name"`
-	Title        string `json:"title,omitempty"`
-	Description  string `json:"description"`
-	InputSchema  any    `json:"inputSchema"`
-	OutputSchema any    `json:"outputSchema,omitempty"`
+	Name         string           `json:"name"`
+	Title        string           `json:"title,omitempty"`
+	Description  string           `json:"description"`
+	InputSchema  any              `json:"inputSchema"`
+	OutputSchema any              `json:"outputSchema,omitempty"`
+	Annotations  *ToolAnnotations `json:"annotations,omitempty"`
 }
 
 // ToolCallRequest represents a request to call a tool.
@@ -2844,6 +2854,7 @@ type SDKTypes struct {
 	_mcpElicitResult ElicitResult
 	_mcpInputRequest InputRequest
 	_mcpToolCallReq  ToolCallRequest
+	_mcpToolCallResp ToolCallResponse
 	// Plans
 	_planDTO PlanDTO
 	// Suggest
