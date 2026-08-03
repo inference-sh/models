@@ -2117,6 +2117,20 @@ func (r *ToolCallResponse) IsInputRequired() bool {
 	return r != nil && r.ResultType == ResultTypeInputRequired
 }
 
+// ToolCallResult mirrors provider/mcp.ToolCallResult for gotypegen. The
+// canonical definition lives in provider/mcp; keep both in sync when adding
+// fields. This is the HTTP response shape from POST /mcps/:slug/tools/:tool.
+type ToolCallResult struct {
+	Output        json.RawMessage         `json:"output,omitempty"`
+	OutputSchema  json.RawMessage         `json:"output_schema,omitempty"`
+	Blocks        []ToolContent           `json:"blocks,omitempty"`
+	IsError       bool                    `json:"is_error"`
+	RunID         string                  `json:"run_id,omitempty"`
+	InputRequired bool                    `json:"input_required,omitempty"`
+	InputRequests map[string]InputRequest `json:"input_requests,omitempty"`
+	RequestState  string                  `json:"request_state,omitempty"`
+}
+
 // ToolContentType is the kind of a content block. The spec defines exactly these.
 type ToolContentType string
 
@@ -2951,6 +2965,7 @@ type EngineTypes struct {
 	_mcpInputRequest    InputRequest
 	_mcpToolCallReq     ToolCallRequest
 	_mcpToolCallResp    ToolCallResponse
+	_mcpToolCallResult  ToolCallResult
 	_taskCost           TaskCostDTO
 	_taskLogs           TaskLogsDTO
 	_taskTimings        TaskTimingsDTO
