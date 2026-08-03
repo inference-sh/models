@@ -373,6 +373,7 @@ type AgentRunDTO struct {
 	UserMessageID      *string          `json:"user_message_id,omitempty"`
 	State              AgentRunState    `json:"state"`
 	Error              *string          `json:"error,omitempty"`
+	Output             *json.RawMessage `json:"output,omitempty"`
 	InterruptReason    *InterruptReason `json:"interrupt_reason,omitempty"`
 	InterruptToolID    *string          `json:"interrupt_tool_id,omitempty"`
 	InterruptMeta      json.RawMessage  `json:"interrupt_meta,omitempty"`
@@ -1543,6 +1544,7 @@ type FlowNodeDataMap map[string]FlowNodeData
 type FlowDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
+	Namespace          string          `json:"namespace"`
 	Name               string          `json:"name"`
 	Description        string          `json:"description"`
 	CardImage          string          `json:"card_image"`
@@ -1961,6 +1963,107 @@ type SkillStoreListingDTO struct {
 // source: mcp.go
 // --------------------
 
+// ElicitationCapability advertises which elicitation modes the client handles.
+// An empty struct is equivalent to form-only for backward compatibility.
+type ElicitationCapability struct {
+	Form *struct {
+	} `json:"form,omitempty"`
+	URL *struct {
+	} `json:"url,omitempty"`
+}
+
+// ClientCapabilities advertises what a client can do.
+type ClientCapabilities struct {
+	Elicitation *ElicitationCapability `json:"elicitation,omitempty"`
+}
+
+// SupportsElicitation reports whether the client declared any elicitation mode.
+func (c *ClientCapabilities) SupportsElicitation() bool {
+	return c != nil && c.Elicitation != nil
+}
+
+// SupportsElicitationURL reports whether the client declared URL-mode elicitation.
+func (c *ClientCapabilities) SupportsElicitationURL() bool {
+	return c != nil && c.Elicitation != nil && c.Elicitation.URL != nil
+}
+
+// InputRequest is a single server-to-client request inside an InputRequiredResult.
+type InputRequest struct {
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
+}
+
+// ElicitAction is the user's response to an elicitation request.
+type ElicitAction string
+
+const (
+	ElicitActionAccept  ElicitAction = "accept"
+	ElicitActionDecline ElicitAction = "decline"
+	ElicitActionCancel  ElicitAction = "cancel"
+)
+
+// ElicitResult is the client's response to an elicitation/create request.
+type ElicitResult struct {
+	Action  ElicitAction   `json:"action"`
+	Content map[string]any `json:"content,omitempty"`
+}
+
+// ResultType is the kind of result a response carries, required on every result
+// from 2026-07-28 onward.
+type ResultType string
+
+const (
+	// ResultTypeComplete marks an ordinary, finished result.
+	ResultTypeComplete ResultType = "complete"
+	// ResultTypeInputRequired marks a Multi Round-Trip Request interim result.
+	// Recognised so the outbound client never mistakes one for tool output.
+	ResultTypeInputRequired ResultType = "input_required"
+)
+
+// CacheScope says who may reuse a cached result, per MCP 2026-07-28 (SEP-2549).
+// Analogous to HTTP Cache-Control public/private; the spec defines exactly these.
+type CacheScope string
+
+const (
+	// CacheScopePublic marks a response as free of user-specific data, so any
+	// client or shared intermediary may cache it across authorization contexts.
+	CacheScopePublic CacheScope = "public"
+	// CacheScopePrivate restricts reuse to the same authorization context.
+	CacheScopePrivate CacheScope = "private"
+)
+
+// ServerInfo represents information about the server
+type ServerInfo struct {
+	Name    string `json:"name"`
+	Title   string `json:"title"`
+	Version string `json:"version"`
+}
+
+// ResultMeta is the _meta object attached to results. Servers SHOULD identify
+// themselves in every result from 2026-07-28 onward (SEP-2575).
+//
+// The struct tag is the single definition of the key — Go tags cannot reference
+// a constant, so there is deliberately no MetaServerInfo const to drift from it.
+type ResultMeta struct {
+	ServerInfo *ServerInfo `json:"io.modelcontextprotocol/serverInfo,omitempty"`
+	// TTLMs and CacheScope are read-only legacy fields: servers older than
+	// 2026-07-28 nested the caching signals here instead of on the result. They
+	// live on this type rather than a separate one so a single decode of the
+	// _meta object yields both them and serverInfo.
+	TTLMs      *int64     `json:"ttlMs,omitempty"`
+	CacheScope CacheScope `json:"cacheScope,omitempty"`
+}
+
+// ResourceContent represents resource content
+type ResourceContent struct {
+	URI      string `json:"uri"`
+	Name     string `json:"name"`
+	Title    string `json:"title,omitempty"`
+	MimeType string `json:"mimeType,omitempty"`
+	Text     string `json:"text,omitempty"`
+	Blob     string `json:"blob,omitempty"`
+}
+
 // Tool represents a tool item
 type MCPTool struct {
 	Name         string `json:"name"`
@@ -1968,6 +2071,65 @@ type MCPTool struct {
 	Description  string `json:"description"`
 	InputSchema  any    `json:"inputSchema"`
 	OutputSchema any    `json:"outputSchema,omitempty"`
+}
+
+// ToolCallRequest represents a request to call a tool.
+//
+// InputResponses and RequestState are present on MRTR retries: the client is
+// echoing back responses to the server's InputRequiredResult.
+type ToolCallRequest struct {
+	Name           string                     `json:"name"`
+	Arguments      map[string]any             `json:"arguments"`
+	InputResponses map[string]json.RawMessage `json:"inputResponses,omitempty"`
+	RequestState   string                     `json:"requestState,omitempty"`
+}
+
+// ToolCallResponse represents a response from a tool call.
+//
+// ResultType is read as well as written: an inbound response carrying
+// ResultTypeInputRequired is a Multi Round-Trip Request asking for more input,
+// not tool output, and callers must not treat it as a result. Servers older than
+// 2026-07-28 omit the field, which clients MUST read as "complete".
+type ToolCallResponse struct {
+	ResultType        ResultType    `json:"resultType,omitempty"`
+	Content           []ToolContent `json:"content"`
+	StructuredContent any           `json:"structuredContent,omitempty"`
+	IsError           bool          `json:"isError"`
+	Meta              *ResultMeta   `json:"_meta,omitempty"`
+	// MRTR fields — present when ResultType == ResultTypeInputRequired.
+	InputRequests map[string]InputRequest `json:"inputRequests,omitempty"`
+	RequestState  string                  `json:"requestState,omitempty"`
+}
+
+// IsInputRequired reports whether this is an MRTR interim result rather than a
+// finished tool call. Absent ResultType means "complete" per the spec.
+func (r *ToolCallResponse) IsInputRequired() bool {
+	return r != nil && r.ResultType == ResultTypeInputRequired
+}
+
+// ToolContentType is the kind of a content block. The spec defines exactly these.
+type ToolContentType string
+
+const (
+	ToolContentTypeText         ToolContentType = "text"
+	ToolContentTypeImage        ToolContentType = "image"
+	ToolContentTypeAudio        ToolContentType = "audio"
+	ToolContentTypeResourceLink ToolContentType = "resource_link"
+	ToolContentTypeResource     ToolContentType = "resource"
+)
+
+// ToolContent represents content in a tool response
+type ToolContent struct {
+	Type     ToolContentType  `json:"type"`
+	Text     string           `json:"text,omitempty"`
+	Data     string           `json:"data,omitempty"`
+	MimeType string           `json:"mimeType,omitempty"`
+	Resource *ResourceContent `json:"resource,omitempty"`
+}
+
+// IsText reports whether this block carries usable text.
+func (c ToolContent) IsText() bool {
+	return c.Type == ToolContentTypeText && c.Text != ""
 }
 
 // --------------------
@@ -2292,6 +2454,12 @@ func (Ref) Parse(s string) Ref {
 		r.Name = fullName
 	}
 	return r
+}
+
+// TryParse parses s as a namespaced ref. Returns false when s has no namespace.
+func (Ref) TryParse(s string) (Ref, bool) {
+	r := Ref{}.Parse(s)
+	return r, r.Namespace != ""
 }
 
 // FullName returns "namespace/name".
@@ -2671,7 +2839,11 @@ type SDKTypes struct {
 	// Ref routes
 	_refRouteDTO RefRouteDTO
 	// MCP servers
-	_mcpServerDTO MCPServerDTO
+	_mcpServerDTO    MCPServerDTO
+	_mcpClientCaps   ClientCapabilities
+	_mcpElicitResult ElicitResult
+	_mcpInputRequest InputRequest
+	_mcpToolCallReq  ToolCallRequest
 	// Plans
 	_planDTO PlanDTO
 	// Suggest
@@ -2763,6 +2935,11 @@ type EngineTypes struct {
 	_listResp           ListResponse[any]
 	_fileCreate         FileCreateRequest
 	_mcpTool            MCPTool
+	_mcpClientCaps      ClientCapabilities
+	_mcpElicitResult    ElicitResult
+	_mcpInputRequest    InputRequest
+	_mcpToolCallReq     ToolCallRequest
+	_mcpToolCallResp    ToolCallResponse
 	_taskCost           TaskCostDTO
 	_taskLogs           TaskLogsDTO
 	_taskTimings        TaskTimingsDTO

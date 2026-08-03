@@ -917,6 +917,36 @@ class SkillStoreListingDTO(TypedDict, total=False):
     uses: int
     tags: List[str]
 
+# ElicitationCapability advertises which elicitation modes the client handles.
+# An empty struct is equivalent to form-only for backward compatibility.
+class ElicitationCapability(TypedDict, total=False):
+    form: Optional[Dict[str, Any]]
+    url: Optional[Dict[str, Any]]
+
+# ClientCapabilities advertises what a client can do.
+class ClientCapabilities(TypedDict, total=False):
+    elicitation: Optional[ElicitationCapability]
+
+# InputRequest is a single server-to-client request inside an InputRequiredResult.
+class InputRequest(TypedDict, total=False):
+    method: str
+    params: Any
+
+# ElicitResult is the client's response to an elicitation/create request.
+class ElicitResult(TypedDict, total=False):
+    action: ElicitAction
+    content: Dict[str, Any]
+
+# ToolCallRequest represents a request to call a tool.
+# 
+# InputResponses and RequestState are present on MRTR retries: the client is
+# echoing back responses to the server's InputRequiredResult.
+class ToolCallRequest(TypedDict, total=False):
+    name: str
+    arguments: Dict[str, Any]
+    inputResponses: Dict[str, Any]
+    requestState: str
+
 # StringSlice is a custom type for storing string slices
 StringSlice = List[str]
 
@@ -1848,6 +1878,7 @@ class AgentRunDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     user_message_id: Optional[str]
     state: AgentRunState
     error: Optional[str]
+    output: Optional[Any]
     interrupt_reason: Optional[InterruptReason]
     interrupt_tool_id: Optional[str]
     interrupt_meta: Any
@@ -1955,6 +1986,7 @@ class FileDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
 
 # FlowDTO for API responses
 class FlowDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
+    namespace: str
     name: str
     description: str
     card_image: str
@@ -2293,6 +2325,11 @@ class ScopeGroup(str, Enum):
     API_KEYS = "apikeys"
     USER = "user"
     SETTINGS = "settings"
+
+class ElicitAction(str, Enum):
+    ACCEPT = "accept"
+    DECLINE = "decline"
+    CANCEL = "cancel"
 
 # Requirement error types
 class RequirementType(str, Enum):
