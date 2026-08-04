@@ -1,0 +1,94 @@
+name: Sync from API
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: false
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: models
+
+      - uses: actions/checkout@v6
+        with:
+          repository: inference-sh/api
+          ref: dev
+          token: ${{ secrets.REPO_PAT }}
+          path: api
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: api/go.mod
+
+      - name: Install tools
+        run: |
+          go install github.com/inference-sh/gotypegen/cmd/gotypegen@latest
+          go install github.com/caarlos0/svu/v2@latest
+
+      - name: Set up workspace
+        run: |
+          cat > go.work <<EOF
+          go 1.26.3
+          use (
+            ./api
+            ./models
+          )
+          EOF
+          go work sync
+
+      - name: Generate types
+        working-directory: api
+        run: |
+          GEN_SDK=internal/models/gen/sdk
+          GEN_WEB=internal/models/gen/web
+          GEN_APP=internal/models/gen/app
+
+          gotypegen --format=go $GEN_SDK/typegen-go.yaml
+          gotypegen --format=go $GEN_WEB/typegen-go.yaml
+          gofmt -w $GEN_SDK/types.go $GEN_WEB/types.go
+          cp $GEN_SDK/types.go ../models/models.go
+
+          gotypegen --format=typescript $GEN_SDK/typegen-ts.yaml
+          gotypegen --format=python $GEN_SDK/typegen-ts.yaml
+          gotypegen --format=typescript $GEN_WEB/typegen-ts.yaml
+          gotypegen --format=typescript $GEN_APP/typegen-ts.yaml
+
+          cp $GEN_SDK/sdk.ts ../models/sdk.ts
+          cp $GEN_SDK/sdk.py ../models/sdk.py
+          cp $GEN_WEB/types.ts ../models/web.ts
+          cp $GEN_APP/types.ts ../models/app.ts
+
+      - name: Commit and tag
+        working-directory: models
+        env:
+          BUMP: ${{ inputs.bump || 'patch' }}
+        run: |
+          if git diff --quiet; then
+            echo "No type changes"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "types: regenerate from api"
+
+          NEXT=$(svu "$BUMP")
+          git tag "$NEXT"
+          git push origin main "$NEXT"
+          echo "Tagged models $NEXT"
