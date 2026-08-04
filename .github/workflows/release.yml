@@ -18,7 +18,7 @@ jobs:
         run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Warm Go module proxy
-        run: GONOSUMCHECK= go get github.com/inference-sh/models@${GITHUB_REF_NAME}
+        run: cd /tmp && GONOSUMCHECK= go get github.com/inference-sh/models@${GITHUB_REF_NAME}
 
       # Dispatch via REST API (avoids GraphQL defaultBranchRef lookup
       # that requires contents:read — PAT only has actions:write)
