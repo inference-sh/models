@@ -4224,6 +4224,7 @@ export interface RecalcPricingOpts {
   skip_failed?: boolean;
   task_ids?: string[];
   only_increases?: boolean;
+  force_clear?: boolean;
 }
 /**
  * RecalcPricingResult is the aggregated result of recalculating pricing.
