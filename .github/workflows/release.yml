@@ -20,38 +20,62 @@ jobs:
       - name: Warm Go module proxy
         run: GONOSUMCHECK= go get github.com/inference-sh/models@${GITHUB_REF_NAME}
 
-      # Go consumers: update go.mod
+      # Dispatch via REST API (avoids GraphQL defaultBranchRef lookup
+      # that requires contents:read — PAT only has actions:write)
       - name: Dispatch to Go consumers
         env:
           GH_TOKEN: ${{ secrets.REPO_PAT }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          dispatch() {
+            local repo=$1 workflow=$2; shift 2
+            local inputs="{"
+            local first=true
+            while [ $# -gt 0 ]; do
+              $first || inputs+=","
+              inputs+="\"$1\":\"$2\""
+              first=false; shift 2
+            done
+            inputs+="}"
+            echo "Dispatching $workflow to $repo..."
+            curl -sf -X POST \
+              -H "Authorization: token $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/inference-sh/$repo/actions/workflows/$workflow/dispatches" \
+              -d "{\"ref\":\"dev\",\"inputs\":$inputs}" || true
+          }
+
           for repo in cli engine api; do
-            echo "Dispatching to $repo..."
-            gh workflow run update-dep.yml \
-              --repo inference-sh/$repo \
-              --field module=github.com/inference-sh/models \
-              --field version="$VERSION" || true
+            dispatch "$repo" update-dep.yml \
+              module github.com/inference-sh/models \
+              version "$VERSION"
           done
 
-      # JS/Python consumers: update types files
       - name: Dispatch to SDK consumers
         env:
           GH_TOKEN: ${{ secrets.REPO_PAT }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          dispatch_types() {
-            local repo=$1 file=$2 dest=$3
-            echo "Dispatching $file to $repo..."
-            gh workflow run update-types.yml \
-              --repo "inference-sh/$repo" \
-              --field version="$VERSION" \
-              --field file="$file" \
-              --field dest="$dest" || true
+          dispatch() {
+            local repo=$1 workflow=$2; shift 2
+            local inputs="{"
+            local first=true
+            while [ $# -gt 0 ]; do
+              $first || inputs+=","
+              inputs+="\"$1\":\"$2\""
+              first=false; shift 2
+            done
+            inputs+="}"
+            echo "Dispatching $workflow to $repo..."
+            curl -sf -X POST \
+              -H "Authorization: token $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/inference-sh/$repo/actions/workflows/$workflow/dispatches" \
+              -d "{\"ref\":\"dev\",\"inputs\":$inputs}" || true
           }
 
-          dispatch_types sdk-js     sdk.ts  src/types.ts
-          dispatch_types sdk-py     sdk.py  src/inferencesh/types.py
-          dispatch_types app        web.ts  src/lib/types/types.ts
-          dispatch_types common-js  web.ts  gen/types.ts
-          dispatch_types sdk-js-app app.ts  src/types.ts
+          dispatch sdk-js     update-types.yml version "$VERSION" file sdk.ts  dest src/types.ts
+          dispatch sdk-py     update-types.yml version "$VERSION" file sdk.py  dest src/inferencesh/types.py
+          dispatch app        update-types.yml version "$VERSION" file web.ts  dest src/lib/types/types.ts
+          dispatch common-js  update-types.yml version "$VERSION" file web.ts  dest gen/types.ts
+          dispatch sdk-js-app update-types.yml version "$VERSION" file app.ts  dest src/types.ts
