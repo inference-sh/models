@@ -442,6 +442,7 @@ export interface TaskStats {
   completed: number /* int64 */;
   failed: number /* int64 */;
   cancelled: number /* int64 */;
+  in_progress: number /* int64 */;
   /**
    * Per-period status breakdown for stacked chart (zero-filled)
    */
