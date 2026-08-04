@@ -17,6 +17,9 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
+      - name: Warm Go module proxy
+        run: GONOSUMCHECK= go get github.com/inference-sh/models@${GITHUB_REF_NAME}
+
       # Go consumers: update go.mod
       - name: Dispatch to Go consumers
         env:
