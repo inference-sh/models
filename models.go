@@ -424,7 +424,7 @@ type ApiAgentRunRequest struct {
 	AgentRef    *string           `json:"agent,omitempty"`
 	AgentConfig *AgentConfigInput `json:"agent_config,omitempty"`
 	AgentName   *string           `json:"agent_name,omitempty"`
-	Input       ChatTaskInput     `json:"input" validate:"required"`
+	Input       LLMInput          `json:"input" validate:"required"`
 	Context     map[string]string `json:"context,omitempty"`
 	Stream      bool              `json:"stream,omitempty"`
 }
@@ -436,7 +436,7 @@ type CreateAgentMessageRequest struct {
 	AgentVersionID     *string             `json:"agent_version_id,omitempty"`
 	Agent              *string             `json:"agent,omitempty"`
 	ToolCallID         *string             `json:"tool_call_id,omitempty"`
-	Input              ChatTaskInput       `json:"input" validate:"required"`
+	Input              LLMInput            `json:"input" validate:"required"`
 	IntegrationContext *IntegrationContext `json:"integration_context,omitempty"`
 	AgentConfig        *AgentConfigInput   `json:"agent_config,omitempty"`
 	AgentName          *string             `json:"agent_name,omitempty"`
@@ -2812,6 +2812,7 @@ type SDKTypes struct {
 	_entitlementErrMeta EntitlementErrorMeta
 	// Output
 	_outputMeta OutputMeta
+	_llmOutput  LLMOutput
 	// Knowledge
 	_knowledgeDTO      KnowledgeDTO
 	_knowledgeVersion  KnowledgeVersionDTO
@@ -4090,40 +4091,6 @@ type IntegrationContext struct {
 	IntegrationMetadata json.RawMessage  `json:"integration_metadata,omitempty"`
 }
 
-// ChatTaskInput is the input envelope for a chat LLM task
-type ChatTaskInput struct {
-	Model              *string                  `json:"model"`
-	ContextSize        int                      `json:"context_size"`
-	Temperature        *float64                 `json:"temperature,omitempty"`
-	TopP               *float64                 `json:"top_p,omitempty"`
-	ReasoningEffort    *string                  `json:"reasoning_effort,omitempty"`
-	ReasoningMaxTokens *int                     `json:"reasoning_max_tokens,omitempty"`
-	SystemPrompt       string                   `json:"system_prompt"`
-	Context            []ChatTaskContextMessage `json:"context"`
-	Role               ChatMessageRole          `json:"role,omitempty"`
-	Text               *string                  `json:"text"`
-	Reasoning          *string                  `json:"reasoning"`
-	// Attachments is the SDK input field with full file metadata
-	Attachments *[]FileRef `json:"attachments,omitempty"`
-	// Images and Files are internal fields for task workers (filled from Attachments or context)
-	Images     *[]string `json:"images,omitempty"`
-	Files      *[]string `json:"files,omitempty"`
-	Tools      *[]Tool   `json:"tools"`
-	ToolCallID *string   `json:"tool_call_id,omitempty"`
-}
-
-// ChatTaskContextMessage represents a message in the chat context for LLM tasks
-type ChatTaskContextMessage struct {
-	Role       ChatMessageRole `json:"role"`
-	Text       *string         `json:"text"`
-	Reasoning  *string         `json:"reasoning"`
-	Images     *[]string       `json:"images"`
-	Files      *[]string       `json:"files"`
-	Tools      *[]Tool         `json:"tools"`
-	ToolCalls  *[]ToolCall     `json:"tool_calls"`
-	ToolCallID *string         `json:"tool_call_id,omitempty"`
-}
-
 // --------------------
 // source: common.go
 // --------------------
@@ -4231,6 +4198,11 @@ type EngineStatus string
 // EngineTerminal returns true if the engine is in a final, non-recoverable state.
 func (s EngineStatus) EngineTerminal() bool {
 	return s == EngineStatusStopped
+}
+
+// Dispatchable returns true if the engine can accept new tasks.
+func (s EngineStatus) Dispatchable() bool {
+	return s == EngineStatusRunning
 }
 
 func (v EngineStatus) Value() (driver.Value, error) {
@@ -4439,6 +4411,53 @@ const (
 	GraphEdgeTypeInput       GraphEdgeType = "input"
 	GraphEdgeTypeOutput      GraphEdgeType = "output"
 )
+
+// --------------------
+// source: llm_types.go
+// --------------------
+
+// LLMOutput is the output envelope from an LLM provider task.
+// This is the contract between chat apps (sdk-py) and the agent runtime (go/api).
+type LLMOutput struct {
+	Response  string      `json:"response"`
+	Reasoning *string     `json:"reasoning"`
+	ToolCalls *[]ToolCall `json:"tool_calls"`
+	Usage     *LLMUsage   `json:"usage"`
+}
+
+// LLMInput is the input envelope for an LLM provider task.
+type LLMInput struct {
+	Model              *string             `json:"model"`
+	ContextSize        int                 `json:"context_size"`
+	Temperature        *float64            `json:"temperature,omitempty"`
+	TopP               *float64            `json:"top_p,omitempty"`
+	ReasoningEffort    *string             `json:"reasoning_effort,omitempty"`
+	ReasoningMaxTokens *int                `json:"reasoning_max_tokens,omitempty"`
+	SystemPrompt       string              `json:"system_prompt"`
+	Context            []LLMContextMessage `json:"context"`
+	Role               ChatMessageRole     `json:"role,omitempty"`
+	Text               *string             `json:"text"`
+	Reasoning          *string             `json:"reasoning"`
+	// Attachments is the SDK input field with full file metadata
+	Attachments *[]FileRef `json:"attachments,omitempty"`
+	// Images and Files are internal fields for task workers (filled from Attachments or context)
+	Images     *[]string `json:"images,omitempty"`
+	Files      *[]string `json:"files,omitempty"`
+	Tools      *[]Tool   `json:"tools"`
+	ToolCallID *string   `json:"tool_call_id,omitempty"`
+}
+
+// LLMContextMessage represents a message in the chat context for LLM tasks
+type LLMContextMessage struct {
+	Role       ChatMessageRole `json:"role"`
+	Text       *string         `json:"text"`
+	Reasoning  *string         `json:"reasoning"`
+	Images     *[]string       `json:"images"`
+	Files      *[]string       `json:"files"`
+	Tools      *[]Tool         `json:"tools"`
+	ToolCalls  *[]ToolCall     `json:"tool_calls"`
+	ToolCallID *string         `json:"tool_call_id,omitempty"`
+}
 
 // --------------------
 // source: misc.go
@@ -5333,6 +5352,18 @@ func (t *ToolCallFunction) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return nil
+}
+
+// LLMUsage contains token usage and performance metrics from an LLM response
+type LLMUsage struct {
+	StopReason       string  `json:"stop_reason"`
+	TimeToFirstToken float64 `json:"time_to_first_token"`
+	TokensPerSecond  float64 `json:"tokens_per_second"`
+	PromptTokens     int     `json:"prompt_tokens"`
+	CompletionTokens int     `json:"completion_tokens"`
+	TotalTokens      int     `json:"total_tokens"`
+	ReasoningTokens  int     `json:"reasoning_tokens"`
+	ReasoningTime    float64 `json:"reasoning_time"`
 }
 
 // FileRef is a lightweight reference to a file with essential metadata.
