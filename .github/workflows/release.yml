@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      # Go consumers: update go.mod
+      - name: Dispatch to Go consumers
+        env:
+          GH_TOKEN: ${{ secrets.REPO_PAT }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for repo in cli engine api; do
+            echo "Dispatching to $repo..."
+            gh workflow run update-dep.yml \
+              --repo inference-sh/$repo \
+              --field module=github.com/inference-sh/models \
+              --field version="$VERSION" || true
+          done
+
+      # JS/Python consumers: update types files
+      - name: Dispatch to SDK consumers
+        env:
+          GH_TOKEN: ${{ secrets.REPO_PAT }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          dispatch_types() {
+            local repo=$1 file=$2 dest=$3
+            echo "Dispatching $file to $repo..."
+            gh workflow run update-types.yml \
+              --repo "inference-sh/$repo" \
+              --field version="$VERSION" \
+              --field file="$file" \
+              --field dest="$dest" || true
+          }
+
+          dispatch_types sdk-js     sdk.ts  src/types.ts
+          dispatch_types sdk-py     sdk.py  src/inferencesh/types.py
+          dispatch_types app        web.ts  src/lib/types/types.ts
+          dispatch_types common-js  web.ts  gen/types.ts
+          dispatch_types sdk-js-app app.ts  src/types.ts
