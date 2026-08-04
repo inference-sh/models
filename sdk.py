@@ -1654,8 +1654,7 @@ class LLMOutput(TypedDict, total=False):
     tool_calls: Optional[List[ToolCall]]
     usage: Optional[LLMUsage]
 
-# ModelSettings groups sampling and generation parameters.
-# All fields are optional — omitted fields use the provider's defaults.
+# ModelSettings groups sampling and generation parameters as a passable unit.
 class ModelSettings(TypedDict, total=False):
     temperature: Optional[float]
     top_p: Optional[float]
@@ -1674,13 +1673,18 @@ class ModelSettings(TypedDict, total=False):
 class LLMInput(TypedDict, total=False):
     model: Optional[str]
     context_size: int
-    # Flat sampling fields — kept for backward compat with stored agent configs.
-    # New code should use ModelSettings.
     temperature: Optional[float]
     top_p: Optional[float]
+    top_k: Optional[int]
+    min_p: Optional[float]
+    frequency_penalty: Optional[float]
+    presence_penalty: Optional[float]
+    repetition_penalty: Optional[float]
+    seed: Optional[int]
+    stop: List[str]
+    max_tokens: Optional[int]
     reasoning_effort: Optional[str]
     reasoning_max_tokens: Optional[int]
-    model_settings: Optional[ModelSettings]
     system_prompt: str
     context: List[LLMContextMessage]
     role: ChatMessageRole

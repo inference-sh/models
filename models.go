@@ -3224,6 +3224,27 @@ type TaskDTO struct {
 	SessionTimeout     *int             `json:"session_timeout,omitempty"`
 }
 
+// TaskDispatchPayload is the minimal task representation sent to engines for
+// dispatch. It carries only the fields the engine needs to execute the task,
+// avoiding the cost of serializing the full TaskDTO (events, logs, nested
+// app/version/engine/worker DTOs, usage events, etc.).
+type TaskDispatchPayload struct {
+	ID             string           `json:"id"`
+	ShortID        string           `json:"short_id"`
+	Status         TaskStatus       `json:"status"`
+	UserID         string           `json:"user_id"`
+	TeamID         string           `json:"team_id"`
+	AppID          string           `json:"app_id"`
+	AppVersionID   string           `json:"app_version_id"`
+	AppVariant     string           `json:"app_variant"`
+	Function       string           `json:"function"`
+	Input          json.RawMessage  `json:"input"`
+	Setup          *json.RawMessage `json:"setup,omitempty"`
+	WorkerID       *string          `json:"worker_id,omitempty"`
+	SessionID      *string          `json:"session_id,omitempty"`
+	SessionTimeout *int             `json:"session_timeout,omitempty"`
+}
+
 // TaskResultDTO is a slim response for task run/result endpoints.
 type TaskResultDTO struct {
 	ID         string          `json:"id"`
@@ -3700,8 +3721,8 @@ const (
 )
 
 type WsTaskRunPayload struct {
-	Task    TaskDTO `json:"task"`
-	Secrets string  `json:"secrets"`
+	Task    TaskDispatchPayload `json:"task"`
+	Secrets string              `json:"secrets"`
 }
 
 type WsTaskCancelPayload struct {
@@ -4426,8 +4447,7 @@ type LLMOutput struct {
 	Usage     *LLMUsage   `json:"usage"`
 }
 
-// ModelSettings groups sampling and generation parameters.
-// All fields are optional — omitted fields use the provider's defaults.
+// ModelSettings groups sampling and generation parameters as a passable unit.
 type ModelSettings struct {
 	Temperature        *float64 `json:"temperature,omitempty"`
 	TopP               *float64 `json:"top_p,omitempty"`
@@ -4445,15 +4465,20 @@ type ModelSettings struct {
 
 // LLMInput is the input envelope for an LLM provider task.
 type LLMInput struct {
-	Model       *string `json:"model"`
-	ContextSize int     `json:"context_size"`
-	// Flat sampling fields — kept for backward compat with stored agent configs.
-	// New code should use ModelSettings.
+	Model              *string             `json:"model"`
+	ContextSize        int                 `json:"context_size"`
 	Temperature        *float64            `json:"temperature,omitempty"`
 	TopP               *float64            `json:"top_p,omitempty"`
+	TopK               *int                `json:"top_k,omitempty"`
+	MinP               *float64            `json:"min_p,omitempty"`
+	FrequencyPenalty   *float64            `json:"frequency_penalty,omitempty"`
+	PresencePenalty    *float64            `json:"presence_penalty,omitempty"`
+	RepetitionPenalty  *float64            `json:"repetition_penalty,omitempty"`
+	Seed               *int                `json:"seed,omitempty"`
+	Stop               []string            `json:"stop,omitempty"`
+	MaxTokens          *int                `json:"max_tokens,omitempty"`
 	ReasoningEffort    *string             `json:"reasoning_effort,omitempty"`
 	ReasoningMaxTokens *int                `json:"reasoning_max_tokens,omitempty"`
-	ModelSettings      *ModelSettings      `json:"model_settings,omitempty"`
 	SystemPrompt       string              `json:"system_prompt"`
 	Context            []LLMContextMessage `json:"context"`
 	Role               ChatMessageRole     `json:"role,omitempty"`

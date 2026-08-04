@@ -3937,6 +3937,28 @@ export interface TaskDTO extends BaseModelDTO, PermissionModelDTO {
   session_timeout?: number /* int */;
 }
 /**
+ * TaskDispatchPayload is the minimal task representation sent to engines for
+ * dispatch. It carries only the fields the engine needs to execute the task,
+ * avoiding the cost of serializing the full TaskDTO (events, logs, nested
+ * app/version/engine/worker DTOs, usage events, etc.).
+ */
+export interface TaskDispatchPayload {
+  id: string;
+  short_id: string;
+  status: TaskStatus;
+  user_id: string;
+  team_id: string;
+  app_id: string;
+  app_version_id: string;
+  app_variant: string;
+  function: string;
+  input: any;
+  setup?: any;
+  worker_id?: string;
+  session_id?: string;
+  session_timeout?: number /* int */;
+}
+/**
  * TaskResultDTO is a slim response for task run/result endpoints.
  */
 export interface TaskResultDTO {
@@ -4667,7 +4689,7 @@ export const WSEventEngineUpdate: WSEventType = "engine_update";
 export const WSEventEngineDeleteHFCacheRepo: WSEventType = "engine_delete_hfcache_repo";
 export const WSEventSessionEnd: WSEventType = "session_end";
 export interface WsTaskRunPayload {
-  task: TaskDTO;
+  task: TaskDispatchPayload;
   secrets: string;
 }
 export interface WsTaskCancelPayload {
@@ -5123,8 +5145,7 @@ export interface LLMOutput {
   usage?: LLMUsage;
 }
 /**
- * ModelSettings groups sampling and generation parameters.
- * All fields are optional — omitted fields use the provider's defaults.
+ * ModelSettings groups sampling and generation parameters as a passable unit.
  */
 export interface ModelSettings {
   temperature?: number /* float64 */;
@@ -5146,15 +5167,18 @@ export interface ModelSettings {
 export interface LLMInput {
   model?: string;
   context_size: number /* int */;
-  /**
-   * Flat sampling fields — kept for backward compat with stored agent configs.
-   * New code should use ModelSettings.
-   */
   temperature?: number /* float64 */;
   top_p?: number /* float64 */;
+  top_k?: number /* int */;
+  min_p?: number /* float64 */;
+  frequency_penalty?: number /* float64 */;
+  presence_penalty?: number /* float64 */;
+  repetition_penalty?: number /* float64 */;
+  seed?: number /* int */;
+  stop?: string[];
+  max_tokens?: number /* int */;
   reasoning_effort?: string;
   reasoning_max_tokens?: number /* int */;
-  model_settings?: ModelSettings;
   system_prompt: string;
   context: LLMContextMessage[];
   role?: ChatMessageRole;
