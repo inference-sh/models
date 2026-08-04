@@ -2811,8 +2811,9 @@ type SDKTypes struct {
 	_entitlementDTO     EntitlementDTO
 	_entitlementErrMeta EntitlementErrorMeta
 	// Output
-	_outputMeta OutputMeta
-	_llmOutput  LLMOutput
+	_outputMeta    OutputMeta
+	_llmOutput     LLMOutput
+	_modelSettings ModelSettings
 	// Knowledge
 	_knowledgeDTO      KnowledgeDTO
 	_knowledgeVersion  KnowledgeVersionDTO
@@ -4425,26 +4426,44 @@ type LLMOutput struct {
 	Usage     *LLMUsage   `json:"usage"`
 }
 
+// ModelSettings groups sampling and generation parameters.
+// All fields are optional — omitted fields use the provider's defaults.
+type ModelSettings struct {
+	Temperature        *float64 `json:"temperature,omitempty"`
+	TopP               *float64 `json:"top_p,omitempty"`
+	TopK               *int     `json:"top_k,omitempty"`
+	MinP               *float64 `json:"min_p,omitempty"`
+	FrequencyPenalty   *float64 `json:"frequency_penalty,omitempty"`
+	PresencePenalty    *float64 `json:"presence_penalty,omitempty"`
+	RepetitionPenalty  *float64 `json:"repetition_penalty,omitempty"`
+	Seed               *int     `json:"seed,omitempty"`
+	Stop               []string `json:"stop,omitempty"`
+	MaxTokens          *int     `json:"max_tokens,omitempty"`
+	ReasoningEffort    *string  `json:"reasoning_effort,omitempty"`
+	ReasoningMaxTokens *int     `json:"reasoning_max_tokens,omitempty"`
+}
+
 // LLMInput is the input envelope for an LLM provider task.
 type LLMInput struct {
-	Model              *string             `json:"model"`
-	ContextSize        int                 `json:"context_size"`
+	Model       *string `json:"model"`
+	ContextSize int     `json:"context_size"`
+	// Flat sampling fields — kept for backward compat with stored agent configs.
+	// New code should use ModelSettings.
 	Temperature        *float64            `json:"temperature,omitempty"`
 	TopP               *float64            `json:"top_p,omitempty"`
 	ReasoningEffort    *string             `json:"reasoning_effort,omitempty"`
 	ReasoningMaxTokens *int                `json:"reasoning_max_tokens,omitempty"`
+	ModelSettings      *ModelSettings      `json:"model_settings,omitempty"`
 	SystemPrompt       string              `json:"system_prompt"`
 	Context            []LLMContextMessage `json:"context"`
 	Role               ChatMessageRole     `json:"role,omitempty"`
 	Text               *string             `json:"text"`
 	Reasoning          *string             `json:"reasoning"`
-	// Attachments is the SDK input field with full file metadata
-	Attachments *[]FileRef `json:"attachments,omitempty"`
-	// Images and Files are internal fields for task workers (filled from Attachments or context)
-	Images     *[]string `json:"images,omitempty"`
-	Files      *[]string `json:"files,omitempty"`
-	Tools      *[]Tool   `json:"tools"`
-	ToolCallID *string   `json:"tool_call_id,omitempty"`
+	Attachments        *[]FileRef          `json:"attachments,omitempty"`
+	Images             *[]string           `json:"images,omitempty"`
+	Files              *[]string           `json:"files,omitempty"`
+	Tools              *[]Tool             `json:"tools"`
+	ToolCallID         *string             `json:"tool_call_id,omitempty"`
 }
 
 // LLMContextMessage represents a message in the chat context for LLM tasks

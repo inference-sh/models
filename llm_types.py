@@ -21,22 +21,39 @@ class LLMOutput(BaseModel):
     tool_calls: Optional[List[ToolCall]] = None
     usage: Optional[LLMUsage] = None
 
+# ModelSettings groups sampling and generation parameters.
+# All fields are optional — omitted fields use the provider's defaults.
+class ModelSettings(BaseModel):
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    min_p: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    repetition_penalty: Optional[float] = None
+    seed: Optional[int] = None
+    stop: List[str]
+    max_tokens: Optional[int] = None
+    reasoning_effort: Optional[str] = None
+    reasoning_max_tokens: Optional[int] = None
+
 # LLMInput is the input envelope for an LLM provider task.
 class LLMInput(BaseModel):
     model: Optional[str] = None
     context_size: int = 0
+    # Flat sampling fields — kept for backward compat with stored agent configs.
+    # New code should use ModelSettings.
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     reasoning_effort: Optional[str] = None
     reasoning_max_tokens: Optional[int] = None
+    model_settings: Optional[ModelSettings] = None
     system_prompt: str = ""
     context: List[LLMContextMessage]
     role: ChatMessageRole
     text: Optional[str] = None
     reasoning: Optional[str] = None
-    # Attachments is the SDK input field with full file metadata
     attachments: Optional[List[FileRef]] = None
-    # Images and Files are internal fields for task workers (filled from Attachments or context)
     images: Optional[List[str]] = None
     files: Optional[List[str]] = None
     tools: Optional[List[Tool]] = None
@@ -135,6 +152,7 @@ class ToolParamType(str, Enum):
 
 # Resolve forward references
 LLMOutput.model_rebuild()
+ModelSettings.model_rebuild()
 LLMInput.model_rebuild()
 LLMContextMessage.model_rebuild()
 ToolCall.model_rebuild()
