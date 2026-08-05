@@ -214,6 +214,15 @@ class APIError(TypedDict, total=False):
     suggestions: List[str]
     meta: Dict[str, Any]
 
+# ResponseMessage carries a non-error notice alongside a successful response.
+# Inspired by GraphQL's coexisting data+errors pattern, but for actionable
+# messages (warnings, info) rather than partial failures.
+class ResponseMessage(TypedDict, total=False):
+    level: str
+    code: str
+    message: str
+    meta: Dict[str, Any]
+
 # ApiAppRunRequest is the request body for /apps/run endpoint.
 class ApiAppRunRequest(TypedDict, total=False):
     app: str

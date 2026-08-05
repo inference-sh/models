@@ -270,6 +270,17 @@ export interface APIError {
   meta?: { [key: string]: any};
 }
 /**
+ * ResponseMessage carries a non-error notice alongside a successful response.
+ * Inspired by GraphQL's coexisting data+errors pattern, but for actionable
+ * messages (warnings, info) rather than partial failures.
+ */
+export interface ResponseMessage {
+  level: string; // "info", "warning"
+  code: string; // machine-readable identifier
+  message: string; // human-readable text
+  meta?: { [key: string]: any}; // structured context (limits, upgrade info, etc.)
+}
+/**
  * ApiAppRunRequest is the request body for /apps/run endpoint.
  */
 export interface ApiAppRunRequest {

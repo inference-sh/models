@@ -399,6 +399,16 @@ type APIError struct {
 	Meta        map[string]any `json:"meta,omitempty"`
 }
 
+// ResponseMessage carries a non-error notice alongside a successful response.
+// Inspired by GraphQL's coexisting data+errors pattern, but for actionable
+// messages (warnings, info) rather than partial failures.
+type ResponseMessage struct {
+	Level   string         `json:"level"`          // "info", "warning"
+	Code    string         `json:"code"`           // machine-readable identifier
+	Message string         `json:"message"`        // human-readable text
+	Meta    map[string]any `json:"meta,omitempty"` // structured context (limits, upgrade info, etc.)
+}
+
 // ApiAppRunRequest is the request body for /apps/run endpoint.
 type ApiAppRunRequest struct {
 	App            string           `json:"app,omitempty"`
@@ -2810,6 +2820,8 @@ type SDKTypes struct {
 	// Entitlements
 	_entitlementDTO     EntitlementDTO
 	_entitlementErrMeta EntitlementErrorMeta
+	// Response envelope
+	_responseMessage ResponseMessage
 	// Output
 	_outputMeta    OutputMeta
 	_llmOutput     LLMOutput
@@ -3249,6 +3261,13 @@ type TaskDispatchPayload struct {
 	Kernel     string            `json:"kernel"`
 	AppEnv     map[string]string `json:"app_env,omitempty"`
 	GPUCount   int               `json:"gpu_count"`
+}
+
+// ToDTO converts a TaskDispatchPayload into a TaskDTO, mapping the flat
+// dispatch fields into the nested App/AppVersion pointers that the engine's
+// internal pipeline expects.
+func (d TaskDispatchPayload) ToDTO() TaskDTO {
+	return TaskDTO{BaseModelDTO: BaseModelDTO{ID: d.ID, ShortID: d.ShortID}, PermissionModelDTO: PermissionModelDTO{UserID: d.UserID, TeamID: d.TeamID}, Status: d.Status, AppID: d.AppID, AppVersionID: d.AppVersionID, AppVariant: d.AppVariant, Function: d.Function, Input: d.Input, Setup: d.Setup, WorkerID: d.WorkerID, SessionID: d.SessionID, SessionTimeout: d.SessionTimeout, App: &AppDTO{Name: d.AppName}, AppVersion: &AppVersionDTO{Repository: d.Repository, Kernel: d.Kernel, Env: d.AppEnv, RequiredResources: AppResources{GPU: AppGPUResource{Count: d.GPUCount}}}}
 }
 
 // TaskResultDTO is a slim response for task run/result endpoints.
