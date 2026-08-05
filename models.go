@@ -1614,6 +1614,58 @@ type FlowRunDTO struct {
 }
 
 // --------------------
+// source: flow_actions.go
+// --------------------
+
+// FlowActionType is the string type for action constants.
+type FlowActionType string
+
+// Flow graph action type constants.
+const (
+	ActionNodeAdd                 FlowActionType = "node.add"
+	ActionNodeRemove              FlowActionType = "node.remove"
+	ActionNodeMove                FlowActionType = "node.move"
+	ActionNodeMoveMany            FlowActionType = "node.move_many"
+	ActionNodeDuplicate           FlowActionType = "node.duplicate"
+	ActionNodeRename              FlowActionType = "node.rename"
+	ActionNodeSetApp              FlowActionType = "node.set_app"
+	ActionNodeUpdate              FlowActionType = "node.update"
+	ActionNodeSetInput            FlowActionType = "node.set_input"
+	ActionNodeClearInput          FlowActionType = "node.clear_input"
+	ActionEdgeAdd                 FlowActionType = "edge.add"
+	ActionEdgeRemove              FlowActionType = "edge.remove"
+	ActionFlowSetInputSchema      FlowActionType = "flow.set_input_schema"
+	ActionFlowSetOutputSchema     FlowActionType = "flow.set_output_schema"
+	ActionFlowSetOutputMapping    FlowActionType = "flow.set_output_mapping"
+	ActionFlowRemoveOutputMapping FlowActionType = "flow.remove_output_mapping"
+	ActionFlowRenameOutputField   FlowActionType = "flow.rename_output_field"
+)
+
+// FlowAction represents a single graph mutation.
+type FlowAction struct {
+	Type    FlowActionType  `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// FlowActionsRequest is the request body for POST /flows/{id}/actions.
+type FlowActionsRequest struct {
+	Actions []FlowAction `json:"actions"`
+}
+
+// FlowActionsResponse is the response from the actions endpoint.
+type FlowActionsResponse struct {
+	Version int               `json:"version"`
+	Actions []FlowAction      `json:"actions"`
+	Errors  []FlowActionError `json:"errors,omitempty"`
+}
+
+// FlowActionError is an error returned from an action.
+type FlowActionError struct {
+	Type    string `json:"type,omitempty"`
+	Message string `json:"message"`
+}
+
+// --------------------
 // source: graph.go
 // --------------------
 
@@ -2747,6 +2799,9 @@ type CheckRequirementsResponse struct {
 // To expose a type to SDK consumers: reference it in this struct.
 type SDKTypes struct {
 	_flow              FlowDTO
+	_flowAction        FlowAction
+	_flowActionsReq    FlowActionsRequest
+	_flowActionsResp   FlowActionsResponse
 	_flowRun           FlowRunDTO
 	_flowVer           FlowVersionDTO
 	_engine            EngineDTO
@@ -5564,6 +5619,67 @@ const (
 // --------------------
 // companion functions
 // --------------------
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+
+// JSONScan is a generic helper for SQL deserialization of JSON types.
+func JSONScan[T any](dest *T, value any, typeName string) error {
+	if value == nil {
+		return nil
+	}
+	var str string
+	switch v := value.(type) {
+	case []byte:
+		str = string(v)
+	case string:
+		str = v
+	default:
+		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
+	}
+	if str == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(str), dest)
+}
+func flowProcessRaw(raw any) any {
+	switch v := raw.(type) {
+	case []any:
+		out := make([]any, len(v))
+		for i, elem := range v {
+			out[i] = flowProcessRaw(elem)
+		}
+		return out
+	case map[string]any:
+		if _, ok := v["connection"]; ok {
+			b, _ := json.Marshal(v)
+			var nested FlowRunInput
+			if err := json.Unmarshal(b, &nested); err == nil {
+				return nested
+			}
+		}
+		out := make(map[string]any)
+		for key, val := range v {
+			out[key] = flowProcessRaw(val)
+		}
+		return out
+	default:
+		return v
+	}
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
+}
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case FlowRunInput:
@@ -5601,66 +5717,4 @@ func flowMarshalRecursive(value any) ([]byte, error) {
 	default:
 		return json.Marshal(v)
 	}
-}
-func flowProcessRaw(raw any) any {
-	switch v := raw.(type) {
-	case []any:
-		out := make([]any, len(v))
-		for i, elem := range v {
-			out[i] = flowProcessRaw(elem)
-		}
-		return out
-	case map[string]any:
-		if _, ok := v["connection"]; ok {
-			b, _ := json.Marshal(v)
-			var nested FlowRunInput
-			if err := json.Unmarshal(b, &nested); err == nil {
-				return nested
-			}
-		}
-		out := make(map[string]any)
-		for key, val := range v {
-			out[key] = flowProcessRaw(val)
-		}
-		return out
-	default:
-		return v
-	}
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
-
-// JSONScan is a generic helper for SQL deserialization of JSON types.
-func JSONScan[T any](dest *T, value any, typeName string) error {
-	if value == nil {
-		return nil
-	}
-	var str string
-	switch v := value.(type) {
-	case []byte:
-		str = string(v)
-	case string:
-		str = v
-	default:
-		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
-	}
-	if str == "" {
-		return nil
-	}
-	return json.Unmarshal([]byte(str), dest)
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
 }
