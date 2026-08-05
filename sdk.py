@@ -823,6 +823,74 @@ class FlowActionError(TypedDict, total=False):
     type: str
     message: str
 
+class AddNodePayload(TypedDict, total=False):
+    id: str
+    type: str
+    position: FlowNodePosition
+    data: FlowNodeData
+
+class RemoveNodePayload(TypedDict, total=False):
+    id: str
+
+class MoveNodePayload(TypedDict, total=False):
+    id: str
+    position: FlowNodePosition
+
+class MoveNodesPayload(TypedDict, total=False):
+    positions: Dict[str, FlowNodePosition]
+
+class DuplicateNodePayload(TypedDict, total=False):
+    source_id: str
+    new_id: str
+    offset: FlowNodePosition
+
+class RenameNodePayload(TypedDict, total=False):
+    old_id: str
+    new_id: str
+
+class SetNodeAppPayload(TypedDict, total=False):
+    node_id: str
+    app_id: str
+    app_version_id: str
+    function: str
+
+class UpdateNodeDataPayload(TypedDict, total=False):
+    node_id: str
+    patch: Dict[str, Any]
+
+class SetInputPayload(TypedDict, total=False):
+    node_id: str
+    input_key: str
+    input: FlowRunInput
+
+class ClearInputPayload(TypedDict, total=False):
+    node_id: str
+    input_key: str
+
+class AddEdgePayload(TypedDict, total=False):
+    id: str
+    source: str
+    target: str
+    source_handle: Optional[str]
+    target_handle: Optional[str]
+
+class RemoveEdgePayload(TypedDict, total=False):
+    id: str
+
+class SetSchemaPayload(TypedDict, total=False):
+    schema: Any
+
+class SetOutputMappingPayload(TypedDict, total=False):
+    field: str
+    mapping: OutputFieldMapping
+
+class RemoveOutputMappingPayload(TypedDict, total=False):
+    field: str
+
+class RenameOutputFieldPayload(TypedDict, total=False):
+    old_field: str
+    new_field: str
+
 # ChatTraceDTO is the trace response for chat observability
 class ChatTraceDTO(TypedDict, total=False):
     graph_id: str

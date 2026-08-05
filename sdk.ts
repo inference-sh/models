@@ -1566,6 +1566,74 @@ export interface FlowActionError {
   type?: string;
   message: string;
 }
+export interface AddNodePayload {
+  id: string;
+  type: string;
+  position: FlowNodePosition;
+  data: FlowNodeData;
+}
+export interface RemoveNodePayload {
+  id: string;
+}
+export interface MoveNodePayload {
+  id: string;
+  position: FlowNodePosition;
+}
+export interface MoveNodesPayload {
+  positions: { [key: string]: FlowNodePosition};
+}
+export interface DuplicateNodePayload {
+  source_id: string;
+  new_id: string;
+  offset: FlowNodePosition;
+}
+export interface RenameNodePayload {
+  old_id: string;
+  new_id: string;
+}
+export interface SetNodeAppPayload {
+  node_id: string;
+  app_id: string;
+  app_version_id: string;
+  function: string;
+}
+export interface UpdateNodeDataPayload {
+  node_id: string;
+  patch: { [key: string]: any};
+}
+export interface SetInputPayload {
+  node_id: string;
+  input_key: string;
+  input: FlowRunInput;
+}
+export interface ClearInputPayload {
+  node_id: string;
+  input_key: string;
+}
+export interface AddEdgePayload {
+  id: string;
+  source: string;
+  target: string;
+  source_handle?: string;
+  target_handle?: string;
+}
+export interface RemoveEdgePayload {
+  id: string;
+}
+export interface SetSchemaPayload {
+  schema: any;
+}
+export interface SetOutputMappingPayload {
+  field: string;
+  mapping: OutputFieldMapping;
+}
+export interface RemoveOutputMappingPayload {
+  field: string;
+}
+export interface RenameOutputFieldPayload {
+  old_field: string;
+  new_field: string;
+}
 /**
  * GraphNodeDTO is the API representation of a graph node
  */

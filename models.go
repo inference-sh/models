@@ -1665,6 +1665,90 @@ type FlowActionError struct {
 	Message string `json:"message"`
 }
 
+type AddNodePayload struct {
+	ID       string           `json:"id"`
+	Type     string           `json:"type"`
+	Position FlowNodePosition `json:"position"`
+	Data     FlowNodeData     `json:"data"`
+}
+
+type RemoveNodePayload struct {
+	ID string `json:"id"`
+}
+
+type MoveNodePayload struct {
+	ID       string           `json:"id"`
+	Position FlowNodePosition `json:"position"`
+}
+
+type MoveNodesPayload struct {
+	Positions map[string]FlowNodePosition `json:"positions"`
+}
+
+type DuplicateNodePayload struct {
+	SourceID string           `json:"source_id"`
+	NewID    string           `json:"new_id"`
+	Offset   FlowNodePosition `json:"offset"`
+}
+
+type RenameNodePayload struct {
+	OldID string `json:"old_id"`
+	NewID string `json:"new_id"`
+}
+
+type SetNodeAppPayload struct {
+	NodeID       string `json:"node_id"`
+	AppID        string `json:"app_id"`
+	AppVersionID string `json:"app_version_id"`
+	Function     string `json:"function"`
+}
+
+type UpdateNodeDataPayload struct {
+	NodeID string         `json:"node_id"`
+	Patch  map[string]any `json:"patch"`
+}
+
+type SetInputPayload struct {
+	NodeID   string       `json:"node_id"`
+	InputKey string       `json:"input_key"`
+	Input    FlowRunInput `json:"input"`
+}
+
+type ClearInputPayload struct {
+	NodeID   string `json:"node_id"`
+	InputKey string `json:"input_key"`
+}
+
+type AddEdgePayload struct {
+	ID           string  `json:"id"`
+	Source       string  `json:"source"`
+	Target       string  `json:"target"`
+	SourceHandle *string `json:"source_handle,omitempty"`
+	TargetHandle *string `json:"target_handle,omitempty"`
+}
+
+type RemoveEdgePayload struct {
+	ID string `json:"id"`
+}
+
+type SetSchemaPayload struct {
+	Schema json.RawMessage `json:"schema"`
+}
+
+type SetOutputMappingPayload struct {
+	Field   string             `json:"field"`
+	Mapping OutputFieldMapping `json:"mapping"`
+}
+
+type RemoveOutputMappingPayload struct {
+	Field string `json:"field"`
+}
+
+type RenameOutputFieldPayload struct {
+	OldField string `json:"old_field"`
+	NewField string `json:"new_field"`
+}
+
 // --------------------
 // source: graph.go
 // --------------------
@@ -2802,6 +2886,22 @@ type SDKTypes struct {
 	_flowAction        FlowAction
 	_flowActionsReq    FlowActionsRequest
 	_flowActionsResp   FlowActionsResponse
+	_addNode           AddNodePayload
+	_removeNode        RemoveNodePayload
+	_moveNode          MoveNodePayload
+	_moveNodes         MoveNodesPayload
+	_dupNode           DuplicateNodePayload
+	_renameNode        RenameNodePayload
+	_setNodeApp        SetNodeAppPayload
+	_updateNode        UpdateNodeDataPayload
+	_setInput          SetInputPayload
+	_clearInput        ClearInputPayload
+	_addEdge           AddEdgePayload
+	_removeEdge        RemoveEdgePayload
+	_setSchema         SetSchemaPayload
+	_setOutputMap      SetOutputMappingPayload
+	_rmOutputMap       RemoveOutputMappingPayload
+	_renameOutput      RenameOutputFieldPayload
 	_flowRun           FlowRunDTO
 	_flowVer           FlowVersionDTO
 	_engine            EngineDTO
@@ -5619,6 +5719,15 @@ const (
 // --------------------
 // companion functions
 // --------------------
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -5637,15 +5746,6 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 		return nil
 	}
 	return json.Unmarshal([]byte(str), dest)
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
 }
 func flowUnmarshalRecursive(data []byte, out *any) error {
 	var raw any
