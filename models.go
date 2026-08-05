@@ -3070,14 +3070,6 @@ type SystemInfo struct {
 	GPUs          []GPU       `json:"gpus"`
 }
 
-func (s SystemInfo) Value() (driver.Value, error) {
-	return JSONValue(s)
-}
-
-func (s *SystemInfo) Scan(value any) error {
-	return JSONScan(s, value, "SystemInfo")
-}
-
 type Docker struct {
 	BinaryPath      string `json:"binary_path"`
 	Installed       bool   `json:"installed"`
@@ -4380,51 +4372,6 @@ type FlowRunInput struct {
 	Value      any
 }
 
-// UnmarshalJSON implements custom unmarshaling for FlowRunInput
-func (f *FlowRunInput) UnmarshalJSON(data []byte) error {
-	var tryConn struct {
-		Connection *FlowNodeConnection `json:"connection"`
-		Value      json.RawMessage     `json:"value"`
-	}
-	if err := json.Unmarshal(data, &tryConn); err == nil && tryConn.Connection != nil {
-		f.Connection = tryConn.Connection
-		if len(tryConn.Value) > 0 {
-			var nested FlowRunInput
-			if err := json.Unmarshal(tryConn.Value, &nested); err == nil {
-				f.Value = nested
-				return nil
-			}
-			var generic any
-			if err := flowUnmarshalRecursive(tryConn.Value, &generic); err == nil {
-				f.Value = generic
-				return nil
-			}
-		}
-		return nil
-	}
-	var generic any
-	if err := flowUnmarshalRecursive(data, &generic); err != nil {
-		return err
-	}
-	f.Value = generic
-	return nil
-}
-
-// MarshalJSON implements custom marshaling for FlowRunInput
-func (f FlowRunInput) MarshalJSON() ([]byte, error) {
-	if f.Connection != nil {
-		value, err := flowMarshalRecursive(f.Value)
-		if err != nil {
-			return nil, err
-		}
-		return json.Marshal(struct {
-			Connection *FlowNodeConnection `json:"connection"`
-			Value      json.RawMessage     `json:"value,omitempty"`
-		}{f.Connection, value})
-	}
-	return flowMarshalRecursive(f.Value)
-}
-
 // OutputFieldMapping represents a mapping from a source node's field to an output field
 type OutputFieldMapping struct {
 	SourceNodeID    string          `json:"sourceNodeId"`
@@ -5560,107 +5507,3 @@ const (
 	RoleAdmin  Role = "admin"
 	RoleSystem Role = "system"
 )
-
-// --------------------
-// companion functions
-// --------------------
-func flowMarshalRecursive(value any) ([]byte, error) {
-	switch v := value.(type) {
-	case FlowRunInput:
-		return json.Marshal(v)
-	case *FlowRunInput:
-		return json.Marshal(v)
-	case []any:
-		arr := make([]any, len(v))
-		for i, elem := range v {
-			marshaled, err := flowMarshalRecursive(elem)
-			if err != nil {
-				return nil, err
-			}
-			var unmarshaled any
-			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
-				return nil, err
-			}
-			arr[i] = unmarshaled
-		}
-		return json.Marshal(arr)
-	case map[string]any:
-		mapped := make(map[string]any)
-		for key, val := range v {
-			marshaled, err := flowMarshalRecursive(val)
-			if err != nil {
-				return nil, err
-			}
-			var unmarshaled any
-			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
-				return nil, err
-			}
-			mapped[key] = unmarshaled
-		}
-		return json.Marshal(mapped)
-	default:
-		return json.Marshal(v)
-	}
-}
-func flowProcessRaw(raw any) any {
-	switch v := raw.(type) {
-	case []any:
-		out := make([]any, len(v))
-		for i, elem := range v {
-			out[i] = flowProcessRaw(elem)
-		}
-		return out
-	case map[string]any:
-		if _, ok := v["connection"]; ok {
-			b, _ := json.Marshal(v)
-			var nested FlowRunInput
-			if err := json.Unmarshal(b, &nested); err == nil {
-				return nested
-			}
-		}
-		out := make(map[string]any)
-		for key, val := range v {
-			out[key] = flowProcessRaw(val)
-		}
-		return out
-	default:
-		return v
-	}
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
-
-// JSONScan is a generic helper for SQL deserialization of JSON types.
-func JSONScan[T any](dest *T, value any, typeName string) error {
-	if value == nil {
-		return nil
-	}
-	var str string
-	switch v := value.(type) {
-	case []byte:
-		str = string(v)
-	case string:
-		str = v
-	default:
-		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
-	}
-	if str == "" {
-		return nil
-	}
-	return json.Unmarshal([]byte(str), dest)
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
-}
