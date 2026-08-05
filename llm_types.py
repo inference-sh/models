@@ -21,9 +21,10 @@ class LLMOutput(BaseModel):
     tool_calls: Optional[List[ToolCall]] = None
     usage: Optional[LLMUsage] = None
 
-# ModelSettings groups sampling and generation parameters.
-# All fields are optional — omitted fields use the provider's defaults.
-class ModelSettings(BaseModel):
+# LLMInput is the input envelope for an LLM provider task.
+class LLMInput(BaseModel):
+    model: Optional[str] = None
+    context_size: int = 0
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     top_k: Optional[int] = None
@@ -36,18 +37,6 @@ class ModelSettings(BaseModel):
     max_tokens: Optional[int] = None
     reasoning_effort: Optional[str] = None
     reasoning_max_tokens: Optional[int] = None
-
-# LLMInput is the input envelope for an LLM provider task.
-class LLMInput(BaseModel):
-    model: Optional[str] = None
-    context_size: int = 0
-    # Flat sampling fields — kept for backward compat with stored agent configs.
-    # New code should use ModelSettings.
-    temperature: Optional[float] = None
-    top_p: Optional[float] = None
-    reasoning_effort: Optional[str] = None
-    reasoning_max_tokens: Optional[int] = None
-    model_settings: Optional[ModelSettings] = None
     system_prompt: str = ""
     context: List[LLMContextMessage]
     role: ChatMessageRole
@@ -152,7 +141,6 @@ class ToolParamType(str, Enum):
 
 # Resolve forward references
 LLMOutput.model_rebuild()
-ModelSettings.model_rebuild()
 LLMInput.model_rebuild()
 LLMContextMessage.model_rebuild()
 ToolCall.model_rebuild()

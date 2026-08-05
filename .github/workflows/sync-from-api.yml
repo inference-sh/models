@@ -66,11 +66,13 @@ jobs:
 
           gotypegen --format=typescript $GEN_SDK/typegen-ts.yaml
           gotypegen --format=python $GEN_SDK/typegen-ts.yaml
+          gotypegen --format=python $GEN_SDK/typegen-pydantic.yaml
           gotypegen --format=typescript $GEN_WEB/typegen-ts.yaml
           gotypegen --format=typescript $GEN_APP/typegen-ts.yaml
 
           cp $GEN_SDK/sdk.ts ../models/sdk.ts
           cp $GEN_SDK/sdk.py ../models/sdk.py
+          cp $GEN_SDK/llm_types.py ../models/llm_types.py
           cp $GEN_WEB/types.ts ../models/web.ts
           cp $GEN_APP/types.ts ../models/app.ts
 

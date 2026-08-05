@@ -87,7 +87,8 @@ jobs:
           }
 
           dispatch sdk-js     update-types.yml version "$VERSION" file sdk.ts  dest src/types.ts
-          dispatch sdk-py     update-types.yml version "$VERSION" file sdk.py  dest src/inferencesh/types.py
+          dispatch sdk-py     update-types.yml version "$VERSION" file sdk.py         dest src/inferencesh/types.py
+          dispatch sdk-py     update-types.yml version "$VERSION" file llm_types.py  dest src/inferencesh/llm_types_gen.py
           dispatch app        update-types.yml version "$VERSION" file web.ts  dest src/lib/types/types.ts
           dispatch common-js  update-types.yml version "$VERSION" file web.ts  dest gen/types.ts
           dispatch sdk-js-app update-types.yml version "$VERSION" file app.ts  dest src/types.ts
