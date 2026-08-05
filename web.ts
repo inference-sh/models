@@ -3957,6 +3957,14 @@ export interface TaskDispatchPayload {
   worker_id?: string;
   session_id?: string;
   session_timeout?: number /* int */;
+  /**
+   * Flattened fields the engine needs from App/AppVersion (avoids sending full nested DTOs).
+   */
+  app_name: string;
+  repository: string;
+  kernel: string;
+  app_env?: { [key: string]: string};
+  gpu_count: number /* int */;
 }
 /**
  * TaskResultDTO is a slim response for task run/result endpoints.

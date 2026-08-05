@@ -3243,6 +3243,12 @@ type TaskDispatchPayload struct {
 	WorkerID       *string          `json:"worker_id,omitempty"`
 	SessionID      *string          `json:"session_id,omitempty"`
 	SessionTimeout *int             `json:"session_timeout,omitempty"`
+	// Flattened fields the engine needs from App/AppVersion (avoids sending full nested DTOs).
+	AppName    string            `json:"app_name"`
+	Repository string            `json:"repository"`
+	Kernel     string            `json:"kernel"`
+	AppEnv     map[string]string `json:"app_env,omitempty"`
+	GPUCount   int               `json:"gpu_count"`
 }
 
 // TaskResultDTO is a slim response for task run/result endpoints.
