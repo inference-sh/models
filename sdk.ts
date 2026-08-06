@@ -1116,6 +1116,32 @@ export interface AvailabilityResponse {
   reason?: string;
 }
 /**
+ * BountySubmissionDTO is the API representation of a bounty claim.
+ */
+export interface BountySubmissionDTO extends BaseModelDTO, PermissionModelDTO {
+  bounty_id: string;
+  proof_id: string;
+  proof_ref: string;
+  agent?: string;
+  source?: string;
+}
+/**
+ * SubmitBountyRequest is used to claim a bounty reward.
+ */
+export interface SubmitBountyRequest {
+  bounty_id: string;
+  proof_id: string;
+  agent?: string;
+  source?: string;
+}
+/**
+ * SubmitBountyResponse is returned when claiming a bounty.
+ */
+export interface SubmitBountyResponse {
+  submission: BountySubmissionDTO;
+  granted_amount?: number /* int64 */;
+}
+/**
  * ChatDTO for API responses
  */
 export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {

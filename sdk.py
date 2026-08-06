@@ -649,6 +649,18 @@ class AvailabilityResponse(TypedDict, total=False):
     # Reason is set only when Available is false: "taken" or "reserved".
     reason: str
 
+# SubmitBountyRequest is used to claim a bounty reward.
+class SubmitBountyRequest(TypedDict, total=False):
+    bounty_id: str
+    proof_id: str
+    agent: str
+    source: str
+
+# SubmitBountyResponse is returned when claiming a bounty.
+class SubmitBountyResponse(TypedDict, total=False):
+    submission: BountySubmissionDTO
+    granted_amount: int
+
 # SearchRequest represents a search request.
 # Each model declares its own SearchFields() on the repository.
 class SearchRequest(TypedDict, total=False):
@@ -2113,6 +2125,14 @@ class AppSessionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     call_count: int
     last_call_at: Optional[str]
     idle_timeout: Optional[int]
+
+# BountySubmissionDTO is the API representation of a bounty claim.
+class BountySubmissionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
+    bounty_id: str
+    proof_id: str
+    proof_ref: str
+    agent: str
+    source: str
 
 # ChatDTO for API responses
 class ChatDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):

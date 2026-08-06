@@ -1209,6 +1209,35 @@ type AvailabilityResponse struct {
 }
 
 // --------------------
+// source: bounty.go
+// --------------------
+
+// BountySubmissionDTO is the API representation of a bounty claim.
+type BountySubmissionDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	BountyID           string `json:"bounty_id"`
+	ProofID            string `json:"proof_id"`
+	ProofRef           string `json:"proof_ref"`
+	Agent              string `json:"agent,omitempty"`
+	Source             string `json:"source,omitempty"`
+}
+
+// SubmitBountyRequest is used to claim a bounty reward.
+type SubmitBountyRequest struct {
+	BountyID string `json:"bounty_id"`
+	ProofID  string `json:"proof_id"`
+	Agent    string `json:"agent,omitempty"`
+	Source   string `json:"source,omitempty"`
+}
+
+// SubmitBountyResponse is returned when claiming a bounty.
+type SubmitBountyResponse struct {
+	Submission    BountySubmissionDTO `json:"submission"`
+	GrantedAmount int64               `json:"granted_amount,omitempty"`
+}
+
+// --------------------
 // source: chat.go
 // --------------------
 
@@ -3045,6 +3074,9 @@ type SDKTypes struct {
 	// Suggest
 	_suggestReq  SuggestRequest
 	_suggestResp SuggestResponse
+	// Bounties
+	_bountySubmitReq  SubmitBountyRequest
+	_bountySubmitResp SubmitBountyResponse
 	// Enums pulled in for const generation
 	_toolInvStatus   ToolInvocationStatus
 	_toolType        ToolType

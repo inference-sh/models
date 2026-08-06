@@ -1870,8 +1870,8 @@ export interface ResourcePriceDTO extends BaseModelDTO {
  */
 export interface BountySubmissionDTO extends BaseModelDTO, PermissionModelDTO {
   bounty_id: string;
-  app_id: string;
-  app_name: string;
+  proof_id: string;
+  proof_ref: string;
   agent?: string;
   source?: string;
 }
@@ -1880,7 +1880,7 @@ export interface BountySubmissionDTO extends BaseModelDTO, PermissionModelDTO {
  */
 export interface SubmitBountyRequest {
   bounty_id: string;
-  app_id: string;
+  proof_id: string;
   agent?: string;
   source?: string;
 }
@@ -1889,7 +1889,7 @@ export interface SubmitBountyRequest {
  */
 export interface SubmitBountyResponse {
   submission: BountySubmissionDTO;
-  granted_amount?: number /* int64 */; // microcents; 0 if no reward earned
+  granted_amount?: number /* int64 */;
 }
 /**
  * ChatDTO for API responses
