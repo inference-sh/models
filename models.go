@@ -2440,6 +2440,8 @@ type PageMetadata struct {
 	Type        string   `json:"type,omitempty"`
 	Icon        string   `json:"icon,omitempty"`
 	HideFromNav bool     `json:"hide_from_nav,omitempty"`
+	ActionURL   string   `json:"action_url,omitempty"`
+	ActionLabel string   `json:"action_label,omitempty"`
 	// PublishAt is when a scheduled page goes live. Only meaningful while the
 	// page's status is PageStatusScheduled.
 	PublishAt *time.Time `json:"publish_at,omitempty"`
@@ -4778,9 +4780,10 @@ func (v PageType) Value() (driver.Value, error) {
 }
 
 const (
-	PageTypeDoc  PageType = "doc"
-	PageTypeBlog PageType = "blog"
-	PageTypePage PageType = "page"
+	PageTypeDoc          PageType = "doc"
+	PageTypeBlog         PageType = "blog"
+	PageTypePage         PageType = "page"
+	PageTypeAnnouncement PageType = "announcement"
 )
 
 // ToolInvocationStatus represents the execution status of a tool invocation

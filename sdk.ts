@@ -2160,6 +2160,8 @@ export interface PageMetadata {
   type?: string;
   icon?: string;
   hide_from_nav?: boolean;
+  action_url?: string;
+  action_label?: string;
   /**
    * PublishAt is when a scheduled page goes live. Only meaningful while the
    * page's status is PageStatusScheduled.
@@ -3389,6 +3391,7 @@ export type PageType = string;
 export const PageTypeDoc: PageType = "doc";
 export const PageTypeBlog: PageType = "blog";
 export const PageTypePage: PageType = "page";
+export const PageTypeAnnouncement: PageType = "announcement";
 /**
  * ToolInvocationStatus represents the execution status of a tool invocation
  */

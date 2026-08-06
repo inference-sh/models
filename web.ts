@@ -1866,6 +1866,32 @@ export interface ResourcePriceDTO extends BaseModelDTO {
   notes: string;
 }
 /**
+ * BountySubmissionDTO is the API representation of a bounty claim.
+ */
+export interface BountySubmissionDTO extends BaseModelDTO, PermissionModelDTO {
+  bounty_id: string;
+  app_id: string;
+  app_name: string;
+  agent?: string;
+  source?: string;
+}
+/**
+ * SubmitBountyRequest is used to claim a bounty reward.
+ */
+export interface SubmitBountyRequest {
+  bounty_id: string;
+  app_id: string;
+  agent?: string;
+  source?: string;
+}
+/**
+ * SubmitBountyResponse is returned when claiming a bounty.
+ */
+export interface SubmitBountyResponse {
+  submission: BountySubmissionDTO;
+  granted_amount?: number /* int64 */; // microcents; 0 if no reward earned
+}
+/**
  * ChatDTO for API responses
  */
 export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
@@ -3316,6 +3342,8 @@ export interface PageMetadata {
   type?: string;
   icon?: string;
   hide_from_nav?: boolean;
+  action_url?: string;
+  action_label?: string;
   /**
    * PublishAt is when a scheduled page goes live. Only meaningful while the
    * page's status is PageStatusScheduled.
@@ -5023,6 +5051,7 @@ export const CreditGrantTypeReferral: CreditGrantType = "referral";
 export const CreditGrantTypeSubscription: CreditGrantType = "subscription";
 export const CreditGrantTypeSurvey: CreditGrantType = "survey";
 export const CreditGrantTypeVoucher: CreditGrantType = "voucher";
+export const CreditGrantTypeBounty: CreditGrantType = "bounty";
 export type VoucherType = string;
 export const VoucherTypeSingleUse: VoucherType = "single_use";
 export const VoucherTypeMultiUse: VoucherType = "multi_use";
@@ -5428,6 +5457,7 @@ export type PageType = string;
 export const PageTypeDoc: PageType = "doc";
 export const PageTypeBlog: PageType = "blog";
 export const PageTypePage: PageType = "page";
+export const PageTypeAnnouncement: PageType = "announcement";
 /**
  * ToolInvocationStatus represents the execution status of a tool invocation
  */
