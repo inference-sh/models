@@ -1153,6 +1153,7 @@ class PageMetadata(TypedDict, total=False):
     hide_from_nav: bool
     action_url: str
     action_label: str
+    display_mode: str
     # PublishAt is when a scheduled page goes live. Only meaningful while the
     # page's status is PageStatusScheduled.
     publish_at: Optional[str]

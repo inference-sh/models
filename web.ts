@@ -3355,6 +3355,7 @@ export interface PageMetadata {
   hide_from_nav?: boolean;
   action_url?: string;
   action_label?: string;
+  display_mode?: string; // "banner", "modal", or "both" (default)
   /**
    * PublishAt is when a scheduled page goes live. Only meaningful while the
    * page's status is PageStatusScheduled.

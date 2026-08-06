@@ -2471,6 +2471,7 @@ type PageMetadata struct {
 	HideFromNav bool     `json:"hide_from_nav,omitempty"`
 	ActionURL   string   `json:"action_url,omitempty"`
 	ActionLabel string   `json:"action_label,omitempty"`
+	DisplayMode string   `json:"display_mode,omitempty"` // "banner", "modal", or "both" (default)
 	// PublishAt is when a scheduled page goes live. Only meaningful while the
 	// page's status is PageStatusScheduled.
 	PublishAt *time.Time `json:"publish_at,omitempty"`
@@ -5773,14 +5774,13 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
-	return string(bytes), nil
+	*out = flowProcessRaw(raw)
+	return nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -5845,11 +5845,12 @@ func flowProcessRaw(raw any) any {
 		return v
 	}
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
 }
