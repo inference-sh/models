@@ -5763,6 +5763,26 @@ func JSONValue[T any](v T) (driver.Value, error) {
 	}
 	return string(bytes), nil
 }
+
+// JSONScan is a generic helper for SQL deserialization of JSON types.
+func JSONScan[T any](dest *T, value any, typeName string) error {
+	if value == nil {
+		return nil
+	}
+	var str string
+	switch v := value.(type) {
+	case []byte:
+		str = string(v)
+	case string:
+		str = v
+	default:
+		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
+	}
+	if str == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(str), dest)
+}
 func flowProcessRaw(raw any) any {
 	switch v := raw.(type) {
 	case []any:
@@ -5833,24 +5853,4 @@ func flowMarshalRecursive(value any) ([]byte, error) {
 	default:
 		return json.Marshal(v)
 	}
-}
-
-// JSONScan is a generic helper for SQL deserialization of JSON types.
-func JSONScan[T any](dest *T, value any, typeName string) error {
-	if value == nil {
-		return nil
-	}
-	var str string
-	switch v := value.(type) {
-	case []byte:
-		str = string(v)
-	case string:
-		str = v
-	default:
-		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
-	}
-	if str == "" {
-		return nil
-	}
-	return json.Unmarshal([]byte(str), dest)
 }
