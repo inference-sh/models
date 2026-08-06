@@ -367,6 +367,17 @@ export interface DashboardRevenueResponse {
   deferred_revenue: DeferredRevenueStats;
 }
 /**
+ * DashboardBuildersResponse contains builder/app-creator metrics for the admin dashboard.
+ * "Builder" = a non-system user who has created at least one app.
+ * All app counts exclude apps owned by system teams.
+ */
+export interface DashboardBuildersResponse {
+  resolution: string;
+  total_apps: UserStats;
+  builders: UserStats;
+  apps_per_builder: number /* float64 */;
+}
+/**
  * DashboardAppsResponse contains app metrics for the admin dashboard
  */
 export interface DashboardAppsResponse {
