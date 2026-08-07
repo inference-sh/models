@@ -231,6 +231,7 @@ export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
   skills: SkillConfig[];
   context?: ContextField[];
   internal_tools?: InternalToolsConfig;
+  hooks?: LifecycleHookConfig[];
   output_schema?: any;
 }
 /**
@@ -262,6 +263,7 @@ export interface AgentConfigInput {
   skills?: SkillConfig[];
   context?: ContextField[];
   internal_tools?: InternalToolsConfig;
+  hooks?: LifecycleHookConfig[];
   output_schema?: any;
 }
 /**
@@ -2946,6 +2948,21 @@ export interface SkillStoreVersionSubmitRequest {
   license?: string;
 }
 /**
+ * LifecycleHookConfig registers a handler for an agent lifecycle event.
+ * Stored on AgentVersion alongside Tools and Skills.
+ */
+export interface LifecycleHookConfig {
+  event: HookEvent;
+  type: HookHandlerType;
+  handler: string;
+  /**
+   * Filtering — fire every N occurrences (0 = every time)
+   */
+  every?: number /* int */;
+  async?: boolean;
+  timeout?: number /* int */; // seconds, 0 = default (30s)
+}
+/**
  * LinearWorkflowState represents a workflow state from Linear
  */
 export interface LinearWorkflowState {
@@ -5234,6 +5251,8 @@ export const ChatMessageRoleSystem: ChatMessageRole = "system";
 export const ChatMessageRoleUser: ChatMessageRole = "user";
 export const ChatMessageRoleAssistant: ChatMessageRole = "assistant";
 export const ChatMessageRoleTool: ChatMessageRole = "tool";
+export const ChatMessageRoleInjection: ChatMessageRole = "injection";
+export const ChatMessageRoleCompaction: ChatMessageRole = "compaction";
 export type ChatMessageStatus = string;
 export const ChatMessageStatusPending: ChatMessageStatus = "pending";
 export const ChatMessageStatusReady: ChatMessageStatus = "ready";
@@ -5426,6 +5445,26 @@ export const GraphEdgeTypeReferences: GraphEdgeType = "references";
 export const GraphEdgeTypeSupersedes: GraphEdgeType = "supersedes";
 export const GraphEdgeTypeInput: GraphEdgeType = "input";
 export const GraphEdgeTypeOutput: GraphEdgeType = "output";
+/**
+ * HookEvent is a lifecycle event in the agent conversation loop.
+ * Events fire at well-defined points in the turn cycle, giving external
+ * handlers the ability to observe, inject context, or halt execution.
+ */
+export type HookEvent = string;
+export const HookEventAgentStart: HookEvent = "agent.start";
+export const HookEventTurnStart: HookEvent = "agent.turn_start";
+export const HookEventToolCall: HookEvent = "agent.tool_call";
+export const HookEventToolResult: HookEvent = "agent.tool_result";
+export const HookEventTurnComplete: HookEvent = "agent.turn_complete";
+export const HookEventAgentError: HookEvent = "agent.error";
+export const HookEventAgentComplete: HookEvent = "agent.complete";
+export const HookEventAgentIdle: HookEvent = "agent.idle";
+/**
+ * HookHandlerType distinguishes how a lifecycle hook is executed.
+ */
+export type HookHandlerType = string;
+export const HookHandlerWebhook: HookHandlerType = "webhook";
+export const HookHandlerTask: HookHandlerType = "task";
 /**
  * LLMOutput is the output envelope from an LLM provider task.
  * This is the contract between chat apps (sdk-py) and the agent runtime (go/api).

@@ -312,15 +312,16 @@ func (a *AgentDTO) FullName() string {
 type AgentVersionDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Description        string               `json:"description"`
-	SystemPrompt       string               `json:"system_prompt"`
-	ExamplePrompts     []string             `json:"example_prompts"`
-	CoreApp            *CoreAppConfigDTO    `json:"core_app"`
-	Tools              []*AgentToolDTO      `json:"tools"`
-	Skills             []SkillConfig        `json:"skills"`
-	Context            []ContextField       `json:"context,omitempty"`
-	InternalTools      *InternalToolsConfig `json:"internal_tools"`
-	OutputSchema       *json.RawMessage     `json:"output_schema"`
+	Description        string                `json:"description"`
+	SystemPrompt       string                `json:"system_prompt"`
+	ExamplePrompts     []string              `json:"example_prompts"`
+	CoreApp            *CoreAppConfigDTO     `json:"core_app"`
+	Tools              []*AgentToolDTO       `json:"tools"`
+	Skills             []SkillConfig         `json:"skills"`
+	Context            []ContextField        `json:"context,omitempty"`
+	InternalTools      *InternalToolsConfig  `json:"internal_tools"`
+	Hooks              []LifecycleHookConfig `json:"hooks,omitempty"`
+	OutputSchema       *json.RawMessage      `json:"output_schema"`
 }
 
 // CreateAgentRequest is the request body for POST /agents
@@ -338,16 +339,17 @@ type CreateAgentRequest struct {
 // AgentConfigInput is the API input shape for agent version config.
 // Mirrors AgentConfig's JSON contract without gorm tags or runtime pointers.
 type AgentConfigInput struct {
-	Name           string               `json:"name,omitempty" yaml:"name,omitempty"`
-	Description    string               `json:"description,omitempty" yaml:"description,omitempty"`
-	SystemPrompt   string               `json:"system_prompt,omitempty" yaml:"system_prompt,omitempty"`
-	ExamplePrompts []string             `json:"example_prompts,omitempty" yaml:"example_prompts,omitempty"`
-	CoreApp        *CoreAppConfigInput  `json:"core_app,omitempty" yaml:"core_app,omitempty"`
-	Tools          []*AgentTool         `json:"tools,omitempty" yaml:"tools,omitempty"`
-	Skills         []SkillConfig        `json:"skills,omitempty" yaml:"skills,omitempty"`
-	Context        []ContextField       `json:"context,omitempty" yaml:"context,omitempty"`
-	InternalTools  *InternalToolsConfig `json:"internal_tools,omitempty" yaml:"internal_tools,omitempty"`
-	OutputSchema   *json.RawMessage     `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
+	Name           string                `json:"name,omitempty" yaml:"name,omitempty"`
+	Description    string                `json:"description,omitempty" yaml:"description,omitempty"`
+	SystemPrompt   string                `json:"system_prompt,omitempty" yaml:"system_prompt,omitempty"`
+	ExamplePrompts []string              `json:"example_prompts,omitempty" yaml:"example_prompts,omitempty"`
+	CoreApp        *CoreAppConfigInput   `json:"core_app,omitempty" yaml:"core_app,omitempty"`
+	Tools          []*AgentTool          `json:"tools,omitempty" yaml:"tools,omitempty"`
+	Skills         []SkillConfig         `json:"skills,omitempty" yaml:"skills,omitempty"`
+	Context        []ContextField        `json:"context,omitempty" yaml:"context,omitempty"`
+	InternalTools  *InternalToolsConfig  `json:"internal_tools,omitempty" yaml:"internal_tools,omitempty"`
+	Hooks          []LifecycleHookConfig `json:"hooks,omitempty" yaml:"hooks,omitempty"`
+	OutputSchema   *json.RawMessage      `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
 // CoreAppConfigInput is the API input shape for core app configuration.
@@ -2154,6 +2156,22 @@ type SkillStoreListingDTO struct {
 	Installs   int64      `json:"installs"`
 	Uses       int64      `json:"uses"`
 	Tags       []string   `json:"tags,omitempty"`
+}
+
+// --------------------
+// source: lifecycle_hook.go
+// --------------------
+
+// LifecycleHookConfig registers a handler for an agent lifecycle event.
+// Stored on AgentVersion alongside Tools and Skills.
+type LifecycleHookConfig struct {
+	Event   HookEvent       `json:"event" yaml:"event"`
+	Type    HookHandlerType `json:"type" yaml:"type"`
+	Handler string          `json:"handler" yaml:"handler"`
+	// Filtering — fire every N occurrences (0 = every time)
+	Every   int  `json:"every,omitempty" yaml:"every,omitempty"`
+	Async   bool `json:"async,omitempty" yaml:"async,omitempty"`
+	Timeout int  `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s)
 }
 
 // --------------------
@@ -4303,10 +4321,12 @@ func (v ChatMessageRole) Value() (driver.Value, error) {
 }
 
 const (
-	ChatMessageRoleSystem    ChatMessageRole = "system"
-	ChatMessageRoleUser      ChatMessageRole = "user"
-	ChatMessageRoleAssistant ChatMessageRole = "assistant"
-	ChatMessageRoleTool      ChatMessageRole = "tool"
+	ChatMessageRoleSystem     ChatMessageRole = "system"
+	ChatMessageRoleUser       ChatMessageRole = "user"
+	ChatMessageRoleAssistant  ChatMessageRole = "assistant"
+	ChatMessageRoleTool       ChatMessageRole = "tool"
+	ChatMessageRoleInjection  ChatMessageRole = "injection"
+	ChatMessageRoleCompaction ChatMessageRole = "compaction"
 )
 
 type ChatMessageStatus string
@@ -4746,6 +4766,34 @@ const (
 	GraphEdgeTypeSupersedes  GraphEdgeType = "supersedes"
 	GraphEdgeTypeInput       GraphEdgeType = "input"
 	GraphEdgeTypeOutput      GraphEdgeType = "output"
+)
+
+// --------------------
+// source: lifecycle_hook.go
+// --------------------
+
+// HookEvent is a lifecycle event in the agent conversation loop.
+// Events fire at well-defined points in the turn cycle, giving external
+// handlers the ability to observe, inject context, or halt execution.
+type HookEvent string
+
+const (
+	HookEventAgentStart    HookEvent = "agent.start"
+	HookEventTurnStart     HookEvent = "agent.turn_start"
+	HookEventToolCall      HookEvent = "agent.tool_call"
+	HookEventToolResult    HookEvent = "agent.tool_result"
+	HookEventTurnComplete  HookEvent = "agent.turn_complete"
+	HookEventAgentError    HookEvent = "agent.error"
+	HookEventAgentComplete HookEvent = "agent.complete"
+	HookEventAgentIdle     HookEvent = "agent.idle"
+)
+
+// HookHandlerType distinguishes how a lifecycle hook is executed.
+type HookHandlerType string
+
+const (
+	HookHandlerWebhook HookHandlerType = "webhook"
+	HookHandlerTask    HookHandlerType = "task"
 )
 
 // --------------------
@@ -5821,15 +5869,6 @@ const (
 // --------------------
 // companion functions
 // --------------------
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
-
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -5849,13 +5888,14 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -5919,4 +5959,12 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }
