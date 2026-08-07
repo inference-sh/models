@@ -5490,6 +5490,17 @@ func (ts TaskStatus) String() string {
 	}
 }
 
+// Parse converts a string status name to a TaskStatus.
+func (TaskStatus) Parse(s string) (TaskStatus, bool) {
+	lower := strings.ToLower(s)
+	for i := TaskStatusUnknown; i <= TaskStatusCancelled; i++ {
+		if i.String() == lower {
+			return i, true
+		}
+	}
+	return TaskStatusUnknown, false
+}
+
 func (ts TaskStatus) IsTerminal() bool {
 	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled
 }
