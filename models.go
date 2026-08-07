@@ -1212,6 +1212,27 @@ type AvailabilityResponse struct {
 // source: bounty.go
 // --------------------
 
+// BountyProgramDTO is the API representation of a bounty program.
+type BountyProgramDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	Name               string     `json:"name"`
+	Description        string     `json:"description"`
+	AmountMicrocents   int64      `json:"amount_microcents"`
+	GrantType          string     `json:"grant_type"`
+	ExpiryDays         int        `json:"expiry_days"`
+	MaxPerDay          int        `json:"max_per_day"`
+	ProofType          string     `json:"proof_type"`
+	ProofMinLength     int        `json:"proof_min_length"`
+	Status             string     `json:"status"`
+	NoticeText         string     `json:"notice_text"`
+	NoticeCooldownH    int        `json:"notice_cooldown_hours"`
+	NoticePriority     int        `json:"notice_priority"`
+	StartsAt           *time.Time `json:"starts_at,omitempty"`
+	EndsAt             *time.Time `json:"ends_at,omitempty"`
+	ClaimCount         int64      `json:"claim_count"`
+}
+
 // BountySubmissionDTO is the API representation of a bounty claim.
 type BountySubmissionDTO struct {
 	BaseModelDTO       `json:",inline" tstype:",extends"`
@@ -3076,6 +3097,7 @@ type SDKTypes struct {
 	_suggestReq  SuggestRequest
 	_suggestResp SuggestResponse
 	// Bounties
+	_bountyProgramDTO BountyProgramDTO
 	_bountySubmitReq  SubmitBountyRequest
 	_bountySubmitResp SubmitBountyResponse
 	// Enums pulled in for const generation
@@ -5755,15 +5777,6 @@ const (
 // --------------------
 // companion functions
 // --------------------
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
-
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -5783,38 +5796,14 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-func flowProcessRaw(raw any) any {
-	switch v := raw.(type) {
-	case []any:
-		out := make([]any, len(v))
-		for i, elem := range v {
-			out[i] = flowProcessRaw(elem)
-		}
-		return out
-	case map[string]any:
-		if _, ok := v["connection"]; ok {
-			b, _ := json.Marshal(v)
-			var nested FlowRunInput
-			if err := json.Unmarshal(b, &nested); err == nil {
-				return nested
-			}
-		}
-		out := make(map[string]any)
-		for key, val := range v {
-			out[key] = flowProcessRaw(val)
-		}
-		return out
-	default:
-		return v
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -5853,4 +5842,37 @@ func flowMarshalRecursive(value any) ([]byte, error) {
 	default:
 		return json.Marshal(v)
 	}
+}
+func flowProcessRaw(raw any) any {
+	switch v := raw.(type) {
+	case []any:
+		out := make([]any, len(v))
+		for i, elem := range v {
+			out[i] = flowProcessRaw(elem)
+		}
+		return out
+	case map[string]any:
+		if _, ok := v["connection"]; ok {
+			b, _ := json.Marshal(v)
+			var nested FlowRunInput
+			if err := json.Unmarshal(b, &nested); err == nil {
+				return nested
+			}
+		}
+		out := make(map[string]any)
+		for key, val := range v {
+			out[key] = flowProcessRaw(val)
+		}
+		return out
+	default:
+		return v
+	}
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }

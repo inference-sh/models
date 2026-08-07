@@ -1116,6 +1116,26 @@ export interface AvailabilityResponse {
   reason?: string;
 }
 /**
+ * BountyProgramDTO is the API representation of a bounty program.
+ */
+export interface BountyProgramDTO extends BaseModelDTO, PermissionModelDTO {
+  name: string;
+  description: string;
+  amount_microcents: number /* int64 */;
+  grant_type: string;
+  expiry_days: number /* int */;
+  max_per_day: number /* int */;
+  proof_type: string;
+  proof_min_length: number /* int */;
+  status: string;
+  notice_text: string;
+  notice_cooldown_hours: number /* int */;
+  notice_priority: number /* int */;
+  starts_at?: string /* RFC3339 */;
+  ends_at?: string /* RFC3339 */;
+  claim_count: number /* int64 */;
+}
+/**
  * BountySubmissionDTO is the API representation of a bounty claim.
  */
 export interface BountySubmissionDTO extends BaseModelDTO, PermissionModelDTO {
