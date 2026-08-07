@@ -2538,6 +2538,17 @@ export interface CheckRequirementsResponse {
   satisfied: boolean;
   errors?: RequirementError[];
 }
+export interface ResourceShareDTO extends BaseModelDTO {
+  resource_id: string;
+  resource_type: string;
+  user_id: string;
+  user?: UserRelationDTO;
+  permission: Permission;
+}
+export interface ShareRequest {
+  user_id: string;
+  permission: Permission;
+}
 /**
  * SDKTypes is a phantom type for gotypegen dependency tracing.
  * Types listed here (and their transitive dependencies) are included
@@ -3113,6 +3124,12 @@ export const VisibilityPrivate: Visibility = "private";
 export const VisibilityTeam: Visibility = "team";
 export const VisibilityPublic: Visibility = "public";
 export const VisibilityUnlisted: Visibility = "unlisted";
+/**
+ * Permission represents a permission level for access checks.
+ */
+export type Permission = string;
+export const PermRead: Permission = "read";
+export const PermWrite: Permission = "write";
 export type SubscriptionStatus = string;
 export const SubscriptionStatusTrialing: SubscriptionStatus = "trialing";
 export const SubscriptionStatusActive: SubscriptionStatus = "active";

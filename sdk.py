@@ -1327,6 +1327,10 @@ class CheckRequirementsResponse(TypedDict, total=False):
     satisfied: bool
     errors: List[RequirementError]
 
+class ShareRequest(TypedDict, total=False):
+    user_id: str
+    permission: Permission
+
 # SDKTypes is a phantom type for gotypegen dependency tracing.
 # Types listed here (and their transitive dependencies) are included
 # in the generated SDK output (TypeScript, Python, Go).
@@ -2042,6 +2046,13 @@ class RefRouteDTO(BaseModelDTO, TypedDict, total=False):
     description: str
     enabled: bool
 
+class ResourceShareDTO(BaseModelDTO, TypedDict, total=False):
+    resource_id: str
+    resource_type: str
+    user_id: str
+    user: Optional[UserRelationDTO]
+    permission: Permission
+
 # SubscriptionDTO for API responses
 class SubscriptionDTO(BaseModelDTO, TypedDict, total=False):
     team_id: str
@@ -2664,6 +2675,10 @@ class Visibility(str, Enum):
     TEAM = "team"
     PUBLIC = "public"
     UNLISTED = "unlisted"
+
+class Permission(str, Enum):
+    PERM_READ = "read"
+    PERM_WRITE = "write"
 
 class SubscriptionStatus(str, Enum):
     TRIALING = "trialing"

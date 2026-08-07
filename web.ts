@@ -3935,6 +3935,17 @@ export interface CheckRequirementsResponse {
   satisfied: boolean;
   errors?: RequirementError[];
 }
+export interface ResourceShareDTO extends BaseModelDTO {
+  resource_id: string;
+  resource_type: string;
+  user_id: string;
+  user?: UserRelationDTO;
+  permission: Permission;
+}
+export interface ShareRequest {
+  user_id: string;
+  permission: Permission;
+}
 /**
  * SDKTypes is a phantom type for gotypegen dependency tracing.
  * Types listed here (and their transitive dependencies) are included
