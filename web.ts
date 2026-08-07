@@ -4631,6 +4631,8 @@ export interface UserDTO extends BaseModelDTO {
   name: string;
   full_name: string;
   avatar_url: string;
+  banned_at?: string /* RFC3339 */;
+  ban_note?: string;
   metadata?: UserMetadataDTO;
 }
 /**
