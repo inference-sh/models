@@ -2298,6 +2298,7 @@ class InstanceTypeDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
 # IntegrationDTO for API responses (never exposes tokens)
 class IntegrationDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     scope: IntegrationScope
+    grant: Optional[IntegrationGrant]
     provider: IntegrationProvider
     type: IntegrationAuthType
     auth: IntegrationAuthType
@@ -2660,6 +2661,7 @@ class GPUType(str, Enum):
 
 class Visibility(str, Enum):
     PRIVATE = "private"
+    TEAM = "team"
     PUBLIC = "public"
     UNLISTED = "unlisted"
 
@@ -3038,10 +3040,16 @@ class IntegrationStatus(str, Enum):
     ERROR = "error"
 
 class IntegrationScope(str, Enum):
-    # IntegrationScopeTeam is owned by a user/team (BYOK credentials, user connections)
     TEAM = "team"
-    # IntegrationScopePlatform is owned by the platform (managed credentials, admin-configured)
     PLATFORM = "platform"
+    USER = "user"
+
+class IntegrationGrant(str, Enum):
+    # IntegrationGrantCredentials provides OAuth app credentials (client_id/secret).
+    # Users connect their own accounts against it. Only valid for type=oauth.
+    CREDENTIALS = "credentials"
+    # IntegrationGrantToken provides ready-to-use access (token, API key, etc.).
+    TOKEN = "token"
 
 class WidgetNodeType(str, Enum):
     TEXT = "text"

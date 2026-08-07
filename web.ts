@@ -2642,6 +2642,7 @@ export interface InstanceTypeBootTime {
  */
 export interface IntegrationDTO extends BaseModelDTO, PermissionModelDTO {
   scope: IntegrationScope;
+  grant?: IntegrationGrant;
   provider: IntegrationProvider;
   type: IntegrationAuthType;
   auth: IntegrationAuthType;
@@ -5080,19 +5081,14 @@ export const GPUTypeApple: GPUType = "apple";
  */
 export type Visibility = string;
 export const VisibilityPrivate: Visibility = "private";
+export const VisibilityTeam: Visibility = "team";
 export const VisibilityPublic: Visibility = "public";
 export const VisibilityUnlisted: Visibility = "unlisted";
 /**
- * Permission represents a permission level for ACL checks.
+ * Permission represents a permission level for access checks.
  */
 export type Permission = string;
-/**
- * Permission levels for ACL checks
- */
 export const PermRead: Permission = "read";
-/**
- * Permission levels for ACL checks
- */
 export const PermWrite: Permission = "write";
 /**
  * PaymentProvider represents the payment provider being used
@@ -5862,17 +5858,25 @@ export const IntegrationStatusDisconnected: IntegrationStatus = "disconnected";
 export const IntegrationStatusExpired: IntegrationStatus = "expired";
 export const IntegrationStatusError: IntegrationStatus = "error";
 /**
- * IntegrationScope distinguishes platform-provided vs team-owned integrations.
+ * IntegrationScope controls credential resolution priority and ownership.
  */
 export type IntegrationScope = string;
-/**
- * IntegrationScopeTeam is owned by a user/team (BYOK credentials, user connections)
- */
 export const IntegrationScopeTeam: IntegrationScope = "team";
-/**
- * IntegrationScopePlatform is owned by the platform (managed credentials, admin-configured)
- */
 export const IntegrationScopePlatform: IntegrationScope = "platform";
+export const IntegrationScopeUser: IntegrationScope = "user";
+/**
+ * IntegrationGrant describes what an integration provides.
+ */
+export type IntegrationGrant = string;
+/**
+ * IntegrationGrantCredentials provides OAuth app credentials (client_id/secret).
+ * Users connect their own accounts against it. Only valid for type=oauth.
+ */
+export const IntegrationGrantCredentials: IntegrationGrant = "credentials";
+/**
+ * IntegrationGrantToken provides ready-to-use access (token, API key, etc.).
+ */
+export const IntegrationGrantToken: IntegrationGrant = "token";
 export type WidgetNodeType = string;
 export const WidgetNodeTypeText: WidgetNodeType = "text";
 export const WidgetNodeTypeMarkdown: WidgetNodeType = "markdown";

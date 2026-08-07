@@ -1921,6 +1921,7 @@ type IntegrationDTO struct {
 	BaseModelDTO        `tstype:",extends"`
 	PermissionModelDTO  `tstype:",extends"`
 	Scope               IntegrationScope    `json:"scope"`
+	Grant               *IntegrationGrant   `json:"grant,omitempty"`
 	Provider            IntegrationProvider `json:"provider"`
 	Type                IntegrationAuthType `json:"type"`
 	Auth                IntegrationAuthType `json:"auth"`
@@ -4159,14 +4160,14 @@ func (v Visibility) Value() (driver.Value, error) {
 
 const (
 	VisibilityPrivate  Visibility = "private"
+	VisibilityTeam     Visibility = "team"
 	VisibilityPublic   Visibility = "public"
 	VisibilityUnlisted Visibility = "unlisted"
 )
 
-// Permission represents a permission level for ACL checks.
+// Permission represents a permission level for access checks.
 type Permission string
 
-// Permission levels for ACL checks
 const (
 	PermRead  Permission = "read"
 	PermWrite Permission = "write"
@@ -5243,14 +5244,24 @@ const (
 	IntegrationStatusError        IntegrationStatus = "error"
 )
 
-// IntegrationScope distinguishes platform-provided vs team-owned integrations.
+// IntegrationScope controls credential resolution priority and ownership.
 type IntegrationScope string
 
 const (
-	// IntegrationScopeTeam is owned by a user/team (BYOK credentials, user connections)
-	IntegrationScopeTeam IntegrationScope = "team"
-	// IntegrationScopePlatform is owned by the platform (managed credentials, admin-configured)
+	IntegrationScopeTeam     IntegrationScope = "team"
 	IntegrationScopePlatform IntegrationScope = "platform"
+	IntegrationScopeUser     IntegrationScope = "user"
+)
+
+// IntegrationGrant describes what an integration provides.
+type IntegrationGrant string
+
+const (
+	// IntegrationGrantCredentials provides OAuth app credentials (client_id/secret).
+	// Users connect their own accounts against it. Only valid for type=oauth.
+	IntegrationGrantCredentials IntegrationGrant = "credentials"
+	// IntegrationGrantToken provides ready-to-use access (token, API key, etc.).
+	IntegrationGrantToken IntegrationGrant = "token"
 )
 
 type WidgetNodeType string
@@ -5789,6 +5800,15 @@ const (
 // --------------------
 // companion functions
 // --------------------
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -5808,14 +5828,13 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
-	return string(bytes), nil
+	*out = flowProcessRaw(raw)
+	return nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -5879,12 +5898,4 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
 }
