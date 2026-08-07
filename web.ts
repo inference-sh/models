@@ -1091,6 +1091,7 @@ export interface CELEvalRequest {
  */
 export interface CELEvalResult {
   value: number /* int64 */;
+  dollars: string;
   error?: string;
 }
 /**
