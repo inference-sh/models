@@ -1987,6 +1987,60 @@ export interface LifecycleHookConfig {
   timeout?: number /* int */; // seconds, 0 = default (30s)
 }
 /**
+ * LifecycleHookPayload is sent to hook handlers on lifecycle events.
+ */
+export interface LifecycleHookPayload {
+  event: HookEvent;
+  timestamp: string;
+  agent_id: string;
+  chat_id: string;
+  run_id?: string;
+  turn_count: number /* int */;
+  data?: any;
+}
+/**
+ * LifecycleHookResponse is returned by hook handlers.
+ * All fields are optional — an empty 200 response is equivalent to {decision: "allow"}.
+ */
+export interface LifecycleHookResponse {
+  inject?: ContextInjection;
+  decision?: HookDecision;
+  reason?: string;
+  override?: any;
+  system?: string;
+}
+/**
+ * ContextInjection adds ephemeral content to the agent's context window.
+ * Injections are stored as ChatMessages and filtered at context-build time.
+ */
+export interface ContextInjection {
+  content: string;
+  role?: string; // default "system"
+  ttl_turns?: number /* int */; // 0 = permanent
+  dedup_key?: string; // new injection with same key supersedes prior
+}
+/**
+ * ToolCallEventData is the typed payload for agent.tool_call events.
+ */
+export interface ToolCallEventData {
+  tool: string;
+  arguments?: { [key: string]: any};
+}
+/**
+ * ToolResultEventData is the typed payload for agent.tool_result events.
+ */
+export interface ToolResultEventData {
+  tool: string;
+  status: string;
+  result?: string;
+}
+/**
+ * ErrorEventData is the typed payload for agent.error events.
+ */
+export interface ErrorEventData {
+  error: string;
+}
+/**
  * ElicitationCapability advertises which elicitation modes the client handles.
  * An empty struct is equivalent to form-only for backward compatibility.
  */
@@ -3401,6 +3455,13 @@ export const HookEventAgentComplete: HookEvent = "agent.complete";
 export const HookEventAgentIdle: HookEvent = "agent.idle";
 export const HookEventPreCompact: HookEvent = "agent.pre_compact";
 export const HookEventPostCompact: HookEvent = "agent.post_compact";
+/**
+ * HookDecision is the handler's verdict on whether execution should continue.
+ */
+export type HookDecision = string;
+export const HookDecisionAllow: HookDecision = "allow";
+export const HookDecisionDeny: HookDecision = "deny";
+export const HookDecisionStop: HookDecision = "stop";
 /**
  * HookHandlerType distinguishes how a lifecycle hook is executed.
  */

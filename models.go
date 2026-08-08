@@ -2174,6 +2174,54 @@ type LifecycleHookConfig struct {
 	Timeout int             `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s)
 }
 
+// LifecycleHookPayload is sent to hook handlers on lifecycle events.
+type LifecycleHookPayload struct {
+	Event     HookEvent       `json:"event"`
+	Timestamp string          `json:"timestamp"`
+	AgentID   string          `json:"agent_id"`
+	ChatID    string          `json:"chat_id"`
+	RunID     string          `json:"run_id,omitempty"`
+	TurnCount int             `json:"turn_count"`
+	Data      json.RawMessage `json:"data,omitempty"`
+}
+
+// LifecycleHookResponse is returned by hook handlers.
+// All fields are optional — an empty 200 response is equivalent to {decision: "allow"}.
+type LifecycleHookResponse struct {
+	Inject   *ContextInjection `json:"inject,omitempty"`
+	Decision HookDecision      `json:"decision,omitempty"`
+	Reason   string            `json:"reason,omitempty"`
+	Override json.RawMessage   `json:"override,omitempty"`
+	System   string            `json:"system,omitempty"`
+}
+
+// ContextInjection adds ephemeral content to the agent's context window.
+// Injections are stored as ChatMessages and filtered at context-build time.
+type ContextInjection struct {
+	Content  string `json:"content"`
+	Role     string `json:"role,omitempty"`      // default "system"
+	TTLTurns int    `json:"ttl_turns,omitempty"` // 0 = permanent
+	DedupKey string `json:"dedup_key,omitempty"` // new injection with same key supersedes prior
+}
+
+// ToolCallEventData is the typed payload for agent.tool_call events.
+type ToolCallEventData struct {
+	Tool      string         `json:"tool"`
+	Arguments map[string]any `json:"arguments,omitempty"`
+}
+
+// ToolResultEventData is the typed payload for agent.tool_result events.
+type ToolResultEventData struct {
+	Tool   string `json:"tool"`
+	Status string `json:"status"`
+	Result string `json:"result,omitempty"`
+}
+
+// ErrorEventData is the typed payload for agent.error events.
+type ErrorEventData struct {
+	Error string `json:"error"`
+}
+
 // --------------------
 // source: mcp.go
 // --------------------
@@ -3140,7 +3188,15 @@ type SDKTypes struct {
 	_bountyProgramDTO BountyProgramDTO
 	_bountySubmitReq  SubmitBountyRequest
 	_bountySubmitResp SubmitBountyResponse
+	// Lifecycle hooks — types needed by webhook handler implementations
+	_hookPayload       LifecycleHookPayload
+	_hookResponse      LifecycleHookResponse
+	_contextInjection  ContextInjection
+	_toolCallEvtData   ToolCallEventData
+	_toolResultEvtData ToolResultEventData
+	_errorEvtData      ErrorEventData
 	// Enums pulled in for const generation
+	_hookDecision    HookDecision
 	_toolInvStatus   ToolInvocationStatus
 	_toolType        ToolType
 	_chatStatus      ChatStatus
@@ -4798,6 +4854,15 @@ const (
 	HookEventPostCompact   HookEvent = "agent.post_compact"
 )
 
+// HookDecision is the handler's verdict on whether execution should continue.
+type HookDecision string
+
+const (
+	HookDecisionAllow HookDecision = "allow"
+	HookDecisionDeny  HookDecision = "deny"
+	HookDecisionStop  HookDecision = "stop"
+)
+
 // HookHandlerType distinguishes how a lifecycle hook is executed.
 type HookHandlerType string
 
@@ -4925,6 +4990,10 @@ const (
 
 // ToolInvocationStatus represents the execution status of a tool invocation
 type ToolInvocationStatus string
+
+func (s ToolInvocationStatus) IsTerminal() bool {
+	return s == ToolInvocationStatusCompleted || s == ToolInvocationStatusFailed || s == ToolInvocationStatusCancelled
+}
 
 func (v ToolInvocationStatus) Value() (driver.Value, error) {
 	return string(v), nil
@@ -5879,41 +5948,6 @@ const (
 // --------------------
 // companion functions
 // --------------------
-func flowProcessRaw(raw any) any {
-	switch v := raw.(type) {
-	case []any:
-		out := make([]any, len(v))
-		for i, elem := range v {
-			out[i] = flowProcessRaw(elem)
-		}
-		return out
-	case map[string]any:
-		if _, ok := v["connection"]; ok {
-			b, _ := json.Marshal(v)
-			var nested FlowRunInput
-			if err := json.Unmarshal(b, &nested); err == nil {
-				return nested
-			}
-		}
-		out := make(map[string]any)
-		for key, val := range v {
-			out[key] = flowProcessRaw(val)
-		}
-		return out
-	default:
-		return v
-	}
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
-
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -5933,13 +5967,14 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -5978,4 +6013,37 @@ func flowMarshalRecursive(value any) ([]byte, error) {
 	default:
 		return json.Marshal(v)
 	}
+}
+func flowProcessRaw(raw any) any {
+	switch v := raw.(type) {
+	case []any:
+		out := make([]any, len(v))
+		for i, elem := range v {
+			out[i] = flowProcessRaw(elem)
+		}
+		return out
+	case map[string]any:
+		if _, ok := v["connection"]; ok {
+			b, _ := json.Marshal(v)
+			var nested FlowRunInput
+			if err := json.Unmarshal(b, &nested); err == nil {
+				return nested
+			}
+		}
+		out := make(map[string]any)
+		for key, val := range v {
+			out[key] = flowProcessRaw(val)
+		}
+		return out
+	default:
+		return v
+	}
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }
