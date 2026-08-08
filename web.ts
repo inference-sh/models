@@ -1939,6 +1939,7 @@ export interface UpdateBountyProgramRequest {
  */
 export interface BountySubmissionDTO extends BaseModelDTO, PermissionModelDTO {
   bounty_id: string;
+  app_id?: string;
   proof_id: string;
   proof_ref: string;
   agent?: string;
@@ -5314,6 +5315,7 @@ export const ChatMessageRoleInjection: ChatMessageRole = "injection";
 export const ChatMessageRoleCompaction: ChatMessageRole = "compaction";
 export type ChatMessageStatus = string;
 export const ChatMessageStatusPending: ChatMessageStatus = "pending";
+export const ChatMessageStatusQueued: ChatMessageStatus = "queued";
 export const ChatMessageStatusReady: ChatMessageStatus = "ready";
 export const ChatMessageStatusFailed: ChatMessageStatus = "failed";
 export const ChatMessageStatusCancelled: ChatMessageStatus = "cancelled";
