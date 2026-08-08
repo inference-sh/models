@@ -951,6 +951,7 @@ class IntegrationConfigDTO(TypedDict, total=False):
     allows_byok: bool
     available: bool
     has_managed: bool
+    grant: str
     integration: Optional[IntegrationDTO]
 
 # SecretFieldConfig defines a secret field for the UI
