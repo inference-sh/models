@@ -4316,15 +4316,23 @@ const (
 
 type ChatMessageRole string
 
+// IsLLMRole returns true for roles that map to LLM wire protocol messages.
+func (r ChatMessageRole) IsLLMRole() bool {
+	return r == ChatMessageRoleSystem || r == ChatMessageRoleUser || r == ChatMessageRoleAssistant || r == ChatMessageRoleTool
+}
+
 func (v ChatMessageRole) Value() (driver.Value, error) {
 	return string(v), nil
 }
 
 const (
-	ChatMessageRoleSystem     ChatMessageRole = "system"
-	ChatMessageRoleUser       ChatMessageRole = "user"
-	ChatMessageRoleAssistant  ChatMessageRole = "assistant"
-	ChatMessageRoleTool       ChatMessageRole = "tool"
+	// LLM wire-protocol roles
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
+	// Internal bookkeeping roles — never sent to the LLM provider.
+	// BuildContext converts these to system messages or skips them.
 	ChatMessageRoleInjection  ChatMessageRole = "injection"
 	ChatMessageRoleCompaction ChatMessageRole = "compaction"
 )
@@ -4786,6 +4794,8 @@ const (
 	HookEventAgentError    HookEvent = "agent.error"
 	HookEventAgentComplete HookEvent = "agent.complete"
 	HookEventAgentIdle     HookEvent = "agent.idle"
+	HookEventPreCompact    HookEvent = "agent.pre_compact"
+	HookEventPostCompact   HookEvent = "agent.post_compact"
 )
 
 // HookHandlerType distinguishes how a lifecycle hook is executed.
@@ -5888,14 +5898,13 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
-	return string(bytes), nil
+	*out = flowProcessRaw(raw)
+	return nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -5960,11 +5969,12 @@ func flowProcessRaw(raw any) any {
 		return v
 	}
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
 }
