@@ -1956,7 +1956,7 @@ type IntegrationConfigDTO struct {
 	AllowsBYOK   bool                `json:"allows_byok"`
 	Available    bool                `json:"available"`
 	HasManaged   bool                `json:"has_managed"`
-	Grant        string              `json:"grant,omitempty"` // "credentials" or "token" — from platform integration
+	Grant        IntegrationGrant    `json:"grant,omitempty"`
 	Integration  *IntegrationDTO     `json:"integration,omitempty"`
 }
 
