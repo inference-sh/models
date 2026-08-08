@@ -2113,6 +2113,7 @@ class AgentRunDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     interrupt_reason: Optional[InterruptReason]
     interrupt_tool_id: Optional[str]
     interrupt_meta: Any
+    tool_invocation_id: Optional[str]
     trigger_id: Optional[str]
     metadata: Any
 

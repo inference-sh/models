@@ -379,6 +379,7 @@ type AgentRunDTO struct {
 	InterruptReason    *InterruptReason `json:"interrupt_reason,omitempty"`
 	InterruptToolID    *string          `json:"interrupt_tool_id,omitempty"`
 	InterruptMeta      json.RawMessage  `json:"interrupt_meta,omitempty"`
+	ToolInvocationID   *string          `json:"tool_invocation_id,omitempty"`
 	TriggerID          *string          `json:"trigger_id,omitempty"`
 	Metadata           json.RawMessage  `json:"metadata,omitempty"`
 }
