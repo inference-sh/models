@@ -1981,10 +1981,6 @@ export interface LifecycleHookConfig {
   event: HookEvent;
   type: HookHandlerType;
   handler: string;
-  /**
-   * Filtering — fire every N occurrences (0 = every time)
-   */
-  every?: number /* int */;
   async?: boolean;
   timeout?: number /* int */; // seconds, 0 = default (30s)
 }

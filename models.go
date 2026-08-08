@@ -2168,10 +2168,8 @@ type LifecycleHookConfig struct {
 	Event   HookEvent       `json:"event" yaml:"event"`
 	Type    HookHandlerType `json:"type" yaml:"type"`
 	Handler string          `json:"handler" yaml:"handler"`
-	// Filtering — fire every N occurrences (0 = every time)
-	Every   int  `json:"every,omitempty" yaml:"every,omitempty"`
-	Async   bool `json:"async,omitempty" yaml:"async,omitempty"`
-	Timeout int  `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s)
+	Async   bool            `json:"async,omitempty" yaml:"async,omitempty"`
+	Timeout int             `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s)
 }
 
 // --------------------
@@ -5879,6 +5877,15 @@ const (
 // --------------------
 // companion functions
 // --------------------
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -5968,13 +5975,4 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
 }

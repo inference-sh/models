@@ -1033,8 +1033,6 @@ class LifecycleHookConfig(TypedDict, total=False):
     event: HookEvent
     type: HookHandlerType
     handler: str
-    # Filtering — fire every N occurrences (0 = every time)
-    every: int
     async_: bool
     timeout: int
 
