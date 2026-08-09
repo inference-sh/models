@@ -4997,6 +4997,31 @@ func (s ToolInvocationStatus) IsTerminal() bool {
 	return s == ToolInvocationStatusCompleted || s == ToolInvocationStatusFailed || s == ToolInvocationStatusCancelled
 }
 
+// CanTransitionTo defines the allowed status transitions for tool invocations.
+//
+//	pending → in_progress, awaiting_approval, completed, failed, cancelled
+//	in_progress → awaiting_input, completed, failed, cancelled
+//	awaiting_input → in_progress, completed, failed, cancelled
+//	awaiting_approval → in_progress, failed, cancelled
+//	terminal → (nothing)
+func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
+	if s.IsTerminal() {
+		return false
+	}
+	switch s {
+	case ToolInvocationStatusPending:
+		return next != ToolInvocationStatusAwaitingInput
+	case ToolInvocationStatusInProgress:
+		return next != ToolInvocationStatusPending && next != ToolInvocationStatusAwaitingApproval
+	case ToolInvocationStatusAwaitingInput:
+		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusCompleted || next == ToolInvocationStatusFailed || next == ToolInvocationStatusCancelled
+	case ToolInvocationStatusAwaitingApproval:
+		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusFailed || next == ToolInvocationStatusCancelled
+	default:
+		return false
+	}
+}
+
 func (v ToolInvocationStatus) Value() (driver.Value, error) {
 	return string(v), nil
 }
@@ -6013,23 +6038,6 @@ func flowProcessRaw(raw any) any {
 		return v
 	}
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
 
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
@@ -6049,4 +6057,21 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 		return nil
 	}
 	return json.Unmarshal([]byte(str), dest)
+}
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }
