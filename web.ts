@@ -1889,6 +1889,7 @@ export interface BountyProgramDTO extends BaseModelDTO, PermissionModelDTO {
   amount_microcents: number /* int64 */;
   grant_type: string;
   expiry_days: number /* int */;
+  max_per_user: number /* int */;
   max_per_day: number /* int */;
   proof_type: string;
   proof_min_length: number /* int */;
@@ -1908,6 +1909,7 @@ export interface CreateBountyProgramRequest {
   amount_microcents: number /* int64 */;
   grant_type: string;
   expiry_days: number /* int */;
+  max_per_user: number /* int */;
   max_per_day: number /* int */;
   proof_type: string;
   proof_min_length: number /* int */;
@@ -1925,6 +1927,7 @@ export interface UpdateBountyProgramRequest {
   description?: string;
   amount_microcents?: number /* int64 */;
   expiry_days?: number /* int */;
+  max_per_user?: number /* int */;
   max_per_day?: number /* int */;
   proof_min_length?: number /* int */;
   notice_text?: string;

@@ -1224,6 +1224,7 @@ type BountyProgramDTO struct {
 	AmountMicrocents   int64      `json:"amount_microcents"`
 	GrantType          string     `json:"grant_type"`
 	ExpiryDays         int        `json:"expiry_days"`
+	MaxPerUser         int        `json:"max_per_user"`
 	MaxPerDay          int        `json:"max_per_day"`
 	ProofType          string     `json:"proof_type"`
 	ProofMinLength     int        `json:"proof_min_length"`
@@ -6014,14 +6015,6 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
-}
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case FlowRunInput:
@@ -6084,4 +6077,12 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }
