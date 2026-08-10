@@ -1939,7 +1939,7 @@ export interface UpdateBountyProgramRequest {
  */
 export interface BountySubmissionDTO extends BaseModelDTO, PermissionModelDTO {
   bounty_id: string;
-  app_id?: string;
+  resource_id?: string;
   proof_id: string;
   proof_ref: string;
   agent?: string;

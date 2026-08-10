@@ -2216,7 +2216,7 @@ class BountyProgramDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False)
 # BountySubmissionDTO is the API representation of a bounty claim.
 class BountySubmissionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     bounty_id: str
-    app_id: str
+    resource_id: str
     proof_id: str
     proof_ref: str
     agent: str
