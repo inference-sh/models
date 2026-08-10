@@ -5008,15 +5008,21 @@ func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
 	if s.IsTerminal() {
 		return false
 	}
+	if next.IsTerminal() {
+		if s == ToolInvocationStatusAwaitingApproval && next == ToolInvocationStatusCompleted {
+			return false
+		}
+		return true
+	}
 	switch s {
 	case ToolInvocationStatusPending:
-		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusAwaitingApproval || next == ToolInvocationStatusCompleted || next == ToolInvocationStatusFailed || next == ToolInvocationStatusCancelled
+		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusAwaitingApproval
 	case ToolInvocationStatusInProgress:
-		return next == ToolInvocationStatusAwaitingInput || next == ToolInvocationStatusCompleted || next == ToolInvocationStatusFailed || next == ToolInvocationStatusCancelled
+		return next == ToolInvocationStatusAwaitingInput
 	case ToolInvocationStatusAwaitingInput:
-		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusCompleted || next == ToolInvocationStatusFailed || next == ToolInvocationStatusCancelled
+		return next == ToolInvocationStatusInProgress
 	case ToolInvocationStatusAwaitingApproval:
-		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusFailed || next == ToolInvocationStatusCancelled
+		return next == ToolInvocationStatusInProgress
 	default:
 		return false
 	}
@@ -5994,15 +6000,6 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case FlowRunInput:
@@ -6073,4 +6070,13 @@ func flowUnmarshalRecursive(data []byte, out *any) error {
 	}
 	*out = flowProcessRaw(raw)
 	return nil
+}
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
 }
