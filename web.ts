@@ -352,6 +352,7 @@ export interface SubscriptionStats {
   new_subs: UserStats;
   churned: UserStats;
   active: TimeWindow[]; // active count at each bucket
+  mrr_timeseries: MoneyWindow[]; // total MRR (base+addon) at each bucket, microcents
 }
 /**
  * DashboardTasksResponse contains task metrics for the admin dashboard
