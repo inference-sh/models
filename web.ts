@@ -5148,6 +5148,7 @@ export const InterruptReasonClientTool: InterruptReason = "client_tool";
 export const InterruptReasonWidget: InterruptReason = "widget";
 export const InterruptReasonAuth: InterruptReason = "auth";
 export const InterruptReasonConfirmation: InterruptReason = "confirmation";
+export const InterruptReasonHookGate: InterruptReason = "hook_gate";
 export type AppCategory = string;
 export const AppCategoryImage: AppCategory = "image";
 export const AppCategoryVideo: AppCategory = "video";

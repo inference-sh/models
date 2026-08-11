@@ -4170,6 +4170,7 @@ const (
 	InterruptReasonWidget       InterruptReason = "widget"
 	InterruptReasonAuth         InterruptReason = "auth"
 	InterruptReasonConfirmation InterruptReason = "confirmation"
+	InterruptReasonHookGate     InterruptReason = "hook_gate"
 )
 
 // --------------------
@@ -5959,14 +5960,6 @@ const (
 // --------------------
 // companion functions
 // --------------------
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
-}
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case FlowRunInput:
@@ -6058,4 +6051,12 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 		return nil
 	}
 	return json.Unmarshal([]byte(str), dest)
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }

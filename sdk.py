@@ -2706,6 +2706,7 @@ class InterruptReason(str, Enum):
     WIDGET = "widget"
     AUTH = "auth"
     CONFIRMATION = "confirmation"
+    HOOK_GATE = "hook_gate"
 
 class AppCategory(str, Enum):
     IMAGE = "image"
