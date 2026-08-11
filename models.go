@@ -1140,6 +1140,7 @@ type PublicAppStoreDTO struct {
 	Rank               int       `json:"rank"`
 	HasApprovedVersion bool      `json:"has_approved_version"`
 	PageID             *string   `json:"page_id,omitempty"`
+	PricingDescription string    `json:"pricing_description,omitempty"`
 }
 
 // --------------------
@@ -5987,6 +5988,32 @@ const (
 // --------------------
 // companion functions
 // --------------------
+func flowProcessRaw(raw any) any {
+	switch v := raw.(type) {
+	case []any:
+		out := make([]any, len(v))
+		for i, elem := range v {
+			out[i] = flowProcessRaw(elem)
+		}
+		return out
+	case map[string]any:
+		if _, ok := v["connection"]; ok {
+			b, _ := json.Marshal(v)
+			var nested FlowRunInput
+			if err := json.Unmarshal(b, &nested); err == nil {
+				return nested
+			}
+		}
+		out := make(map[string]any)
+		for key, val := range v {
+			out[key] = flowProcessRaw(val)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -6059,30 +6086,5 @@ func flowMarshalRecursive(value any) ([]byte, error) {
 		return json.Marshal(mapped)
 	default:
 		return json.Marshal(v)
-	}
-}
-func flowProcessRaw(raw any) any {
-	switch v := raw.(type) {
-	case []any:
-		out := make([]any, len(v))
-		for i, elem := range v {
-			out[i] = flowProcessRaw(elem)
-		}
-		return out
-	case map[string]any:
-		if _, ok := v["connection"]; ok {
-			b, _ := json.Marshal(v)
-			var nested FlowRunInput
-			if err := json.Unmarshal(b, &nested); err == nil {
-				return nested
-			}
-		}
-		out := make(map[string]any)
-		for key, val := range v {
-			out[key] = flowProcessRaw(val)
-		}
-		return out
-	default:
-		return v
 	}
 }

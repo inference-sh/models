@@ -440,6 +440,7 @@ export interface UserStats {
   this_month: number /* int64 */;
   last_30_days: number /* int64 */;
   timeseries: TimeWindow[];
+  cumulative?: TimeWindow[]; // running total (pre-range seed + deltas)
 }
 /**
  * TaskStats contains task metrics for the dashboard
@@ -1692,6 +1693,7 @@ export interface PublicAppStoreDTO {
   rank: number /* int */;
   has_approved_version: boolean;
   page_id?: string;
+  pricing_description?: string;
 }
 /**
  * CELResourceInfo describes a resource for pricing evaluation.

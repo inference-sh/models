@@ -593,6 +593,7 @@ class PublicAppStoreDTO(TypedDict, total=False):
     rank: int
     has_approved_version: bool
     page_id: Optional[str]
+    pricing_description: str
 
 # AuthSessionDTO is a safe representation of AuthSession for API responses.
 class AuthSessionDTO(TypedDict, total=False):
