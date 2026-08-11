@@ -2705,6 +2705,19 @@ export interface SecretFieldConfig {
   sensitive: boolean;
   optional: boolean;
 }
+export interface InterruptDTO extends BaseModelDTO, PermissionModelDTO {
+  run_id: string;
+  chat_id: string;
+  reason: InterruptReason;
+  source: string;
+  resource_id?: string;
+  resource_type?: string;
+  status: InterruptStatus;
+  resolution?: InterruptResolution;
+  resolved_at?: string /* RFC3339 */;
+  expires_at?: string /* RFC3339 */;
+  meta?: any;
+}
 /**
  * InvoiceDTO is the API response for invoices
  */
@@ -5518,6 +5531,20 @@ export const GraphEdgeTypeReferences: GraphEdgeType = "references";
 export const GraphEdgeTypeSupersedes: GraphEdgeType = "supersedes";
 export const GraphEdgeTypeInput: GraphEdgeType = "input";
 export const GraphEdgeTypeOutput: GraphEdgeType = "output";
+/**
+ * InterruptStatus tracks the lifecycle of an interrupt gate.
+ */
+export type InterruptStatus = string;
+export const InterruptStatusPending: InterruptStatus = "pending";
+export const InterruptStatusResolved: InterruptStatus = "resolved";
+export const InterruptStatusExpired: InterruptStatus = "expired";
+export const InterruptStatusCancelled: InterruptStatus = "cancelled";
+/**
+ * InterruptResolution records how a pending interrupt was resolved.
+ */
+export type InterruptResolution = string;
+export const InterruptResolutionAllow: InterruptResolution = "allow";
+export const InterruptResolutionDeny: InterruptResolution = "deny";
 /**
  * HookEvent is a lifecycle event in the agent conversation loop.
  * Events fire at well-defined points in the turn cycle, giving external

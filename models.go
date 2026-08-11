@@ -1949,6 +1949,26 @@ type SecretFieldConfig struct {
 }
 
 // --------------------
+// source: interrupt.go
+// --------------------
+
+type InterruptDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	RunID              string               `json:"run_id"`
+	ChatID             string               `json:"chat_id"`
+	Reason             InterruptReason      `json:"reason"`
+	Source             string               `json:"source"`
+	ResourceID         string               `json:"resource_id,omitempty"`
+	ResourceType       string               `json:"resource_type,omitempty"`
+	Status             InterruptStatus      `json:"status"`
+	Resolution         *InterruptResolution `json:"resolution,omitempty"`
+	ResolvedAt         *time.Time           `json:"resolved_at,omitempty"`
+	ExpiresAt          *time.Time           `json:"expires_at,omitempty"`
+	Meta               json.RawMessage      `json:"meta,omitempty"`
+}
+
+// --------------------
 // source: knowledge.go
 // --------------------
 
@@ -3120,6 +3140,10 @@ type SDKTypes struct {
 	_createAgentMsg     CreateAgentMessageRequest
 	_createAgentMsgResp CreateAgentMessageResponse
 	_moveAgentToProject MoveAgentToProjectRequest
+	// Interrupts
+	_interruptDTO        InterruptDTO
+	_interruptStatus     InterruptStatus
+	_interruptResolution InterruptResolution
 	// Tasks
 	_taskResultDTO  TaskResultDTO
 	_taskLogsDTO    TaskLogsDTO
@@ -4814,6 +4838,40 @@ const (
 )
 
 // --------------------
+// source: interrupt.go
+// --------------------
+
+// InterruptStatus tracks the lifecycle of an interrupt gate.
+type InterruptStatus string
+
+func (s InterruptStatus) IsTerminal() bool {
+	return s == InterruptStatusResolved || s == InterruptStatusExpired || s == InterruptStatusCancelled
+}
+
+func (v InterruptStatus) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	InterruptStatusPending   InterruptStatus = "pending"
+	InterruptStatusResolved  InterruptStatus = "resolved"
+	InterruptStatusExpired   InterruptStatus = "expired"
+	InterruptStatusCancelled InterruptStatus = "cancelled"
+)
+
+// InterruptResolution records how a pending interrupt was resolved.
+type InterruptResolution string
+
+func (v InterruptResolution) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	InterruptResolutionAllow InterruptResolution = "allow"
+	InterruptResolutionDeny  InterruptResolution = "deny"
+)
+
+// --------------------
 // source: lifecycle_hook.go
 // --------------------
 
@@ -5960,6 +6018,33 @@ const (
 // --------------------
 // companion functions
 // --------------------
+// JSONScan is a generic helper for SQL deserialization of JSON types.
+func JSONScan[T any](dest *T, value any, typeName string) error {
+	if value == nil {
+		return nil
+	}
+	var str string
+	switch v := value.(type) {
+	case []byte:
+		str = string(v)
+	case string:
+		str = v
+	default:
+		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
+	}
+	if str == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(str), dest)
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
+}
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case FlowRunInput:
@@ -6031,32 +6116,4 @@ func JSONValue[T any](v T) (driver.Value, error) {
 		return nil, err
 	}
 	return string(bytes), nil
-}
-
-// JSONScan is a generic helper for SQL deserialization of JSON types.
-func JSONScan[T any](dest *T, value any, typeName string) error {
-	if value == nil {
-		return nil
-	}
-	var str string
-	switch v := value.(type) {
-	case []byte:
-		str = string(v)
-	case string:
-		str = v
-	default:
-		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
-	}
-	if str == "" {
-		return nil
-	}
-	return json.Unmarshal([]byte(str), dest)
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
 }
