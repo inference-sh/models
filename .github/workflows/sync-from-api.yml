@@ -24,6 +24,7 @@ jobs:
         with:
           path: models
           fetch-depth: 0
+          token: ${{ secrets.REPO_PAT }}
 
       - uses: actions/checkout@v6
         with:
