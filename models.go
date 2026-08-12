@@ -1964,6 +1964,7 @@ type InterruptDTO struct {
 	Status             InterruptStatus      `json:"status"`
 	Resolution         *InterruptResolution `json:"resolution,omitempty"`
 	ResolvedAt         *time.Time           `json:"resolved_at,omitempty"`
+	ResolvedData       json.RawMessage      `json:"resolved_data,omitempty"`
 	ExpiresAt          *time.Time           `json:"expires_at,omitempty"`
 	Meta               json.RawMessage      `json:"meta,omitempty"`
 }
@@ -2167,9 +2168,11 @@ type SkillStoreListingDTO struct {
 type LifecycleHookConfig struct {
 	Event   HookEvent       `json:"event" yaml:"event"`
 	Type    HookHandlerType `json:"type" yaml:"type"`
-	Handler string          `json:"handler" yaml:"handler"`
+	Handler string          `json:"handler,omitempty" yaml:"handler,omitempty"`
 	Async   bool            `json:"async,omitempty" yaml:"async,omitempty"`
-	Timeout int             `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s)
+	Timeout int             `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s for webhook, 300s for gate)
+	// Gate-specific fields (type: "gate")
+	DefaultResolution InterruptResolution `json:"default_resolution,omitempty" yaml:"default_resolution,omitempty"` // auto-resolve on timeout: "allow" (default) or "deny"
 }
 
 // LifecycleHookPayload is sent to hook handlers on lifecycle events.
@@ -3198,6 +3201,9 @@ type SDKTypes struct {
 	_toolCallEvtData   ToolCallEventData
 	_toolResultEvtData ToolResultEventData
 	_errorEvtData      ErrorEventData
+	// Hook event definitions
+	_hookEventDef    HookEventDefinition
+	_hookHandlerType HookHandlerType
 	// Enums pulled in for const generation
 	_hookDecision    HookDecision
 	_toolInvStatus   ToolInvocationStatus
@@ -4893,13 +4899,21 @@ const (
 	HookEventPostCompact   HookEvent = "agent.post_compact"
 )
 
+// HookEventDefinition describes a lifecycle hook event and its capabilities.
+type HookEventDefinition struct {
+	Event       HookEvent `json:"event"`
+	Description string    `json:"description"`
+	CanGate     bool      `json:"can_gate"`
+}
+
 // HookDecision is the handler's verdict on whether execution should continue.
 type HookDecision string
 
 const (
-	HookDecisionAllow HookDecision = "allow"
-	HookDecisionDeny  HookDecision = "deny"
-	HookDecisionStop  HookDecision = "stop"
+	HookDecisionAllow   HookDecision = "allow"
+	HookDecisionDeny    HookDecision = "deny"
+	HookDecisionStop    HookDecision = "stop"
+	HookDecisionSuspend HookDecision = "suspend"
 )
 
 // HookHandlerType distinguishes how a lifecycle hook is executed.
@@ -4908,6 +4922,7 @@ type HookHandlerType string
 const (
 	HookHandlerWebhook HookHandlerType = "webhook"
 	HookHandlerTask    HookHandlerType = "task"
+	HookHandlerGate    HookHandlerType = "gate"
 )
 
 // --------------------
