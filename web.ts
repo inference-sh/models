@@ -5900,6 +5900,7 @@ export const TriggerKindWebhook: TriggerKind = "webhook";
 export const TriggerKindCron: TriggerKind = "cron";
 export const TriggerKindPoll: TriggerKind = "poll";
 export const TriggerKindManual: TriggerKind = "manual";
+export const TriggerKindScheduled: TriggerKind = "scheduled";
 /**
  * TriggerAction represents what a trigger does when it fires
  */
@@ -5907,6 +5908,7 @@ export type TriggerAction = string;
 export const TriggerActionRunAgent: TriggerAction = "run_agent";
 export const TriggerActionRunApp: TriggerAction = "run_app";
 export const TriggerActionRunFlow: TriggerAction = "run_flow";
+export const TriggerActionResolveInterrupt: TriggerAction = "resolve_interrupt";
 /**
  * LinearIssuePriority represents issue priority levels
  */
