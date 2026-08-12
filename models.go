@@ -1955,18 +1955,18 @@ type SecretFieldConfig struct {
 type InterruptDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	RunID              string               `json:"run_id"`
-	ChatID             string               `json:"chat_id"`
-	Reason             InterruptReason      `json:"reason"`
-	Source             string               `json:"source"`
-	ResourceID         string               `json:"resource_id,omitempty"`
-	ResourceType       string               `json:"resource_type,omitempty"`
-	Status             InterruptStatus      `json:"status"`
-	Resolution         *InterruptResolution `json:"resolution,omitempty"`
-	ResolvedAt         *time.Time           `json:"resolved_at,omitempty"`
-	ResolvedData       json.RawMessage      `json:"resolved_data,omitempty"`
-	ExpiresAt          *time.Time           `json:"expires_at,omitempty"`
-	Meta               json.RawMessage      `json:"meta,omitempty"`
+	RunID              string                `json:"run_id"`
+	ChatID             string                `json:"chat_id"`
+	Reason             InterruptReason       `json:"reason"`
+	Source             string                `json:"source"`
+	ResourceID         string                `json:"resource_id,omitempty"`
+	ResourceType       InterruptResourceType `json:"resource_type,omitempty"`
+	Status             InterruptStatus       `json:"status"`
+	Resolution         *InterruptResolution  `json:"resolution,omitempty"`
+	ResolvedAt         *time.Time            `json:"resolved_at,omitempty"`
+	ResolvedData       json.RawMessage       `json:"resolved_data,omitempty"`
+	ExpiresAt          *time.Time            `json:"expires_at,omitempty"`
+	Meta               json.RawMessage       `json:"meta,omitempty"`
 }
 
 // --------------------
@@ -4875,6 +4875,14 @@ func (v InterruptResolution) Value() (driver.Value, error) {
 const (
 	InterruptResolutionAllow InterruptResolution = "allow"
 	InterruptResolutionDeny  InterruptResolution = "deny"
+)
+
+// InterruptResourceType identifies the kind of resource an interrupt gates.
+type InterruptResourceType string
+
+const (
+	InterruptResourceToolInvocation InterruptResourceType = "tool_invocation"
+	InterruptResourceHookEvent      InterruptResourceType = "hook_event"
 )
 
 // --------------------
