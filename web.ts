@@ -4135,6 +4135,7 @@ export interface SearchReconcileStats {
   apps_indexed: number /* int */;
   pages_indexed: number /* int */;
   agents_indexed: number /* int */;
+  mcp_servers_indexed: number /* int */;
   embedding_tasks: number /* int */;
   errors: number /* int */;
 }
