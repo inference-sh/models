@@ -2019,6 +2019,46 @@ export interface ConsentRecordDTO {
   source: ConsentSource;
 }
 /**
+ * CredentialDTO is the API response for a credential (never exposes secrets).
+ */
+export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
+  provider: string;
+  type: CredentialType;
+  grant?: CredentialGrant;
+  scope: CredentialScope;
+  status: CredentialStatus;
+  display_name: string;
+  icon_url?: string;
+  account_identifier?: string;
+  account_name?: string;
+  scopes: StringSlice;
+  expires_at?: string /* RFC3339 */;
+  vault_id?: string;
+  metadata?: { [key: string]: any};
+  is_primary: boolean;
+  error_message?: string;
+}
+/**
+ * CredentialConfigDTO is the merged view: provider catalog + credential state.
+ */
+export interface CredentialConfigDTO {
+  slug: string;
+  provider: string;
+  type: string;
+  name: string;
+  short_name: string;
+  description: string;
+  icon_url?: string;
+  how_it_works?: string[];
+  docs_url?: string;
+  secret_fields?: SecretFieldConfig[];
+  allows_byok: boolean;
+  available: boolean;
+  has_managed: boolean;
+  grant?: CredentialGrant;
+  credential?: CredentialDTO;
+}
+/**
  * CreditGrantDTO is the API response for credit grants
  */
 export interface CreditGrantDTO extends BaseModelDTO, PermissionModelDTO {
@@ -4552,12 +4592,14 @@ export interface TriggerDTO extends BaseModelDTO, PermissionModelDTO, ProjectMod
   agent_id?: string;
   app_id?: string;
   flow_id?: string;
+  interrupt_id?: string;
   config?: any;
   input?: any;
   input_schema?: any;
   output_schema?: any;
   input_mapping?: FlowRunInputs;
   filters?: TriggerFilterRule[];
+  scheduled_at?: string /* RFC3339 */;
   last_fired_at?: string /* RFC3339 */;
   fire_count: number /* int64 */;
   webhook_url?: string;
@@ -6060,6 +6102,38 @@ export const IntegrationGrantCredentials: IntegrationGrant = "credentials";
  * IntegrationGrantToken provides ready-to-use access (token, API key, etc.).
  */
 export const IntegrationGrantToken: IntegrationGrant = "token";
+/**
+ * CredentialType describes the credential category.
+ */
+export type CredentialType = string;
+export const CredentialTypeOAuth: CredentialType = "oauth";
+export const CredentialTypeAPIKey: CredentialType = "api_key";
+export const CredentialTypeMCP: CredentialType = "mcp";
+export const CredentialTypeServiceAccount: CredentialType = "service_account";
+export const CredentialTypeWIF: CredentialType = "wif";
+/**
+ * CredentialStatus represents the lifecycle state of a credential.
+ */
+export type CredentialStatus = string;
+export const CredentialStatusPending: CredentialStatus = "pending";
+export const CredentialStatusConnected: CredentialStatus = "connected";
+export const CredentialStatusDisconnected: CredentialStatus = "disconnected";
+export const CredentialStatusExpired: CredentialStatus = "expired";
+export const CredentialStatusError: CredentialStatus = "error";
+/**
+ * CredentialScope controls resolution priority and ownership.
+ */
+export type CredentialScope = string;
+export const CredentialScopePlatform: CredentialScope = "platform";
+export const CredentialScopeTeam: CredentialScope = "team";
+export const CredentialScopeUser: CredentialScope = "user";
+export const CredentialScopeAgent: CredentialScope = "agent";
+/**
+ * CredentialGrant describes what a credential provides.
+ */
+export type CredentialGrant = string;
+export const CredentialGrantCredentials: CredentialGrant = "credentials";
+export const CredentialGrantToken: CredentialGrant = "token";
 export type WidgetNodeType = string;
 export const WidgetNodeTypeText: WidgetNodeType = "text";
 export const WidgetNodeTypeMarkdown: WidgetNodeType = "markdown";
