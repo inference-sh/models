@@ -3982,23 +3982,31 @@ type WidgetSelectOption struct {
 // WidgetType represents the fundamental type of a widget.
 type WidgetType string
 
-// Widget type constants - only two fundamental types
+// Widget type constants
 const (
 	WidgetTypeUI   WidgetType = "ui"
+	WidgetTypeA2UI WidgetType = "a2ui"
 	WidgetTypeHTML WidgetType = "html"
 )
 
-// Widget represents an interactive widget for display in chat
-// Type is either "ui" (structured nodes) or "html" (raw HTML)
-// For "ui" widgets, data-bound nodes read values from ToolInvocation.Data
+// Widget represents an interactive widget for display in chat.
+// Type determines which fields are populated:
+//   - "a2ui": Surface contains the A2UI component tree (preferred)
+//   - "ui": Children contains the legacy nested WidgetNode tree
+//   - "html": HTML contains raw HTML content
 type Widget struct {
-	Type        string               `json:"type"` // "ui" | "html"
-	Interactive bool                 `json:"interactive,omitempty"`
-	Title       string               `json:"title,omitempty"`
-	HTML        string               `json:"html,omitempty"` // For type="html"
-	JSON        string               `json:"json,omitempty"` // Original JSON for reference
-	Children    []WidgetNode         `json:"children,omitempty"`
-	Actions     []WidgetActionButton `json:"actions,omitempty"`
+	Type        string `json:"type"` // "a2ui" | "ui" | "html"
+	Interactive bool   `json:"interactive,omitempty"`
+	// A2UI format (type="a2ui")
+	Surface *A2UISurface `json:"surface,omitempty"`
+	// Legacy format (type="ui")
+	Title    string               `json:"title,omitempty"`
+	Children []WidgetNode         `json:"children,omitempty"`
+	Actions  []WidgetActionButton `json:"actions,omitempty"`
+	// HTML format (type="html")
+	HTML string `json:"html,omitempty"`
+	// Original JSON for debugging/reference
+	JSON string `json:"json,omitempty"`
 }
 
 // --------------------
@@ -4131,6 +4139,181 @@ type WsEngineDeleteHFCacheRepoPayload struct {
 type WsSessionEndPayload struct {
 	SessionID string `json:"session_id"`
 	WorkerID  string `json:"worker_id"`
+}
+
+// --------------------
+// source: a2ui.go
+// --------------------
+
+type A2UIComponentType string
+
+const (
+	A2UIRow           A2UIComponentType = "Row"
+	A2UIColumn        A2UIComponentType = "Column"
+	A2UIList          A2UIComponentType = "List"
+	A2UIText          A2UIComponentType = "Text"
+	A2UIImage         A2UIComponentType = "Image"
+	A2UIIcon          A2UIComponentType = "Icon"
+	A2UIDivider       A2UIComponentType = "Divider"
+	A2UIButton        A2UIComponentType = "Button"
+	A2UITextField     A2UIComponentType = "TextField"
+	A2UICheckBox      A2UIComponentType = "CheckBox"
+	A2UISlider        A2UIComponentType = "Slider"
+	A2UIDateTimeInput A2UIComponentType = "DateTimeInput"
+	A2UIChoicePicker  A2UIComponentType = "ChoicePicker"
+	A2UICard          A2UIComponentType = "Card"
+	A2UIModal         A2UIComponentType = "Modal"
+	A2UITabs          A2UIComponentType = "Tabs"
+	// Extensions (inferencesh/v1 catalog)
+	A2UIBadge  A2UIComponentType = "Badge"
+	A2UISpacer A2UIComponentType = "Spacer"
+	A2UIChart  A2UIComponentType = "Chart"
+	A2UIForm   A2UIComponentType = "Form"
+	A2UIHTML   A2UIComponentType = "HTML"
+)
+
+// A2UIComponent is the universal component representation.
+// Children are string IDs (flat adjacency list), not nested objects.
+type A2UIComponent struct {
+	ID        string            `json:"id"`
+	Component A2UIComponentType `json:"component"`
+	// Layout
+	Children  []string `json:"children,omitempty"`
+	Justify   string   `json:"justify,omitempty"`
+	Align     string   `json:"align,omitempty"`
+	Direction string   `json:"direction,omitempty"`
+	Gap       int      `json:"gap,omitempty"`
+	// Text
+	Text    *A2UIBoundValue `json:"text,omitempty"`
+	Variant string          `json:"variant,omitempty"`
+	// Image
+	URL *A2UIBoundValue `json:"url,omitempty"`
+	Fit string          `json:"fit,omitempty"`
+	// Icon
+	Name *A2UIBoundValue `json:"name,omitempty"`
+	// Divider
+	Axis string `json:"axis,omitempty"`
+	// Button / Card
+	Child   string      `json:"child,omitempty"`
+	Primary bool        `json:"primary,omitempty"`
+	Action  *A2UIAction `json:"action,omitempty"`
+	// TextField
+	Label           string          `json:"label,omitempty"`
+	Value           *A2UIBoundValue `json:"value,omitempty"`
+	TextFieldType   string          `json:"textFieldType,omitempty"`
+	ValidationRegex string          `json:"validationRegexp,omitempty"`
+	Placeholder     string          `json:"placeholder,omitempty"`
+	Rows            int             `json:"rows,omitempty"`
+	// Slider
+	MinValue *float64 `json:"minValue,omitempty"`
+	MaxValue *float64 `json:"maxValue,omitempty"`
+	// DateTimeInput
+	EnableDate *bool `json:"enableDate,omitempty"`
+	EnableTime *bool `json:"enableTime,omitempty"`
+	// ChoicePicker
+	Options              []A2UIChoiceOption `json:"options,omitempty"`
+	Selections           *A2UIBoundValue    `json:"selections,omitempty"`
+	MaxAllowedSelections *int               `json:"maxAllowedSelections,omitempty"`
+	// Modal
+	EntryPointChild string `json:"entryPointChild,omitempty"`
+	ContentChild    string `json:"contentChild,omitempty"`
+	// Tabs
+	TabItems []A2UITabItem `json:"tabItems,omitempty"`
+	// Common
+	Accessibility *A2UIAccessibility `json:"accessibility,omitempty"`
+	Weight        *float64           `json:"weight,omitempty"`
+	Disabled      bool               `json:"disabled,omitempty"`
+	Required      bool               `json:"required,omitempty"`
+	// Extension: Badge
+	BadgeLabel   string `json:"badgeLabel,omitempty"`
+	BadgeVariant string `json:"badgeVariant,omitempty"`
+	// Extension: Spacer
+	MinSize interface{} `json:"minSize,omitempty"`
+	// Extension: Chart
+	ChartData   interface{} `json:"chartData,omitempty"`
+	ChartSeries interface{} `json:"chartSeries,omitempty"`
+	XAxis       interface{} `json:"xAxis,omitempty"`
+	ShowYAxis   bool        `json:"showYAxis,omitempty"`
+	ShowLegend  bool        `json:"showLegend,omitempty"`
+	ShowTooltip bool        `json:"showTooltip,omitempty"`
+	// Extension: Form
+	OnSubmitAction *A2UIAction `json:"onSubmitAction,omitempty"`
+	// Extension: HTML
+	HTMLContent string `json:"htmlContent,omitempty"`
+}
+
+// A2UIBoundValue is either a literal or a data model path reference.
+type A2UIBoundValue struct {
+	Literal interface{} `json:"-"`
+	Path    string      `json:"path,omitempty"`
+}
+
+func (b A2UIBoundValue) MarshalJSON() ([]byte, error) {
+	if b.Path != "" {
+		return json.Marshal(struct {
+			Path string `json:"path"`
+		}{Path: b.Path})
+	}
+	return json.Marshal(b.Literal)
+}
+
+func (b *A2UIBoundValue) UnmarshalJSON(data []byte) error {
+	var obj struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(data, &obj); err == nil && obj.Path != "" {
+		b.Path = obj.Path
+		return nil
+	}
+	return json.Unmarshal(data, &b.Literal)
+}
+
+type A2UIAction struct {
+	Type    string                 `json:"type"`
+	Payload map[string]interface{} `json:"payload,omitempty"`
+}
+
+type A2UIChoiceOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type A2UITabItem struct {
+	Title string `json:"title"`
+	Child string `json:"child"`
+}
+
+type A2UIAccessibility struct {
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// A2UISurface is the complete renderable state for a widget.
+type A2UISurface struct {
+	Version    string          `json:"version"`
+	SurfaceID  string          `json:"surfaceId"`
+	CatalogID  string          `json:"catalogId"`
+	Components []A2UIComponent `json:"components"`
+	DataModel  interface{}     `json:"dataModel,omitempty"`
+}
+
+func (s *A2UISurface) IsInteractive() bool {
+	for _, c := range s.Components {
+		switch c.Component {
+		case A2UIButton, A2UITextField, A2UICheckBox, A2UISlider, A2UIDateTimeInput, A2UIChoicePicker, A2UIForm:
+			return true
+		}
+	}
+	return false
+}
+
+func (s *A2UISurface) RootComponent() *A2UIComponent {
+	for i := range s.Components {
+		if s.Components[i].ID == "root" {
+			return &s.Components[i]
+		}
+	}
+	return nil
 }
 
 // --------------------
@@ -6041,13 +6224,33 @@ const (
 // --------------------
 // companion functions
 // --------------------
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+// JSONScan is a generic helper for SQL deserialization of JSON types.
+func JSONScan[T any](dest *T, value any, typeName string) error {
+	if value == nil {
+		return nil
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	var str string
+	switch v := value.(type) {
+	case []byte:
+		str = string(v)
+	case string:
+		str = v
+	default:
+		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
+	}
+	if str == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(str), dest)
+}
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -6112,32 +6315,11 @@ func flowProcessRaw(raw any) any {
 		return v
 	}
 }
-
-// JSONScan is a generic helper for SQL deserialization of JSON types.
-func JSONScan[T any](dest *T, value any, typeName string) error {
-	if value == nil {
-		return nil
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
-	var str string
-	switch v := value.(type) {
-	case []byte:
-		str = string(v)
-	case string:
-		str = v
-	default:
-		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
-	}
-	if str == "" {
-		return nil
-	}
-	return json.Unmarshal([]byte(str), dest)
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
+	*out = flowProcessRaw(raw)
+	return nil
 }
