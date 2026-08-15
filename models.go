@@ -3330,7 +3330,6 @@ type EngineTypes struct {
 	_toolParamType ToolParamType
 	_toolCallType  ToolCallType
 	_scope         Scope
-	_widgetType    WidgetType
 }
 
 // --------------------
@@ -3897,117 +3896,9 @@ type UserMetadataDTO struct {
 // source: widget.go
 // --------------------
 
-// WidgetAction represents an action triggered by a widget button
-type WidgetAction struct {
-	Type    string                 `json:"type"`
-	Payload map[string]interface{} `json:"payload,omitempty"`
-}
-
-// WidgetActionButton represents a button in a widget's action bar
-type WidgetActionButton struct {
-	Label   string       `json:"label"`
-	Action  WidgetAction `json:"action"`
-	Variant string       `json:"variant,omitempty"` // "default" | "secondary" | "outline" | "ghost" | "destructive"
-}
-
-// WidgetNode represents a UI element in a widget (text, input, select, etc.)
-type WidgetNode struct {
-	Type           WidgetNodeType       `json:"type"`
-	Value          string               `json:"value,omitempty"`
-	Src            string               `json:"src,omitempty"`
-	Alt            string               `json:"alt,omitempty"`
-	Label          string               `json:"label,omitempty"`
-	Name           string               `json:"name,omitempty"`
-	Placeholder    string               `json:"placeholder,omitempty"`
-	DefaultValue   string               `json:"defaultValue,omitempty"`
-	Variant        string               `json:"variant,omitempty"`
-	Action         *WidgetAction        `json:"action,omitempty"`
-	Options        []WidgetSelectOption `json:"options,omitempty"`
-	DefaultChecked bool                 `json:"defaultChecked,omitempty"`
-	Children       []WidgetNode         `json:"children,omitempty"`
-	Gap            int                  `json:"gap,omitempty"`
-	// Layout props (Box, Row, Col, Form)
-	Align      string      `json:"align,omitempty"`      // start|center|end|baseline|stretch
-	Justify    string      `json:"justify,omitempty"`    // start|center|end|between|around|evenly
-	Padding    interface{} `json:"padding,omitempty"`    // number or {top,right,bottom,left}
-	Background interface{} `json:"background,omitempty"` // string or {light,dark}
-	Radius     string      `json:"radius,omitempty"`     // 2xs|xs|sm|md|lg|xl|2xl|full|none
-	Direction  string      `json:"direction,omitempty"`  // row|col (for Form)
-	Wrap       string      `json:"wrap,omitempty"`       // nowrap|wrap|wrap-reverse
-	Flex       interface{} `json:"flex,omitempty"`       // string|number
-	// Typography props (Text, Title, Caption, Label)
-	Size      string      `json:"size,omitempty"`      // xs|sm|md|lg|xl|2xl|3xl
-	Weight    string      `json:"weight,omitempty"`    // normal|medium|semibold|bold
-	Color     interface{} `json:"color,omitempty"`     // string or {light,dark}
-	TextAlign string      `json:"textAlign,omitempty"` // start|center|end
-	Truncate  bool        `json:"truncate,omitempty"`
-	MaxLines  int         `json:"maxLines,omitempty"`
-	// Control props (Input, Textarea, Select, Checkbox, RadioGroup, DatePicker, Button)
-	Disabled  bool   `json:"disabled,omitempty"`
-	Required  bool   `json:"required,omitempty"`
-	Rows      int    `json:"rows,omitempty"`      // for Textarea
-	FieldName string `json:"fieldName,omitempty"` // for Label
-	Submit    bool   `json:"submit,omitempty"`    // for Button - makes it a form submit button
-	Pattern   string `json:"pattern,omitempty"`   // for Input - regex validation
-	Min       string `json:"min,omitempty"`       // for DatePicker - min date
-	Max       string `json:"max,omitempty"`       // for DatePicker - max date
-	Clearable bool   `json:"clearable,omitempty"` // for Select/DatePicker
-	// Action handler for buttons (form data is collected locally and sent with action)
-	OnClickAction *WidgetAction `json:"onClickAction,omitempty"` // for Button
-	// Content props (Icon, Spacer, Divider, Chart)
-	IconName string      `json:"iconName,omitempty"` // for Icon
-	Spacing  interface{} `json:"spacing,omitempty"`  // for Divider
-	MinSize  interface{} `json:"minSize,omitempty"`  // for Spacer
-	Height   interface{} `json:"height,omitempty"`   // number or string
-	Width    interface{} `json:"width,omitempty"`    // number or string
-	// Chart specific props
-	ChartData   interface{} `json:"chartData,omitempty"`   // []map[string]interface{}
-	ChartSeries interface{} `json:"chartSeries,omitempty"` // []ChartSeries
-	XAxis       interface{} `json:"xAxis,omitempty"`       // string or XAxisConfig
-	ShowYAxis   bool        `json:"showYAxis,omitempty"`
-	ShowLegend  bool        `json:"showLegend,omitempty"`
-	ShowTooltip bool        `json:"showTooltip,omitempty"`
-	// Form-specific props
-	OnSubmitAction *WidgetAction `json:"onSubmitAction,omitempty"` // for Form
-	// Data binding (deprecated - use templates instead)
-	DataKey string `json:"dataKey,omitempty"`
-}
-
-// WidgetSelectOption represents an option in a select widget
-type WidgetSelectOption struct {
-	Label string `json:"label"`
-	Value string `json:"value"`
-}
-
-// WidgetType represents the fundamental type of a widget.
-type WidgetType string
-
-// Widget type constants
-const (
-	WidgetTypeUI   WidgetType = "ui"
-	WidgetTypeA2UI WidgetType = "a2ui"
-	WidgetTypeHTML WidgetType = "html"
-)
-
-// Widget represents an interactive widget for display in chat.
-// Type determines which fields are populated:
-//   - "a2ui": Surface contains the A2UI component tree (preferred)
-//   - "ui": Children contains the legacy nested WidgetNode tree
-//   - "html": HTML contains raw HTML content
-type Widget struct {
-	Type        string `json:"type"` // "a2ui" | "ui" | "html"
-	Interactive bool   `json:"interactive,omitempty"`
-	// A2UI format (type="a2ui")
-	Surface *A2UISurface `json:"surface,omitempty"`
-	// Legacy format (type="ui")
-	Title    string               `json:"title,omitempty"`
-	Children []WidgetNode         `json:"children,omitempty"`
-	Actions  []WidgetActionButton `json:"actions,omitempty"`
-	// HTML format (type="html")
-	HTML string `json:"html,omitempty"`
-	// Original JSON for debugging/reference
-	JSON string `json:"json,omitempty"`
-}
+// Widget is an A2UI surface stored on a ToolInvocation.
+// Alias of shared.A2UISurface so the type generation pipeline picks it up.
+type Widget A2UISurface
 
 // --------------------
 // source: ws.go
@@ -5688,37 +5579,6 @@ const (
 	IntegrationGrantToken IntegrationGrant = "token"
 )
 
-type WidgetNodeType string
-
-const (
-	WidgetNodeTypeText        WidgetNodeType = "text"
-	WidgetNodeTypeMarkdown    WidgetNodeType = "markdown"
-	WidgetNodeTypeImage       WidgetNodeType = "image"
-	WidgetNodeTypeBadge       WidgetNodeType = "badge"
-	WidgetNodeTypeButton      WidgetNodeType = "button"
-	WidgetNodeTypeInput       WidgetNodeType = "input"
-	WidgetNodeTypeSelect      WidgetNodeType = "select"
-	WidgetNodeTypeCheckbox    WidgetNodeType = "checkbox"
-	WidgetNodeTypeRow         WidgetNodeType = "row"
-	WidgetNodeTypeCol         WidgetNodeType = "col"
-	WidgetNodeTypeBox         WidgetNodeType = "box"
-	WidgetNodeTypeSpacer      WidgetNodeType = "spacer"
-	WidgetNodeTypeDivider     WidgetNodeType = "divider"
-	WidgetNodeTypeForm        WidgetNodeType = "form"
-	WidgetNodeTypeTitle       WidgetNodeType = "title"
-	WidgetNodeTypeCaption     WidgetNodeType = "caption"
-	WidgetNodeTypeLabel       WidgetNodeType = "label"
-	WidgetNodeTypeTextarea    WidgetNodeType = "textarea"
-	WidgetNodeTypeRadioGroup  WidgetNodeType = "radio-group"
-	WidgetNodeTypeDatePicker  WidgetNodeType = "date-picker"
-	WidgetNodeTypeIcon        WidgetNodeType = "icon"
-	WidgetNodeTypeChart       WidgetNodeType = "chart"
-	WidgetNodeTypeTransition  WidgetNodeType = "transition"
-	WidgetNodeTypePlanList    WidgetNodeType = "plan-list"
-	WidgetNodeTypeKeyValue    WidgetNodeType = "key-value"
-	WidgetNodeTypeStatusBadge WidgetNodeType = "status-badge"
-)
-
 type RejectionReason string
 
 const (
@@ -6224,6 +6084,15 @@ const (
 // --------------------
 // companion functions
 // --------------------
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -6243,14 +6112,13 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
-	return string(bytes), nil
+	*out = flowProcessRaw(raw)
+	return nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -6314,12 +6182,4 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
 }
