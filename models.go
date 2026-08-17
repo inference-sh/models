@@ -117,6 +117,7 @@ type InternalToolsConfig struct {
 	Finish      *bool `json:"finish,omitempty" yaml:"finish,omitempty"`
 	Skills      *bool `json:"skills,omitempty" yaml:"skills,omitempty"`
 	HostContext *bool `json:"host_context,omitempty" yaml:"host_context,omitempty"`
+	Meta        *bool `json:"meta,omitempty" yaml:"meta,omitempty"`
 }
 
 // AgentTool represents a unified tool that can be used by an agent
@@ -4160,8 +4161,8 @@ func (b *A2UIBoundValue) UnmarshalJSON(data []byte) error {
 }
 
 type A2UIAction struct {
-	Type    string                 `json:"type"`
-	Payload map[string]interface{} `json:"payload,omitempty"`
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload,omitempty"`
 }
 
 type A2UIChoiceOption struct {

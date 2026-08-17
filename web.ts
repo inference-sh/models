@@ -35,6 +35,7 @@ export interface InternalToolsConfig {
   finish?: boolean;
   skills?: boolean;
   host_context?: boolean;
+  meta?: boolean;
 }
 /**
  * InternalToolDefinition describes a built-in tool category available to agents
@@ -3725,6 +3726,22 @@ export interface ProjectDTO extends BaseModelDTO, PermissionModelDTO {
   parent?: ProjectDTO;
   children: (ProjectDTO | undefined)[];
 }
+export interface ProviderDTO {
+  slug: string;
+  display_name: string;
+  description?: string;
+  icon_url?: string;
+  docs_url?: string;
+  supported_types?: StringSlice;
+  category?: ProviderCategory;
+  status: ProviderStatus;
+  data_residency?: { [key: string]: any};
+  legal?: { [key: string]: any};
+  partner_config?: { [key: string]: any};
+  metadata?: { [key: string]: any};
+  created_at: string /* RFC3339 */;
+  updated_at: string /* RFC3339 */;
+}
 /**
  * PublicationThemeColors defines the core colors for one mode (light or dark).
  */
@@ -5203,7 +5220,7 @@ export interface A2UIBoundValue {
 }
 export interface A2UIAction {
   type: string;
-  payload?: { [key: string]: any};
+  payload?: any;
 }
 export interface A2UIChoiceOption {
   label: string;
@@ -6176,6 +6193,17 @@ export const CredentialScopeAgent: CredentialScope = "agent";
 export type CredentialGrant = string;
 export const CredentialGrantCredentials: CredentialGrant = "credentials";
 export const CredentialGrantToken: CredentialGrant = "token";
+export type ProviderCategory = string;
+export const ProviderCategoryAIML: ProviderCategory = "ai_ml";
+export const ProviderCategoryMedia: ProviderCategory = "media";
+export const ProviderCategorySearch: ProviderCategory = "search";
+export const ProviderCategoryCloud: ProviderCategory = "cloud";
+export const ProviderCategorySocial: ProviderCategory = "social";
+export const ProviderCategoryTools: ProviderCategory = "tools";
+export type ProviderStatus = string;
+export const ProviderStatusActive: ProviderStatus = "active";
+export const ProviderStatusBeta: ProviderStatus = "beta";
+export const ProviderStatusDeprecated: ProviderStatus = "deprecated";
 export type RejectionReason = string;
 export const RejectionWorkerBusy: RejectionReason = "worker_busy";
 export const RejectionWorkerNotFound: RejectionReason = "worker_not_found";
