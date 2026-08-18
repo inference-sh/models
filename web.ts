@@ -3629,6 +3629,7 @@ export interface PaymentRecordDTO extends BaseModelDTO, PermissionModelDTO {
   tax_breakdown?: TaxBreakdownItem[];
   receipt_url?: string;
   session_url?: string;
+  provider_session_id?: string;
   invoice?: InvoiceDTO;
 }
 /**
