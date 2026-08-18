@@ -3253,6 +3253,7 @@ class NotificationType(str, Enum):
     SUBSCRIPTION_CREATED = "subscription_created"
     SUBSCRIPTION_CREDIT = "subscription_credit"
     SUBSCRIPTION_CANCELED = "subscription_canceled"
+    SUBSCRIPTION_PAYMENT_FAILED = "subscription_payment_failed"
     SUBSCRIPTION_TRIAL_ENDING = "subscription_trial_ending"
     # Account notifications
     WELCOME = "welcome"
