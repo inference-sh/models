@@ -3630,6 +3630,7 @@ export interface PaymentRecordDTO extends BaseModelDTO, PermissionModelDTO {
   receipt_url?: string;
   session_url?: string;
   provider_session_id?: string;
+  provider_metadata?: { [key: string]: any};
   invoice?: InvoiceDTO;
 }
 /**
