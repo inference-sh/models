@@ -4180,6 +4180,17 @@ export interface SubscriptionDTO extends BaseModelDTO {
   cancel_at_period_end: boolean;
   credits_per_period: number /* int64 */;
 }
+export interface SubscriptionStatusEventDTO {
+  id: string;
+  subscription_id: string;
+  from_status?: SubscriptionStatus;
+  to_status: SubscriptionStatus;
+  from_plan_id?: string;
+  to_plan_id?: string;
+  at: string /* RFC3339 */;
+  reason: StatusChangeReason;
+  price_monthly_snapshot?: number /* int64 */;
+}
 /**
  * Hardware/System related types
  */
@@ -5379,6 +5390,13 @@ export const SubscriptionStatusPaused: SubscriptionStatus = "paused";
 export type SubscriptionInterval = string;
 export const SubscriptionIntervalMonthly: SubscriptionInterval = "monthly";
 export const SubscriptionIntervalYearly: SubscriptionInterval = "yearly";
+/**
+ * StatusChangeReason distinguishes why a subscription status changed.
+ */
+export type StatusChangeReason = string;
+export const StatusChangeReasonVoluntary: StatusChangeReason = "voluntary";
+export const StatusChangeReasonInvoluntary: StatusChangeReason = "involuntary";
+export const StatusChangeReasonSystem: StatusChangeReason = "system";
 export type PlanType = string;
 export const PlanTypeBase: PlanType = "base";
 export const PlanTypeAddon: PlanType = "addon";
