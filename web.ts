@@ -6270,6 +6270,7 @@ export const NotificationTypeInvoice: NotificationType = "invoice";
 export const NotificationTypeSubscriptionCreated: NotificationType = "subscription_created";
 export const NotificationTypeSubscriptionCredit: NotificationType = "subscription_credit";
 export const NotificationTypeSubscriptionCanceled: NotificationType = "subscription_canceled";
+export const NotificationTypeSubscriptionPaymentFailed: NotificationType = "subscription_payment_failed";
 export const NotificationTypeSubscriptionTrialEnding: NotificationType = "subscription_trial_ending";
 /**
  * Account notifications
