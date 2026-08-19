@@ -4062,7 +4062,6 @@ const (
 	A2UISpacer A2UIComponentType = "Spacer"
 	A2UIChart  A2UIComponentType = "Chart"
 	A2UIForm   A2UIComponentType = "Form"
-	A2UIHTML   A2UIComponentType = "HTML"
 )
 
 // A2UIComponent is the universal component representation.
@@ -4131,8 +4130,6 @@ type A2UIComponent struct {
 	ShowTooltip bool        `json:"showTooltip,omitempty"`
 	// Extension: Form
 	OnSubmitAction *A2UIAction `json:"onSubmitAction,omitempty"`
-	// Extension: HTML
-	HTMLContent string `json:"htmlContent,omitempty"`
 }
 
 // A2UIBoundValue is either a literal or a data model path reference.
