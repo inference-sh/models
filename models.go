@@ -2059,6 +2059,7 @@ type KnowledgeVersionDTO struct {
 	Tags            []string          `json:"tags"`
 	Scope           []string          `json:"scope,omitempty"` // environment signals for project scoping
 	Metadata        map[string]string `json:"metadata,omitempty"`
+	Origin          string            `json:"origin,omitempty"` // extraction provenance, e.g. "claude:853f9a75-..."
 	SourceURL       string            `json:"source_url,omitempty"`
 	MutationType    string            `json:"mutation_type,omitempty"`
 	VersionNotes    string            `json:"version_notes,omitempty"`
@@ -2815,6 +2816,7 @@ type KnowledgeVersionInput struct {
 	Tags         []string          `json:"tags,omitempty"`
 	Scope        []string          `json:"scope,omitempty"` // environment signals for project scoping
 	Metadata     map[string]string `json:"metadata,omitempty"`
+	Origin       string            `json:"origin,omitempty"` // extraction provenance, e.g. "claude:853f9a75-..."
 	SourceURL    string            `json:"source_url,omitempty"`
 	MutationType string            `json:"mutation_type,omitempty"`
 	VersionNotes string            `json:"version_notes,omitempty"`
@@ -2907,7 +2909,8 @@ type SuggestRequest struct {
 	Limit    int      `json:"limit,omitempty"`
 	Category string   `json:"category,omitempty"`
 	Agent    bool     `json:"agent,omitempty"`
-	Scope    []string `json:"scope,omitempty"` // environment signals for overlap ranking (e.g. "git:user/repo", "lang:go")
+	Scope    []string `json:"scope,omitempty"`  // environment signals for overlap ranking (e.g. "git:user/repo", "lang:go")
+	Origin   string   `json:"origin,omitempty"` // caller's origin (e.g. "claude:853f9a75-..."); results from this origin are excluded
 }
 
 // SuggestResponse is the output of the suggest endpoint.
