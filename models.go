@@ -1672,9 +1672,8 @@ const (
 	ActionFlowSetOutputMapping    FlowActionType = "flow.set_output_mapping"
 	ActionFlowRemoveOutputMapping FlowActionType = "flow.remove_output_mapping"
 	ActionFlowRenameOutputField   FlowActionType = "flow.rename_output_field"
-
-	ActionUndo FlowActionType = "undo"
-	ActionRedo FlowActionType = "redo"
+	ActionUndo                    FlowActionType = "undo"
+	ActionRedo                    FlowActionType = "redo"
 )
 
 // FlowAction represents a single graph mutation.
