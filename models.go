@@ -6159,13 +6159,30 @@ type UtilityConfig struct {
 // --------------------
 // companion functions
 // --------------------
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+func flowProcessRaw(raw any) any {
+	switch v := raw.(type) {
+	case []any:
+		out := make([]any, len(v))
+		for i, elem := range v {
+			out[i] = flowProcessRaw(elem)
+		}
+		return out
+	case map[string]any:
+		if _, ok := v["connection"]; ok {
+			b, _ := json.Marshal(v)
+			var nested FlowRunInput
+			if err := json.Unmarshal(b, &nested); err == nil {
+				return nested
+			}
+		}
+		out := make(map[string]any)
+		for key, val := range v {
+			out[key] = flowProcessRaw(val)
+		}
+		return out
+	default:
+		return v
 	}
-	return string(bytes), nil
 }
 
 // JSONScan is a generic helper for SQL deserialization of JSON types.
@@ -6186,6 +6203,15 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 		return nil
 	}
 	return json.Unmarshal([]byte(str), dest)
+}
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
 }
 func flowUnmarshalRecursive(data []byte, out *any) error {
 	var raw any
@@ -6231,30 +6257,5 @@ func flowMarshalRecursive(value any) ([]byte, error) {
 		return json.Marshal(mapped)
 	default:
 		return json.Marshal(v)
-	}
-}
-func flowProcessRaw(raw any) any {
-	switch v := raw.(type) {
-	case []any:
-		out := make([]any, len(v))
-		for i, elem := range v {
-			out[i] = flowProcessRaw(elem)
-		}
-		return out
-	case map[string]any:
-		if _, ok := v["connection"]; ok {
-			b, _ := json.Marshal(v)
-			var nested FlowRunInput
-			if err := json.Unmarshal(b, &nested); err == nil {
-				return nested
-			}
-		}
-		out := make(map[string]any)
-		for key, val := range v {
-			out[key] = flowProcessRaw(val)
-		}
-		return out
-	default:
-		return v
 	}
 }
