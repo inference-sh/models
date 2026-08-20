@@ -2376,7 +2376,7 @@ class FlowRunDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     output: Any
     node_tasks: Dict[str, Optional[NodeTaskDTO]]
     node_statuses: Dict[str, GraphNodeStatus]
-    node_outputs: Dict[str, Any]
+    node_outputs: Any
 
 # InstanceDTO is the API representation of a cloud instance.
 class InstanceDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
