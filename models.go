@@ -6139,6 +6139,52 @@ type UtilityConfig struct {
 // --------------------
 // companion functions
 // --------------------
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
+}
+func flowMarshalRecursive(value any) ([]byte, error) {
+	switch v := value.(type) {
+	case FlowRunInput:
+		return json.Marshal(v)
+	case *FlowRunInput:
+		return json.Marshal(v)
+	case []any:
+		arr := make([]any, len(v))
+		for i, elem := range v {
+			marshaled, err := flowMarshalRecursive(elem)
+			if err != nil {
+				return nil, err
+			}
+			var unmarshaled any
+			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
+				return nil, err
+			}
+			arr[i] = unmarshaled
+		}
+		return json.Marshal(arr)
+	case map[string]any:
+		mapped := make(map[string]any)
+		for key, val := range v {
+			marshaled, err := flowMarshalRecursive(val)
+			if err != nil {
+				return nil, err
+			}
+			var unmarshaled any
+			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
+				return nil, err
+			}
+			mapped[key] = unmarshaled
+		}
+		return json.Marshal(mapped)
+	default:
+		return json.Marshal(v)
+	}
+}
 func flowProcessRaw(raw any) any {
 	switch v := raw.(type) {
 	case []any:
@@ -6192,50 +6238,4 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 		return nil
 	}
 	return json.Unmarshal([]byte(str), dest)
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
-}
-func flowMarshalRecursive(value any) ([]byte, error) {
-	switch v := value.(type) {
-	case FlowRunInput:
-		return json.Marshal(v)
-	case *FlowRunInput:
-		return json.Marshal(v)
-	case []any:
-		arr := make([]any, len(v))
-		for i, elem := range v {
-			marshaled, err := flowMarshalRecursive(elem)
-			if err != nil {
-				return nil, err
-			}
-			var unmarshaled any
-			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
-				return nil, err
-			}
-			arr[i] = unmarshaled
-		}
-		return json.Marshal(arr)
-	case map[string]any:
-		mapped := make(map[string]any)
-		for key, val := range v {
-			marshaled, err := flowMarshalRecursive(val)
-			if err != nil {
-				return nil, err
-			}
-			var unmarshaled any
-			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
-				return nil, err
-			}
-			mapped[key] = unmarshaled
-		}
-		return json.Marshal(mapped)
-	default:
-		return json.Marshal(v)
-	}
 }
