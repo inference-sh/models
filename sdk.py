@@ -1410,6 +1410,18 @@ class ShareRequest(TypedDict, total=False):
 class SDKTypes(TypedDict, total=False):
     pass
 
+# MeStatsResponse is returned by GET /me/stats.
+class MeStatsResponse(TypedDict, total=False):
+    knowledge_count: int
+    skills_count: int
+    extracted: StatBuckets
+
+# StatBuckets holds time-windowed counts.
+class StatBuckets(TypedDict, total=False):
+    today: int
+    this_week: int
+    all_time: int
+
 # Hardware/System related types
 class SystemInfo(TypedDict, total=False):
     hostname: str

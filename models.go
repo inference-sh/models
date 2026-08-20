@@ -3247,6 +3247,8 @@ type SDKTypes struct {
 	// Telemetry / diagnostics
 	_telemetryReportDTO TelemetryReportDTO
 	_submitTelemetryReq SubmitTelemetryRequest
+	// Stats
+	_meStats MeStatsResponse
 }
 
 // --------------------
@@ -3373,6 +3375,24 @@ type SecretDTO struct {
 	MaskedValue        string      `json:"masked_value"`
 	Description        string      `json:"description,omitempty"`
 	Scope              SecretScope `json:"scope,omitempty"`
+}
+
+// --------------------
+// source: stats.go
+// --------------------
+
+// MeStatsResponse is returned by GET /me/stats.
+type MeStatsResponse struct {
+	KnowledgeCount int64       `json:"knowledge_count"`
+	SkillsCount    int64       `json:"skills_count"`
+	Extracted      StatBuckets `json:"extracted"`
+}
+
+// StatBuckets holds time-windowed counts.
+type StatBuckets struct {
+	Today   int64 `json:"today"`
+	Week    int64 `json:"this_week"`
+	AllTime int64 `json:"all_time"`
 }
 
 // --------------------
@@ -6160,15 +6180,6 @@ type UtilityConfig struct {
 // --------------------
 // companion functions
 // --------------------
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
-
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -6188,13 +6199,14 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -6258,4 +6270,12 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }

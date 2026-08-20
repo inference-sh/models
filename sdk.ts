@@ -2689,6 +2689,22 @@ export interface SecretDTO extends BaseModelDTO, PermissionModelDTO {
   scope?: SecretScope;
 }
 /**
+ * MeStatsResponse is returned by GET /me/stats.
+ */
+export interface MeStatsResponse {
+  knowledge_count: number /* int64 */;
+  skills_count: number /* int64 */;
+  extracted: StatBuckets;
+}
+/**
+ * StatBuckets holds time-windowed counts.
+ */
+export interface StatBuckets {
+  today: number /* int64 */;
+  this_week: number /* int64 */;
+  all_time: number /* int64 */;
+}
+/**
  * SubscriptionDTO for API responses
  */
 export interface SubscriptionDTO extends BaseModelDTO {
