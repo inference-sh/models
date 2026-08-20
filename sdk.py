@@ -1616,6 +1616,9 @@ class TeamInviteCreateRequest(TypedDict, total=False):
     email: str
     role: TeamRole
 
+class SubmitTelemetryRequest(TypedDict, total=False):
+    payload: Dict[str, Any]
+
 # ToolInvocationFunction contains the function details for a tool invocation
 class ToolInvocationFunction(TypedDict, total=False):
     name: str
@@ -2578,6 +2581,11 @@ class TaskDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     usage_events: List[Optional[UsageEventDTO]]
     session_id: Optional[str]
     session_timeout: Optional[int]
+
+class TelemetryReportDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
+    ip: str
+    level: int
+    payload: Dict[str, Any]
 
 # ToolInvocationDTO for API responses
 class ToolInvocationDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):

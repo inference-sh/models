@@ -3242,6 +3242,9 @@ type SDKTypes struct {
 	_entitlementType EntitlementType
 	_teamType        TeamType
 	_teamStatus      TeamStatus
+	// Telemetry / diagnostics
+	_telemetryReportDTO TelemetryReportDTO
+	_submitTelemetryReq SubmitTelemetryRequest
 }
 
 // --------------------
@@ -3735,6 +3738,22 @@ type TeamInviteDTO struct {
 type TeamInviteCreateRequest struct {
 	Email string   `json:"email"`
 	Role  TeamRole `json:"role"`
+}
+
+// --------------------
+// source: telemetry.go
+// --------------------
+
+type TelemetryReportDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	IP                 string         `json:"ip"`
+	Level              int            `json:"level"`
+	Payload            map[string]any `json:"payload"`
+}
+
+type SubmitTelemetryRequest struct {
+	Payload map[string]any `json:"payload"`
 }
 
 // --------------------

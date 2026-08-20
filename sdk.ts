@@ -2979,6 +2979,14 @@ export interface TeamInviteCreateRequest {
   email: string;
   role: TeamRole;
 }
+export interface TelemetryReportDTO extends BaseModelDTO, PermissionModelDTO {
+  ip: string;
+  level: number /* int */;
+  payload: { [key: string]: any};
+}
+export interface SubmitTelemetryRequest {
+  payload: { [key: string]: any};
+}
 /**
  * ToolInvocationFunction contains the function details for a tool invocation
  */
