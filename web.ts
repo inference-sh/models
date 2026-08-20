@@ -3797,6 +3797,21 @@ export interface PublicationDTO extends BaseModelDTO, PermissionModelDTO {
   label?: string;
   enabled: boolean;
 }
+export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
+  match_type: string;
+  match_value: string;
+  level: number /* int */;
+  incident_ref?: string;
+  notes?: string;
+  status: string;
+}
+export interface CreateRedlistEntryRequest {
+  match_type: string;
+  match_value: string;
+  level: number /* int */;
+  incident_ref?: string;
+  notes?: string;
+}
 export interface DiagnosticsConfig {
   level: number /* int */;
 }
@@ -4598,6 +4613,14 @@ export interface TeamPlanDTO extends BaseModelDTO {
   plan_version_id?: string;
   price_monthly?: number /* int */;
   plan?: PlanDTO;
+}
+export interface TelemetryReportDTO extends BaseModelDTO, PermissionModelDTO {
+  ip: string;
+  level: number /* int */;
+  payload: { [key: string]: any};
+}
+export interface SubmitTelemetryRequest {
+  payload: { [key: string]: any};
 }
 /**
  * ToolInvocationFunction contains the function details for a tool invocation
