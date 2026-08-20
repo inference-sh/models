@@ -3454,6 +3454,7 @@ export interface PublicMCPServerDTO {
   rank: number /* int */;
   installs: number /* int64 */;
   uses: number /* int64 */;
+  connection_status?: string;
 }
 /**
  * AdminMCPServerDTO is a flat DTO for admin CRUD

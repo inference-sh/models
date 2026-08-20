@@ -2498,6 +2498,7 @@ type PublicMCPServerDTO struct {
 	Rank             int               `json:"rank"`
 	Installs         int64             `json:"installs"`
 	Uses             int64             `json:"uses"`
+	ConnectionStatus string            `json:"connection_status,omitempty"`
 }
 
 // --------------------
