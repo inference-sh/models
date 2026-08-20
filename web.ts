@@ -2360,6 +2360,10 @@ export interface FlowNodeData {
   additional?: any;
   task?: TaskDTO;
   task_id?: string;
+  /**
+   * Gate node config (type="gate" only)
+   */
+  gate_condition?: GateCondition;
 }
 /**
  * FlowNodeDataMap maps node IDs to their data
@@ -5620,6 +5624,14 @@ export interface OutputFieldMapping {
  * OutputMappings is a map of output field name to OutputFieldMapping
  */
 export type OutputMappings = { [key: string]: OutputFieldMapping};
+/**
+ * GateCondition defines a simple boolean condition for gate nodes.
+ */
+export interface GateCondition {
+  field: string;
+  operator: string;
+  value: any;
+}
 export type GraphNodeType = string;
 export const GraphNodeTypeUnknown: GraphNodeType = "unknown";
 export const GraphNodeTypeJoin: GraphNodeType = "join";

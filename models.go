@@ -1579,6 +1579,8 @@ type FlowNodeData struct {
 	Additional   *json.RawMessage `json:"additional"`
 	Task         *TaskDTO         `json:"task"`
 	TaskID       *string          `json:"task_id"`
+	// Gate node config (type="gate" only)
+	GateCondition *GateCondition `json:"gate_condition,omitempty"`
 }
 
 // FlowNodeDataMap maps node IDs to their data
@@ -4848,6 +4850,17 @@ type OutputFieldMapping struct {
 type OutputMappings map[string]OutputFieldMapping
 
 // --------------------
+// source: gate.go
+// --------------------
+
+// GateCondition defines a simple boolean condition for gate nodes.
+type GateCondition struct {
+	Field    string `json:"field"`
+	Operator string `json:"operator"`
+	Value    any    `json:"value"`
+}
+
+// --------------------
 // source: graph.go
 // --------------------
 
@@ -6090,6 +6103,15 @@ const (
 // --------------------
 // companion functions
 // --------------------
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
+}
+
 // JSONValue is a generic helper for SQL serialization of JSON types.
 func JSONValue[T any](v T) (driver.Value, error) {
 	bytes, err := json.Marshal(v)
@@ -6180,12 +6202,4 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
 }
