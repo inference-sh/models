@@ -2067,7 +2067,8 @@ type KnowledgeVersionDTO struct {
 	Tags            []string          `json:"tags"`
 	Scope           []string          `json:"scope,omitempty"` // environment signals for project scoping
 	Metadata        map[string]string `json:"metadata,omitempty"`
-	Origin          string            `json:"origin,omitempty"` // extraction provenance, e.g. "claude:853f9a75-..."
+	Origin          string            `json:"origin,omitempty"`       // extraction provenance, e.g. "claude-code:853f9a75-..."
+	GeneratedBy     string            `json:"generated_by,omitempty"` // OKF actor: "claude-code/opus-4-6", "human:ok@inference.sh"
 	SourceURL       string            `json:"source_url,omitempty"`
 	MutationType    string            `json:"mutation_type,omitempty"`
 	VersionNotes    string            `json:"version_notes,omitempty"`
@@ -2824,7 +2825,8 @@ type KnowledgeVersionInput struct {
 	Tags         []string          `json:"tags,omitempty"`
 	Scope        []string          `json:"scope,omitempty"` // environment signals for project scoping
 	Metadata     map[string]string `json:"metadata,omitempty"`
-	Origin       string            `json:"origin,omitempty"` // extraction provenance, e.g. "claude:853f9a75-..."
+	Origin       string            `json:"origin,omitempty"`       // extraction provenance
+	GeneratedBy  string            `json:"generated_by,omitempty"` // OKF actor convention
 	SourceURL    string            `json:"source_url,omitempty"`
 	MutationType string            `json:"mutation_type,omitempty"`
 	VersionNotes string            `json:"version_notes,omitempty"`
@@ -5446,8 +5448,10 @@ func (v KnowledgeLifecycle) Value() (driver.Value, error) {
 }
 
 const (
-	KnowledgeLifecyclePermanent KnowledgeLifecycle = "permanent"
-	KnowledgeLifecycleDecay     KnowledgeLifecycle = "decay"
+	KnowledgeLifecyclePermanent  KnowledgeLifecycle = "permanent"
+	KnowledgeLifecycleDecay      KnowledgeLifecycle = "decay"
+	KnowledgeLifecycleDraft      KnowledgeLifecycle = "draft"
+	KnowledgeLifecycleDeprecated KnowledgeLifecycle = "deprecated"
 )
 
 type FilterOperator string
@@ -6126,32 +6130,6 @@ type UtilityConfig struct {
 // --------------------
 // companion functions
 // --------------------
-func flowProcessRaw(raw any) any {
-	switch v := raw.(type) {
-	case []any:
-		out := make([]any, len(v))
-		for i, elem := range v {
-			out[i] = flowProcessRaw(elem)
-		}
-		return out
-	case map[string]any:
-		if _, ok := v["connection"]; ok {
-			b, _ := json.Marshal(v)
-			var nested FlowRunInput
-			if err := json.Unmarshal(b, &nested); err == nil {
-				return nested
-			}
-		}
-		out := make(map[string]any)
-		for key, val := range v {
-			out[key] = flowProcessRaw(val)
-		}
-		return out
-	default:
-		return v
-	}
-}
-
 // JSONValue is a generic helper for SQL serialization of JSON types.
 func JSONValue[T any](v T) (driver.Value, error) {
 	bytes, err := json.Marshal(v)
@@ -6224,5 +6202,30 @@ func flowMarshalRecursive(value any) ([]byte, error) {
 		return json.Marshal(mapped)
 	default:
 		return json.Marshal(v)
+	}
+}
+func flowProcessRaw(raw any) any {
+	switch v := raw.(type) {
+	case []any:
+		out := make([]any, len(v))
+		for i, elem := range v {
+			out[i] = flowProcessRaw(elem)
+		}
+		return out
+	case map[string]any:
+		if _, ok := v["connection"]; ok {
+			b, _ := json.Marshal(v)
+			var nested FlowRunInput
+			if err := json.Unmarshal(b, &nested); err == nil {
+				return nested
+			}
+		}
+		out := make(map[string]any)
+		for key, val := range v {
+			out[key] = flowProcessRaw(val)
+		}
+		return out
+	default:
+		return v
 	}
 }

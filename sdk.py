@@ -1276,6 +1276,7 @@ class KnowledgeVersionInput(TypedDict, total=False):
     scope: List[str]
     metadata: Dict[str, str]
     origin: str
+    generated_by: str
     source_url: str
     mutation_type: str
     version_notes: str
@@ -2108,6 +2109,7 @@ class KnowledgeVersionDTO(BaseModelDTO, TypedDict, total=False):
     scope: List[str]
     metadata: Dict[str, str]
     origin: str
+    generated_by: str
     source_url: str
     mutation_type: str
     version_notes: str
@@ -3148,6 +3150,8 @@ class KnowledgeType(str, Enum):
 class KnowledgeLifecycle(str, Enum):
     PERMANENT = "permanent"
     DECAY = "decay"
+    DRAFT = "draft"
+    DEPRECATED = "deprecated"
 
 class FilterOperator(str, Enum):
     OP_EQUAL = "eq"

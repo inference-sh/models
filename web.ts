@@ -2859,7 +2859,8 @@ export interface KnowledgeVersionDTO extends BaseModelDTO {
   tags: string[];
   scope?: string[]; // environment signals for project scoping
   metadata?: { [key: string]: string};
-  origin?: string; // extraction provenance, e.g. "claude:853f9a75-..."
+  origin?: string; // extraction provenance, e.g. "claude-code:853f9a75-..."
+  generated_by?: string; // OKF actor: "claude-code/opus-4-6", "human:ok@inference.sh"
   source_url?: string;
   mutation_type?: string;
   version_notes?: string;
@@ -3840,7 +3841,8 @@ export interface KnowledgeVersionInput {
   tags?: string[];
   scope?: string[]; // environment signals for project scoping
   metadata?: { [key: string]: string};
-  origin?: string; // extraction provenance, e.g. "claude:853f9a75-..."
+  origin?: string; // extraction provenance
+  generated_by?: string; // OKF actor convention
   source_url?: string;
   mutation_type?: string;
   version_notes?: string;
@@ -6046,6 +6048,8 @@ export const KnowledgeTypeAgentConfig: KnowledgeType = "agent-config";
 export type KnowledgeLifecycle = string;
 export const KnowledgeLifecyclePermanent: KnowledgeLifecycle = "permanent";
 export const KnowledgeLifecycleDecay: KnowledgeLifecycle = "decay";
+export const KnowledgeLifecycleDraft: KnowledgeLifecycle = "draft";
+export const KnowledgeLifecycleDeprecated: KnowledgeLifecycle = "deprecated";
 /**
  * TriggerKind represents the mechanism of the trigger
  */
