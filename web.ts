@@ -875,6 +875,7 @@ export interface DeviceAuthClaimResponse {
 export interface MeResponse {
   user?: UserDTO;
   team?: TeamDTO;
+  diagnostics?: DiagnosticsConfig;
 }
 export interface TeamCreateRequest {
   name: string;
@@ -3795,6 +3796,9 @@ export interface PublicationDTO extends BaseModelDTO, PermissionModelDTO {
   theme?: PublicationTheme;
   label?: string;
   enabled: boolean;
+}
+export interface DiagnosticsConfig {
+  level: number /* int */;
 }
 /**
  * Ref is a parsed reference in format "namespace/name@versionID:function".
