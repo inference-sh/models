@@ -1652,7 +1652,7 @@ type FlowRunDTO struct {
 	Output             json.RawMessage            `json:"output"`
 	NodeTasks          map[string]*NodeTaskDTO    `json:"node_tasks"`
 	NodeStatuses       map[string]GraphNodeStatus `json:"node_statuses,omitempty"`
-	NodeOutputs        json.RawMessage            `json:"node_outputs,omitempty"`
+	NodeOutputs        json.RawMessage            `json:"node_outputs"`
 }
 
 // --------------------
@@ -6188,6 +6188,14 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
+}
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case FlowRunInput:
@@ -6250,12 +6258,4 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
-}
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
 }
