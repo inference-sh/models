@@ -815,9 +815,11 @@ class FlowNodeData(TypedDict, total=False):
     additional: Optional[Any]
     task: Optional[TaskDTO]
     task_id: Optional[str]
-    # Primitive node configs
+    # Primitive node configs (legacy, kept for backward compat)
     gate_condition: Optional[GateCondition]
     selector_config: Optional[SelectorConfig]
+    # Unified utility node config (replaces gate_condition/selector_config)
+    utility: Optional[UtilityConfig]
 
 # FlowNodeDataMap maps node IDs to their data
 FlowNodeDataMap = Dict[str, "FlowNodeData"]
@@ -1835,17 +1837,17 @@ class OutputFieldMapping(TypedDict, total=False):
 # OutputMappings is a map of output field name to OutputFieldMapping
 OutputMappings = Dict[str, "OutputFieldMapping"]
 
-# SelectorConfig defines how to pick element(s) from an array.
-class SelectorConfig(TypedDict, total=False):
-    field: str
-    mode: str
-    index: Optional[int]
-
 # GateCondition defines a simple boolean condition for gate nodes.
 class GateCondition(TypedDict, total=False):
     field: str
     operator: str
     value: Any
+
+# SelectorConfig defines how to pick element(s) from an array.
+class SelectorConfig(TypedDict, total=False):
+    field: str
+    mode: str
+    index: Optional[int]
 
 # HookEventDefinition describes a lifecycle hook event and its capabilities.
 class HookEventDefinition(TypedDict, total=False):
@@ -1982,6 +1984,14 @@ class ToolParameterProperty(TypedDict, total=False):
     properties: Optional[ToolParameterProperties]
     items: Optional[ToolParameterProperty]
     required: Optional[List[str]]
+
+# UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
+class UtilityConfig(TypedDict, total=False):
+    preset: str
+    expression: str
+    gate: Optional[GateCondition]
+    selector: Optional[SelectorConfig]
+    constant: Any
 
 # AppVersionDTO is the API response for an app version.
 class AppVersionDTO(BaseModelDTO, TypedDict, total=False):

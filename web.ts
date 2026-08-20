@@ -2361,10 +2361,14 @@ export interface FlowNodeData {
   task?: TaskDTO;
   task_id?: string;
   /**
-   * Primitive node configs
+   * Primitive node configs (legacy, kept for backward compat)
    */
   gate_condition?: GateCondition;
   selector_config?: SelectorConfig;
+  /**
+   * Unified utility node config (replaces gate_condition/selector_config)
+   */
+  utility?: UtilityConfig;
 }
 /**
  * FlowNodeDataMap maps node IDs to their data
@@ -5626,20 +5630,20 @@ export interface OutputFieldMapping {
  */
 export type OutputMappings = { [key: string]: OutputFieldMapping};
 /**
- * SelectorConfig defines how to pick element(s) from an array.
- */
-export interface SelectorConfig {
-  field: string;
-  mode: string;
-  index?: number /* int */;
-}
-/**
  * GateCondition defines a simple boolean condition for gate nodes.
  */
 export interface GateCondition {
   field: string;
   operator: string;
   value: any;
+}
+/**
+ * SelectorConfig defines how to pick element(s) from an array.
+ */
+export interface SelectorConfig {
+  field: string;
+  mode: string;
+  index?: number /* int */;
 }
 export type GraphNodeType = string;
 export const GraphNodeTypeUnknown: GraphNodeType = "unknown";
@@ -6539,3 +6543,13 @@ export const RoleGuest: Role = "guest";
 export const RoleUser: Role = "user";
 export const RoleAdmin: Role = "admin";
 export const RoleSystem: Role = "system";
+/**
+ * UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
+ */
+export interface UtilityConfig {
+  preset: string;
+  expression?: string;
+  gate?: GateCondition;
+  selector?: SelectorConfig;
+  constant?: any;
+}

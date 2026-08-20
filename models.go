@@ -1579,9 +1579,11 @@ type FlowNodeData struct {
 	Additional   *json.RawMessage `json:"additional"`
 	Task         *TaskDTO         `json:"task"`
 	TaskID       *string          `json:"task_id"`
-	// Primitive node configs
+	// Primitive node configs (legacy, kept for backward compat)
 	GateCondition  *GateCondition  `json:"gate_condition,omitempty"`
 	SelectorConfig *SelectorConfig `json:"selector_config,omitempty"`
+	// Unified utility node config (replaces gate_condition/selector_config)
+	Utility *UtilityConfig `json:"utility,omitempty"`
 }
 
 // FlowNodeDataMap maps node IDs to their data
@@ -4854,18 +4856,18 @@ type OutputMappings map[string]OutputFieldMapping
 // source: gate.go
 // --------------------
 
-// SelectorConfig defines how to pick element(s) from an array.
-type SelectorConfig struct {
-	Field string `json:"field"`
-	Mode  string `json:"mode"`
-	Index *int   `json:"index,omitempty"`
-}
-
 // GateCondition defines a simple boolean condition for gate nodes.
 type GateCondition struct {
 	Field    string `json:"field"`
 	Operator string `json:"operator"`
 	Value    any    `json:"value"`
+}
+
+// SelectorConfig defines how to pick element(s) from an array.
+type SelectorConfig struct {
+	Field string `json:"field"`
+	Mode  string `json:"mode"`
+	Index *int   `json:"index,omitempty"`
 }
 
 // --------------------
@@ -6109,54 +6111,21 @@ const (
 )
 
 // --------------------
+// source: utility.go
+// --------------------
+
+// UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
+type UtilityConfig struct {
+	Preset     string          `json:"preset"`
+	Expression string          `json:"expression,omitempty"`
+	Gate       *GateCondition  `json:"gate,omitempty"`
+	Selector   *SelectorConfig `json:"selector,omitempty"`
+	Constant   any             `json:"constant,omitempty"`
+}
+
+// --------------------
 // companion functions
 // --------------------
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*out = flowProcessRaw(raw)
-	return nil
-}
-func flowMarshalRecursive(value any) ([]byte, error) {
-	switch v := value.(type) {
-	case FlowRunInput:
-		return json.Marshal(v)
-	case *FlowRunInput:
-		return json.Marshal(v)
-	case []any:
-		arr := make([]any, len(v))
-		for i, elem := range v {
-			marshaled, err := flowMarshalRecursive(elem)
-			if err != nil {
-				return nil, err
-			}
-			var unmarshaled any
-			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
-				return nil, err
-			}
-			arr[i] = unmarshaled
-		}
-		return json.Marshal(arr)
-	case map[string]any:
-		mapped := make(map[string]any)
-		for key, val := range v {
-			marshaled, err := flowMarshalRecursive(val)
-			if err != nil {
-				return nil, err
-			}
-			var unmarshaled any
-			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
-				return nil, err
-			}
-			mapped[key] = unmarshaled
-		}
-		return json.Marshal(mapped)
-	default:
-		return json.Marshal(v)
-	}
-}
 func flowProcessRaw(raw any) any {
 	switch v := raw.(type) {
 	case []any:
@@ -6210,4 +6179,50 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 		return nil
 	}
 	return json.Unmarshal([]byte(str), dest)
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
+}
+func flowMarshalRecursive(value any) ([]byte, error) {
+	switch v := value.(type) {
+	case FlowRunInput:
+		return json.Marshal(v)
+	case *FlowRunInput:
+		return json.Marshal(v)
+	case []any:
+		arr := make([]any, len(v))
+		for i, elem := range v {
+			marshaled, err := flowMarshalRecursive(elem)
+			if err != nil {
+				return nil, err
+			}
+			var unmarshaled any
+			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
+				return nil, err
+			}
+			arr[i] = unmarshaled
+		}
+		return json.Marshal(arr)
+	case map[string]any:
+		mapped := make(map[string]any)
+		for key, val := range v {
+			marshaled, err := flowMarshalRecursive(val)
+			if err != nil {
+				return nil, err
+			}
+			var unmarshaled any
+			if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
+				return nil, err
+			}
+			mapped[key] = unmarshaled
+		}
+		return json.Marshal(mapped)
+	default:
+		return json.Marshal(v)
+	}
 }
