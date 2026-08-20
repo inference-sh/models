@@ -6122,6 +6122,15 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case FlowRunInput:
@@ -6192,13 +6201,4 @@ func flowUnmarshalRecursive(data []byte, out *any) error {
 	}
 	*out = flowProcessRaw(raw)
 	return nil
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
 }
