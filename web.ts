@@ -895,6 +895,7 @@ export interface SecretCreateRequest {
   key: string;
   value: string;
   description?: string;
+  provider?: string;
 }
 export interface SecretUpdateRequest {
   value: string;

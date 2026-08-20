@@ -391,6 +391,7 @@ class SecretCreateRequest(TypedDict, total=False):
     key: str
     value: str
     description: str
+    provider: str
 
 class SecretUpdateRequest(TypedDict, total=False):
     value: str
