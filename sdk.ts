@@ -1534,6 +1534,7 @@ export interface FlowRunDTO extends BaseModelDTO, PermissionModelDTO {
   fail_on_error: boolean;
   output: any;
   node_tasks: { [key: string]: NodeTaskDTO | undefined};
+  node_statuses?: { [key: string]: GraphNodeStatus};
 }
 /**
  * FlowActionType is the string type for action constants.
