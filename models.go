@@ -1579,8 +1579,9 @@ type FlowNodeData struct {
 	Additional   *json.RawMessage `json:"additional"`
 	Task         *TaskDTO         `json:"task"`
 	TaskID       *string          `json:"task_id"`
-	// Gate node config (type="gate" only)
-	GateCondition *GateCondition `json:"gate_condition,omitempty"`
+	// Primitive node configs
+	GateCondition  *GateCondition  `json:"gate_condition,omitempty"`
+	SelectorConfig *SelectorConfig `json:"selector_config,omitempty"`
 }
 
 // FlowNodeDataMap maps node IDs to their data
@@ -4853,6 +4854,13 @@ type OutputMappings map[string]OutputFieldMapping
 // source: gate.go
 // --------------------
 
+// SelectorConfig defines how to pick element(s) from an array.
+type SelectorConfig struct {
+	Field string `json:"field"`
+	Mode  string `json:"mode"`
+	Index *int   `json:"index,omitempty"`
+}
+
 // GateCondition defines a simple boolean condition for gate nodes.
 type GateCondition struct {
 	Field    string `json:"field"`
@@ -6103,33 +6111,13 @@ const (
 // --------------------
 // companion functions
 // --------------------
-// JSONScan is a generic helper for SQL deserialization of JSON types.
-func JSONScan[T any](dest *T, value any, typeName string) error {
-	if value == nil {
-		return nil
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
-	var str string
-	switch v := value.(type) {
-	case []byte:
-		str = string(v)
-	case string:
-		str = v
-	default:
-		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
-	}
-	if str == "" {
-		return nil
-	}
-	return json.Unmarshal([]byte(str), dest)
-}
-
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
+	*out = flowProcessRaw(raw)
+	return nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -6194,11 +6182,32 @@ func flowProcessRaw(raw any) any {
 		return v
 	}
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
+}
+
+// JSONScan is a generic helper for SQL deserialization of JSON types.
+func JSONScan[T any](dest *T, value any, typeName string) error {
+	if value == nil {
+		return nil
+	}
+	var str string
+	switch v := value.(type) {
+	case []byte:
+		str = string(v)
+	case string:
+		str = v
+	default:
+		return fmt.Errorf("unexpected type for %s: %T", typeName, value)
+	}
+	if str == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(str), dest)
 }

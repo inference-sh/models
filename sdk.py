@@ -815,8 +815,9 @@ class FlowNodeData(TypedDict, total=False):
     additional: Optional[Any]
     task: Optional[TaskDTO]
     task_id: Optional[str]
-    # Gate node config (type="gate" only)
+    # Primitive node configs
     gate_condition: Optional[GateCondition]
+    selector_config: Optional[SelectorConfig]
 
 # FlowNodeDataMap maps node IDs to their data
 FlowNodeDataMap = Dict[str, "FlowNodeData"]
@@ -1833,6 +1834,12 @@ class OutputFieldMapping(TypedDict, total=False):
 
 # OutputMappings is a map of output field name to OutputFieldMapping
 OutputMappings = Dict[str, "OutputFieldMapping"]
+
+# SelectorConfig defines how to pick element(s) from an array.
+class SelectorConfig(TypedDict, total=False):
+    field: str
+    mode: str
+    index: Optional[int]
 
 # GateCondition defines a simple boolean condition for gate nodes.
 class GateCondition(TypedDict, total=False):

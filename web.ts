@@ -2361,9 +2361,10 @@ export interface FlowNodeData {
   task?: TaskDTO;
   task_id?: string;
   /**
-   * Gate node config (type="gate" only)
+   * Primitive node configs
    */
   gate_condition?: GateCondition;
+  selector_config?: SelectorConfig;
 }
 /**
  * FlowNodeDataMap maps node IDs to their data
@@ -5624,6 +5625,14 @@ export interface OutputFieldMapping {
  * OutputMappings is a map of output field name to OutputFieldMapping
  */
 export type OutputMappings = { [key: string]: OutputFieldMapping};
+/**
+ * SelectorConfig defines how to pick element(s) from an array.
+ */
+export interface SelectorConfig {
+  field: string;
+  mode: string;
+  index?: number /* int */;
+}
 /**
  * GateCondition defines a simple boolean condition for gate nodes.
  */
