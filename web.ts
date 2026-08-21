@@ -3803,6 +3803,7 @@ export interface PublicationDTO extends BaseModelDTO, PermissionModelDTO {
 export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
   match_type: string;
   match_value: string;
+  action: string;
   level: number /* int */;
   incident_ref?: string;
   notes?: string;
@@ -3811,6 +3812,7 @@ export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
 export interface CreateRedlistEntryRequest {
   match_type: string;
   match_value: string;
+  action?: string;
   level: number /* int */;
   incident_ref?: string;
   notes?: string;
