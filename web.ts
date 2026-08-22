@@ -4054,6 +4054,7 @@ export interface SuggestRequest {
 export interface SuggestResponse {
   query: string;
   results: SuggestResult[];
+  impression_id?: string;
 }
 /**
  * SuggestResult is a single result item from the suggest endpoint.

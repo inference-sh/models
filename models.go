@@ -2937,8 +2937,9 @@ type SuggestRequest struct {
 
 // SuggestResponse is the output of the suggest endpoint.
 type SuggestResponse struct {
-	Query   string          `json:"query"`
-	Results []SuggestResult `json:"results"`
+	Query        string          `json:"query"`
+	Results      []SuggestResult `json:"results"`
+	ImpressionID string          `json:"impression_id,omitempty"`
 }
 
 // SuggestResult is a single result item from the suggest endpoint.
