@@ -3434,6 +3434,7 @@ export interface MCPServerDTO {
   oauth_client_id?: string;
   default_scopes: StringSlice;
   documentation_url: string;
+  connection_status?: string;
 }
 /**
  * PublicMCPServerDTO is a lean DTO for the public MCP directory.
@@ -5074,6 +5075,7 @@ export interface WsTaskLogPayload {
 export interface WsTaskOutputPayload {
   task_id: string;
   output: string;
+  is_delta?: boolean;
 }
 export interface WsTaskFailedPayload {
   task_id: string;
@@ -5809,6 +5811,35 @@ export interface LLMOutput {
   reasoning?: string;
   tool_calls?: ToolCall[];
   usage?: LLMUsage;
+}
+/**
+ * LLMDelta is a streaming delta for LLMOutput with append semantics.
+ * response/reasoning: concatenate. tool_calls: index-based, arguments append.
+ */
+export interface LLMDelta {
+  response: string;
+  reasoning?: string;
+  tool_calls?: ToolCallDelta[];
+  usage?: LLMUsage;
+}
+/**
+ * ToolCallDelta is an incremental update to a tool call, identified by index.
+ * First delta for an index carries ID, Type, and Function.Name.
+ * Subsequent deltas carry only Function.Arguments fragments.
+ */
+export interface ToolCallDelta {
+  index: number /* int */;
+  id?: string;
+  type?: ToolCallType;
+  function?: ToolCallFunctionDelta;
+}
+/**
+ * ToolCallFunctionDelta carries partial tool call function data.
+ * Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
+ */
+export interface ToolCallFunctionDelta {
+  name?: string;
+  arguments?: string;
 }
 /**
  * ModelSettings groups sampling and generation parameters as a passable unit.

@@ -2479,6 +2479,7 @@ type MCPServerDTO struct {
 	OAuthSecretKey   string            `json:"-"`
 	DefaultScopes    StringSlice       `json:"default_scopes"`
 	DocumentationURL string            `json:"documentation_url"`
+	ConnectionStatus string            `json:"connection_status,omitempty"`
 }
 
 // PublicMCPServerDTO is a lean DTO for the public MCP directory.
@@ -3151,6 +3152,7 @@ type SDKTypes struct {
 	// Output
 	_outputMeta    OutputMeta
 	_llmOutput     LLMOutput
+	_llmDelta      LLMDelta
 	_modelSettings ModelSettings
 	// Knowledge
 	_knowledgeDTO      KnowledgeDTO
@@ -3997,8 +3999,9 @@ type WsTaskLogPayload struct {
 }
 
 type WsTaskOutputPayload struct {
-	TaskID string `json:"task_id"`
-	Output []byte `json:"output"`
+	TaskID  string `json:"task_id"`
+	Output  []byte `json:"output"`
+	IsDelta bool   `json:"is_delta,omitempty"`
 }
 
 type WsTaskFailedPayload struct {
@@ -5100,6 +5103,32 @@ type LLMOutput struct {
 	Reasoning *string     `json:"reasoning"`
 	ToolCalls *[]ToolCall `json:"tool_calls"`
 	Usage     *LLMUsage   `json:"usage"`
+}
+
+// LLMDelta is a streaming delta for LLMOutput with append semantics.
+// response/reasoning: concatenate. tool_calls: index-based, arguments append.
+type LLMDelta struct {
+	Response  string           `json:"response"`
+	Reasoning *string          `json:"reasoning,omitempty"`
+	ToolCalls *[]ToolCallDelta `json:"tool_calls,omitempty"`
+	Usage     *LLMUsage        `json:"usage,omitempty"`
+}
+
+// ToolCallDelta is an incremental update to a tool call, identified by index.
+// First delta for an index carries ID, Type, and Function.Name.
+// Subsequent deltas carry only Function.Arguments fragments.
+type ToolCallDelta struct {
+	Index    int                    `json:"index"`
+	ID       *string                `json:"id,omitempty"`
+	Type     *ToolCallType          `json:"type,omitempty"`
+	Function *ToolCallFunctionDelta `json:"function,omitempty"`
+}
+
+// ToolCallFunctionDelta carries partial tool call function data.
+// Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
+type ToolCallFunctionDelta struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
 }
 
 // ModelSettings groups sampling and generation parameters as a passable unit.
