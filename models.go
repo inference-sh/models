@@ -3153,6 +3153,7 @@ type SDKTypes struct {
 	_outputMeta    OutputMeta
 	_llmOutput     LLMOutput
 	_llmDelta      LLMDelta
+	_llmDeltaEvent LLMDeltaEvent
 	_modelSettings ModelSettings
 	// Knowledge
 	_knowledgeDTO      KnowledgeDTO
@@ -5122,6 +5123,12 @@ type ToolCallDelta struct {
 	ID       *string                `json:"id,omitempty"`
 	Type     *ToolCallType          `json:"type,omitempty"`
 	Function *ToolCallFunctionDelta `json:"function,omitempty"`
+}
+
+// LLMDeltaEvent is the streaming envelope for a delta on the NDJSON wire.
+type LLMDeltaEvent struct {
+	Delta LLMDelta `json:"delta"`
+	Seq   int64    `json:"seq"`
 }
 
 // ToolCallFunctionDelta carries partial tool call function data.
