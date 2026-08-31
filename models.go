@@ -5123,6 +5123,20 @@ const (
 // source: llm_types.go
 // --------------------
 
+// MergeStrategy defines how a delta field should be merged by consumers.
+type MergeStrategy string
+
+const (
+	MergeStrategyConcat  MergeStrategy = "concat"
+	MergeStrategyReplace MergeStrategy = "replace"
+	MergeStrategyIndexed MergeStrategy = "indexed"
+)
+
+// StreamDelta is the marker base for all streaming delta types.
+// Types embedding StreamDelta are routed through the delta channel.
+type StreamDelta struct {
+}
+
 // LLMOutput is the output envelope from an LLM provider task.
 // This is the contract between chat apps (sdk-py) and the agent runtime (go/api).
 type LLMOutput struct {
@@ -5132,13 +5146,13 @@ type LLMOutput struct {
 	Usage     *LLMUsage   `json:"usage"`
 }
 
-// LLMDelta is a streaming delta for LLMOutput with append semantics.
-// response/reasoning: concatenate. tool_calls: index-based, arguments append.
+// LLMDelta is a streaming delta for LLMOutput.
 type LLMDelta struct {
-	Response  string           `json:"response"`
-	Reasoning *string          `json:"reasoning,omitempty"`
-	ToolCalls *[]ToolCallDelta `json:"tool_calls,omitempty"`
-	Usage     *LLMUsage        `json:"usage,omitempty"`
+	StreamDelta `tstype:",extends"`
+	Response    string           `json:"response" merge:"concat"`
+	Reasoning   *string          `json:"reasoning,omitempty" merge:"concat"`
+	ToolCalls   *[]ToolCallDelta `json:"tool_calls,omitempty" merge:"indexed"`
+	Usage       *LLMUsage        `json:"usage,omitempty" merge:"replace"`
 }
 
 // ToolCallDelta is an incremental update to a tool call, identified by index.
@@ -5151,11 +5165,15 @@ type ToolCallDelta struct {
 	Function *ToolCallFunctionDelta `json:"function,omitempty"`
 }
 
-// LLMDeltaEvent is the streaming envelope for a delta on the NDJSON wire.
-type LLMDeltaEvent struct {
-	Delta LLMDelta `json:"delta"`
-	Seq   int64    `json:"seq"`
+// DeltaEvent is the generic streaming envelope on the NDJSON wire.
+// Delta is raw bytes — consumers parse based on context.
+type DeltaEvent struct {
+	Delta json.RawMessage `json:"delta"`
+	Seq   int64           `json:"seq"`
 }
+
+// LLMDeltaEvent is a typed alias for backward compatibility.
+type LLMDeltaEvent DeltaEvent
 
 // ToolCallFunctionDelta carries partial tool call function data.
 // Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
