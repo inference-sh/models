@@ -5130,6 +5130,7 @@ const (
 	MergeStrategyConcat  MergeStrategy = "concat"
 	MergeStrategyReplace MergeStrategy = "replace"
 	MergeStrategyIndexed MergeStrategy = "indexed"
+	MergeStrategyNested  MergeStrategy = "nested"
 )
 
 // StreamDelta is the marker base for all streaming delta types.
@@ -5160,9 +5161,9 @@ type LLMDelta struct {
 // Subsequent deltas carry only Function.Arguments fragments.
 type ToolCallDelta struct {
 	Index    int                    `json:"index"`
-	ID       *string                `json:"id,omitempty"`
-	Type     *ToolCallType          `json:"type,omitempty"`
-	Function *ToolCallFunctionDelta `json:"function,omitempty"`
+	ID       *string                `json:"id,omitempty" merge:"replace"`
+	Type     *ToolCallType          `json:"type,omitempty" merge:"replace"`
+	Function *ToolCallFunctionDelta `json:"function,omitempty" merge:"nested"`
 }
 
 // DeltaEvent is the generic streaming envelope on the NDJSON wire.
@@ -5178,8 +5179,8 @@ type LLMDeltaEvent DeltaEvent
 // ToolCallFunctionDelta carries partial tool call function data.
 // Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
 type ToolCallFunctionDelta struct {
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"`
+	Name      string `json:"name,omitempty" merge:"replace"`
+	Arguments string `json:"arguments,omitempty" merge:"concat"`
 }
 
 // ModelSettings groups sampling and generation parameters as a passable unit.
