@@ -3822,9 +3822,11 @@ export interface DiagnosticsConfig {
   level: number /* int */;
 }
 /**
- * Ref is a parsed reference in format "namespace/name@versionID:function".
+ * Ref is a parsed reference in format "[type/]namespace/name@versionID:function".
+ * Type is optional — when present it disambiguates the resource kind.
  */
 export interface Ref {
+  type?: string;
   namespace?: string;
   name: string;
   version_id?: string;

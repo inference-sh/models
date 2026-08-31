@@ -2734,17 +2734,19 @@ type DiagnosticsConfig struct {
 // source: ref.go
 // --------------------
 
-// Ref is a parsed reference in format "namespace/name@versionID:function".
+// Ref is a parsed reference in format "[type/]namespace/name@versionID:function".
+// Type is optional — when present it disambiguates the resource kind.
 type Ref struct {
+	Type      string `json:"type,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name"`
 	VersionID string `json:"version_id,omitempty"`
 	Function  string `json:"function,omitempty"`
 }
 
-// Parse parses a reference string in format "namespace/name@shortVersionId:function".
+// Parse parses a reference string in format "[type/]namespace/name@shortVersionId:function".
 // "@latest" is treated as unversioned (VersionID = "").
-// Usage: ref := Ref{}.Parse("ns/name@v1:fn")
+// Usage: ref := Ref{}.Parse("knowledge/ns/name@v1:fn")
 func (Ref) Parse(s string) Ref {
 	var r Ref
 	full := s
@@ -2763,10 +2765,21 @@ func (Ref) Parse(s string) Ref {
 	if r.VersionID == "latest" {
 		r.VersionID = ""
 	}
-	if idx := strings.Index(fullName, "/"); idx != -1 {
-		r.Namespace = fullName[:idx]
-		r.Name = fullName[idx+1:]
-	} else {
+	parts := strings.SplitN(fullName, "/", 3)
+	switch len(parts) {
+	case 3:
+		if parts[0] == "knowledge" || parts[0] == "skill" || parts[0] == "app" || parts[0] == "agent" {
+			r.Type = parts[0]
+			r.Namespace = parts[1]
+			r.Name = parts[2]
+		} else {
+			r.Namespace = parts[0]
+			r.Name = parts[1] + "/" + parts[2]
+		}
+	case 2:
+		r.Namespace = parts[0]
+		r.Name = parts[1]
+	default:
 		r.Name = fullName
 	}
 	return r
@@ -2786,10 +2799,18 @@ func (r Ref) FullName() string {
 	return r.Namespace + "/" + r.Name
 }
 
-// String builds the full reference string "namespace/name@versionID:function".
+// QualifiedName returns "type/namespace/name" when type is set, otherwise "namespace/name".
+func (r Ref) QualifiedName() string {
+	if r.Type != "" {
+		return r.Type + "/" + r.FullName()
+	}
+	return r.FullName()
+}
+
+// String builds the full reference string "[type/]namespace/name@versionID:function".
 // Empty components are omitted.
 func (r Ref) String() string {
-	s := r.FullName()
+	s := r.QualifiedName()
 	if r.VersionID != "" {
 		s += "@" + r.VersionID
 	}
@@ -2797,6 +2818,11 @@ func (r Ref) String() string {
 		s += ":" + r.Function
 	}
 	return s
+}
+
+// IsTyped returns true when the ref has an explicit type prefix.
+func (r Ref) IsTyped() bool {
+	return r.Type != ""
 }
 
 // --------------------
@@ -6218,15 +6244,6 @@ type UtilityConfig struct {
 // --------------------
 // companion functions
 // --------------------
-// JSONValue is a generic helper for SQL serialization of JSON types.
-func JSONValue[T any](v T) (driver.Value, error) {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(bytes), nil
-}
-
 // JSONScan is a generic helper for SQL deserialization of JSON types.
 func JSONScan[T any](dest *T, value any, typeName string) error {
 	if value == nil {
@@ -6246,13 +6263,14 @@ func JSONScan[T any](dest *T, value any, typeName string) error {
 	}
 	return json.Unmarshal([]byte(str), dest)
 }
-func flowUnmarshalRecursive(data []byte, out *any) error {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+
+// JSONValue is a generic helper for SQL serialization of JSON types.
+func JSONValue[T any](v T) (driver.Value, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-	*out = flowProcessRaw(raw)
-	return nil
+	return string(bytes), nil
 }
 func flowMarshalRecursive(value any) ([]byte, error) {
 	switch v := value.(type) {
@@ -6316,4 +6334,12 @@ func flowProcessRaw(raw any) any {
 	default:
 		return v
 	}
+}
+func flowUnmarshalRecursive(data []byte, out *any) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*out = flowProcessRaw(raw)
+	return nil
 }
