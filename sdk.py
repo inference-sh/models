@@ -344,6 +344,7 @@ class AuthResponse(TypedDict, total=False):
     session_id: str
     is_new: bool
     otp_required: bool
+    otp_method: str
     redirect_to: str
     provider: str
 
@@ -2234,6 +2235,7 @@ class UserDTO(BaseModelDTO, TypedDict, total=False):
     avatar_url: str
     banned_at: Optional[str]
     ban_note: str
+    totp_enabled: bool
     metadata: Optional[UserMetadataDTO]
 
 class AgentVersionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):

@@ -544,6 +544,7 @@ type AuthResponse struct {
 	SessionID   string   `json:"session_id"`
 	IsNew       bool     `json:"is_new,omitempty"`
 	OTPRequired bool     `json:"otp_required,omitempty"`
+	OTPMethod   string   `json:"otp_method,omitempty"` // "email" or "totp"
 	RedirectTo  string   `json:"redirect_to,omitempty"`
 	Provider    string   `json:"provider,omitempty"`
 }
@@ -3960,6 +3961,7 @@ type UserDTO struct {
 	AvatarURL     string           `json:"avatar_url"`
 	BannedAt      *time.Time       `json:"banned_at,omitempty"`
 	BanNote       string           `json:"ban_note,omitempty"`
+	TOTPEnabled   bool             `json:"totp_enabled"`
 	Metadata      *UserMetadataDTO `json:"metadata"`
 }
 
