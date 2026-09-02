@@ -1406,6 +1406,16 @@ export const ScopeApiKeysRead: Scope = "apikeys:read";
  */
 export const ScopeApiKeysWrite: Scope = "apikeys:write";
 /**
+ * Action-level scopes for Knowledge (includes skills)
+ */
+export const ScopeKnowledgeRead: Scope = "knowledge:read";
+/**
+ * API Key Scopes - hierarchical permission system.
+ * Resource-level scopes (e.g., "agents") imply all action-level scopes (e.g., "agents:read").
+ * Empty scopes = full access (for backwards compatibility with existing keys).
+ */
+export const ScopeKnowledgeWrite: Scope = "knowledge:write";
+/**
  * Action-level scopes for User profile
  */
 export const ScopeUserRead: Scope = "user:read";
@@ -1442,6 +1452,7 @@ export const ScopeGroupSecrets: ScopeGroup = "secrets";
 export const ScopeGroupIntegrations: ScopeGroup = "integrations";
 export const ScopeGroupEngines: ScopeGroup = "engines";
 export const ScopeGroupApiKeys: ScopeGroup = "apikeys";
+export const ScopeGroupKnowledge: ScopeGroup = "knowledge";
 export const ScopeGroupUser: ScopeGroup = "user";
 export const ScopeGroupSettings: ScopeGroup = "settings";
 /**

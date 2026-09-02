@@ -2753,6 +2753,9 @@ class Scope(str, Enum):
     # Action-level scopes for API Keys
     API_KEYS_READ = "apikeys:read"
     API_KEYS_WRITE = "apikeys:write"
+    # Action-level scopes for Knowledge (includes skills)
+    KNOWLEDGE_READ = "knowledge:read"
+    KNOWLEDGE_WRITE = "knowledge:write"
     # Action-level scopes for User profile
     USER_READ = "user:read"
     USER_WRITE = "user:write"
@@ -2774,6 +2777,7 @@ class ScopeGroup(str, Enum):
     INTEGRATIONS = "integrations"
     ENGINES = "engines"
     API_KEYS = "apikeys"
+    KNOWLEDGE = "knowledge"
     USER = "user"
     SETTINGS = "settings"
 

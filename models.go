@@ -830,6 +830,9 @@ const (
 	// Action-level scopes for API Keys
 	ScopeApiKeysRead  Scope = "apikeys:read"
 	ScopeApiKeysWrite Scope = "apikeys:write"
+	// Action-level scopes for Knowledge (includes skills)
+	ScopeKnowledgeRead  Scope = "knowledge:read"
+	ScopeKnowledgeWrite Scope = "knowledge:write"
 	// Action-level scopes for User profile
 	ScopeUserRead  Scope = "user:read"
 	ScopeUserWrite Scope = "user:write"
@@ -855,6 +858,7 @@ const (
 	ScopeGroupIntegrations  ScopeGroup = "integrations"
 	ScopeGroupEngines       ScopeGroup = "engines"
 	ScopeGroupApiKeys       ScopeGroup = "apikeys"
+	ScopeGroupKnowledge     ScopeGroup = "knowledge"
 	ScopeGroupUser          ScopeGroup = "user"
 	ScopeGroupSettings      ScopeGroup = "settings"
 )
