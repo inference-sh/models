@@ -5189,6 +5189,42 @@ type ToolCallFunctionDelta struct {
 	Arguments string `json:"arguments,omitempty" merge:"concat"`
 }
 
+// ToolChoiceMode controls whether the model must call a tool this turn.
+type ToolChoiceMode string
+
+const (
+	ToolChoiceModeNone     ToolChoiceMode = "none"
+	ToolChoiceModeAuto     ToolChoiceMode = "auto"
+	ToolChoiceModeRequired ToolChoiceMode = "required"
+	ToolChoiceModeFunction ToolChoiceMode = "function"
+)
+
+// ToolChoice constrains tool calling for a turn. Providers spell this
+// differently (OpenAI tool_choice, Anthropic tool_choice.type any/tool,
+// Gemini functionCallingConfig); apps translate at the provider boundary.
+type ToolChoice struct {
+	Mode ToolChoiceMode `json:"mode"`
+	Name *string        `json:"name,omitempty"` // required when Mode is function
+}
+
+// ResponseFormatType selects how the model's output is constrained.
+type ResponseFormatType string
+
+const (
+	ResponseFormatTypeText       ResponseFormatType = "text"
+	ResponseFormatTypeJSONObject ResponseFormatType = "json_object"
+	ResponseFormatTypeJSONSchema ResponseFormatType = "json_schema"
+)
+
+// ResponseFormat constrains the shape of the model's response.
+// JSONSchema is required when Type is json_schema.
+type ResponseFormat struct {
+	Type       ResponseFormatType `json:"type"`
+	Name       *string            `json:"name,omitempty"`        // schema name, where the provider wants one
+	JSONSchema *json.RawMessage   `json:"json_schema,omitempty"` // JSON Schema
+	Strict     *bool              `json:"strict,omitempty"`      // provider-enforced adherence, where supported
+}
+
 // ModelSettings groups sampling and generation parameters as a passable unit.
 type ModelSettings struct {
 	Temperature        *float64 `json:"temperature,omitempty"`
@@ -5230,6 +5266,8 @@ type LLMInput struct {
 	Images             *[]string           `json:"images,omitempty"`
 	Files              *[]string           `json:"files,omitempty"`
 	Tools              *[]Tool             `json:"tools"`
+	ToolChoice         *ToolChoice         `json:"tool_choice,omitempty"`
+	ResponseFormat     *ResponseFormat     `json:"response_format,omitempty"`
 	ToolCallID         *string             `json:"tool_call_id,omitempty"`
 }
 
