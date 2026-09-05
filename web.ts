@@ -1848,6 +1848,24 @@ export interface BillingDTO extends BaseModelDTO, PermissionModelDTO {
   balance: number /* int64 */;
   currency: string;
   status: BillingStatus;
+  /**
+   * ManagedByOrg is set when this team's billing resolves to an org-owned
+   * row (GitHub-style "billing managed by <org>").
+   */
+  managed_by_org?: OrgRefDTO;
+  /**
+   * Delegated: the caller is on a member team WITHOUT org admin — balance,
+   * invoices and payment methods are withheld (Balance is zeroed).
+   */
+  delegated?: boolean;
+}
+/**
+ * OrgRefDTO is a lightweight org reference embedded in other DTOs.
+ */
+export interface OrgRefDTO {
+  id: string;
+  slug?: string;
+  name?: string;
 }
 /**
  * BillingSettingsDTO is the data transfer object for BillingSettings
