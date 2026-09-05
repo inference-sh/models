@@ -590,8 +590,11 @@ type DeviceAuthClaimResponse struct {
 }
 
 type MeResponse struct {
-	User        *UserDTO           `json:"user"`
-	Team        *TeamDTO           `json:"team,omitempty"`
+	User *UserDTO `json:"user"`
+	Team *TeamDTO `json:"team,omitempty"`
+	// Org of the current team, when the team belongs to one. IsAdmin on it
+	// reflects the caller (org_admins grant list).
+	Org         *OrgDTO            `json:"org,omitempty"`
 	Diagnostics *DiagnosticsConfig `json:"diagnostics,omitempty"`
 }
 
@@ -1171,6 +1174,7 @@ type PermissionModelDTO struct {
 	User       *UserRelationDTO `json:"user"`
 	TeamID     string           `json:"team_id"`
 	Team       *TeamRelationDTO `json:"team"`
+	OrgID      string           `json:"org_id,omitempty"`
 	Visibility Visibility       `json:"visibility"`
 }
 
@@ -2574,6 +2578,22 @@ type UpdateNotificationPreferencesRequest struct {
 }
 
 // --------------------
+// source: org.go
+// --------------------
+
+// OrgDTO is the API response for an org (enterprise layer above teams).
+type OrgDTO struct {
+	BaseModelDTO  `tstype:",extends"`
+	Slug          string `json:"slug"`
+	Name          string `json:"name"`
+	AvatarURL     string `json:"avatar_url,omitempty"`
+	DefaultTeamID string `json:"default_team_id,omitempty"`
+	// IsAdmin: whether the CALLER is on this org's admin grant list. Set on
+	// caller-scoped responses.
+	IsAdmin bool `json:"is_admin,omitempty"`
+}
+
+// --------------------
 // source: page.go
 // --------------------
 
@@ -3768,6 +3788,8 @@ type TeamDTO struct {
 	// caller-scoped responses (/teams, /users/me). Empty when not applicable
 	// (public team views, platform-admin impersonation).
 	Role TeamRole `json:"role,omitempty"`
+	// OrgID of the org this team belongs to ('' = standalone team).
+	OrgID string `json:"org_id,omitempty"`
 }
 
 // TeamMemberDTO is the API response for a team member.
@@ -4600,8 +4622,11 @@ func (v Visibility) Value() (driver.Value, error) {
 }
 
 const (
-	VisibilityPrivate  Visibility = "private"
-	VisibilityTeam     Visibility = "team"
+	VisibilityPrivate Visibility = "private"
+	VisibilityTeam    Visibility = "team"
+	// VisibilityOrg sits between team and public: visible to every member of
+	// every team in the owning team's org (INF-795 Phase 2).
+	VisibilityOrg      Visibility = "org"
 	VisibilityPublic   Visibility = "public"
 	VisibilityUnlisted Visibility = "unlisted"
 )

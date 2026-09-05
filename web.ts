@@ -877,6 +877,11 @@ export interface DeviceAuthClaimResponse {
 export interface MeResponse {
   user?: UserDTO;
   team?: TeamDTO;
+  /**
+   * Org of the current team, when the team belongs to one. IsAdmin on it
+   * reflects the caller (org_admins grant list).
+   */
+  org?: OrgDTO;
   diagnostics?: DiagnosticsConfig;
 }
 export interface TeamCreateRequest {
@@ -1793,6 +1798,7 @@ export interface PermissionModelDTO {
   user?: UserRelationDTO;
   team_id: string;
   team?: TeamRelationDTO;
+  org_id?: string;
   visibility: Visibility;
 }
 /**
@@ -3453,6 +3459,7 @@ export interface MCPServerDTO {
   user: UserRelationDTO;
   team_id: string;
   team: TeamRelationDTO;
+  org_id?: string;
   visibility: Visibility;
   slug: string;
   name: string;
@@ -3591,6 +3598,20 @@ export interface UpdateNotificationPreferencesRequest {
   quiet_hours_start?: string;
   quiet_hours_end?: string;
   timezone?: string;
+}
+/**
+ * OrgDTO is the API response for an org (enterprise layer above teams).
+ */
+export interface OrgDTO extends BaseModelDTO {
+  slug: string;
+  name: string;
+  avatar_url?: string;
+  default_team_id?: string;
+  /**
+   * IsAdmin: whether the CALLER is on this org's admin grant list. Set on
+   * caller-scoped responses.
+   */
+  is_admin?: boolean;
 }
 /**
  * PageMetadata holds metadata for a page
@@ -4607,6 +4628,10 @@ export interface TeamDTO extends BaseModelDTO {
    * (public team views, platform-admin impersonation).
    */
   role?: TeamRole;
+  /**
+   * OrgID of the org this team belongs to ('' = standalone team).
+   */
+  org_id?: string;
 }
 /**
  * TeamMemberDTO is the API response for a team member.
@@ -5554,6 +5579,11 @@ export const GPUTypeApple: GPUType = "apple";
 export type Visibility = string;
 export const VisibilityPrivate: Visibility = "private";
 export const VisibilityTeam: Visibility = "team";
+/**
+ * VisibilityOrg sits between team and public: visible to every member of
+ * every team in the owning team's org (INF-795 Phase 2).
+ */
+export const VisibilityOrg: Visibility = "org";
 export const VisibilityPublic: Visibility = "public";
 export const VisibilityUnlisted: Visibility = "unlisted";
 /**
