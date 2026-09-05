@@ -5399,34 +5399,33 @@ type ModelSettings struct {
 	ReasoningMaxTokens *int     `json:"reasoning_max_tokens,omitempty"`
 }
 
-// LLMInput is the input envelope for an LLM provider task.
+// LLMSettings is everything that configures a generation independent of the
+// conversation: model, sampling, system prompt, tools and output constraints.
+// Embedded by both BaseLLMInput (an agent's stored configuration) and
+// LLMInput (a single call), so a field added here reaches both and the call
+// is built from the configuration by one assignment.
+type LLMSettings struct {
+	Model       *string `json:"model"`
+	ContextSize int     `json:"context_size"`
+	ModelSettings
+	SystemPrompt   string          `json:"system_prompt"`
+	Tools          *[]Tool         `json:"tools,omitempty"`
+	ToolChoice     *ToolChoice     `json:"tool_choice,omitempty"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
+}
+
+// LLMInput is the input envelope for an LLM provider task: the settings plus
+// the conversation, with the current turn split out of the context.
 type LLMInput struct {
-	Model              *string             `json:"model"`
-	ContextSize        int                 `json:"context_size"`
-	Temperature        *float64            `json:"temperature,omitempty"`
-	TopP               *float64            `json:"top_p,omitempty"`
-	TopK               *int                `json:"top_k,omitempty"`
-	MinP               *float64            `json:"min_p,omitempty"`
-	FrequencyPenalty   *float64            `json:"frequency_penalty,omitempty"`
-	PresencePenalty    *float64            `json:"presence_penalty,omitempty"`
-	RepetitionPenalty  *float64            `json:"repetition_penalty,omitempty"`
-	Seed               *int                `json:"seed,omitempty"`
-	Stop               []string            `json:"stop,omitempty"`
-	MaxTokens          *int                `json:"max_tokens,omitempty"`
-	ReasoningEffort    *string             `json:"reasoning_effort,omitempty"`
-	ReasoningMaxTokens *int                `json:"reasoning_max_tokens,omitempty"`
-	SystemPrompt       string              `json:"system_prompt"`
-	Context            []LLMContextMessage `json:"context"`
-	Role               ChatMessageRole     `json:"role,omitempty"`
-	Text               *string             `json:"text"`
-	Reasoning          *string             `json:"reasoning"`
-	Attachments        *[]FileRef          `json:"attachments,omitempty"`
-	Images             *[]string           `json:"images,omitempty"`
-	Files              *[]string           `json:"files,omitempty"`
-	Tools              *[]Tool             `json:"tools"`
-	ToolChoice         *ToolChoice         `json:"tool_choice,omitempty"`
-	ResponseFormat     *ResponseFormat     `json:"response_format,omitempty"`
-	ToolCallID         *string             `json:"tool_call_id,omitempty"`
+	LLMSettings
+	Context     []LLMContextMessage `json:"context"`
+	Role        ChatMessageRole     `json:"role,omitempty"`
+	Text        *string             `json:"text"`
+	Reasoning   *string             `json:"reasoning"`
+	Attachments *[]FileRef          `json:"attachments,omitempty"`
+	Images      *[]string           `json:"images,omitempty"`
+	Files       *[]string           `json:"files,omitempty"`
+	ToolCallID  *string             `json:"tool_call_id,omitempty"`
 }
 
 // LLMContextMessage represents a message in the chat context for LLM tasks
