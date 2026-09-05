@@ -484,6 +484,13 @@ export interface IntegrationConnectRequest {
   scopes?: string[];
   api_key?: string;
   metadata?: { [key: string]: any};
+  /**
+   * ConnectionScope is who the resulting credential belongs to:
+   * "user" (just me) or "team" (shared with the team — requires team
+   * admin). Empty = the provider's default. Distinct from Scopes, which
+   * are OAuth permission scopes.
+   */
+  connection_scope?: CredentialScope;
 }
 export interface IntegrationCompleteOAuthRequest {
   provider: string;
@@ -4297,6 +4304,14 @@ export const IntegrationGrantCredentials: IntegrationGrant = "credentials";
  * IntegrationGrantToken provides ready-to-use access (token, API key, etc.).
  */
 export const IntegrationGrantToken: IntegrationGrant = "token";
+/**
+ * CredentialScope controls resolution priority and ownership.
+ */
+export type CredentialScope = string;
+export const CredentialScopePlatform: CredentialScope = "platform";
+export const CredentialScopeTeam: CredentialScope = "team";
+export const CredentialScopeUser: CredentialScope = "user";
+export const CredentialScopeAgent: CredentialScope = "agent";
 /**
  * NotificationChannel represents a delivery channel
  */

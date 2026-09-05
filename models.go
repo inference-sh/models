@@ -632,6 +632,11 @@ type IntegrationConnectRequest struct {
 	Scopes   []string       `json:"scopes,omitempty"`
 	APIKey   string         `json:"api_key,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
+	// ConnectionScope is who the resulting credential belongs to:
+	// "user" (just me) or "team" (shared with the team — requires team
+	// admin). Empty = the provider's default. Distinct from Scopes, which
+	// are OAuth permission scopes.
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
 }
 
 type IntegrationCompleteOAuthRequest struct {
@@ -5943,6 +5948,16 @@ const (
 	IntegrationGrantCredentials IntegrationGrant = "credentials"
 	// IntegrationGrantToken provides ready-to-use access (token, API key, etc.).
 	IntegrationGrantToken IntegrationGrant = "token"
+)
+
+// CredentialScope controls resolution priority and ownership.
+type CredentialScope string
+
+const (
+	CredentialScopePlatform CredentialScope = "platform"
+	CredentialScopeTeam     CredentialScope = "team"
+	CredentialScopeUser     CredentialScope = "user"
+	CredentialScopeAgent    CredentialScope = "agent"
 )
 
 type RejectionReason string

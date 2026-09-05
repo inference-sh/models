@@ -910,6 +910,13 @@ export interface IntegrationConnectRequest {
   scopes?: string[];
   api_key?: string;
   metadata?: { [key: string]: any};
+  /**
+   * ConnectionScope is who the resulting credential belongs to:
+   * "user" (just me) or "team" (shared with the team — requires team
+   * admin). Empty = the provider's default. Distinct from Scopes, which
+   * are OAuth permission scopes.
+   */
+  connection_scope?: CredentialScope;
 }
 export interface IntegrationCompleteOAuthRequest {
   provider: string;
