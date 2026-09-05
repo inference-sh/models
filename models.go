@@ -540,13 +540,14 @@ type CheckoutCreateRequest struct {
 }
 
 type AuthResponse struct {
-	User        *UserDTO `json:"user"`
-	SessionID   string   `json:"session_id"`
-	IsNew       bool     `json:"is_new,omitempty"`
-	OTPRequired bool     `json:"otp_required,omitempty"`
-	OTPMethod   string   `json:"otp_method,omitempty"` // "email" or "totp"
-	RedirectTo  string   `json:"redirect_to,omitempty"`
-	Provider    string   `json:"provider,omitempty"`
+	User           *UserDTO `json:"user"`
+	SessionID      string   `json:"session_id"`
+	IsNew          bool     `json:"is_new,omitempty"`
+	OTPRequired    bool     `json:"otp_required,omitempty"`
+	OTPMethod      string   `json:"otp_method,omitempty"`      // "email" or "totp"
+	ChallengeToken string   `json:"challenge_token,omitempty"` // pre-session 2FA token
+	RedirectTo     string   `json:"redirect_to,omitempty"`
+	Provider       string   `json:"provider,omitempty"`
 }
 
 // DeviceAuthInitRequest is the optional body for initiating device auth.
@@ -3759,6 +3760,10 @@ type TeamDTO struct {
 	SetupCompleted bool       `json:"setup_completed"`
 	MaxConcurrency int        `json:"max_concurrency"`
 	Status         TeamStatus `json:"status"`
+	// Role is the CALLER's role on this team (owner/admin/member), set on
+	// caller-scoped responses (/teams, /users/me). Empty when not applicable
+	// (public team views, platform-admin impersonation).
+	Role TeamRole `json:"role,omitempty"`
 }
 
 // TeamMemberDTO is the API response for a team member.

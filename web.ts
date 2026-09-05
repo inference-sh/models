@@ -830,6 +830,7 @@ export interface AuthResponse {
   is_new?: boolean;
   otp_required?: boolean;
   otp_method?: string; // "email" or "totp"
+  challenge_token?: string; // pre-session 2FA token
   redirect_to?: string;
   provider?: string;
 }
@@ -4585,6 +4586,12 @@ export interface TeamDTO extends BaseModelDTO {
   setup_completed: boolean;
   max_concurrency: number /* int */;
   status: TeamStatus;
+  /**
+   * Role is the CALLER's role on this team (owner/admin/member), set on
+   * caller-scoped responses (/teams, /users/me). Empty when not applicable
+   * (public team views, platform-admin impersonation).
+   */
+  role?: TeamRole;
 }
 /**
  * TeamMemberDTO is the API response for a team member.

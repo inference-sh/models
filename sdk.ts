@@ -418,6 +418,7 @@ export interface AuthResponse {
   is_new?: boolean;
   otp_required?: boolean;
   otp_method?: string; // "email" or "totp"
+  challenge_token?: string; // pre-session 2FA token
   redirect_to?: string;
   provider?: string;
 }
