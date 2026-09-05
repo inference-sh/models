@@ -3943,21 +3943,9 @@ export interface ModelSettings {
  * LLMInput (a single call), so a field added here reaches both and the call
  * is built from the configuration by one assignment.
  */
-export interface LLMSettings {
+export interface LLMSettings extends ModelSettings {
   model?: string;
   context_size: number /* int */;
-  temperature?: number /* float64 */;
-  top_p?: number /* float64 */;
-  top_k?: number /* int */;
-  min_p?: number /* float64 */;
-  frequency_penalty?: number /* float64 */;
-  presence_penalty?: number /* float64 */;
-  repetition_penalty?: number /* float64 */;
-  seed?: number /* int */;
-  stop?: string[];
-  max_tokens?: number /* int */;
-  reasoning_effort?: string;
-  reasoning_max_tokens?: number /* int */;
   system_prompt: string;
   tools?: Tool[];
   tool_choice?: ToolChoice;
@@ -3967,25 +3955,7 @@ export interface LLMSettings {
  * LLMInput is the input envelope for an LLM provider task: the settings plus
  * the conversation, with the current turn split out of the context.
  */
-export interface LLMInput {
-  model: string;
-  context_size: number /* int */;
-  temperature?: number /* float64 */;
-  top_p?: number /* float64 */;
-  top_k?: number /* int */;
-  min_p?: number /* float64 */;
-  frequency_penalty?: number /* float64 */;
-  presence_penalty?: number /* float64 */;
-  repetition_penalty?: number /* float64 */;
-  seed?: number /* int */;
-  stop?: string[];
-  max_tokens?: number /* int */;
-  reasoning_effort?: string;
-  reasoning_max_tokens?: number /* int */;
-  system_prompt: string;
-  tools?: Tool[];
-  tool_choice?: ToolChoice;
-  response_format?: ResponseFormat;
+export interface LLMInput extends LLMSettings {
   context: LLMContextMessage[];
   role?: ChatMessageRole;
   text?: string;

@@ -5410,9 +5410,9 @@ type ModelSettings struct {
 // LLMInput (a single call), so a field added here reaches both and the call
 // is built from the configuration by one assignment.
 type LLMSettings struct {
-	Model       *string `json:"model"`
-	ContextSize int     `json:"context_size"`
-	ModelSettings
+	ModelSettings  `tstype:",extends"`
+	Model          *string         `json:"model"`
+	ContextSize    int             `json:"context_size"`
 	SystemPrompt   string          `json:"system_prompt"`
 	Tools          *[]Tool         `json:"tools,omitempty"`
 	ToolChoice     *ToolChoice     `json:"tool_choice,omitempty"`
@@ -5422,7 +5422,7 @@ type LLMSettings struct {
 // LLMInput is the input envelope for an LLM provider task: the settings plus
 // the conversation, with the current turn split out of the context.
 type LLMInput struct {
-	LLMSettings
+	LLMSettings `tstype:",extends"`
 	Context     []LLMContextMessage `json:"context"`
 	Role        ChatMessageRole     `json:"role,omitempty"`
 	Text        *string             `json:"text"`
