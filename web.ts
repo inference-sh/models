@@ -6548,6 +6548,13 @@ export const CredentialStatusError: CredentialStatus = "error";
  */
 export type CredentialScope = string;
 export const CredentialScopePlatform: CredentialScope = "platform";
+/**
+ * CredentialScopeOrg: shared across all teams of an org. In the enum for
+ * end-to-end typing (connect-level pickers); connects with it are refused
+ * until the org domain lands (INF-795 Phase 2). Resolution order once
+ * live: agent > user > team > org > platform.
+ */
+export const CredentialScopeOrg: CredentialScope = "org";
 export const CredentialScopeTeam: CredentialScope = "team";
 export const CredentialScopeUser: CredentialScope = "user";
 export const CredentialScopeAgent: CredentialScope = "agent";
