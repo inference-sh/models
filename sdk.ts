@@ -3100,6 +3100,11 @@ export interface UsageEventDTO extends BaseModelDTO, PermissionModelDTO {
 export interface UserDTO extends BaseModelDTO {
   default_team_id: string;
   role: Role;
+  /**
+   * ManagedByOrgID: set for enterprise-managed accounts (no personal team,
+   * cannot create teams/orgs).
+   */
+  managed_by_org_id?: string;
   email: string;
   name: string;
   full_name: string;

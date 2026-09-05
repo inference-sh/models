@@ -4003,16 +4003,19 @@ type UsageEventDTO struct {
 // UserDTO is the API response for a full user.
 type UserDTO struct {
 	BaseModelDTO  `tstype:",extends"`
-	DefaultTeamID string           `json:"default_team_id"`
-	Role          Role             `json:"role"`
-	Email         string           `json:"email"`
-	Name          string           `json:"name"`
-	FullName      string           `json:"full_name"`
-	AvatarURL     string           `json:"avatar_url"`
-	BannedAt      *time.Time       `json:"banned_at,omitempty"`
-	BanNote       string           `json:"ban_note,omitempty"`
-	TOTPEnabled   bool             `json:"totp_enabled"`
-	Metadata      *UserMetadataDTO `json:"metadata"`
+	DefaultTeamID string `json:"default_team_id"`
+	Role          Role   `json:"role"`
+	// ManagedByOrgID: set for enterprise-managed accounts (no personal team,
+	// cannot create teams/orgs).
+	ManagedByOrgID string           `json:"managed_by_org_id,omitempty"`
+	Email          string           `json:"email"`
+	Name           string           `json:"name"`
+	FullName       string           `json:"full_name"`
+	AvatarURL      string           `json:"avatar_url"`
+	BannedAt       *time.Time       `json:"banned_at,omitempty"`
+	BanNote        string           `json:"ban_note,omitempty"`
+	TOTPEnabled    bool             `json:"totp_enabled"`
+	Metadata       *UserMetadataDTO `json:"metadata"`
 }
 
 // UserRelationDTO is a lightweight user reference embedded in other DTOs.

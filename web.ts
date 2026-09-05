@@ -3632,6 +3632,52 @@ export interface OrgDTO extends BaseModelDTO {
   is_admin?: boolean;
 }
 /**
+ * OrgAdminDTO is one entry of the org admin grant list.
+ */
+export interface OrgAdminDTO {
+  id: string;
+  org_id: string;
+  user_id: string;
+  user?: TeamMemberUserDTO;
+}
+/**
+ * OrgCreateRequest creates an org; the caller becomes its first org admin.
+ */
+export interface OrgCreateRequest {
+  name: string;
+  slug: string;
+}
+/**
+ * OrgUpdateRequest updates org display fields.
+ */
+export interface OrgUpdateRequest {
+  name?: string;
+  avatar_url?: string;
+  default_team_id?: string;
+}
+/**
+ * OrgAttachTeamRequest attaches a team to the org (org admin + team owner).
+ */
+export interface OrgAttachTeamRequest {
+  team_id: string;
+}
+/**
+ * OrgAdminAddRequest adds a user to the org admin grant list by email.
+ */
+export interface OrgAdminAddRequest {
+  email: string;
+}
+/**
+ * OrgProvisionUserRequest adds a person to the org by email (EMU, Phase 4).
+ * team_id defaults to the org's default team; role member|admin (never owner).
+ */
+export interface OrgProvisionUserRequest {
+  email: string;
+  name?: string;
+  team_id?: string;
+  role?: TeamRole;
+}
+/**
  * PageMetadata holds metadata for a page
  */
 export interface PageMetadata {
@@ -4966,6 +5012,11 @@ export interface UsageEventDTO extends BaseModelDTO, PermissionModelDTO {
 export interface UserDTO extends BaseModelDTO {
   default_team_id: string;
   role: Role;
+  /**
+   * ManagedByOrgID: set for enterprise-managed accounts (no personal team,
+   * cannot create teams/orgs).
+   */
+  managed_by_org_id?: string;
   email: string;
   name: string;
   full_name: string;
