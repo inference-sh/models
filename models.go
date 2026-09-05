@@ -3206,7 +3206,6 @@ type SDKTypes struct {
 	_llmOutput     LLMOutput
 	_llmDelta      LLMDelta
 	_llmDeltaEvent LLMDeltaEvent
-	_modelSettings ModelSettings
 	// Knowledge
 	_knowledgeDTO      KnowledgeDTO
 	_knowledgeVersion  KnowledgeVersionDTO
@@ -5388,35 +5387,31 @@ type ResponseFormat struct {
 	Strict     *bool              `json:"strict,omitempty"`      // provider-enforced adherence, where supported
 }
 
-// ModelSettings groups sampling and generation parameters as a passable unit.
-type ModelSettings struct {
-	Temperature        *float64 `json:"temperature,omitempty"`
-	TopP               *float64 `json:"top_p,omitempty"`
-	TopK               *int     `json:"top_k,omitempty"`
-	MinP               *float64 `json:"min_p,omitempty"`
-	FrequencyPenalty   *float64 `json:"frequency_penalty,omitempty"`
-	PresencePenalty    *float64 `json:"presence_penalty,omitempty"`
-	RepetitionPenalty  *float64 `json:"repetition_penalty,omitempty"`
-	Seed               *int     `json:"seed,omitempty"`
-	Stop               []string `json:"stop,omitempty"`
-	MaxTokens          *int     `json:"max_tokens,omitempty"`
-	ReasoningEffort    *string  `json:"reasoning_effort,omitempty"`
-	ReasoningMaxTokens *int     `json:"reasoning_max_tokens,omitempty"`
-}
-
 // LLMSettings is everything that configures a generation independent of the
-// conversation: model, sampling, system prompt, tools and output constraints.
-// Embedded by both BaseLLMInput (an agent's stored configuration) and
-// LLMInput (a single call), so a field added here reaches both and the call
-// is built from the configuration by one assignment.
+// conversation: model, context, sampling, system prompt, tools and output
+// constraints. Embedded (tstype extends) by BaseLLMInput — an agent's stored
+// configuration — and LLMInput — a single call — so a field added here
+// reaches both, and the call is built from the configuration by one
+// assignment.
 type LLMSettings struct {
-	ModelSettings  `tstype:",extends"`
-	Model          *string         `json:"model"`
-	ContextSize    int             `json:"context_size"`
-	SystemPrompt   string          `json:"system_prompt"`
-	Tools          *[]Tool         `json:"tools,omitempty"`
-	ToolChoice     *ToolChoice     `json:"tool_choice,omitempty"`
-	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
+	Model              *string         `json:"model"`
+	ContextSize        int             `json:"context_size"`
+	Temperature        *float64        `json:"temperature,omitempty"`
+	TopP               *float64        `json:"top_p,omitempty"`
+	TopK               *int            `json:"top_k,omitempty"`
+	MinP               *float64        `json:"min_p,omitempty"`
+	FrequencyPenalty   *float64        `json:"frequency_penalty,omitempty"`
+	PresencePenalty    *float64        `json:"presence_penalty,omitempty"`
+	RepetitionPenalty  *float64        `json:"repetition_penalty,omitempty"`
+	Seed               *int            `json:"seed,omitempty"`
+	Stop               []string        `json:"stop,omitempty"`
+	MaxTokens          *int            `json:"max_tokens,omitempty"`
+	ReasoningEffort    *string         `json:"reasoning_effort,omitempty"`
+	ReasoningMaxTokens *int            `json:"reasoning_max_tokens,omitempty"`
+	SystemPrompt       string          `json:"system_prompt"`
+	Tools              *[]Tool         `json:"tools,omitempty"`
+	ToolChoice         *ToolChoice     `json:"tool_choice,omitempty"`
+	ResponseFormat     *ResponseFormat `json:"response_format,omitempty"`
 }
 
 // LLMInput is the input envelope for an LLM provider task: the settings plus
