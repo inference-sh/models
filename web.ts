@@ -3629,7 +3629,7 @@ export interface UpdateNotificationPreferencesRequest {
   timezone?: string;
 }
 /**
- * OpenAIModel is one entry of GET /models. ID is the app ref (namespace/name),
+ * OpenAIModel is one entry of GET /openai/models. ID is the app ref (namespace/name),
  * which is what clients send back as `model`.
  */
 export interface OpenAIModel {
@@ -3639,7 +3639,7 @@ export interface OpenAIModel {
   owned_by: string;
 }
 /**
- * OpenAIModelList is the GET /models envelope.
+ * OpenAIModelList is the GET /openai/models envelope.
  */
 export interface OpenAIModelList {
   object: string; // "list"

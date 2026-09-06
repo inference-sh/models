@@ -2588,7 +2588,7 @@ type UpdateNotificationPreferencesRequest struct {
 // source: openai_compat.go
 // --------------------
 
-// OpenAIModel is one entry of GET /models. ID is the app ref (namespace/name),
+// OpenAIModel is one entry of GET /openai/models. ID is the app ref (namespace/name),
 // which is what clients send back as `model`.
 type OpenAIModel struct {
 	ID      string `json:"id"`
@@ -2597,7 +2597,7 @@ type OpenAIModel struct {
 	OwnedBy string `json:"owned_by"`
 }
 
-// OpenAIModelList is the GET /models envelope.
+// OpenAIModelList is the GET /openai/models envelope.
 type OpenAIModelList struct {
 	Object string        `json:"object"` // "list"
 	Data   []OpenAIModel `json:"data"`

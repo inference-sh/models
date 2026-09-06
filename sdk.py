@@ -1224,7 +1224,7 @@ class UpdateNotificationPreferencesRequest(TypedDict, total=False):
     quiet_hours_end: Optional[str]
     timezone: Optional[str]
 
-# OpenAIModel is one entry of GET /models. ID is the app ref (namespace/name),
+# OpenAIModel is one entry of GET /openai/models. ID is the app ref (namespace/name),
 # which is what clients send back as `model`.
 class OpenAIModel(TypedDict, total=False):
     id: str
@@ -1232,7 +1232,7 @@ class OpenAIModel(TypedDict, total=False):
     created: int
     owned_by: str
 
-# OpenAIModelList is the GET /models envelope.
+# OpenAIModelList is the GET /openai/models envelope.
 class OpenAIModelList(TypedDict, total=False):
     object: str
     data: List[OpenAIModel]
