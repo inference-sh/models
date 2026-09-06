@@ -3629,6 +3629,23 @@ export interface UpdateNotificationPreferencesRequest {
   timezone?: string;
 }
 /**
+ * OpenAIModel is one entry of GET /models. ID is the app ref (namespace/name),
+ * which is what clients send back as `model`.
+ */
+export interface OpenAIModel {
+  id: string;
+  object: string; // "model"
+  created: number /* int64 */;
+  owned_by: string;
+}
+/**
+ * OpenAIModelList is the GET /models envelope.
+ */
+export interface OpenAIModelList {
+  object: string; // "list"
+  data: OpenAIModel[];
+}
+/**
  * OrgDTO is the API response for an org (enterprise layer above teams).
  */
 export interface OrgDTO extends BaseModelDTO {

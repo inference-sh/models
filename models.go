@@ -2585,6 +2585,25 @@ type UpdateNotificationPreferencesRequest struct {
 }
 
 // --------------------
+// source: openai_compat.go
+// --------------------
+
+// OpenAIModel is one entry of GET /models. ID is the app ref (namespace/name),
+// which is what clients send back as `model`.
+type OpenAIModel struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"` // "model"
+	Created int64  `json:"created"`
+	OwnedBy string `json:"owned_by"`
+}
+
+// OpenAIModelList is the GET /models envelope.
+type OpenAIModelList struct {
+	Object string        `json:"object"` // "list"
+	Data   []OpenAIModel `json:"data"`
+}
+
+// --------------------
 // source: org.go
 // --------------------
 
@@ -3336,6 +3355,8 @@ type SDKTypes struct {
 	_submitTelemetryReq SubmitTelemetryRequest
 	// Stats
 	_meStats MeStatsResponse
+	// OpenAI-compatible surface
+	_openaiModelList OpenAIModelList
 }
 
 // --------------------
