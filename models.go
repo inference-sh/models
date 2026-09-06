@@ -1210,21 +1210,25 @@ type AvailabilityResponse struct {
 type BountyProgramDTO struct {
 	BaseModelDTO       `json:",inline" tstype:",extends"`
 	PermissionModelDTO `json:",inline" tstype:",extends"`
-	Name               string     `json:"name"`
-	Description        string     `json:"description"`
-	AmountMicrocents   int64      `json:"amount_microcents"`
-	GrantType          string     `json:"grant_type"`
-	ExpiryDays         int        `json:"expiry_days"`
-	MaxPerUser         int        `json:"max_per_user"`
-	MaxPerDay          int        `json:"max_per_day"`
-	ProofType          string     `json:"proof_type"`
-	ProofMinLength     int        `json:"proof_min_length"`
-	Status             string     `json:"status"`
-	NoticeText         string     `json:"notice_text"`
-	NoticeCooldownH    int        `json:"notice_cooldown_hours"`
-	NoticePriority     int        `json:"notice_priority"`
-	StartsAt           *time.Time `json:"starts_at,omitempty"`
-	EndsAt             *time.Time `json:"ends_at,omitempty"`
+	Name               string `json:"name"`
+	Description        string `json:"description"`
+	AmountMicrocents   int64  `json:"amount_microcents"`
+	GrantType          string `json:"grant_type"`
+	ExpiryDays         int    `json:"expiry_days"`
+	MaxPerUser         int    `json:"max_per_user"`
+	MaxPerDay          int    `json:"max_per_day"`
+	ProofType          string `json:"proof_type"`
+	ProofMinLength     int    `json:"proof_min_length"`
+	// RequiresPaymentMethod withholds the reward until the claimant's team has
+	// a saved payment method. The claim itself is refused with 402
+	// payment_method_required (survey answers are still recorded).
+	RequiresPaymentMethod bool       `json:"requires_payment_method"`
+	Status                string     `json:"status"`
+	NoticeText            string     `json:"notice_text"`
+	NoticeCooldownH       int        `json:"notice_cooldown_hours"`
+	NoticePriority        int        `json:"notice_priority"`
+	StartsAt              *time.Time `json:"starts_at,omitempty"`
+	EndsAt                *time.Time `json:"ends_at,omitempty"`
 }
 
 // BountySubmissionDTO is the API representation of a bounty claim.
@@ -3299,6 +3303,10 @@ type SDKTypes struct {
 	_bountyProgramDTO BountyProgramDTO
 	_bountySubmitReq  SubmitBountyRequest
 	_bountySubmitResp SubmitBountyResponse
+	// Survey (belt feedback)
+	_surveyResponseDTO SurveyResponseDTO
+	_surveySubmitReq   SubmitSurveyRequest
+	_surveySubmitResp  SubmitSurveyResponse
 	// Lifecycle hooks — types needed by webhook handler implementations
 	_hookPayload       LifecycleHookPayload
 	_hookResponse      LifecycleHookResponse
@@ -3491,6 +3499,40 @@ type SubscriptionDTO struct {
 	TrialEnd           *time.Time           `json:"trial_end,omitempty"`
 	CancelAtPeriodEnd  bool                 `json:"cancel_at_period_end"`
 	CreditsPerPeriod   int64                `json:"credits_per_period"`
+}
+
+// --------------------
+// source: survey.go
+// --------------------
+
+// SurveyResponseDTO is the API representation of a survey response.
+type SurveyResponseDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	QuestionID         string `json:"question_id"`
+	Response           string `json:"response"`
+	Agent              string `json:"agent,omitempty"`
+	Source             string `json:"source,omitempty"`
+	Context            string `json:"context,omitempty"`
+}
+
+// SubmitSurveyResponse is returned when submitting a survey answer.
+// GrantedAmount is the credit reward in microcents (0 if no reward was earned).
+// RewardBlockedReason is set when the answer was recorded but the reward was
+// withheld by policy (see RewardBlockedPaymentMethodRequired).
+type SubmitSurveyResponse struct {
+	Response            SurveyResponseDTO `json:"response"`
+	GrantedAmount       int64             `json:"granted_amount,omitempty"`
+	RewardBlockedReason string            `json:"reward_blocked_reason,omitempty"`
+}
+
+// SubmitSurveyRequest is used to submit a single survey answer.
+type SubmitSurveyRequest struct {
+	QuestionID string `json:"question_id"`
+	Response   string `json:"response"`
+	Agent      string `json:"agent,omitempty"`
+	Source     string `json:"source,omitempty"`
+	Context    string `json:"context,omitempty"`
 }
 
 // --------------------

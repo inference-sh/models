@@ -1156,6 +1156,12 @@ export interface BountyProgramDTO extends BaseModelDTO, PermissionModelDTO {
   max_per_day: number /* int */;
   proof_type: string;
   proof_min_length: number /* int */;
+  /**
+   * RequiresPaymentMethod withholds the reward until the claimant's team has
+   * a saved payment method. The claim itself is refused with 402
+   * payment_method_required (survey answers are still recorded).
+   */
+  requires_payment_method: boolean;
   status: string;
   notice_text: string;
   notice_cooldown_hours: number /* int */;
@@ -2750,6 +2756,37 @@ export interface SubscriptionDTO extends BaseModelDTO {
   trial_end?: string /* RFC3339 */;
   cancel_at_period_end: boolean;
   credits_per_period: number /* int64 */;
+}
+/**
+ * SurveyResponseDTO is the API representation of a survey response.
+ */
+export interface SurveyResponseDTO extends BaseModelDTO, PermissionModelDTO {
+  question_id: string;
+  response: string;
+  agent?: string;
+  source?: string;
+  context?: string;
+}
+/**
+ * SubmitSurveyResponse is returned when submitting a survey answer.
+ * GrantedAmount is the credit reward in microcents (0 if no reward was earned).
+ * RewardBlockedReason is set when the answer was recorded but the reward was
+ * withheld by policy (see RewardBlockedPaymentMethodRequired).
+ */
+export interface SubmitSurveyResponse {
+  response: SurveyResponseDTO;
+  granted_amount?: number /* int64 */;
+  reward_blocked_reason?: string;
+}
+/**
+ * SubmitSurveyRequest is used to submit a single survey answer.
+ */
+export interface SubmitSurveyRequest {
+  question_id: string;
+  response: string;
+  agent?: string;
+  source?: string;
+  context?: string;
 }
 /**
  * Hardware/System related types
