@@ -4706,9 +4706,10 @@ const (
 	EntitlementTypeLimit   EntitlementType = "limit"
 )
 
-// EntitlementScope is who an entitlement row applies to (INF-799).
-// Resolution collects the subjects visible from an AuthContext (team + org +
-// member) and resolves them in one query; mergeEntitlements arbitrates.
+// EntitlementScope is who an entitlement row applies to (INF-799). The scope's
+// owner columns (team_id / org_id / user_id) identify the owner, mirroring the
+// ownership pattern used across the codebase; resolution matches all scopes
+// visible from an AuthContext in one query and mergeEntitlements arbitrates.
 type EntitlementScope string
 
 const (
