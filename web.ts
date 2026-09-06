@@ -4326,6 +4326,12 @@ export interface SearchCollectionStats {
 export interface SearchReconcileConfig {
   dry_run?: boolean;
   skip_embeddings?: boolean;
+  /**
+   * ReembedAll creates embedding tasks for every entity, not only those
+   * without chunk documents. Off by default: an embedding run is a backfill
+   * of what is missing. Turn on only when the embedding model changed.
+   */
+  reembed_all?: boolean;
   batch_size?: number /* int */;
   since?: string; // RFC3339 timestamp — only process entities updated after this time
   collection?: string; // if set, only reconcile this collection (knowledge, skills, apps, pages, agents)
