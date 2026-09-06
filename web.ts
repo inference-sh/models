@@ -2344,7 +2344,10 @@ export interface WorkerRAM {
  * EntitlementDTO for API responses
  */
 export interface EntitlementDTO extends BaseModelDTO {
+  scope: EntitlementScope;
   team_id: string;
+  org_id?: string;
+  user_id?: string;
   resource: EntitlementResource;
   type: EntitlementType;
   enabled: boolean;
@@ -3630,6 +3633,22 @@ export interface OrgDTO extends BaseModelDTO {
    * caller-scoped responses.
    */
   is_admin?: boolean;
+}
+/**
+ * OrgPlanDTO is an org-level subscription to a plan (INF-799). Managed by
+ * platform admins; while active its limits apply to every attached team.
+ */
+export interface OrgPlanDTO extends BaseModelDTO {
+  org_id: string;
+  plan_id: string;
+  plan_name?: string;
+  status: TeamPlanStatus;
+}
+/**
+ * OrgPlanSetRequest assigns a plan to an org (platform admin).
+ */
+export interface OrgPlanSetRequest {
+  plan_id: string;
 }
 /**
  * OrgAdminDTO is one entry of the org admin grant list.
@@ -5756,6 +5775,15 @@ export const EntitlementSourceAddon: EntitlementSource = "addon";
 export type EntitlementType = string;
 export const EntitlementTypeBoolean: EntitlementType = "boolean";
 export const EntitlementTypeLimit: EntitlementType = "limit";
+/**
+ * EntitlementScope is who an entitlement row applies to (INF-799).
+ * Resolution collects the subjects visible from an AuthContext (team + org +
+ * member) and resolves them in one query; mergeEntitlements arbitrates.
+ */
+export type EntitlementScope = string;
+export const EntitlementScopeOrg: EntitlementScope = "org";
+export const EntitlementScopeTeam: EntitlementScope = "team";
+export const EntitlementScopeMember: EntitlementScope = "member";
 export type EnforcementMode = string;
 export const EnforcementBlock: EnforcementMode = "block";
 export const EnforcementWarn: EnforcementMode = "warn";

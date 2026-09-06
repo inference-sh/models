@@ -1524,7 +1524,10 @@ type WorkerRAM struct {
 // EntitlementDTO for API responses
 type EntitlementDTO struct {
 	BaseModelDTO `tstype:",extends"`
+	Scope        EntitlementScope    `json:"scope"`
 	TeamID       string              `json:"team_id"`
+	OrgID        string              `json:"org_id,omitempty"`
+	UserID       string              `json:"user_id,omitempty"`
 	Resource     EntitlementResource `json:"resource"`
 	Type         EntitlementType     `json:"type"`
 	Enabled      bool                `json:"enabled"`
@@ -4701,6 +4704,17 @@ func (v EntitlementType) Value() (driver.Value, error) {
 const (
 	EntitlementTypeBoolean EntitlementType = "boolean"
 	EntitlementTypeLimit   EntitlementType = "limit"
+)
+
+// EntitlementScope is who an entitlement row applies to (INF-799).
+// Resolution collects the subjects visible from an AuthContext (team + org +
+// member) and resolves them in one query; mergeEntitlements arbitrates.
+type EntitlementScope string
+
+const (
+	EntitlementScopeOrg    EntitlementScope = "org"
+	EntitlementScopeTeam   EntitlementScope = "team"
+	EntitlementScopeMember EntitlementScope = "member"
 )
 
 type EnforcementMode string

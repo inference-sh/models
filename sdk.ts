@@ -1415,7 +1415,10 @@ export interface WorkerRAM {
  * EntitlementDTO for API responses
  */
 export interface EntitlementDTO extends BaseModelDTO {
+  scope: EntitlementScope;
   team_id: string;
+  org_id?: string;
+  user_id?: string;
   resource: EntitlementResource;
   type: EntitlementType;
   enabled: boolean;
@@ -3520,6 +3523,15 @@ export const EntitlementSourceAddon: EntitlementSource = "addon";
 export type EntitlementType = string;
 export const EntitlementTypeBoolean: EntitlementType = "boolean";
 export const EntitlementTypeLimit: EntitlementType = "limit";
+/**
+ * EntitlementScope is who an entitlement row applies to (INF-799).
+ * Resolution collects the subjects visible from an AuthContext (team + org +
+ * member) and resolves them in one query; mergeEntitlements arbitrates.
+ */
+export type EntitlementScope = string;
+export const EntitlementScopeOrg: EntitlementScope = "org";
+export const EntitlementScopeTeam: EntitlementScope = "team";
+export const EntitlementScopeMember: EntitlementScope = "member";
 export type EnforcementMode = string;
 export const EnforcementBlock: EnforcementMode = "block";
 export const EnforcementWarn: EnforcementMode = "warn";
