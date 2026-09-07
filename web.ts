@@ -10,6 +10,7 @@ export type PageUpdateRequest = PageCreateRequest;
 export type MenuUpdateRequest = MenuCreateRequest;
 export type SkillFile = KnowledgeFile;
 export type CreateCommentRequest = CommentCreateRequest;
+export type A2UIBound = string | number | boolean | A2UIBoundValue;
 
 //////////
 // source: types.go
@@ -1551,6 +1552,13 @@ export interface AppFunction {
   description?: string;
   input_schema: any;
   output_schema: any;
+  /**
+   * Capabilities implied by the function's declared types, derived by
+   * engine discovery at deploy (e.g. "llm" when the function takes an
+   * LLMInput and returns an LLMOutput). Promoted onto the version's
+   * metadata by AppVersion.DeriveCapabilities.
+   */
+  capabilities?: string[];
 }
 /**
  * AppImages holds developer-provided images for the app.
@@ -3629,23 +3637,6 @@ export interface UpdateNotificationPreferencesRequest {
   timezone?: string;
 }
 /**
- * OpenAIModel is one entry of GET /openai/models. ID is the app ref (namespace/name),
- * which is what clients send back as `model`.
- */
-export interface OpenAIModel {
-  id: string;
-  object: string; // "model"
-  created: number /* int64 */;
-  owned_by: string;
-}
-/**
- * OpenAIModelList is the GET /openai/models envelope.
- */
-export interface OpenAIModelList {
-  object: string; // "list"
-  data: OpenAIModel[];
-}
-/**
  * OrgDTO is the API response for an org (enterprise layer above teams).
  */
 export interface OrgDTO extends BaseModelDTO {
@@ -5427,17 +5418,17 @@ export interface A2UIComponent {
   /**
    * Text
    */
-  text?: A2UIBoundValue;
+  text?: A2UIBound;
   variant?: string;
   /**
    * Image
    */
-  url?: A2UIBoundValue;
+  url?: A2UIBound;
   fit?: string;
   /**
    * Icon
    */
-  name?: A2UIBoundValue;
+  name?: A2UIBound;
   /**
    * Divider
    */
@@ -5452,7 +5443,7 @@ export interface A2UIComponent {
    * TextField
    */
   label?: string;
-  value?: A2UIBoundValue;
+  value?: A2UIBound;
   textFieldType?: string;
   validationRegexp?: string;
   placeholder?: string;
@@ -5471,7 +5462,7 @@ export interface A2UIComponent {
    * ChoicePicker
    */
   options?: A2UIChoiceOption[];
-  selections?: A2UIBoundValue;
+  selections?: A2UIBound;
   maxAllowedSelections?: number /* int */;
   /**
    * Modal

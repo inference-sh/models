@@ -967,6 +967,11 @@ type AppFunction struct {
 	Description  string          `json:"description,omitempty"`
 	InputSchema  json.RawMessage `json:"input_schema"`
 	OutputSchema json.RawMessage `json:"output_schema"`
+	// Capabilities implied by the function's declared types, derived by
+	// engine discovery at deploy (e.g. "llm" when the function takes an
+	// LLMInput and returns an LLMOutput). Promoted onto the version's
+	// metadata by AppVersion.DeriveCapabilities.
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // AppImages holds developer-provided images for the app.
@@ -2585,25 +2590,6 @@ type UpdateNotificationPreferencesRequest struct {
 }
 
 // --------------------
-// source: openai_compat.go
-// --------------------
-
-// OpenAIModel is one entry of GET /openai/models. ID is the app ref (namespace/name),
-// which is what clients send back as `model`.
-type OpenAIModel struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"` // "model"
-	Created int64  `json:"created"`
-	OwnedBy string `json:"owned_by"`
-}
-
-// OpenAIModelList is the GET /openai/models envelope.
-type OpenAIModelList struct {
-	Object string        `json:"object"` // "list"
-	Data   []OpenAIModel `json:"data"`
-}
-
-// --------------------
 // source: org.go
 // --------------------
 
@@ -3355,8 +3341,6 @@ type SDKTypes struct {
 	_submitTelemetryReq SubmitTelemetryRequest
 	// Stats
 	_meStats MeStatsResponse
-	// OpenAI-compatible surface
-	_openaiModelList OpenAIModelList
 }
 
 // --------------------
@@ -4292,13 +4276,13 @@ type A2UIComponent struct {
 	Direction string   `json:"direction,omitempty"`
 	Gap       int      `json:"gap,omitempty"`
 	// Text
-	Text    *A2UIBoundValue `json:"text,omitempty"`
+	Text    *A2UIBoundValue `json:"text,omitempty" tstype:"A2UIBound"`
 	Variant string          `json:"variant,omitempty"`
 	// Image
-	URL *A2UIBoundValue `json:"url,omitempty"`
+	URL *A2UIBoundValue `json:"url,omitempty" tstype:"A2UIBound"`
 	Fit string          `json:"fit,omitempty"`
 	// Icon
-	Name *A2UIBoundValue `json:"name,omitempty"`
+	Name *A2UIBoundValue `json:"name,omitempty" tstype:"A2UIBound"`
 	// Divider
 	Axis string `json:"axis,omitempty"`
 	// Button / Card
@@ -4307,7 +4291,7 @@ type A2UIComponent struct {
 	Action  *A2UIAction `json:"action,omitempty"`
 	// TextField
 	Label           string          `json:"label,omitempty"`
-	Value           *A2UIBoundValue `json:"value,omitempty"`
+	Value           *A2UIBoundValue `json:"value,omitempty" tstype:"A2UIBound"`
 	TextFieldType   string          `json:"textFieldType,omitempty"`
 	ValidationRegex string          `json:"validationRegexp,omitempty"`
 	Placeholder     string          `json:"placeholder,omitempty"`
@@ -4320,7 +4304,7 @@ type A2UIComponent struct {
 	EnableTime *bool `json:"enableTime,omitempty"`
 	// ChoicePicker
 	Options              []A2UIChoiceOption `json:"options,omitempty"`
-	Selections           *A2UIBoundValue    `json:"selections,omitempty"`
+	Selections           *A2UIBoundValue    `json:"selections,omitempty" tstype:"A2UIBound"`
 	MaxAllowedSelections *int               `json:"maxAllowedSelections,omitempty"`
 	// Modal
 	EntryPointChild string `json:"entryPointChild,omitempty"`
