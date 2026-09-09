@@ -4337,6 +4337,9 @@ type A2UIComponent struct {
 	OnSubmitAction *A2UIAction `json:"onSubmitAction,omitempty"`
 }
 
+//gotypegen:emit
+var _ A2UIComponentType = "export type A2UIBound = string | number | boolean | A2UIBoundValue;"
+
 // A2UIBoundValue is either a literal or a data model path reference.
 type A2UIBoundValue struct {
 	Literal interface{} `json:"-"`
