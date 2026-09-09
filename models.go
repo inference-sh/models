@@ -1147,6 +1147,17 @@ type PublicAppStoreDTO struct {
 // source: artifact.go
 // --------------------
 
+// ResourceImages is the display-image set every listable resource carries:
+// a card image for grids, a thumbnail for dense rows, a banner for headers.
+// AppImages and AgentImages predate this and hold the same three fields;
+// they should collapse onto this type, but aliasing them changes what
+// gotypegen emits for existing consumers, so that migration is separate.
+type ResourceImages struct {
+	Card      string `json:"card" yaml:"card"`
+	Thumbnail string `json:"thumbnail" yaml:"thumbnail"`
+	Banner    string `json:"banner" yaml:"banner"`
+}
+
 // ArtifactDTO is the API shape of an artifact entry.
 type ArtifactDTO struct {
 	BaseModelDTO       `tstype:",extends"`
@@ -1157,8 +1168,11 @@ type ArtifactDTO struct {
 	Name        string       `json:"name"`
 	Title       string       `json:"title"`
 	Description string       `json:"description,omitempty"`
-	Favicon     string       `json:"favicon,omitempty"` // one or two emoji
+	Favicon     string       `json:"favicon,omitempty"` // one or two emoji, browser-tab icon only
 	Type        ArtifactType `json:"type"`
+	// Images are the cover images shown in galleries and headers, same as
+	// apps and agents. The favicon stays the rendered page's tab icon.
+	Images ResourceImages `json:"images"`
 	// VersionID points at the latest published version.
 	VersionID string              `json:"version_id"`
 	Version   *ArtifactVersionDTO `json:"version"`
@@ -1209,11 +1223,12 @@ type ArtifactVersionDTO struct {
 // in the caller's namespace a new version is published instead.
 type ArtifactCreateRequest struct {
 	// Name is optional; derived from Title when empty.
-	Name        string       `json:"name,omitempty"`
-	Title       string       `json:"title"`
-	Description string       `json:"description,omitempty"`
-	Favicon     string       `json:"favicon,omitempty"`
-	Type        ArtifactType `json:"type,omitempty"` // default html
+	Name        string          `json:"name,omitempty"`
+	Title       string          `json:"title"`
+	Description string          `json:"description,omitempty"`
+	Favicon     string          `json:"favicon,omitempty"`
+	Type        ArtifactType    `json:"type,omitempty"` // default html
+	Images      *ResourceImages `json:"images,omitempty"`
 	// Content is the page source (HTML body/document or Markdown).
 	Content string `json:"content"`
 	// ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
@@ -1232,6 +1247,8 @@ type ArtifactUpdateRequest struct {
 	Title       *string `json:"title,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Favicon     *string `json:"favicon,omitempty"`
+	// Images replaces the whole cover-image set when present.
+	Images *ResourceImages `json:"images,omitempty"`
 	// SharedVersionID pins the version viewers see. Pass "" to share latest.
 	SharedVersionID *string `json:"shared_version_id,omitempty"`
 }
@@ -1247,9 +1264,10 @@ type ArtifactPublishRequest struct {
 	GeneratedBy     string         `json:"generated_by,omitempty"`
 	Capabilities    map[string]any `json:"capabilities,omitempty"`
 	// Title/Favicon/Description may be refreshed alongside a publish.
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	Favicon     string `json:"favicon,omitempty"`
+	Title       string          `json:"title,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Favicon     string          `json:"favicon,omitempty"`
+	Images      *ResourceImages `json:"images,omitempty"`
 }
 
 // ArtifactContentResponse is the JSON form of an artifact version body.
@@ -2541,6 +2559,10 @@ type MCPTool struct {
 	InputSchema  any              `json:"inputSchema"`
 	OutputSchema any              `json:"outputSchema,omitempty"`
 	Annotations  *ToolAnnotations `json:"annotations,omitempty"`
+	// RequiredScope is the API-key scope a caller must hold to invoke this
+	// tool. Empty means any authenticated caller. Not serialized: it is an
+	// authorization rule, not part of the MCP wire contract.
+	RequiredScope Scope `json:"-"`
 }
 
 // ToolCallRequest represents a request to call a tool.
@@ -2834,6 +2856,46 @@ func (r *PageCreateRequest) ContentHash() string {
 	b, _ := json.Marshal(r)
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// CommentDTO for API responses
+type CommentDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	// ResourceType and ResourceID address what is commented on ("artifacts",
+	// "pages"). PageID stays for the page comment API that predates them.
+	ResourceType     string        `json:"resource_type"`
+	ResourceID       string        `json:"resource_id"`
+	PageID           string        `json:"page_id"`
+	Content          string        `json:"content"`
+	ParentCommentID  *string       `json:"parent_comment_id"`
+	Children         []CommentDTO  `json:"children"`
+	Status           CommentStatus `json:"status"`
+	ResolvedAt       *time.Time    `json:"resolved_at,omitempty"`
+	ResolvedByUserID string        `json:"resolved_by_user_id,omitempty"`
+	// AgentActivated reports whether an agent may reply to or resolve this
+	// thread. Reading is always allowed to anyone who can read the resource.
+	AgentActivated         bool   `json:"agent_activated"`
+	AgentActivatedByUserID string `json:"agent_activated_by_user_id,omitempty"`
+	// AuthorAgentID attributes a reply written by an agent on a person's
+	// behalf; clients render it as "agent, via <user>".
+	AuthorAgentID string `json:"author_agent_id,omitempty"`
+}
+
+// ArtifactCommentCreateRequest posts a thread or a reply on an artifact.
+type ArtifactCommentCreateRequest struct {
+	Content string `json:"content"`
+	// ParentCommentID replies into an existing thread; omit to start one.
+	ParentCommentID *string `json:"parent_comment_id,omitempty"`
+	// SendToAgent activates the thread for agents in the same call, which is
+	// what a "send to agent" affordance does.
+	SendToAgent bool `json:"send_to_agent,omitempty"`
+}
+
+// ArtifactCommentThreadDTO is one thread: its root plus replies in order.
+type ArtifactCommentThreadDTO struct {
+	CommentDTO `tstype:",extends"`
+	Replies    []CommentDTO `json:"replies"`
 }
 
 // MenuDTO for API responses
@@ -3400,6 +3462,9 @@ type SDKTypes struct {
 	_artifactUpdate      ArtifactUpdateRequest
 	_artifactPublish     ArtifactPublishRequest
 	_artifactContentResp ArtifactContentResponse
+	_artifactCommentReq  ArtifactCommentCreateRequest
+	_artifactThread      ArtifactCommentThreadDTO
+	_commentDTO          CommentDTO
 	_artifactType        ArtifactType
 	// Knowledge
 	_knowledgeDTO      KnowledgeDTO
@@ -5773,6 +5838,19 @@ const (
 	PageTypeBlog         PageType = "blog"
 	PageTypePage         PageType = "page"
 	PageTypeAnnouncement PageType = "announcement"
+)
+
+type CommentStatus int
+
+func (v CommentStatus) Value() (driver.Value, error) {
+	return int64(v), nil
+}
+
+const (
+	CommentStatusUnknown CommentStatus = iota
+	CommentStatusDraft
+	CommentStatusPublished
+	CommentStatusArchived
 )
 
 // ToolInvocationStatus represents the execution status of a tool invocation
