@@ -5215,6 +5215,11 @@ export interface UserMetadataDTO {
   terms_accepted_at?: string /* RFC3339 */;
   terms_version: string;
 }
+export interface VaultDTO extends BaseModelDTO, PermissionModelDTO {
+  name: string;
+  description?: string;
+  is_default: boolean;
+}
 export interface VoucherDTO extends BaseModelDTO {
   name: string;
   description?: string;

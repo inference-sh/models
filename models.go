@@ -1306,6 +1306,31 @@ type ChatMessageDTO struct {
 }
 
 // --------------------
+// source: credential.go
+// --------------------
+
+// CredentialDTO is the API response for a credential (never exposes secrets).
+type CredentialDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Provider           string           `json:"provider"`
+	Type               CredentialType   `json:"type"`
+	Grant              *CredentialGrant `json:"grant,omitempty"`
+	Scope              CredentialScope  `json:"scope"`
+	Status             CredentialStatus `json:"status"`
+	DisplayName        string           `json:"display_name"`
+	IconURL            string           `json:"icon_url,omitempty"`
+	AccountIdentifier  string           `json:"account_identifier,omitempty"`
+	AccountName        string           `json:"account_name,omitempty"`
+	Scopes             StringSlice      `json:"scopes"`
+	ExpiresAt          *time.Time       `json:"expires_at,omitempty"`
+	VaultID            *string          `json:"vault_id,omitempty"`
+	Metadata           map[string]any   `json:"metadata,omitempty"`
+	IsPrimary          bool             `json:"is_primary"`
+	ErrorMessage       string           `json:"error_message,omitempty"`
+}
+
+// --------------------
 // source: cursor.go
 // --------------------
 
@@ -3402,6 +3427,8 @@ type EngineTypes struct {
 	_integConnect       IntegrationConnectRequest
 	_integResp          IntegrationConnectResponse
 	_integDTO           IntegrationDTO
+	_vaultDTO           VaultDTO
+	_credentialDTO      CredentialDTO
 	_skillResolve       SkillResolveResult
 	_skillDownload      SkillDownloadResponse
 	_skillDTO           SkillDTO
@@ -4096,6 +4123,18 @@ type UserMetadataDTO struct {
 	SignupSource        string     `json:"signup_source"`
 	TermsAcceptedAt     *time.Time `json:"terms_accepted_at"`
 	TermsVersion        string     `json:"terms_version"`
+}
+
+// --------------------
+// source: vault.go
+// --------------------
+
+type VaultDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Name               string `json:"name"`
+	Description        string `json:"description,omitempty"`
+	IsDefault          bool   `json:"is_default"`
 }
 
 // --------------------
@@ -6048,6 +6087,28 @@ const (
 	IntegrationGrantToken IntegrationGrant = "token"
 )
 
+// CredentialType describes the credential category.
+type CredentialType string
+
+const (
+	CredentialTypeOAuth          CredentialType = "oauth"
+	CredentialTypeAPIKey         CredentialType = "api_key"
+	CredentialTypeMCP            CredentialType = "mcp"
+	CredentialTypeServiceAccount CredentialType = "service_account"
+	CredentialTypeWIF            CredentialType = "wif"
+)
+
+// CredentialStatus represents the lifecycle state of a credential.
+type CredentialStatus string
+
+const (
+	CredentialStatusPending      CredentialStatus = "pending"
+	CredentialStatusConnected    CredentialStatus = "connected"
+	CredentialStatusDisconnected CredentialStatus = "disconnected"
+	CredentialStatusExpired      CredentialStatus = "expired"
+	CredentialStatusError        CredentialStatus = "error"
+)
+
 // CredentialScope controls resolution priority and ownership.
 type CredentialScope string
 
@@ -6061,6 +6122,14 @@ const (
 	CredentialScopeTeam  CredentialScope = "team"
 	CredentialScopeUser  CredentialScope = "user"
 	CredentialScopeAgent CredentialScope = "agent"
+)
+
+// CredentialGrant describes what a credential provides.
+type CredentialGrant string
+
+const (
+	CredentialGrantCredentials CredentialGrant = "credentials"
+	CredentialGrantToken       CredentialGrant = "token"
 )
 
 type RejectionReason string
