@@ -1283,6 +1283,46 @@ type ArtifactContentResponse struct {
 	SizeBytes   int64        `json:"size_bytes"`
 }
 
+// ArtifactDataDTO is one document in an artifact's store.
+type ArtifactDataDTO struct {
+	Collection string         `json:"collection"`
+	DocID      string         `json:"doc_id"`
+	Data       map[string]any `json:"data"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	// OwnerUserID is set for documents private to one viewer.
+	OwnerUserID string `json:"owner_user_id,omitempty"`
+}
+
+// ArtifactDataRequest addresses one document, or a collection when DocID is
+// empty (list).
+type ArtifactDataRequest struct {
+	Collection string `json:"collection"`
+	DocID      string `json:"doc_id,omitempty"`
+	// Data is the document body for set and update.
+	Data map[string]any `json:"data,omitempty"`
+	// Limit caps a list; the server clamps it.
+	Limit int `json:"limit,omitempty"`
+}
+
+// ArtifactDataListResponse is a page of documents from one collection.
+type ArtifactDataListResponse struct {
+	Collection string            `json:"collection"`
+	Documents  []ArtifactDataDTO `json:"documents"`
+	Count      int               `json:"count"`
+}
+
+// ArtifactViewerDTO is what the user capability tells a page about whoever
+// has it open. It carries no credential and no email.
+type ArtifactViewerDTO struct {
+	// SignedIn is false for someone opening a public link without an account.
+	SignedIn  bool   `json:"signed_in"`
+	UserID    string `json:"user_id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	AvatarURL string `json:"avatar_url,omitempty"`
+	// CanEdit reports whether this viewer may publish new versions.
+	CanEdit bool `json:"can_edit"`
+}
+
 // --------------------
 // source: auth_session.go
 // --------------------
@@ -3463,6 +3503,10 @@ type SDKTypes struct {
 	_artifactPublish     ArtifactPublishRequest
 	_artifactContentResp ArtifactContentResponse
 	_artifactCommentReq  ArtifactCommentCreateRequest
+	_artifactData        ArtifactDataDTO
+	_artifactDataReq     ArtifactDataRequest
+	_artifactDataList    ArtifactDataListResponse
+	_artifactViewer      ArtifactViewerDTO
 	_artifactThread      ArtifactCommentThreadDTO
 	_commentDTO          CommentDTO
 	_artifactType        ArtifactType
