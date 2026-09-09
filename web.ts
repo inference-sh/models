@@ -5455,6 +5455,12 @@ export interface VaultDTO extends BaseModelDTO, PermissionModelDTO {
   name: string;
   description?: string;
   is_default: boolean;
+  /**
+   * Members of this vault, counted on list and get so callers do not have
+   * to fetch both collections to render a summary.
+   */
+  credential_count: number /* int */;
+  secret_count: number /* int */;
 }
 export interface VoucherDTO extends BaseModelDTO {
   name: string;

@@ -4336,6 +4336,10 @@ type VaultDTO struct {
 	Name               string `json:"name"`
 	Description        string `json:"description,omitempty"`
 	IsDefault          bool   `json:"is_default"`
+	// Members of this vault, counted on list and get so callers do not have
+	// to fetch both collections to render a summary.
+	CredentialCount int `json:"credential_count"`
+	SecretCount     int `json:"secret_count"`
 }
 
 // --------------------
