@@ -1215,12 +1215,15 @@ type ArtifactCreateRequest struct {
 	Favicon     string       `json:"favicon,omitempty"`
 	Type        ArtifactType `json:"type,omitempty"` // default html
 	// Content is the page source (HTML body/document or Markdown).
-	Content      string         `json:"content"`
-	Label        string         `json:"label,omitempty"`
-	Notes        string         `json:"notes,omitempty"`
-	Origin       string         `json:"origin,omitempty"`
-	GeneratedBy  string         `json:"generated_by,omitempty"`
-	Capabilities map[string]any `json:"capabilities,omitempty"`
+	Content string `json:"content"`
+	// ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
+	// from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
+	ContentEncoding string         `json:"content_encoding,omitempty"`
+	Label           string         `json:"label,omitempty"`
+	Notes           string         `json:"notes,omitempty"`
+	Origin          string         `json:"origin,omitempty"`
+	GeneratedBy     string         `json:"generated_by,omitempty"`
+	Capabilities    map[string]any `json:"capabilities,omitempty"`
 }
 
 // ArtifactUpdateRequest is the body for POST /artifacts/{id}. Metadata only;
@@ -1235,12 +1238,14 @@ type ArtifactUpdateRequest struct {
 
 // ArtifactPublishRequest is the body for POST /artifacts/{id}/versions.
 type ArtifactPublishRequest struct {
-	Content      string         `json:"content"`
-	Label        string         `json:"label,omitempty"`
-	Notes        string         `json:"notes,omitempty"`
-	Origin       string         `json:"origin,omitempty"`
-	GeneratedBy  string         `json:"generated_by,omitempty"`
-	Capabilities map[string]any `json:"capabilities,omitempty"`
+	Content string `json:"content"`
+	// ContentEncoding is "base64" when Content is base64-encoded UTF-8.
+	ContentEncoding string         `json:"content_encoding,omitempty"`
+	Label           string         `json:"label,omitempty"`
+	Notes           string         `json:"notes,omitempty"`
+	Origin          string         `json:"origin,omitempty"`
+	GeneratedBy     string         `json:"generated_by,omitempty"`
+	Capabilities    map[string]any `json:"capabilities,omitempty"`
 	// Title/Favicon/Description may be refreshed alongside a publish.
 	Title       string `json:"title,omitempty"`
 	Description string `json:"description,omitempty"`
