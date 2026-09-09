@@ -118,6 +118,7 @@ type InternalToolsConfig struct {
 	Skills      *bool `json:"skills,omitempty" yaml:"skills,omitempty"`
 	HostContext *bool `json:"host_context,omitempty" yaml:"host_context,omitempty"`
 	Meta        *bool `json:"meta,omitempty" yaml:"meta,omitempty"`
+	Artifact    *bool `json:"artifact,omitempty" yaml:"artifact,omitempty"`
 }
 
 // AgentTool represents a unified tool that can be used by an agent
@@ -842,6 +843,10 @@ const (
 	// Action-level scopes for Knowledge (includes skills)
 	ScopeKnowledgeRead  Scope = "knowledge:read"
 	ScopeKnowledgeWrite Scope = "knowledge:write"
+	// Action-level scopes for Artifacts (published HTML/Markdown pages)
+	ScopeArtifacts      Scope = "artifacts"
+	ScopeArtifactsRead  Scope = "artifacts:read"
+	ScopeArtifactsWrite Scope = "artifacts:write"
 	// Action-level scopes for User profile
 	ScopeUserRead  Scope = "user:read"
 	ScopeUserWrite Scope = "user:write"
@@ -868,6 +873,7 @@ const (
 	ScopeGroupEngines       ScopeGroup = "engines"
 	ScopeGroupApiKeys       ScopeGroup = "apikeys"
 	ScopeGroupKnowledge     ScopeGroup = "knowledge"
+	ScopeGroupArtifacts     ScopeGroup = "artifacts"
 	ScopeGroupUser          ScopeGroup = "user"
 	ScopeGroupSettings      ScopeGroup = "settings"
 )
@@ -1135,6 +1141,128 @@ type PublicAppStoreDTO struct {
 	HasApprovedVersion bool      `json:"has_approved_version"`
 	PageID             *string   `json:"page_id,omitempty"`
 	PricingDescription string    `json:"pricing_description,omitempty"`
+}
+
+// --------------------
+// source: artifact.go
+// --------------------
+
+// ArtifactDTO is the API shape of an artifact entry.
+type ArtifactDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	// Namespace is the owning team's username, copied at creation. Immutable.
+	Namespace string `json:"namespace"`
+	// Name is the slug within the namespace. Immutable.
+	Name        string       `json:"name"`
+	Title       string       `json:"title"`
+	Description string       `json:"description,omitempty"`
+	Favicon     string       `json:"favicon,omitempty"` // one or two emoji
+	Type        ArtifactType `json:"type"`
+	// VersionID points at the latest published version.
+	VersionID string              `json:"version_id"`
+	Version   *ArtifactVersionDTO `json:"version"`
+	// SharedVersionID pins the version viewers see. Empty = always latest.
+	SharedVersionID string `json:"shared_version_id,omitempty"`
+	// Capabilities declared by the latest version (runtime features the page
+	// may use). Reserved for the artifact runtime; opaque to the API.
+	Capabilities map[string]any `json:"capabilities,omitempty"`
+	Views        int64          `json:"views"`
+	// URL is the canonical viewer URL for this artifact.
+	URL string `json:"url,omitempty"`
+}
+
+// FullName returns "namespace/name".
+func (a *ArtifactDTO) FullName() string {
+	if a.Namespace == "" {
+		return a.Name
+	}
+	return a.Namespace + "/" + a.Name
+}
+
+// ArtifactVersionDTO is one immutable publish of an artifact.
+type ArtifactVersionDTO struct {
+	BaseModelDTO `tstype:",extends"`
+	ArtifactID   string `json:"artifact_id"`
+	// Number is the 1-based publish sequence within the artifact.
+	Number int `json:"number"`
+	// Content is the stored source file (uri/hash/size). The inline `content`
+	// field is only populated on write requests, never on reads — use the
+	// /content endpoint to fetch the body.
+	Content     KnowledgeFile `json:"content"`
+	ContentHash string        `json:"content_hash"`
+	// MD5 is the lowercase hex MD5 of the UTF-8 source; SizeBytes its byte
+	// length. Both let a DLP consumer dedupe without downloading.
+	MD5       string `json:"md5"`
+	SizeBytes int64  `json:"size_bytes"`
+	Label     string `json:"label,omitempty"`
+	Notes     string `json:"notes,omitempty"`
+	// Provenance — same conventions as knowledge versions.
+	Origin          string         `json:"origin,omitempty"`       // "chat:<id>", "belt", "api"
+	GeneratedBy     string         `json:"generated_by,omitempty"` // "agent:<id>", "human:<email>"
+	Capabilities    map[string]any `json:"capabilities,omitempty"`
+	CreatedByUserID string         `json:"created_by_user_id,omitempty"`
+}
+
+// ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
+// and its first version. When an artifact with the same name already exists
+// in the caller's namespace a new version is published instead.
+type ArtifactCreateRequest struct {
+	// Name is optional; derived from Title when empty.
+	Name        string       `json:"name,omitempty"`
+	Title       string       `json:"title"`
+	Description string       `json:"description,omitempty"`
+	Favicon     string       `json:"favicon,omitempty"`
+	Type        ArtifactType `json:"type,omitempty"` // default html
+	// Content is the page source (HTML body/document or Markdown).
+	Content string `json:"content"`
+	// ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
+	// from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
+	ContentEncoding string         `json:"content_encoding,omitempty"`
+	Label           string         `json:"label,omitempty"`
+	Notes           string         `json:"notes,omitempty"`
+	Origin          string         `json:"origin,omitempty"`
+	GeneratedBy     string         `json:"generated_by,omitempty"`
+	Capabilities    map[string]any `json:"capabilities,omitempty"`
+}
+
+// ArtifactUpdateRequest is the body for POST /artifacts/{id}. Metadata only;
+// content changes go through ArtifactPublishRequest.
+type ArtifactUpdateRequest struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Favicon     *string `json:"favicon,omitempty"`
+	// SharedVersionID pins the version viewers see. Pass "" to share latest.
+	SharedVersionID *string `json:"shared_version_id,omitempty"`
+}
+
+// ArtifactPublishRequest is the body for POST /artifacts/{id}/versions.
+type ArtifactPublishRequest struct {
+	Content string `json:"content"`
+	// ContentEncoding is "base64" when Content is base64-encoded UTF-8.
+	ContentEncoding string         `json:"content_encoding,omitempty"`
+	Label           string         `json:"label,omitempty"`
+	Notes           string         `json:"notes,omitempty"`
+	Origin          string         `json:"origin,omitempty"`
+	GeneratedBy     string         `json:"generated_by,omitempty"`
+	Capabilities    map[string]any `json:"capabilities,omitempty"`
+	// Title/Favicon/Description may be refreshed alongside a publish.
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Favicon     string `json:"favicon,omitempty"`
+}
+
+// ArtifactContentResponse is the JSON form of an artifact version body.
+type ArtifactContentResponse struct {
+	ArtifactID  string       `json:"artifact_id"`
+	VersionID   string       `json:"version_id"`
+	Number      int          `json:"number"`
+	Type        ArtifactType `json:"type"`
+	Title       string       `json:"title"`
+	Content     string       `json:"content"`
+	ContentHash string       `json:"content_hash"`
+	MD5         string       `json:"md5"`
+	SizeBytes   int64        `json:"size_bytes"`
 }
 
 // --------------------
@@ -3265,6 +3393,14 @@ type SDKTypes struct {
 	_llmOutput     LLMOutput
 	_llmDelta      LLMDelta
 	_llmDeltaEvent LLMDeltaEvent
+	// Artifacts
+	_artifactDTO         ArtifactDTO
+	_artifactVersion     ArtifactVersionDTO
+	_artifactCreate      ArtifactCreateRequest
+	_artifactUpdate      ArtifactUpdateRequest
+	_artifactPublish     ArtifactPublishRequest
+	_artifactContentResp ArtifactContentResponse
+	_artifactType        ArtifactType
 	// Knowledge
 	_knowledgeDTO      KnowledgeDTO
 	_knowledgeVersion  KnowledgeVersionDTO
@@ -4306,6 +4442,9 @@ const (
 	A2UISpacer A2UIComponentType = "Spacer"
 	A2UIChart  A2UIComponentType = "Chart"
 	A2UIForm   A2UIComponentType = "Form"
+	// Artifact embeds a published artifact (sandboxed page) with a link to
+	// the viewer. Rendered from the artifact's /render endpoint.
+	A2UIArtifact A2UIComponentType = "Artifact"
 )
 
 // A2UIComponent is the universal component representation.
@@ -4374,6 +4513,12 @@ type A2UIComponent struct {
 	ShowTooltip bool        `json:"showTooltip,omitempty"`
 	// Extension: Form
 	OnSubmitAction *A2UIAction `json:"onSubmitAction,omitempty"`
+	// Extension: Artifact
+	ArtifactID        string `json:"artifactId,omitempty"`
+	ArtifactVersionID string `json:"artifactVersionId,omitempty"`
+	ArtifactTitle     string `json:"artifactTitle,omitempty"`
+	ArtifactURL       string `json:"artifactUrl,omitempty"`
+	ArtifactFavicon   string `json:"artifactFavicon,omitempty"`
 }
 
 //gotypegen:emit
@@ -5928,6 +6073,14 @@ const (
 	KnowledgeLifecycleDecay      KnowledgeLifecycle = "decay"
 	KnowledgeLifecycleDraft      KnowledgeLifecycle = "draft"
 	KnowledgeLifecycleDeprecated KnowledgeLifecycle = "deprecated"
+)
+
+// ArtifactType is the source format of an artifact page.
+type ArtifactType string
+
+const (
+	ArtifactTypeHTML     ArtifactType = "html"
+	ArtifactTypeMarkdown ArtifactType = "markdown"
 )
 
 type FilterOperator string

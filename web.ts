@@ -36,6 +36,7 @@ export interface InternalToolsConfig {
   skills?: boolean;
   host_context?: boolean;
   meta?: boolean;
+  artifact?: boolean;
 }
 /**
  * InternalToolDefinition describes a built-in tool category available to agents
@@ -1429,6 +1430,22 @@ export const ScopeKnowledgeRead: Scope = "knowledge:read";
  */
 export const ScopeKnowledgeWrite: Scope = "knowledge:write";
 /**
+ * Action-level scopes for Artifacts (published HTML/Markdown pages)
+ */
+export const ScopeArtifacts: Scope = "artifacts";
+/**
+ * API Key Scopes - hierarchical permission system.
+ * Resource-level scopes (e.g., "agents") imply all action-level scopes (e.g., "agents:read").
+ * Empty scopes = full access (for backwards compatibility with existing keys).
+ */
+export const ScopeArtifactsRead: Scope = "artifacts:read";
+/**
+ * API Key Scopes - hierarchical permission system.
+ * Resource-level scopes (e.g., "agents") imply all action-level scopes (e.g., "agents:read").
+ * Empty scopes = full access (for backwards compatibility with existing keys).
+ */
+export const ScopeArtifactsWrite: Scope = "artifacts:write";
+/**
  * Action-level scopes for User profile
  */
 export const ScopeUserRead: Scope = "user:read";
@@ -1466,6 +1483,7 @@ export const ScopeGroupIntegrations: ScopeGroup = "integrations";
 export const ScopeGroupEngines: ScopeGroup = "engines";
 export const ScopeGroupApiKeys: ScopeGroup = "apikeys";
 export const ScopeGroupKnowledge: ScopeGroup = "knowledge";
+export const ScopeGroupArtifacts: ScopeGroup = "artifacts";
 export const ScopeGroupUser: ScopeGroup = "user";
 export const ScopeGroupSettings: ScopeGroup = "settings";
 /**
@@ -1766,6 +1784,151 @@ export interface AppStoreVersionSubmitRequest {
   license_mandatory?: boolean;
   allows_commercial?: boolean;
   pricing?: AppPricing;
+}
+/**
+ * ArtifactDTO is the API shape of an artifact entry.
+ */
+export interface ArtifactDTO extends BaseModelDTO, PermissionModelDTO {
+  /**
+   * Namespace is the owning team's username, copied at creation. Immutable.
+   */
+  namespace: string;
+  /**
+   * Name is the slug within the namespace. Immutable.
+   */
+  name: string;
+  title: string;
+  description?: string;
+  favicon?: string; // one or two emoji
+  type: ArtifactType;
+  /**
+   * VersionID points at the latest published version.
+   */
+  version_id: string;
+  version?: ArtifactVersionDTO;
+  /**
+   * SharedVersionID pins the version viewers see. Empty = always latest.
+   */
+  shared_version_id?: string;
+  /**
+   * Capabilities declared by the latest version (runtime features the page
+   * may use). Reserved for the artifact runtime; opaque to the API.
+   */
+  capabilities?: { [key: string]: any};
+  views: number /* int64 */;
+  /**
+   * URL is the canonical viewer URL for this artifact.
+   */
+  url?: string;
+}
+/**
+ * ArtifactVersionDTO is one immutable publish of an artifact.
+ */
+export interface ArtifactVersionDTO extends BaseModelDTO {
+  artifact_id: string;
+  /**
+   * Number is the 1-based publish sequence within the artifact.
+   */
+  number: number /* int */;
+  /**
+   * Content is the stored source file (uri/hash/size). The inline `content`
+   * field is only populated on write requests, never on reads — use the
+   * /content endpoint to fetch the body.
+   */
+  content: KnowledgeFile;
+  content_hash: string;
+  /**
+   * MD5 is the lowercase hex MD5 of the UTF-8 source; SizeBytes its byte
+   * length. Both let a DLP consumer dedupe without downloading.
+   */
+  md5: string;
+  size_bytes: number /* int64 */;
+  label?: string;
+  notes?: string;
+  /**
+   * Provenance — same conventions as knowledge versions.
+   */
+  origin?: string; // "chat:<id>", "belt", "api"
+  generated_by?: string; // "agent:<id>", "human:<email>"
+  capabilities?: { [key: string]: any};
+  created_by_user_id?: string;
+}
+/**
+ * ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
+ * and its first version. When an artifact with the same name already exists
+ * in the caller's namespace a new version is published instead.
+ */
+export interface ArtifactCreateRequest {
+  /**
+   * Name is optional; derived from Title when empty.
+   */
+  name?: string;
+  title: string;
+  description?: string;
+  favicon?: string;
+  type?: ArtifactType; // default html
+  /**
+   * Content is the page source (HTML body/document or Markdown).
+   */
+  content: string;
+  /**
+   * ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
+   * from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
+   */
+  content_encoding?: string;
+  label?: string;
+  notes?: string;
+  origin?: string;
+  generated_by?: string;
+  capabilities?: { [key: string]: any};
+}
+/**
+ * ArtifactUpdateRequest is the body for POST /artifacts/{id}. Metadata only;
+ * content changes go through ArtifactPublishRequest.
+ */
+export interface ArtifactUpdateRequest {
+  title?: string;
+  description?: string;
+  favicon?: string;
+  /**
+   * SharedVersionID pins the version viewers see. Pass "" to share latest.
+   */
+  shared_version_id?: string;
+}
+/**
+ * ArtifactPublishRequest is the body for POST /artifacts/{id}/versions.
+ */
+export interface ArtifactPublishRequest {
+  content: string;
+  /**
+   * ContentEncoding is "base64" when Content is base64-encoded UTF-8.
+   */
+  content_encoding?: string;
+  label?: string;
+  notes?: string;
+  origin?: string;
+  generated_by?: string;
+  capabilities?: { [key: string]: any};
+  /**
+   * Title/Favicon/Description may be refreshed alongside a publish.
+   */
+  title?: string;
+  description?: string;
+  favicon?: string;
+}
+/**
+ * ArtifactContentResponse is the JSON form of an artifact version body.
+ */
+export interface ArtifactContentResponse {
+  artifact_id: string;
+  version_id: string;
+  number: number /* int */;
+  type: ArtifactType;
+  title: string;
+  content: string;
+  content_hash: string;
+  md5: string;
+  size_bytes: number /* int64 */;
 }
 /**
  * AuthSessionDTO is a safe representation of AuthSession for API responses.
@@ -5486,6 +5649,11 @@ export const A2UISpacer: A2UIComponentType = "Spacer";
 export const A2UIChart: A2UIComponentType = "Chart";
 export const A2UIForm: A2UIComponentType = "Form";
 /**
+ * Artifact embeds a published artifact (sandboxed page) with a link to
+ * the viewer. Rendered from the artifact's /render endpoint.
+ */
+export const A2UIArtifact: A2UIComponentType = "Artifact";
+/**
  * A2UIComponent is the universal component representation.
  * Children are string IDs (flat adjacency list), not nested objects.
  */
@@ -5587,6 +5755,14 @@ export interface A2UIComponent {
    * Extension: Form
    */
   onSubmitAction?: A2UIAction;
+  /**
+   * Extension: Artifact
+   */
+  artifactId?: string;
+  artifactVersionId?: string;
+  artifactTitle?: string;
+  artifactUrl?: string;
+  artifactFavicon?: string;
 }
 export type A2UIBound = string | number | boolean | A2UIBoundValue;
 /**
@@ -6627,6 +6803,12 @@ export const KnowledgeLifecyclePermanent: KnowledgeLifecycle = "permanent";
 export const KnowledgeLifecycleDecay: KnowledgeLifecycle = "decay";
 export const KnowledgeLifecycleDraft: KnowledgeLifecycle = "draft";
 export const KnowledgeLifecycleDeprecated: KnowledgeLifecycle = "deprecated";
+/**
+ * ArtifactType is the source format of an artifact page.
+ */
+export type ArtifactType = string;
+export const ArtifactTypeHTML: ArtifactType = "html";
+export const ArtifactTypeMarkdown: ArtifactType = "markdown";
 /**
  * TriggerKind represents the mechanism of the trigger
  */
