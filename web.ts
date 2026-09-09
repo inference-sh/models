@@ -10,7 +10,6 @@ export type PageUpdateRequest = PageCreateRequest;
 export type MenuUpdateRequest = MenuCreateRequest;
 export type SkillFile = KnowledgeFile;
 export type CreateCommentRequest = CommentCreateRequest;
-export type A2UIBound = string | number | boolean | A2UIBoundValue;
 
 //////////
 // source: types.go
