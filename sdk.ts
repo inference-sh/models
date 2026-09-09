@@ -3546,6 +3546,13 @@ export const VisibilityUnlisted: Visibility = "unlisted";
 export type Permission = string;
 export const PermRead: Permission = "read";
 export const PermWrite: Permission = "write";
+/**
+ * PermUse is execute intent: run an app, load a skill/knowledge into an
+ * agent context, invoke an MCP tool. Distinct from read — a public
+ * resource is readable by everyone, but whether this caller may USE it is
+ * governed by their team/org usage policy (reach, INF-808).
+ */
+export const PermUse: Permission = "use";
 export type SubscriptionStatus = string;
 export const SubscriptionStatusTrialing: SubscriptionStatus = "trialing";
 export const SubscriptionStatusActive: SubscriptionStatus = "active";

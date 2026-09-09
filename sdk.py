@@ -3093,6 +3093,11 @@ class Visibility(str, Enum):
 class Permission(str, Enum):
     PERM_READ = "read"
     PERM_WRITE = "write"
+    # PermUse is execute intent: run an app, load a skill/knowledge into an
+    # agent context, invoke an MCP tool. Distinct from read — a public
+    # resource is readable by everyone, but whether this caller may USE it is
+    # governed by their team/org usage policy (reach, INF-808).
+    PERM_USE = "use"
 
 class SubscriptionStatus(str, Enum):
     TRIALING = "trialing"

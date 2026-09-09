@@ -3645,6 +3645,10 @@ export interface OrgDTO extends BaseModelDTO {
   avatar_url?: string;
   default_team_id?: string;
   /**
+   * UsagePolicyID of the org's usage policy ('' = ungoverned, INF-808).
+   */
+  usage_policy_id?: string;
+  /**
    * IsAdmin: whether the CALLER is on this org's admin grant list. Set on
    * caller-scoped responses.
    */
@@ -4768,6 +4772,11 @@ export interface TeamDTO extends BaseModelDTO {
    * OrgID of the org this team belongs to ('' = standalone team).
    */
   org_id?: string;
+  /**
+   * UsagePolicyID of the team's own usage policy ('' = inherit the org's,
+   * or ungoverned when standalone, INF-808).
+   */
+  usage_policy_id?: string;
 }
 /**
  * TeamMemberDTO is the API response for a team member.
@@ -5077,6 +5086,78 @@ export interface UsageEventDTO extends BaseModelDTO, PermissionModelDTO {
   model: string;
   quantity: number /* int64 */;
   unit: string;
+}
+/**
+ * UsagePolicyDTO is the API response for a usage policy (INF-808): per
+ * category, how far outside its own boundary the governed team/org may reach,
+ * plus allow/block exception rules.
+ */
+export interface UsagePolicyDTO extends BaseModelDTO {
+  name: string;
+  /**
+   * Owner — exactly one is set. Org-owned policies govern all attached
+   * teams by default; team-owned policies belong to standalone teams.
+   */
+  org_id?: string;
+  team_id?: string;
+  /**
+   * Entries: category → reach. Absent category = public reach (ungoverned).
+   */
+  entries: UsagePolicyEntries;
+  rules: UsagePolicyRuleDTO[];
+}
+/**
+ * UsagePolicyRuleDTO is one exception rule on a usage policy. Targets are
+ * stable identities — resource id or publisher team id — with label as the
+ * human-readable snapshot.
+ */
+export interface UsagePolicyRuleDTO {
+  category: UsageCategory;
+  effect: UsagePolicyRuleEffect;
+  resource_id?: string;
+  publisher_team_id?: string;
+  label?: string;
+}
+/**
+ * UsagePolicyRuleRequest is one rule as written by a client. Either give a
+ * human ref — "publisher/name", "publisher/*", or an MCP slug — and the
+ * server resolves it to a stable id once at write time (unresolvable refs are
+ * a validation error, so dead rules cannot exist), or pass an explicit id
+ * (e.g. one-click allow from the denial feed, which already carries it).
+ */
+export interface UsagePolicyRuleRequest {
+  category: UsageCategory;
+  effect: UsagePolicyRuleEffect;
+  ref?: string;
+  resource_id?: string;
+  publisher_team_id?: string;
+  /**
+   * Label overrides the display snapshot when an explicit id is given.
+   */
+  label?: string;
+}
+/**
+ * UsagePolicyDenialSummaryDTO is one aggregated row of the blocked-attempts
+ * feed: who keeps hitting the wall, on what, how often. Carries the stable
+ * ids a one-click allow rule needs.
+ */
+export interface UsagePolicyDenialSummaryDTO {
+  category: UsageCategory;
+  resource_id: string;
+  owner_team_id?: string;
+  label: string;
+  count: number /* int64 */;
+  last_at: string /* RFC3339 */;
+}
+/**
+ * UsagePolicySetRequest replaces the subject's usage-policy document in full
+ * (entries + rules). Idempotent; an empty document is valid and equivalent to
+ * "governed but everything open".
+ */
+export interface UsagePolicySetRequest {
+  name?: string;
+  entries: UsagePolicyEntries;
+  rules?: UsagePolicyRuleRequest[];
 }
 /**
  * UserDTO is the API response for a full user.
@@ -5733,6 +5814,13 @@ export const VisibilityUnlisted: Visibility = "unlisted";
 export type Permission = string;
 export const PermRead: Permission = "read";
 export const PermWrite: Permission = "write";
+/**
+ * PermUse is execute intent: run an app, load a skill/knowledge into an
+ * agent context, invoke an MCP tool. Distinct from read — a public
+ * resource is readable by everyone, but whether this caller may USE it is
+ * governed by their team/org usage policy (reach, INF-808).
+ */
+export const PermUse: Permission = "use";
 /**
  * PaymentProvider represents the payment provider being used
  */
@@ -6862,6 +6950,68 @@ export const NotificationStatusDelivered: NotificationStatus = "delivered";
 export const NotificationStatusFailed: NotificationStatus = "failed";
 export const NotificationStatusBounced: NotificationStatus = "bounced";
 export const NotificationStatusCancelled: NotificationStatus = "cancelled";
+/**
+ * Reach is the mirror of Visibility (INF-808). Visibility says how far a
+ * resource's owner opens it outward; reach says how far a consumer's usage
+ * policy lets them look inward. Effective access is the intersection: a
+ * resource is usable iff its visibility admits the caller AND the caller's
+ * reach admits the resource. The ladder deliberately reuses the visibility
+ * values so the two read as one system.
+ */
+export type Reach = string;
+/**
+ * ReachPublic — everything visible is usable; block rules carve exceptions.
+ */
+export const ReachPublic: Reach = "public";
+/**
+ * ReachOrg — only resources owned inside the caller's org; allow rules
+ * punch holes for named foreign resources.
+ */
+export const ReachOrg: Reach = "org";
+/**
+ * ReachTeam — only the caller's own team's resources (+ allow rules).
+ */
+export const ReachTeam: Reach = "team";
+/**
+ * ReachPrivate — fully closed: nothing beyond allow rules. Kept for enum
+ * symmetry with visibility; collapses into team in practice.
+ */
+export const ReachPrivate: Reach = "private";
+/**
+ * UsageCategory names a class of consumable resource governed by a usage
+ * policy. Every category MUST have (a) a models.UsageGovernable implementation
+ * and (b) an execute-intent choke point calling CheckPermission with PermUse —
+ * the guard test in models/usage_policy_test.go asserts (a).
+ */
+export type UsageCategory = string;
+export const UsageCategoryApp: UsageCategory = "app";
+/**
+ * UsageCategoryKnowledge covers skills too — skills are Knowledge rows
+ * and govern as one class.
+ */
+export const UsageCategoryKnowledge: UsageCategory = "knowledge";
+export const UsageCategoryMCP: UsageCategory = "mcp";
+export const UsageCategoryAgent: UsageCategory = "agent";
+export const UsageCategoryFlow: UsageCategory = "flow";
+/**
+ * UsagePolicyRuleEffect is the effect of a usage-policy rule.
+ */
+export type UsagePolicyRuleEffect = string;
+/**
+ * RuleEffectAllow punches a hole in a closed reach (< public): the named
+ * foreign resource is usable even though the horizon excludes it.
+ */
+export const RuleEffectAllow: UsagePolicyRuleEffect = "allow";
+/**
+ * RuleEffectBlock carves an exception from an open reach (= public): the
+ * named resource is blocked even though everything else is usable.
+ */
+export const RuleEffectBlock: UsagePolicyRuleEffect = "block";
+/**
+ * UsagePolicyEntries maps category → reach. An absent category means public
+ * reach (ungoverned) — the zero state is exactly today's behavior.
+ */
+export type UsagePolicyEntries = { [key: UsageCategory]: Reach};
 /**
  * TaskStatus represents the state of a task in its lifecycle.
  */

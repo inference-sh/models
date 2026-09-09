@@ -2600,6 +2600,8 @@ type OrgDTO struct {
 	Name          string `json:"name"`
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	DefaultTeamID string `json:"default_team_id,omitempty"`
+	// UsagePolicyID of the org's usage policy ('' = ungoverned, INF-808).
+	UsagePolicyID string `json:"usage_policy_id,omitempty"`
 	// IsAdmin: whether the CALLER is on this org's admin grant list. Set on
 	// caller-scoped responses.
 	IsAdmin bool `json:"is_admin,omitempty"`
@@ -3840,6 +3842,9 @@ type TeamDTO struct {
 	Role TeamRole `json:"role,omitempty"`
 	// OrgID of the org this team belongs to ('' = standalone team).
 	OrgID string `json:"org_id,omitempty"`
+	// UsagePolicyID of the team's own usage policy ('' = inherit the org's,
+	// or ungoverned when standalone, INF-808).
+	UsagePolicyID string `json:"usage_policy_id,omitempty"`
 }
 
 // TeamMemberDTO is the API response for a team member.
@@ -4690,6 +4695,11 @@ type Permission string
 const (
 	PermRead  Permission = "read"
 	PermWrite Permission = "write"
+	// PermUse is execute intent: run an app, load a skill/knowledge into an
+	// agent context, invoke an MCP tool. Distinct from read — a public
+	// resource is readable by everyone, but whether this caller may USE it is
+	// governed by their team/org usage policy (reach, INF-808).
+	PermUse Permission = "use"
 )
 
 // --------------------
