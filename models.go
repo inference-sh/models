@@ -1368,24 +1368,6 @@ type ArtifactAssetListResponse struct {
 	BudgetBytes int64 `json:"budget_bytes"`
 }
 
-// ArtifactFrameDTO is what the viewer embeds. EmbedURL is for an iframe on
-// the app; TopURL is the same page opened directly. Both point at the
-// user-content domain, never the API.
-//
-// When Exchange is true the URL carries a short-lived signed token that the
-// content origin swaps for a cookie scoped to that origin and then redirects
-// to the document, so the token leaves the address bar. When false the page
-// is public and no credential is needed.
-type ArtifactFrameDTO struct {
-	ArtifactID     string     `json:"artifact_id"`
-	VersionID      string     `json:"version_id"`
-	VersionShortID string     `json:"version_short_id"`
-	EmbedURL       string     `json:"embed_url"`
-	TopURL         string     `json:"top_url"`
-	Exchange       bool       `json:"exchange"`
-	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
-}
-
 // --------------------
 // source: auth_session.go
 // --------------------
@@ -3572,7 +3554,6 @@ type SDKTypes struct {
 	_artifactViewer      ArtifactViewerDTO
 	_artifactAsset       ArtifactAssetDTO
 	_artifactAssetList   ArtifactAssetListResponse
-	_artifactFrame       ArtifactFrameDTO
 	_artifactThread      ArtifactCommentThreadDTO
 	_commentDTO          CommentDTO
 	_artifactType        ArtifactType
