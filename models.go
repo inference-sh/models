@@ -623,6 +623,10 @@ type SecretCreateRequest struct {
 	Value       string `json:"value"`
 	Description string `json:"description,omitempty"`
 	Provider    string `json:"provider,omitempty"`
+	// ConnectionScope is who the credential this key activates belongs to —
+	// chosen once, here; scope is immutable after creation. Empty = the
+	// provider's default (team). Requires the matching admin role.
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
 }
 
 type SecretUpdateRequest struct {
