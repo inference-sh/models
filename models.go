@@ -1339,6 +1339,31 @@ type ArtifactViewerDTO struct {
 	CanEdit bool `json:"can_edit"`
 }
 
+// ArtifactAssetDTO describes one file stored beside an artifact. URL is
+// absolute and is the only way a page may reference the bytes: the page has
+// no network of its own, and the CSP names this origin only when the
+// artifact declared the assets capability.
+type ArtifactAssetDTO struct {
+	AssetID          string    `json:"asset_id"`
+	Filename         string    `json:"filename,omitempty"`
+	ContentType      string    `json:"content_type,omitempty"`
+	SizeBytes        int64     `json:"size_bytes"`
+	URL              string    `json:"url"`
+	CreatedAt        time.Time `json:"created_at"`
+	UploadedByUserID string    `json:"uploaded_by_user_id,omitempty"`
+}
+
+// ArtifactAssetListResponse is the body of the asset listing.
+type ArtifactAssetListResponse struct {
+	Assets []ArtifactAssetDTO `json:"assets"`
+	Count  int                `json:"count"`
+	// TotalBytes is what this artifact's assets occupy, against the budget
+	// an upload is refused for exceeding.
+	TotalBytes int64 `json:"total_bytes"`
+	// BudgetBytes is the ceiling for one artifact.
+	BudgetBytes int64 `json:"budget_bytes"`
+}
+
 // --------------------
 // source: auth_session.go
 // --------------------
@@ -3523,6 +3548,8 @@ type SDKTypes struct {
 	_artifactDataReq     ArtifactDataRequest
 	_artifactDataList    ArtifactDataListResponse
 	_artifactViewer      ArtifactViewerDTO
+	_artifactAsset       ArtifactAssetDTO
+	_artifactAssetList   ArtifactAssetListResponse
 	_artifactThread      ArtifactCommentThreadDTO
 	_commentDTO          CommentDTO
 	_artifactType        ArtifactType
