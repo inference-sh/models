@@ -1239,6 +1239,14 @@ type ArtifactCreateRequest struct {
 	Origin          string         `json:"origin,omitempty"`
 	GeneratedBy     string         `json:"generated_by,omitempty"`
 	Capabilities    map[string]any `json:"capabilities,omitempty"`
+	// BaseVersionID is the version this content was built on. When the
+	// artifact has moved past it, the publish is refused instead of
+	// discarding whatever landed in between. Leave it empty to publish
+	// unconditionally.
+	BaseVersionID string `json:"base_version_id,omitempty"`
+	// Force publishes over a newer version anyway, discarding it. Only ever
+	// set this because a person said to discard that specific version.
+	Force bool `json:"force,omitempty"`
 }
 
 // ArtifactUpdateRequest is the body for POST /artifacts/{id}. Metadata only;
@@ -1268,6 +1276,14 @@ type ArtifactPublishRequest struct {
 	Description string          `json:"description,omitempty"`
 	Favicon     string          `json:"favicon,omitempty"`
 	Images      *ResourceImages `json:"images,omitempty"`
+	// BaseVersionID is the version this content was built on. When the
+	// artifact has moved past it, the publish is refused instead of
+	// discarding whatever landed in between. Leave it empty to publish
+	// unconditionally.
+	BaseVersionID string `json:"base_version_id,omitempty"`
+	// Force publishes over a newer version anyway, discarding it. Only ever
+	// set this because a person said to discard that specific version.
+	Force bool `json:"force,omitempty"`
 }
 
 // ArtifactContentResponse is the JSON form of an artifact version body.
