@@ -76,22 +76,30 @@ jobs:
           cp $GEN_WEB/types.ts ../models/web.ts
           cp $GEN_APP/types.ts ../models/app.ts
 
-      - name: Commit and tag
+      # Backstop, not the writer. `make types-release` in go/api is the path:
+      # it commits the regenerated types alongside the change that needs them
+      # and tags. This publishes what is already on main when someone commits
+      # and forgets to tag — the types are then reachable only through a local
+      # go.work, and consumers fail in CI. It never authors content, so the
+      # regeneration above is discarded before we look at main.
+      - name: Publish untagged types
         working-directory: models
         env:
           BUMP: ${{ inputs.bump || 'patch' }}
         run: |
-          if git diff --quiet; then
-            echo "No type changes"
+          git checkout -- .
+          git clean -fdq
+
+          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          GEN="models.go sdk.ts sdk.py llm_types.py web.ts app.ts"
+          if [ -n "$LATEST" ] && git diff --quiet "$LATEST" HEAD -- $GEN; then
+            echo "Generated types already published at $LATEST"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "types: regenerate from api"
-
           NEXT=$(svu "$BUMP")
           git tag "$NEXT"
-          git push origin main "$NEXT"
+          git push origin "$NEXT"
           echo "Tagged models $NEXT"
