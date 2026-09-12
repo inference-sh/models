@@ -6390,6 +6390,19 @@ type AgentEvent struct {
 	Payload   json.RawMessage `json:"payload,omitempty"`
 }
 
+// DecodePayload unmarshals the event payload into v. A missing payload is not
+// an error: it leaves v untouched and returns nil, because several event types
+// legitimately carry nothing.
+func (e AgentEvent) DecodePayload(v any) error {
+	if len(e.Payload) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(e.Payload, v); err != nil {
+		return fmt.Errorf("agentprotocol: decode %s payload: %w", e.Type, err)
+	}
+	return nil
+}
+
 type RunStartedPayload struct {
 	AgentID        string `json:"agent_id"`
 	AgentVersionID string `json:"agent_version_id,omitempty"`
