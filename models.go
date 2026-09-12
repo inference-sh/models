@@ -2477,70 +2477,6 @@ type SkillStoreListingDTO struct {
 }
 
 // --------------------
-// source: lifecycle_hook.go
-// --------------------
-
-// LifecycleHookConfig registers a handler for an agent lifecycle event.
-// Stored on AgentVersion alongside Tools and Skills.
-type LifecycleHookConfig struct {
-	Event   HookEvent       `json:"event" yaml:"event"`
-	Type    HookHandlerType `json:"type" yaml:"type"`
-	Handler string          `json:"handler,omitempty" yaml:"handler,omitempty"`
-	Async   bool            `json:"async,omitempty" yaml:"async,omitempty"`
-	Timeout int             `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s for webhook, 300s for gate)
-	// Gate-specific fields (type: "gate")
-	DefaultResolution InterruptResolution `json:"default_resolution,omitempty" yaml:"default_resolution,omitempty"` // auto-resolve on timeout: "allow" (default) or "deny"
-}
-
-// LifecycleHookPayload is sent to hook handlers on lifecycle events.
-type LifecycleHookPayload struct {
-	Event     HookEvent       `json:"event"`
-	Timestamp string          `json:"timestamp"`
-	AgentID   string          `json:"agent_id"`
-	ChatID    string          `json:"chat_id"`
-	RunID     string          `json:"run_id,omitempty"`
-	TurnCount int             `json:"turn_count"`
-	Data      json.RawMessage `json:"data,omitempty"`
-}
-
-// LifecycleHookResponse is returned by hook handlers.
-// All fields are optional — an empty 200 response is equivalent to {decision: "allow"}.
-type LifecycleHookResponse struct {
-	Inject   *ContextInjection `json:"inject,omitempty"`
-	Decision HookDecision      `json:"decision,omitempty"`
-	Reason   string            `json:"reason,omitempty"`
-	Override json.RawMessage   `json:"override,omitempty"`
-	System   string            `json:"system,omitempty"`
-}
-
-// ContextInjection adds ephemeral content to the agent's context window.
-// Injections are stored as ChatMessages and filtered at context-build time.
-type ContextInjection struct {
-	Content  string `json:"content"`
-	Role     string `json:"role,omitempty"`      // default "system"
-	TTLTurns int    `json:"ttl_turns,omitempty"` // 0 = permanent
-	DedupKey string `json:"dedup_key,omitempty"` // new injection with same key supersedes prior
-}
-
-// ToolCallEventData is the typed payload for agent.tool_call events.
-type ToolCallEventData struct {
-	Tool      string         `json:"tool"`
-	Arguments map[string]any `json:"arguments,omitempty"`
-}
-
-// ToolResultEventData is the typed payload for agent.tool_result events.
-type ToolResultEventData struct {
-	Tool   string `json:"tool"`
-	Status string `json:"status"`
-	Result string `json:"result,omitempty"`
-}
-
-// ErrorEventData is the typed payload for agent.error events.
-type ErrorEventData struct {
-	Error string `json:"error"`
-}
-
-// --------------------
 // source: mcp.go
 // --------------------
 
@@ -4778,214 +4714,6 @@ func (s *A2UISurface) RootComponent() *A2UIComponent {
 }
 
 // --------------------
-// source: agent_event.go
-// --------------------
-
-// AgentEventType identifies what happened in an agent run.
-// These are the backbone protocol events — every consumer (A2A, SDK, frontend)
-// projects from this set.
-type AgentEventType string
-
-const (
-	// Run lifecycle
-	AgentEventRunStarted      AgentEventType = "run.started"
-	AgentEventRunStateChanged AgentEventType = "run.state_changed"
-	// Turn lifecycle
-	AgentEventTurnStarted   AgentEventType = "turn.started"
-	AgentEventTurnCompleted AgentEventType = "turn.completed"
-	// Content streaming — structural wrapper; high-frequency token deltas
-	// still flow via the existing DeltaEvent channel for efficiency.
-	AgentEventContentDelta AgentEventType = "content.delta"
-	// Tool lifecycle
-	AgentEventToolStarted   AgentEventType = "tool.started"
-	AgentEventToolCompleted AgentEventType = "tool.completed"
-	// Approval flow
-	AgentEventApprovalRequired AgentEventType = "approval.required"
-	AgentEventApprovalResolved AgentEventType = "approval.resolved"
-	// Hook lifecycle
-	AgentEventHookExecuted AgentEventType = "hook.executed"
-	// Usage
-	AgentEventUsageUpdated AgentEventType = "usage.updated"
-	// Context management
-	AgentEventContextCompacted AgentEventType = "context.compacted"
-	// Errors
-	AgentEventError AgentEventType = "error"
-)
-
-// AgentEvent is the backbone protocol event for agent runs.
-// Published to "runs:<runID>" and "chats:<chatID>" keys on the event bus.
-type AgentEvent struct {
-	ID        string          `json:"id"`
-	Type      AgentEventType  `json:"type"`
-	RunID     string          `json:"run_id"`
-	ChatID    string          `json:"chat_id"`
-	AgentID   string          `json:"agent_id,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-}
-
-type RunStartedPayload struct {
-	AgentID        string `json:"agent_id"`
-	AgentVersionID string `json:"agent_version_id,omitempty"`
-	UserMessageID  string `json:"user_message_id,omitempty"`
-}
-
-type RunStateChangedPayload struct {
-	FromState AgentRunState `json:"from_state"`
-	ToState   AgentRunState `json:"to_state"`
-	Error     string        `json:"error,omitempty"`
-}
-
-type TurnStartedPayload struct {
-	TurnIndex int    `json:"turn_index"`
-	Model     string `json:"model,omitempty"`
-}
-
-type TurnCompletedPayload struct {
-	TurnIndex  int    `json:"turn_index"`
-	ToolCount  int    `json:"tool_count"`
-	HasOutput  bool   `json:"has_output"`
-	StopReason string `json:"stop_reason,omitempty"`
-}
-
-type ContentDeltaPayload struct {
-	Kind  ContentDeltaKind `json:"kind"`
-	Delta string           `json:"delta"`
-}
-
-type ContentDeltaKind string
-
-const (
-	ContentDeltaText      ContentDeltaKind = "text"
-	ContentDeltaReasoning ContentDeltaKind = "reasoning"
-)
-
-type ToolStartedPayload struct {
-	ToolInvocationID string           `json:"tool_invocation_id"`
-	ToolName         string           `json:"tool_name"`
-	ToolType         ToolType         `json:"tool_type,omitempty"`
-	DisplayName      string           `json:"display_name,omitempty"`
-	Arguments        StringEncodedMap `json:"arguments,omitempty"`
-}
-
-type ToolCompletedPayload struct {
-	ToolInvocationID string               `json:"tool_invocation_id"`
-	ToolName         string               `json:"tool_name"`
-	Status           ToolInvocationStatus `json:"status"`
-	Result           string               `json:"result,omitempty"`
-	DurationMs       int64                `json:"duration_ms,omitempty"`
-}
-
-type ApprovalRequiredPayload struct {
-	ToolInvocationID string           `json:"tool_invocation_id"`
-	ToolName         string           `json:"tool_name"`
-	Arguments        StringEncodedMap `json:"arguments,omitempty"`
-	Reason           InterruptReason  `json:"reason"`
-}
-
-type ApprovalResolvedPayload struct {
-	ToolInvocationID string `json:"tool_invocation_id"`
-	ToolName         string `json:"tool_name"`
-	Decision         string `json:"decision"` // "allow", "deny"
-	Reason           string `json:"reason,omitempty"`
-}
-
-type HookExecutedPayload struct {
-	HookEvent  HookEvent    `json:"hook_event"`
-	Decision   HookDecision `json:"decision"`
-	Reason     string       `json:"reason,omitempty"`
-	DurationMs int64        `json:"duration_ms,omitempty"`
-}
-
-type UsageUpdatedPayload struct {
-	PromptTokens     int     `json:"prompt_tokens"`
-	CompletionTokens int     `json:"completion_tokens"`
-	TotalTokens      int     `json:"total_tokens"`
-	ReasoningTokens  int     `json:"reasoning_tokens,omitempty"`
-	CostUSD          float64 `json:"cost_usd,omitempty"`
-}
-
-type ContextCompactedPayload struct {
-	BeforeTokens int `json:"before_tokens"`
-	AfterTokens  int `json:"after_tokens"`
-}
-
-type ErrorPayload struct {
-	Message string `json:"message"`
-	Code    string `json:"code,omitempty"`
-}
-
-// --------------------
-// source: agent_run.go
-// --------------------
-
-// AgentRunState tracks the lifecycle of an agent run (one user→agent turn).
-// Maps to A2A TaskState and AG-UI Run outcome for protocol compliance.
-type AgentRunState string
-
-func (s AgentRunState) IsTerminal() bool {
-	return s == AgentRunStateCompleted || s == AgentRunStateFailed || s == AgentRunStateCanceled || s == AgentRunStateRejected
-}
-
-func (s AgentRunState) IsInterrupted() bool {
-	return s == AgentRunStateInputRequired || s == AgentRunStateAuthRequired
-}
-
-// IsSettled returns true when the run won't produce further events in this
-// turn — either terminal or waiting for external input.
-func (s AgentRunState) IsSettled() bool {
-	return s.IsTerminal() || s.IsInterrupted()
-}
-
-func (s AgentRunState) CanTransitionTo(next AgentRunState) bool {
-	if s.IsTerminal() {
-		return false
-	}
-	switch s {
-	case AgentRunStateSubmitted:
-		return next == AgentRunStateWorking || next == AgentRunStateCompleted || next == AgentRunStateFailed || next == AgentRunStateCanceled
-	case AgentRunStateWorking:
-		return next == AgentRunStateInputRequired || next == AgentRunStateAuthRequired || next == AgentRunStateCompleted || next == AgentRunStateFailed || next == AgentRunStateCanceled
-	case AgentRunStateInputRequired, AgentRunStateAuthRequired:
-		return next == AgentRunStateWorking || next == AgentRunStateFailed || next == AgentRunStateCanceled
-	default:
-		return false
-	}
-}
-
-func (v AgentRunState) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	AgentRunStateSubmitted     AgentRunState = "submitted"
-	AgentRunStateWorking       AgentRunState = "working"
-	AgentRunStateInputRequired AgentRunState = "input_required"
-	AgentRunStateAuthRequired  AgentRunState = "auth_required"
-	AgentRunStateCompleted     AgentRunState = "completed"
-	AgentRunStateFailed        AgentRunState = "failed"
-	AgentRunStateCanceled      AgentRunState = "canceled"
-	AgentRunStateRejected      AgentRunState = "rejected"
-)
-
-// InterruptReason describes why an agent run is in an interrupted state.
-// Aligns with AG-UI interrupt outcome reasons.
-type InterruptReason string
-
-func (v InterruptReason) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	InterruptReasonToolApproval InterruptReason = "tool_approval"
-	InterruptReasonClientTool   InterruptReason = "client_tool"
-	InterruptReasonWidget       InterruptReason = "widget"
-	InterruptReasonAuth         InterruptReason = "auth"
-	InterruptReasonConfirmation InterruptReason = "confirmation"
-	InterruptReasonHookGate     InterruptReason = "hook_gate"
-)
-
-// --------------------
 // source: app.go
 // --------------------
 
@@ -5280,103 +5008,6 @@ type IntegrationContext struct {
 }
 
 // --------------------
-// source: common.go
-// --------------------
-
-type StringEncodedMap map[string]any
-
-func (m *StringEncodedMap) UnmarshalJSON(data []byte) error {
-	var rawMap map[string]any
-	err := json.Unmarshal(data, &rawMap)
-	if err == nil {
-		*m = StringEncodedMap(rawMap)
-		return nil
-	}
-	var jsonStr string
-	if err := json.Unmarshal(data, &jsonStr); err != nil {
-		return err
-	}
-	if err := json.Unmarshal([]byte(jsonStr), &rawMap); err != nil {
-		return err
-	}
-	*m = StringEncodedMap(rawMap)
-	return nil
-}
-
-// GetString retrieves a string value from the map
-func (m StringEncodedMap) GetString(key string) (string, bool) {
-	val, ok := m[key].(string)
-	return val, ok
-}
-
-// GetBool retrieves a bool value from the map
-func (m StringEncodedMap) GetBool(key string) (bool, bool) {
-	val, ok := m[key].(bool)
-	return val, ok
-}
-
-// GetInt retrieves an int value from the map (handles JSON numbers as float64)
-func (m StringEncodedMap) GetInt(key string) (int, bool) {
-	switch v := m[key].(type) {
-	case int:
-		return v, true
-	case float64:
-		return int(v), true
-	case int64:
-		return int(v), true
-	}
-	return 0, false
-}
-
-// GetFloat64 retrieves a float64 value from the map
-func (m StringEncodedMap) GetFloat64(key string) (float64, bool) {
-	switch v := m[key].(type) {
-	case float64:
-		return v, true
-	case int:
-		return float64(v), true
-	case int64:
-		return float64(v), true
-	}
-	return 0, false
-}
-
-// GetSlice retrieves a slice value from the map
-func (m StringEncodedMap) GetSlice(key string) ([]any, bool) {
-	val, ok := m[key].([]any)
-	return val, ok
-}
-
-// GetMap retrieves a nested map as StringEncodedMap
-func (m StringEncodedMap) GetMap(key string) (StringEncodedMap, bool) {
-	val, ok := m[key].(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	return StringEncodedMap(val), true
-}
-
-func (m *StringEncodedMap) ToJSON() (json.RawMessage, bool) {
-	jsonString, err := json.Marshal(m)
-	if err != nil {
-		return nil, false
-	}
-	return json.RawMessage(jsonString), true
-}
-
-func (m *StringEncodedMap) ToJSONBytes() ([]byte, error) {
-	return json.Marshal(m)
-}
-
-func (m *StringEncodedMap) ToString() (string, error) {
-	jsonBytes, err := m.ToJSONBytes()
-	if err != nil {
-		return "", err
-	}
-	return string(jsonBytes), nil
-}
-
-// --------------------
 // source: engine.go
 // --------------------
 
@@ -5664,96 +5295,6 @@ const (
 )
 
 // --------------------
-// source: interrupt.go
-// --------------------
-
-// InterruptStatus tracks the lifecycle of an interrupt gate.
-type InterruptStatus string
-
-func (s InterruptStatus) IsTerminal() bool {
-	return s == InterruptStatusResolved || s == InterruptStatusExpired || s == InterruptStatusCancelled
-}
-
-func (v InterruptStatus) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	InterruptStatusPending   InterruptStatus = "pending"
-	InterruptStatusResolved  InterruptStatus = "resolved"
-	InterruptStatusExpired   InterruptStatus = "expired"
-	InterruptStatusCancelled InterruptStatus = "cancelled"
-)
-
-// InterruptResolution records how a pending interrupt was resolved.
-type InterruptResolution string
-
-func (v InterruptResolution) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	InterruptResolutionAllow InterruptResolution = "allow"
-	InterruptResolutionDeny  InterruptResolution = "deny"
-)
-
-// InterruptResourceType identifies the kind of resource an interrupt gates.
-type InterruptResourceType string
-
-const (
-	InterruptResourceToolInvocation InterruptResourceType = "tool_invocation"
-	InterruptResourceHookEvent      InterruptResourceType = "hook_event"
-)
-
-// --------------------
-// source: lifecycle_hook.go
-// --------------------
-
-// HookEvent is a lifecycle event in the agent conversation loop.
-// Events fire at well-defined points in the turn cycle, giving external
-// handlers the ability to observe, inject context, or halt execution.
-type HookEvent string
-
-const (
-	HookEventAgentStart    HookEvent = "agent.start"
-	HookEventTurnStart     HookEvent = "agent.turn_start"
-	HookEventToolCall      HookEvent = "agent.tool_call"
-	HookEventToolResult    HookEvent = "agent.tool_result"
-	HookEventTurnComplete  HookEvent = "agent.turn_complete"
-	HookEventAgentError    HookEvent = "agent.error"
-	HookEventAgentComplete HookEvent = "agent.complete"
-	HookEventAgentIdle     HookEvent = "agent.idle"
-	HookEventPreCompact    HookEvent = "agent.pre_compact"
-	HookEventPostCompact   HookEvent = "agent.post_compact"
-)
-
-// HookEventDefinition describes a lifecycle hook event and its capabilities.
-type HookEventDefinition struct {
-	Event       HookEvent `json:"event"`
-	Description string    `json:"description"`
-	CanGate     bool      `json:"can_gate"`
-}
-
-// HookDecision is the handler's verdict on whether execution should continue.
-type HookDecision string
-
-const (
-	HookDecisionAllow   HookDecision = "allow"
-	HookDecisionDeny    HookDecision = "deny"
-	HookDecisionStop    HookDecision = "stop"
-	HookDecisionSuspend HookDecision = "suspend"
-)
-
-// HookHandlerType distinguishes how a lifecycle hook is executed.
-type HookHandlerType string
-
-const (
-	HookHandlerWebhook HookHandlerType = "webhook"
-	HookHandlerTask    HookHandlerType = "task"
-	HookHandlerGate    HookHandlerType = "gate"
-)
-
-// --------------------
 // source: llm_types.go
 // --------------------
 
@@ -5965,76 +5506,6 @@ const (
 	CommentStatusDraft
 	CommentStatusPublished
 	CommentStatusArchived
-)
-
-// ToolInvocationStatus represents the execution status of a tool invocation
-type ToolInvocationStatus string
-
-func (s ToolInvocationStatus) IsTerminal() bool {
-	return s == ToolInvocationStatusCompleted || s == ToolInvocationStatusFailed || s == ToolInvocationStatusCancelled
-}
-
-// CanTransitionTo defines the allowed status transitions for tool invocations.
-//
-//	pending → in_progress, awaiting_approval, completed, failed, cancelled
-//	in_progress → awaiting_input, completed, failed, cancelled
-//	awaiting_input → in_progress, completed, failed, cancelled
-//	awaiting_approval → in_progress, failed, cancelled
-//	terminal → (nothing)
-func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
-	if s.IsTerminal() {
-		return false
-	}
-	if next.IsTerminal() {
-		if s == ToolInvocationStatusAwaitingApproval && next == ToolInvocationStatusCompleted {
-			return false
-		}
-		return true
-	}
-	switch s {
-	case ToolInvocationStatusPending:
-		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusAwaitingApproval
-	case ToolInvocationStatusInProgress:
-		return next == ToolInvocationStatusAwaitingInput
-	case ToolInvocationStatusAwaitingInput:
-		return next == ToolInvocationStatusInProgress
-	case ToolInvocationStatusAwaitingApproval:
-		return next == ToolInvocationStatusInProgress
-	default:
-		return false
-	}
-}
-
-func (v ToolInvocationStatus) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	ToolInvocationStatusPending          ToolInvocationStatus = "pending"
-	ToolInvocationStatusInProgress       ToolInvocationStatus = "in_progress"
-	ToolInvocationStatusAwaitingInput    ToolInvocationStatus = "awaiting_input"
-	ToolInvocationStatusAwaitingApproval ToolInvocationStatus = "awaiting_approval"
-	ToolInvocationStatusCompleted        ToolInvocationStatus = "completed"
-	ToolInvocationStatusFailed           ToolInvocationStatus = "failed"
-	ToolInvocationStatusCancelled        ToolInvocationStatus = "cancelled"
-)
-
-// ToolType represents the type of tool (used in both AgentTool definition and ToolInvocation)
-type ToolType string
-
-func (v ToolType) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-const (
-	ToolTypeApp      ToolType = "app"
-	ToolTypeAgent    ToolType = "agent"
-	ToolTypeHook     ToolType = "hook"
-	ToolTypeHTTP     ToolType = "http"
-	ToolTypeCall     ToolType = "call"
-	ToolTypeMCP      ToolType = "mcp"
-	ToolTypeClient   ToolType = "client"
-	ToolTypeInternal ToolType = "internal"
 )
 
 type SkillSource string
@@ -6828,6 +6299,584 @@ const (
 )
 
 // --------------------
+// source: user.go
+// --------------------
+
+type Role string
+
+func (v Role) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+// IsAssignable reports whether a role may be set on a user through the admin
+// API. Guest is excluded — it is assigned by the anonymous-session flow, never
+// by hand.
+//
+// Lives next to the const block so adding a role puts the question in front of
+// whoever adds it.
+func (r Role) IsAssignable() bool {
+	switch r {
+	case RoleUser, RoleAdmin, RoleSystem:
+		return true
+	default:
+		return false
+	}
+}
+
+const (
+	RoleGuest  Role = "guest"
+	RoleUser   Role = "user"
+	RoleAdmin  Role = "admin"
+	RoleSystem Role = "system"
+)
+
+// --------------------
+// source: utility.go
+// --------------------
+
+// UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
+type UtilityConfig struct {
+	Preset     string          `json:"preset"`
+	Expression string          `json:"expression,omitempty"`
+	Gate       *GateCondition  `json:"gate,omitempty"`
+	Selector   *SelectorConfig `json:"selector,omitempty"`
+	Constant   any             `json:"constant,omitempty"`
+}
+
+// --------------------
+// source: agent_event.go
+// --------------------
+
+// AgentEventType identifies what happened in an agent run.
+// These are the backbone protocol events — every consumer (A2A, SDK, frontend)
+// projects from this set.
+type AgentEventType string
+
+const (
+	// Run lifecycle
+	AgentEventRunStarted      AgentEventType = "run.started"
+	AgentEventRunStateChanged AgentEventType = "run.state_changed"
+	// Turn lifecycle
+	AgentEventTurnStarted   AgentEventType = "turn.started"
+	AgentEventTurnCompleted AgentEventType = "turn.completed"
+	// Content streaming — structural wrapper; high-frequency token deltas
+	// still flow via the existing DeltaEvent channel for efficiency.
+	AgentEventContentDelta AgentEventType = "content.delta"
+	// Tool lifecycle
+	AgentEventToolStarted   AgentEventType = "tool.started"
+	AgentEventToolCompleted AgentEventType = "tool.completed"
+	// Approval flow
+	AgentEventApprovalRequired AgentEventType = "approval.required"
+	AgentEventApprovalResolved AgentEventType = "approval.resolved"
+	// Hook lifecycle
+	AgentEventHookExecuted AgentEventType = "hook.executed"
+	// Usage
+	AgentEventUsageUpdated AgentEventType = "usage.updated"
+	// Context management
+	AgentEventContextCompacted AgentEventType = "context.compacted"
+	// Errors
+	AgentEventError AgentEventType = "error"
+)
+
+// AgentEvent is the backbone protocol event for agent runs.
+// Published to "runs:<runID>" and "chats:<chatID>" keys on the event bus.
+type AgentEvent struct {
+	ID        string          `json:"id"`
+	Type      AgentEventType  `json:"type"`
+	RunID     string          `json:"run_id"`
+	ChatID    string          `json:"chat_id"`
+	AgentID   string          `json:"agent_id,omitempty"`
+	Timestamp time.Time       `json:"timestamp"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+}
+
+type RunStartedPayload struct {
+	AgentID        string `json:"agent_id"`
+	AgentVersionID string `json:"agent_version_id,omitempty"`
+	UserMessageID  string `json:"user_message_id,omitempty"`
+}
+
+type RunStateChangedPayload struct {
+	FromState AgentRunState `json:"from_state"`
+	ToState   AgentRunState `json:"to_state"`
+	Error     string        `json:"error,omitempty"`
+}
+
+type TurnStartedPayload struct {
+	TurnIndex int    `json:"turn_index"`
+	Model     string `json:"model,omitempty"`
+}
+
+type TurnCompletedPayload struct {
+	TurnIndex  int    `json:"turn_index"`
+	ToolCount  int    `json:"tool_count"`
+	HasOutput  bool   `json:"has_output"`
+	StopReason string `json:"stop_reason,omitempty"`
+}
+
+type ContentDeltaPayload struct {
+	Kind  ContentDeltaKind `json:"kind"`
+	Delta string           `json:"delta"`
+}
+
+type ContentDeltaKind string
+
+const (
+	ContentDeltaText      ContentDeltaKind = "text"
+	ContentDeltaReasoning ContentDeltaKind = "reasoning"
+)
+
+type ToolStartedPayload struct {
+	ToolInvocationID string           `json:"tool_invocation_id"`
+	ToolName         string           `json:"tool_name"`
+	ToolType         ToolType         `json:"tool_type,omitempty"`
+	DisplayName      string           `json:"display_name,omitempty"`
+	Arguments        StringEncodedMap `json:"arguments,omitempty"`
+}
+
+type ToolCompletedPayload struct {
+	ToolInvocationID string               `json:"tool_invocation_id"`
+	ToolName         string               `json:"tool_name"`
+	Status           ToolInvocationStatus `json:"status"`
+	Result           string               `json:"result,omitempty"`
+	DurationMs       int64                `json:"duration_ms,omitempty"`
+}
+
+type ApprovalRequiredPayload struct {
+	ToolInvocationID string           `json:"tool_invocation_id"`
+	ToolName         string           `json:"tool_name"`
+	Arguments        StringEncodedMap `json:"arguments,omitempty"`
+	Reason           InterruptReason  `json:"reason"`
+}
+
+type ApprovalResolvedPayload struct {
+	ToolInvocationID string `json:"tool_invocation_id"`
+	ToolName         string `json:"tool_name"`
+	Decision         string `json:"decision"` // "allow", "deny"
+	Reason           string `json:"reason,omitempty"`
+}
+
+type HookExecutedPayload struct {
+	HookEvent  HookEvent    `json:"hook_event"`
+	Decision   HookDecision `json:"decision"`
+	Reason     string       `json:"reason,omitempty"`
+	DurationMs int64        `json:"duration_ms,omitempty"`
+}
+
+type UsageUpdatedPayload struct {
+	PromptTokens     int     `json:"prompt_tokens"`
+	CompletionTokens int     `json:"completion_tokens"`
+	TotalTokens      int     `json:"total_tokens"`
+	ReasoningTokens  int     `json:"reasoning_tokens,omitempty"`
+	CostUSD          float64 `json:"cost_usd,omitempty"`
+}
+
+type ContextCompactedPayload struct {
+	BeforeTokens int `json:"before_tokens"`
+	AfterTokens  int `json:"after_tokens"`
+}
+
+type ErrorPayload struct {
+	Message string `json:"message"`
+	Code    string `json:"code,omitempty"`
+}
+
+// --------------------
+// source: agent_run.go
+// --------------------
+
+// AgentRunState tracks the lifecycle of an agent run (one user→agent turn).
+// Maps to A2A TaskState and AG-UI Run outcome for protocol compliance.
+type AgentRunState string
+
+func (s AgentRunState) IsTerminal() bool {
+	return s == AgentRunStateCompleted || s == AgentRunStateFailed || s == AgentRunStateCanceled || s == AgentRunStateRejected
+}
+
+func (s AgentRunState) IsInterrupted() bool {
+	return s == AgentRunStateInputRequired || s == AgentRunStateAuthRequired
+}
+
+// IsSettled returns true when the run won't produce further events in this
+// turn — either terminal or waiting for external input.
+func (s AgentRunState) IsSettled() bool {
+	return s.IsTerminal() || s.IsInterrupted()
+}
+
+func (s AgentRunState) CanTransitionTo(next AgentRunState) bool {
+	if s.IsTerminal() {
+		return false
+	}
+	switch s {
+	case AgentRunStateSubmitted:
+		return next == AgentRunStateWorking || next == AgentRunStateCompleted || next == AgentRunStateFailed || next == AgentRunStateCanceled
+	case AgentRunStateWorking:
+		return next == AgentRunStateInputRequired || next == AgentRunStateAuthRequired || next == AgentRunStateCompleted || next == AgentRunStateFailed || next == AgentRunStateCanceled
+	case AgentRunStateInputRequired, AgentRunStateAuthRequired:
+		return next == AgentRunStateWorking || next == AgentRunStateFailed || next == AgentRunStateCanceled
+	default:
+		return false
+	}
+}
+
+func (v AgentRunState) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	AgentRunStateSubmitted     AgentRunState = "submitted"
+	AgentRunStateWorking       AgentRunState = "working"
+	AgentRunStateInputRequired AgentRunState = "input_required"
+	AgentRunStateAuthRequired  AgentRunState = "auth_required"
+	AgentRunStateCompleted     AgentRunState = "completed"
+	AgentRunStateFailed        AgentRunState = "failed"
+	AgentRunStateCanceled      AgentRunState = "canceled"
+	AgentRunStateRejected      AgentRunState = "rejected"
+)
+
+// InterruptReason describes why an agent run is in an interrupted state.
+// Aligns with AG-UI interrupt outcome reasons.
+type InterruptReason string
+
+func (v InterruptReason) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	InterruptReasonToolApproval InterruptReason = "tool_approval"
+	InterruptReasonClientTool   InterruptReason = "client_tool"
+	InterruptReasonWidget       InterruptReason = "widget"
+	InterruptReasonAuth         InterruptReason = "auth"
+	InterruptReasonConfirmation InterruptReason = "confirmation"
+	InterruptReasonHookGate     InterruptReason = "hook_gate"
+)
+
+// --------------------
+// source: common.go
+// --------------------
+
+type StringEncodedMap map[string]any
+
+func (m *StringEncodedMap) UnmarshalJSON(data []byte) error {
+	var rawMap map[string]any
+	err := json.Unmarshal(data, &rawMap)
+	if err == nil {
+		*m = StringEncodedMap(rawMap)
+		return nil
+	}
+	var jsonStr string
+	if err := json.Unmarshal(data, &jsonStr); err != nil {
+		return err
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &rawMap); err != nil {
+		return err
+	}
+	*m = StringEncodedMap(rawMap)
+	return nil
+}
+
+// GetString retrieves a string value from the map
+func (m StringEncodedMap) GetString(key string) (string, bool) {
+	val, ok := m[key].(string)
+	return val, ok
+}
+
+// GetBool retrieves a bool value from the map
+func (m StringEncodedMap) GetBool(key string) (bool, bool) {
+	val, ok := m[key].(bool)
+	return val, ok
+}
+
+// GetInt retrieves an int value from the map (handles JSON numbers as float64)
+func (m StringEncodedMap) GetInt(key string) (int, bool) {
+	switch v := m[key].(type) {
+	case int:
+		return v, true
+	case float64:
+		return int(v), true
+	case int64:
+		return int(v), true
+	}
+	return 0, false
+}
+
+// GetFloat64 retrieves a float64 value from the map
+func (m StringEncodedMap) GetFloat64(key string) (float64, bool) {
+	switch v := m[key].(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	}
+	return 0, false
+}
+
+// GetSlice retrieves a slice value from the map
+func (m StringEncodedMap) GetSlice(key string) ([]any, bool) {
+	val, ok := m[key].([]any)
+	return val, ok
+}
+
+// GetMap retrieves a nested map as StringEncodedMap
+func (m StringEncodedMap) GetMap(key string) (StringEncodedMap, bool) {
+	val, ok := m[key].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	return StringEncodedMap(val), true
+}
+
+func (m *StringEncodedMap) ToJSON() (json.RawMessage, bool) {
+	jsonString, err := json.Marshal(m)
+	if err != nil {
+		return nil, false
+	}
+	return json.RawMessage(jsonString), true
+}
+
+func (m *StringEncodedMap) ToJSONBytes() ([]byte, error) {
+	return json.Marshal(m)
+}
+
+func (m *StringEncodedMap) ToString() (string, error) {
+	jsonBytes, err := m.ToJSONBytes()
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
+}
+
+// --------------------
+// source: interrupt.go
+// --------------------
+
+// InterruptStatus tracks the lifecycle of an interrupt gate.
+type InterruptStatus string
+
+func (s InterruptStatus) IsTerminal() bool {
+	return s == InterruptStatusResolved || s == InterruptStatusExpired || s == InterruptStatusCancelled
+}
+
+func (v InterruptStatus) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	InterruptStatusPending   InterruptStatus = "pending"
+	InterruptStatusResolved  InterruptStatus = "resolved"
+	InterruptStatusExpired   InterruptStatus = "expired"
+	InterruptStatusCancelled InterruptStatus = "cancelled"
+)
+
+// InterruptResolution records how a pending interrupt was resolved.
+type InterruptResolution string
+
+func (v InterruptResolution) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	InterruptResolutionAllow InterruptResolution = "allow"
+	InterruptResolutionDeny  InterruptResolution = "deny"
+)
+
+// InterruptResourceType identifies the kind of resource an interrupt gates.
+type InterruptResourceType string
+
+const (
+	InterruptResourceToolInvocation InterruptResourceType = "tool_invocation"
+	InterruptResourceHookEvent      InterruptResourceType = "hook_event"
+)
+
+// --------------------
+// source: lifecycle_hook.go
+// --------------------
+
+// HookEvent is a lifecycle event in the agent conversation loop.
+// Events fire at well-defined points in the turn cycle, giving external
+// handlers the ability to observe, inject context, or halt execution.
+type HookEvent string
+
+const (
+	HookEventAgentStart    HookEvent = "agent.start"
+	HookEventTurnStart     HookEvent = "agent.turn_start"
+	HookEventToolCall      HookEvent = "agent.tool_call"
+	HookEventToolResult    HookEvent = "agent.tool_result"
+	HookEventTurnComplete  HookEvent = "agent.turn_complete"
+	HookEventAgentError    HookEvent = "agent.error"
+	HookEventAgentComplete HookEvent = "agent.complete"
+	HookEventAgentIdle     HookEvent = "agent.idle"
+	HookEventPreCompact    HookEvent = "agent.pre_compact"
+	HookEventPostCompact   HookEvent = "agent.post_compact"
+)
+
+// HookEventDefinition describes a lifecycle hook event and its capabilities.
+type HookEventDefinition struct {
+	Event       HookEvent `json:"event"`
+	Description string    `json:"description"`
+	CanGate     bool      `json:"can_gate"`
+}
+
+// HookDecision is the handler's verdict on whether execution should continue.
+type HookDecision string
+
+const (
+	HookDecisionAllow   HookDecision = "allow"
+	HookDecisionDeny    HookDecision = "deny"
+	HookDecisionStop    HookDecision = "stop"
+	HookDecisionSuspend HookDecision = "suspend"
+)
+
+// HookHandlerType distinguishes how a lifecycle hook is executed.
+type HookHandlerType string
+
+const (
+	HookHandlerWebhook HookHandlerType = "webhook"
+	HookHandlerTask    HookHandlerType = "task"
+	HookHandlerGate    HookHandlerType = "gate"
+)
+
+// --------------------
+// source: lifecycle_hook_wire.go
+// --------------------
+
+// LifecycleHookConfig registers a handler for an agent lifecycle event.
+// Stored on AgentVersion alongside Tools and Skills.
+type LifecycleHookConfig struct {
+	Event   HookEvent       `json:"event" yaml:"event"`
+	Type    HookHandlerType `json:"type" yaml:"type"`
+	Handler string          `json:"handler,omitempty" yaml:"handler,omitempty"`
+	Async   bool            `json:"async,omitempty" yaml:"async,omitempty"`
+	Timeout int             `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds, 0 = default (30s for webhook, 300s for gate)
+	// Gate-specific fields (type: "gate")
+	DefaultResolution InterruptResolution `json:"default_resolution,omitempty" yaml:"default_resolution,omitempty"` // auto-resolve on timeout: "allow" (default) or "deny"
+}
+
+// LifecycleHookPayload is sent to hook handlers on lifecycle events.
+type LifecycleHookPayload struct {
+	Event     HookEvent       `json:"event"`
+	Timestamp string          `json:"timestamp"`
+	AgentID   string          `json:"agent_id"`
+	ChatID    string          `json:"chat_id"`
+	RunID     string          `json:"run_id,omitempty"`
+	TurnCount int             `json:"turn_count"`
+	Data      json.RawMessage `json:"data,omitempty"`
+}
+
+// LifecycleHookResponse is returned by hook handlers.
+// All fields are optional — an empty 200 response is equivalent to {decision: "allow"}.
+type LifecycleHookResponse struct {
+	Inject   *ContextInjection `json:"inject,omitempty"`
+	Decision HookDecision      `json:"decision,omitempty"`
+	Reason   string            `json:"reason,omitempty"`
+	Override json.RawMessage   `json:"override,omitempty"`
+	System   string            `json:"system,omitempty"`
+}
+
+// ContextInjection adds ephemeral content to the agent's context window.
+// Injections are stored as ChatMessages and filtered at context-build time.
+type ContextInjection struct {
+	Content  string `json:"content"`
+	Role     string `json:"role,omitempty"`      // default "system"
+	TTLTurns int    `json:"ttl_turns,omitempty"` // 0 = permanent
+	DedupKey string `json:"dedup_key,omitempty"` // new injection with same key supersedes prior
+}
+
+// ToolCallEventData is the typed payload for agent.tool_call events.
+type ToolCallEventData struct {
+	Tool      string         `json:"tool"`
+	Arguments map[string]any `json:"arguments,omitempty"`
+}
+
+// ToolResultEventData is the typed payload for agent.tool_result events.
+type ToolResultEventData struct {
+	Tool   string `json:"tool"`
+	Status string `json:"status"`
+	Result string `json:"result,omitempty"`
+}
+
+// ErrorEventData is the typed payload for agent.error events.
+type ErrorEventData struct {
+	Error string `json:"error"`
+}
+
+// --------------------
+// source: tool_contracts.go
+// --------------------
+
+// ToolInvocationStatus represents the execution status of a tool invocation
+type ToolInvocationStatus string
+
+func (v ToolInvocationStatus) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+func (s ToolInvocationStatus) IsTerminal() bool {
+	return s == ToolInvocationStatusCompleted || s == ToolInvocationStatusFailed || s == ToolInvocationStatusCancelled
+}
+
+// CanTransitionTo defines the allowed status transitions for tool invocations.
+//
+//	pending → in_progress, awaiting_approval, completed, failed, cancelled
+//	in_progress → awaiting_input, completed, failed, cancelled
+//	awaiting_input → in_progress, completed, failed, cancelled
+//	awaiting_approval → in_progress, failed, cancelled
+//	terminal → (nothing)
+func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
+	if s.IsTerminal() {
+		return false
+	}
+	if next.IsTerminal() {
+		if s == ToolInvocationStatusAwaitingApproval && next == ToolInvocationStatusCompleted {
+			return false
+		}
+		return true
+	}
+	switch s {
+	case ToolInvocationStatusPending:
+		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusAwaitingApproval
+	case ToolInvocationStatusInProgress:
+		return next == ToolInvocationStatusAwaitingInput
+	case ToolInvocationStatusAwaitingInput:
+		return next == ToolInvocationStatusInProgress
+	case ToolInvocationStatusAwaitingApproval:
+		return next == ToolInvocationStatusInProgress
+	default:
+		return false
+	}
+}
+
+const (
+	ToolInvocationStatusPending          ToolInvocationStatus = "pending"
+	ToolInvocationStatusInProgress       ToolInvocationStatus = "in_progress"
+	ToolInvocationStatusAwaitingInput    ToolInvocationStatus = "awaiting_input"
+	ToolInvocationStatusAwaitingApproval ToolInvocationStatus = "awaiting_approval"
+	ToolInvocationStatusCompleted        ToolInvocationStatus = "completed"
+	ToolInvocationStatusFailed           ToolInvocationStatus = "failed"
+	ToolInvocationStatusCancelled        ToolInvocationStatus = "cancelled"
+)
+
+// ToolType represents the type of tool (used in both AgentTool definition and ToolInvocation)
+type ToolType string
+
+func (v ToolType) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	ToolTypeApp      ToolType = "app"
+	ToolTypeAgent    ToolType = "agent"
+	ToolTypeHook     ToolType = "hook"
+	ToolTypeHTTP     ToolType = "http"
+	ToolTypeCall     ToolType = "call"
+	ToolTypeMCP      ToolType = "mcp"
+	ToolTypeClient   ToolType = "client"
+	ToolTypeInternal ToolType = "internal"
+)
+
+// --------------------
 // source: tools_types.go
 // --------------------
 
@@ -6946,51 +6995,6 @@ type ToolParameterProperty struct {
 	Properties  *ToolParameterProperties `json:"properties,omitempty"`
 	Items       *ToolParameterProperty   `json:"items,omitempty"`
 	Required    *[]string                `json:"required,omitempty"`
-}
-
-// --------------------
-// source: user.go
-// --------------------
-
-type Role string
-
-func (v Role) Value() (driver.Value, error) {
-	return string(v), nil
-}
-
-// IsAssignable reports whether a role may be set on a user through the admin
-// API. Guest is excluded — it is assigned by the anonymous-session flow, never
-// by hand.
-//
-// Lives next to the const block so adding a role puts the question in front of
-// whoever adds it.
-func (r Role) IsAssignable() bool {
-	switch r {
-	case RoleUser, RoleAdmin, RoleSystem:
-		return true
-	default:
-		return false
-	}
-}
-
-const (
-	RoleGuest  Role = "guest"
-	RoleUser   Role = "user"
-	RoleAdmin  Role = "admin"
-	RoleSystem Role = "system"
-)
-
-// --------------------
-// source: utility.go
-// --------------------
-
-// UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
-type UtilityConfig struct {
-	Preset     string          `json:"preset"`
-	Expression string          `json:"expression,omitempty"`
-	Gate       *GateCondition  `json:"gate,omitempty"`
-	Selector   *SelectorConfig `json:"selector,omitempty"`
-	Constant   any             `json:"constant,omitempty"`
 }
 
 // --------------------
