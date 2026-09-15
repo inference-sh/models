@@ -2397,7 +2397,7 @@ export interface ConsentRecordDTO {
   short_id: string;
   created_at: string /* RFC3339 */;
   updated_at: string /* RFC3339 */;
-  deleted_at: string /* RFC3339 */;
+  deleted_at?: string /* RFC3339 */;
   user_id: string;
   category: ConsentCategory;
   action: ConsentAction;
@@ -3742,9 +3742,9 @@ export type StringSlice = string[];
 export interface MCPServerDTO {
   id: string;
   user_id: string;
-  user: UserRelationDTO;
+  user?: UserRelationDTO;
   team_id: string;
-  team: TeamRelationDTO;
+  team?: TeamRelationDTO;
   org_id?: string;
   visibility: Visibility;
   slug: string;
@@ -5493,7 +5493,7 @@ export interface UserExportDTO {
   short_id: string;
   created_at: string /* RFC3339 */;
   updated_at: string /* RFC3339 */;
-  deleted_at: string /* RFC3339 */;
+  deleted_at?: string /* RFC3339 */;
   user_id: string;
   team_id: string;
   status: string;
