@@ -119,6 +119,7 @@ type InternalToolsConfig struct {
 	HostContext *bool `json:"host_context,omitempty" yaml:"host_context,omitempty"`
 	Meta        *bool `json:"meta,omitempty" yaml:"meta,omitempty"`
 	Artifact    *bool `json:"artifact,omitempty" yaml:"artifact,omitempty"`
+	Spawn       *bool `json:"spawn,omitempty" yaml:"spawn,omitempty"`
 }
 
 // AgentTool represents a unified tool that can be used by an agent

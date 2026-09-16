@@ -37,6 +37,7 @@ export interface InternalToolsConfig {
   host_context?: boolean;
   meta?: boolean;
   artifact?: boolean;
+  spawn?: boolean;
 }
 /**
  * InternalToolDefinition describes a built-in tool category available to agents

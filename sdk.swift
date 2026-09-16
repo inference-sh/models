@@ -72,6 +72,7 @@ public struct InternalToolsConfig: Codable {
     public var hostContext: Bool?
     public var meta: Bool?
     public var artifact: Bool?
+    public var spawn: Bool?
 
     public init(
         plan: Bool? = nil,
@@ -81,7 +82,8 @@ public struct InternalToolsConfig: Codable {
         skills: Bool? = nil,
         hostContext: Bool? = nil,
         meta: Bool? = nil,
-        artifact: Bool? = nil
+        artifact: Bool? = nil,
+        spawn: Bool? = nil
     ) {
         self.plan = plan
         self.memory = memory
@@ -91,6 +93,7 @@ public struct InternalToolsConfig: Codable {
         self.hostContext = hostContext
         self.meta = meta
         self.artifact = artifact
+        self.spawn = spawn
     }
 
     enum CodingKeys: String, CodingKey {
@@ -102,6 +105,7 @@ public struct InternalToolsConfig: Codable {
         case hostContext = "host_context"
         case meta = "meta"
         case artifact = "artifact"
+        case spawn = "spawn"
     }
 }
 
