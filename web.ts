@@ -47,6 +47,13 @@ export interface InternalToolDefinition {
   description: string;
   tools: string[];
   scope: InternalToolScope;
+  /**
+   * DefaultEnabled is what the category resolves to when the agent's flag is
+   * unset. Editors must render from this rather than assume: the opt-in
+   * categories default off, and a switch that guesses "on" shows a state the
+   * runtime does not apply.
+   */
+  default_enabled: boolean;
 }
 /**
  * AgentTool represents a unified tool that can be used by an agent
