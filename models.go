@@ -5421,6 +5421,26 @@ type LLMSettings struct {
 	ResponseFormat     *ResponseFormat `json:"response_format,omitempty"`
 }
 
+// Normalize drops sub-objects that carry no value. Stored configuration —
+// an agent version, a flow node — is written by editors that materialise
+// every property of the schema, so an untouched tool_choice or
+// response_format is persisted as `{}`. Unmarshalled that is a non-nil
+// pointer whose discriminator is the empty string, which marshals back as
+// `{"mode":""}` and fails the app's input schema on the enum. An object with
+// no discriminator set is absent, not a value. Call this wherever stored
+// configuration becomes a live call.
+func (s *LLMSettings) Normalize() {
+	if s.ToolChoice != nil && s.ToolChoice.Mode == "" {
+		s.ToolChoice = nil
+	}
+	if s.ResponseFormat != nil && s.ResponseFormat.Type == "" {
+		s.ResponseFormat = nil
+	}
+	if s.ReasoningEffort != nil && *s.ReasoningEffort == "" {
+		s.ReasoningEffort = nil
+	}
+}
+
 // LLMInput is the input envelope for an LLM provider task: the settings plus
 // the conversation, with the current turn split out of the context.
 type LLMInput struct {
