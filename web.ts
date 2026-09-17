@@ -5830,6 +5830,46 @@ export interface WsSessionEndPayload {
   session_id: string;
   worker_id: string;
 }
+/**
+ * Remote -> server.
+ */
+export const WSEventRemoteHeartbeat: WSEventType = "remote_heartbeat";
+/**
+ * Server -> remote: drive a PTY session.
+ */
+export const WSEventRemoteTerminalOpen: WSEventType = "remote_terminal_open";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. These event strings and payloads mirror the belt remote client's
+ * internal/remote protocol exactly — the two sides are the same wire.
+ */
+export const WSEventRemoteTerminalInput: WSEventType = "remote_terminal_input";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. These event strings and payloads mirror the belt remote client's
+ * internal/remote protocol exactly — the two sides are the same wire.
+ */
+export const WSEventRemoteTerminalResize: WSEventType = "remote_terminal_resize";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. These event strings and payloads mirror the belt remote client's
+ * internal/remote protocol exactly — the two sides are the same wire.
+ */
+export const WSEventRemoteTerminalClose: WSEventType = "remote_terminal_close";
+/**
+ * Remote -> server: a PTY session's output and its exit.
+ */
+export const WSEventRemoteTerminalOutput: WSEventType = "remote_terminal_output";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. These event strings and payloads mirror the belt remote client's
+ * internal/remote protocol exactly — the two sides are the same wire.
+ */
+export const WSEventRemoteTerminalExit: WSEventType = "remote_terminal_exit";
 export type A2UIComponentType = string;
 export const A2UIRow: A2UIComponentType = "Row";
 export const A2UIColumn: A2UIComponentType = "Column";
@@ -6508,14 +6548,15 @@ export interface ResponseFormat {
 }
 /**
  * LLMSettings is everything that configures a generation independent of the
- * conversation: model, context, sampling, system prompt, tools and output
+ * conversation: context, sampling, system prompt, tools and output
  * constraints. Embedded (tstype extends) by BaseLLMInput — an agent's stored
  * configuration — and LLMInput — a single call — so a field added here
  * reaches both, and the call is built from the configuration by one
  * assignment.
+ * Which model runs is not a setting: the app is the model. An app that
+ * fronts several models (a router) declares its own `model` input.
  */
 export interface LLMSettings {
-  model?: string;
   context_size: number /* int */;
   temperature?: number /* float64 */;
   top_p?: number /* float64 */;

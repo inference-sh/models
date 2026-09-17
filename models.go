@@ -4597,6 +4597,27 @@ type WsSessionEndPayload struct {
 }
 
 // --------------------
+// source: ws_remote.go
+// --------------------
+
+// Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+// stay alive, and hosts terminal sessions the server drives over the same
+// connection. These event strings and payloads mirror the belt remote client's
+// internal/remote protocol exactly — the two sides are the same wire.
+const (
+	// Remote -> server.
+	WSEventRemoteHeartbeat WSEventType = "remote_heartbeat"
+	// Server -> remote: drive a PTY session.
+	WSEventRemoteTerminalOpen   WSEventType = "remote_terminal_open"
+	WSEventRemoteTerminalInput  WSEventType = "remote_terminal_input"
+	WSEventRemoteTerminalResize WSEventType = "remote_terminal_resize"
+	WSEventRemoteTerminalClose  WSEventType = "remote_terminal_close"
+	// Remote -> server: a PTY session's output and its exit.
+	WSEventRemoteTerminalOutput WSEventType = "remote_terminal_output"
+	WSEventRemoteTerminalExit   WSEventType = "remote_terminal_exit"
+)
+
+// --------------------
 // source: a2ui.go
 // --------------------
 
@@ -5462,13 +5483,15 @@ type ResponseFormat struct {
 }
 
 // LLMSettings is everything that configures a generation independent of the
-// conversation: model, context, sampling, system prompt, tools and output
+// conversation: context, sampling, system prompt, tools and output
 // constraints. Embedded (tstype extends) by BaseLLMInput — an agent's stored
 // configuration — and LLMInput — a single call — so a field added here
 // reaches both, and the call is built from the configuration by one
 // assignment.
+//
+// Which model runs is not a setting: the app is the model. An app that
+// fronts several models (a router) declares its own `model` input.
 type LLMSettings struct {
-	Model              *string         `json:"model"`
 	ContextSize        int             `json:"context_size"`
 	Temperature        *float64        `json:"temperature,omitempty"`
 	TopP               *float64        `json:"top_p,omitempty"`
