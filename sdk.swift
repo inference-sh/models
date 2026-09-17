@@ -4643,6 +4643,9 @@ public struct CursorListRequest: Codable {
     public var permissions: [String]?
     /// Include other users' items in the response
     public var includeOthers: Bool
+    /// IncludePrivate: an owner or admin of the selected team asks for every
+    /// row the team owns, private ones included. Audited; ignored for others.
+    public var includePrivate: Bool?
 
     public init(
         cursor: String = "",
@@ -4655,7 +4658,8 @@ public struct CursorListRequest: Codable {
         sort: [SortOrder]? = nil,
         fields: [String]? = nil,
         permissions: [String]? = nil,
-        includeOthers: Bool = false
+        includeOthers: Bool = false,
+        includePrivate: Bool? = nil
     ) {
         self.cursor = cursor
         self.page = page
@@ -4668,6 +4672,7 @@ public struct CursorListRequest: Codable {
         self.fields = fields
         self.permissions = permissions
         self.includeOthers = includeOthers
+        self.includePrivate = includePrivate
     }
 
     enum CodingKeys: String, CodingKey {
@@ -4682,6 +4687,7 @@ public struct CursorListRequest: Codable {
         case fields = "fields"
         case permissions = "permissions"
         case includeOthers = "include_others"
+        case includePrivate = "include_private"
     }
 }
 

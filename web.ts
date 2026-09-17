@@ -2527,6 +2527,11 @@ export interface CursorListRequest {
   fields: string[]; // Fields to select, empty means all fields
   permissions: string[]; // Permissions to filter by, empty means all permissions
   include_others: boolean; // Include other users' items in the response
+  /**
+   * IncludePrivate: an owner or admin of the selected team asks for every
+   * row the team owns, private ones included. Audited; ignored for others.
+   */
+  include_private?: boolean;
 }
 /**
  * CursorListResponse represents a cursor-based paginated response
@@ -4305,6 +4310,49 @@ export interface RefRouteDTO extends BaseModelDTO {
   enabled: boolean;
 }
 /**
+ * RemoteDTO is the API response for a remote — a machine that hosts agent
+ * harnesses and connects to us as a daemon.
+ */
+export interface RemoteDTO extends BaseModelDTO, PermissionModelDTO {
+  name: string;
+  status: RemoteStatus;
+  heartbeat_at?: string /* RFC3339 */;
+  system_info?: SystemInfo;
+  remote_version: string;
+  profiles: (ProfileDTO | undefined)[];
+}
+/**
+ * ProfileDTO is the API response for one harness-plus-account slot on a remote.
+ * It never carries a credential: the account is logged in on the machine with
+ * the vendor's own CLI, and the api knows only that the profile exists.
+ */
+export interface ProfileDTO extends BaseModelDTO, PermissionModelDTO {
+  remote_id: string;
+  harness_kind: string;
+  name: string;
+  command: string;
+  args: string[];
+  status: ProfileStatus;
+  max_concurrent: number /* int */;
+}
+/**
+ * RemoteRegisterRequest creates a remote from a connecting daemon.
+ */
+export interface RemoteRegisterRequest {
+  name: string;
+  public_key: string;
+  remote_version: string;
+  system_info?: SystemInfo;
+}
+/**
+ * RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
+ * The status a healthy daemon reports is running; the api uses the beat to
+ * revive a remote it had marked disconnected.
+ */
+export interface RemoteHeartbeatRequest {
+  status: RemoteStatus;
+}
+/**
  * KnowledgeCreateRequest is the request body for POST /knowledge.
  */
 export interface KnowledgeCreateRequest {
@@ -4631,6 +4679,13 @@ export interface SDKTypes {
  * These are types used by engine and CLI that aren't reachable from SDKTypes.
  */
 export interface EngineTypes {
+}
+/**
+ * RemoteTypes is a phantom type for gotypegen dependency tracing. The remote
+ * DTOs and requests are not reachable from SDKTypes on their own, so listing
+ * them here pulls them (and their enums) into the generated web and SDK types.
+ */
+export interface RemoteTypes {
 }
 /**
  * WebAppTypes is a phantom type for gotypegen dependency tracing.
@@ -7107,6 +7162,27 @@ export const RuleEffectBlock: UsagePolicyRuleEffect = "block";
  * reach (ungoverned) — the zero state is exactly today's behavior.
  */
 export type UsagePolicyEntries = { [key: UsageCategory]: Reach};
+/**
+ * RemoteStatus is the liveness state of a remote — a machine that hosts agent
+ * harnesses and connects to us as a daemon. It is deliberately simpler than
+ * EngineStatus: a remote has no draining (a closed laptop does not finish its
+ * work first) and no restarting, so the states are just the ones a heartbeat
+ * can produce.
+ */
+export type RemoteStatus = string;
+export const RemoteStatusPending: RemoteStatus = "pending";
+export const RemoteStatusRunning: RemoteStatus = "running";
+export const RemoteStatusDisconnected: RemoteStatus = "disconnected";
+export const RemoteStatusStopped: RemoteStatus = "stopped";
+/**
+ * ProfileStatus is the availability of one harness-plus-account slot on a
+ * remote. A profile is not fungible: a claude-code profile cannot serve a codex
+ * turn, and a rate-limited account serves none, so availability is per profile.
+ */
+export type ProfileStatus = string;
+export const ProfileStatusIdle: ProfileStatus = "idle";
+export const ProfileStatusBusy: ProfileStatus = "busy";
+export const ProfileStatusUnavailable: ProfileStatus = "unavailable";
 /**
  * TaskStatus represents the state of a task in its lifecycle.
  */

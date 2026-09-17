@@ -1625,6 +1625,9 @@ type CursorListRequest struct {
 	Fields        []string       `json:"fields"`         // Fields to select, empty means all fields
 	Permissions   []string       `json:"permissions"`    // Permissions to filter by, empty means all permissions
 	IncludeOthers bool           `json:"include_others"` // Include other users' items in the response
+	// IncludePrivate: an owner or admin of the selected team asks for every
+	// row the team owns, private ones included. Audited; ignored for others.
+	IncludePrivate bool `json:"include_private,omitempty"`
 }
 
 // CursorListResponse represents a cursor-based paginated response
@@ -3143,6 +3146,53 @@ type RefRouteDTO struct {
 }
 
 // --------------------
+// source: remote.go
+// --------------------
+
+// RemoteDTO is the API response for a remote — a machine that hosts agent
+// harnesses and connects to us as a daemon.
+type RemoteDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Name               string        `json:"name"`
+	Status             RemoteStatus  `json:"status"`
+	HeartbeatAt        *time.Time    `json:"heartbeat_at"`
+	SystemInfo         *SystemInfo   `json:"system_info"`
+	RemoteVersion      string        `json:"remote_version"`
+	Profiles           []*ProfileDTO `json:"profiles"`
+}
+
+// ProfileDTO is the API response for one harness-plus-account slot on a remote.
+// It never carries a credential: the account is logged in on the machine with
+// the vendor's own CLI, and the api knows only that the profile exists.
+type ProfileDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	RemoteID           string        `json:"remote_id"`
+	HarnessKind        string        `json:"harness_kind"`
+	Name               string        `json:"name"`
+	Command            string        `json:"command"`
+	Args               []string      `json:"args"`
+	Status             ProfileStatus `json:"status"`
+	MaxConcurrent      int           `json:"max_concurrent"`
+}
+
+// RemoteRegisterRequest creates a remote from a connecting daemon.
+type RemoteRegisterRequest struct {
+	Name          string      `json:"name"`
+	PublicKey     string      `json:"public_key"`
+	RemoteVersion string      `json:"remote_version"`
+	SystemInfo    *SystemInfo `json:"system_info,omitempty"`
+}
+
+// RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
+// The status a healthy daemon reports is running; the api uses the beat to
+// revive a remote it had marked disconnected.
+type RemoteHeartbeatRequest struct {
+	Status RemoteStatus `json:"status"`
+}
+
+// --------------------
 // source: requests.go
 // --------------------
 
@@ -3730,6 +3780,22 @@ type EngineTypes struct {
 	_toolParamType ToolParamType
 	_toolCallType  ToolCallType
 	_scope         Scope
+}
+
+// --------------------
+// source: sdk_remote.go
+// --------------------
+
+// RemoteTypes is a phantom type for gotypegen dependency tracing. The remote
+// DTOs and requests are not reachable from SDKTypes on their own, so listing
+// them here pulls them (and their enums) into the generated web and SDK types.
+type RemoteTypes struct {
+	_remote       RemoteDTO
+	_profile      ProfileDTO
+	_remoteReg    RemoteRegisterRequest
+	_remoteBeat   RemoteHeartbeatRequest
+	_remoteStatus RemoteStatus
+	_profileStat  ProfileStatus
 }
 
 // --------------------
@@ -6107,6 +6173,40 @@ const (
 	NotificationStatusFailed     NotificationStatus = "failed"
 	NotificationStatusBounced    NotificationStatus = "bounced"
 	NotificationStatusCancelled  NotificationStatus = "cancelled"
+)
+
+// --------------------
+// source: remote.go
+// --------------------
+
+// RemoteStatus is the liveness state of a remote — a machine that hosts agent
+// harnesses and connects to us as a daemon. It is deliberately simpler than
+// EngineStatus: a remote has no draining (a closed laptop does not finish its
+// work first) and no restarting, so the states are just the ones a heartbeat
+// can produce.
+type RemoteStatus string
+
+// RemoteTerminal reports whether the remote is in a final, non-recoverable state.
+func (s RemoteStatus) RemoteTerminal() bool {
+	return s == RemoteStatusStopped
+}
+
+const (
+	RemoteStatusPending      RemoteStatus = "pending"
+	RemoteStatusRunning      RemoteStatus = "running"
+	RemoteStatusDisconnected RemoteStatus = "disconnected"
+	RemoteStatusStopped      RemoteStatus = "stopped"
+)
+
+// ProfileStatus is the availability of one harness-plus-account slot on a
+// remote. A profile is not fungible: a claude-code profile cannot serve a codex
+// turn, and a rate-limited account serves none, so availability is per profile.
+type ProfileStatus string
+
+const (
+	ProfileStatusIdle        ProfileStatus = "idle"
+	ProfileStatusBusy        ProfileStatus = "busy"
+	ProfileStatusUnavailable ProfileStatus = "unavailable"
 )
 
 // --------------------
