@@ -4694,9 +4694,13 @@ export interface RemoteTypes {
 export interface WebAppTypes {
 }
 /**
- * SearchCollectionStats reports index coverage for one search collection.
+ * SearchCollectionStats reports index coverage for one search collection. It
+ * names its own collection so a client can render what the server actually has
+ * — the list of collections is the server's to know, and a client that keeps
+ * its own copy silently omits whatever was added last.
  */
 export interface SearchCollectionStats {
+  collection: string;
   total: number /* int64 */; // entities in DB
   indexed: number /* int64 */; // documents in search index
   embedded: number /* int64 */; // documents with embeddings
