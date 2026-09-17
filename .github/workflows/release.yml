@@ -7,6 +7,22 @@ on:
 permissions:
   contents: read
 
+# This workflow tests and publishes. It writes nothing into another repo.
+#
+# `make types` at the repo root generates and copies every consumer's file —
+# models, js/sdk-js, js/app, js/common-js, js/sdk-js-app, sdk-py and swift —
+# and prints what to commit alongside the change that needed it. `make
+# types-release` then commits models, tags, and points the Go consumers at
+# the new version.
+#
+# It used to dispatch update-dep.yml to the Go consumers and update-types.yml
+# to the JS and Python ones, and both committed and pushed to dev as
+# github-actions[bot]. That was a second writer racing the first: it fetched
+# the file from the tag, so it could overwrite a newer local copy, and it
+# landed mid-edit in a checkout several people and sessions share.
+#
+# Go consumers pick new tags up through their own dependabot, which is where
+# that check belongs — in the repo doing the depending.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,60 +33,13 @@ jobs:
           go-version-file: go.mod
       - run: go test ./...
 
-  distribute:
+  publish:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Extract version
-        id: version
-        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-
+      # Ask the proxy for the tag so it is cached before anything depends on
+      # it. Without this a consumer's first `go get` races the proxy's own
+      # fetch and can fail on a tag that demonstrably exists.
       - name: Warm Go module proxy
         run: |
-          GOPROXY=https://proxy.golang.org,direct \
           curl -sf "https://proxy.golang.org/github.com/inference-sh/models/@v/${GITHUB_REF_NAME}.info" > /dev/null
-
-      # Go consumers (api, cli, engine) are bumped by `make types-release` in
-      # go/api, which points each at the new tag and prints what to commit.
-      # CI used to dispatch update-dep.yml, which committed and pushed go.mod
-      # straight to their dev branches as the bot. Those repos are one shared
-      # checkout, so that arrived mid-edit as a surprise commit to rebase past.
-      #
-      # The SDK dispatches below stay for now: those repos have no local path
-      # that regenerates their types, so nothing else would update them. Note
-      # they push to dev the same way, so the same surprise is possible there;
-      # closing that needs a local path first.
-
-      # Dispatch via REST API (avoids GraphQL defaultBranchRef lookup
-      # that requires contents:read — PAT only has actions:write)
-      - name: Dispatch to SDK consumers
-        env:
-          GH_TOKEN: ${{ secrets.REPO_PAT }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          dispatch() {
-            local repo=$1 workflow=$2; shift 2
-            local inputs="{"
-            local first=true
-            while [ $# -gt 0 ]; do
-              $first || inputs+=","
-              inputs+="\"$1\":\"$2\""
-              first=false; shift 2
-            done
-            inputs+="}"
-            echo "Dispatching $workflow to $repo..."
-            curl -sf -X POST \
-              -H "Authorization: token $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/inference-sh/$repo/actions/workflows/$workflow/dispatches" \
-              -d "{\"ref\":\"dev\",\"inputs\":$inputs}" || true
-          }
-
-          dispatch sdk-js     update-types.yml version "$VERSION" file sdk.ts  dest src/types.ts
-          dispatch sdk-py     update-types.yml version "$VERSION" file sdk.py         dest src/inferencesh/types.py
-          dispatch sdk-py     update-types.yml version "$VERSION" file llm_types.py  dest src/inferencesh/llm_types_gen.py
-          dispatch app        update-types.yml version "$VERSION" file web.ts  dest src/lib/types/types.ts
-          dispatch common-js  update-types.yml version "$VERSION" file web.ts  dest gen/types.ts
-          dispatch sdk-js-app update-types.yml version "$VERSION" file app.ts  dest src/types.ts
