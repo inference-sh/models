@@ -4607,6 +4607,12 @@ type WsSessionEndPayload struct {
 const (
 	// Remote -> server.
 	WSEventRemoteHeartbeat WSEventType = "remote_heartbeat"
+	// Exec: the request/response primitive a loop uses to run a command and
+	// capture its result. Server -> remote to run/cancel; remote -> server with
+	// the captured result. Each result is one audit record for a command.
+	WSEventRemoteRun       WSEventType = "remote_run"
+	WSEventRemoteRunCancel WSEventType = "remote_run_cancel"
+	WSEventRemoteRunResult WSEventType = "remote_run_result"
 	// Server -> remote: drive a PTY session.
 	WSEventRemoteTerminalOpen   WSEventType = "remote_terminal_open"
 	WSEventRemoteTerminalInput  WSEventType = "remote_terminal_input"

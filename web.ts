@@ -5835,6 +5835,26 @@ export interface WsSessionEndPayload {
  */
 export const WSEventRemoteHeartbeat: WSEventType = "remote_heartbeat";
 /**
+ * Exec: the request/response primitive a loop uses to run a command and
+ * capture its result. Server -> remote to run/cancel; remote -> server with
+ * the captured result. Each result is one audit record for a command.
+ */
+export const WSEventRemoteRun: WSEventType = "remote_run";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. These event strings and payloads mirror the belt remote client's
+ * internal/remote protocol exactly — the two sides are the same wire.
+ */
+export const WSEventRemoteRunCancel: WSEventType = "remote_run_cancel";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. These event strings and payloads mirror the belt remote client's
+ * internal/remote protocol exactly — the two sides are the same wire.
+ */
+export const WSEventRemoteRunResult: WSEventType = "remote_run_result";
+/**
  * Server -> remote: drive a PTY session.
  */
 export const WSEventRemoteTerminalOpen: WSEventType = "remote_terminal_open";
