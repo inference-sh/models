@@ -591,6 +591,20 @@ type DeviceAuthClaimResponse struct {
 	TeamID       string `json:"team_id,omitempty"`
 }
 
+// SessionTokenRequest is the body for POST /auth/sessions/token.
+type SessionTokenRequest struct {
+	// ExpiresIn is the token lifetime in seconds. Zero means the server default.
+	ExpiresIn int `json:"expires_in,omitempty"`
+	// Scopes restricts the token. Empty inherits the calling session's scopes.
+	Scopes []Scope `json:"scopes,omitempty"`
+}
+
+type SessionTokenResponse struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Scopes    []Scope   `json:"scopes,omitempty"`
+}
+
 type MeResponse struct {
 	User *UserDTO `json:"user"`
 	Team *TeamDTO `json:"team,omitempty"`
@@ -3758,6 +3772,8 @@ type EngineTypes struct {
 	_deviceAuthPoll     DeviceAuthPollResponse
 	_deviceAuthClaim    DeviceAuthClaimResponse
 	_deviceAuthClaimReq DeviceAuthClaimRequest
+	_sessionTokenReq    SessionTokenRequest
+	_sessionTokenResp   SessionTokenResponse
 	_meResp             MeResponse
 	_secretDTO          SecretDTO
 	_secretCreate       SecretCreateRequest

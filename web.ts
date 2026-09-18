@@ -883,6 +883,24 @@ export interface DeviceAuthClaimResponse {
   api_key?: string;
   team_id?: string;
 }
+/**
+ * SessionTokenRequest is the body for POST /auth/sessions/token.
+ */
+export interface SessionTokenRequest {
+  /**
+   * ExpiresIn is the token lifetime in seconds. Zero means the server default.
+   */
+  expires_in?: number /* int */;
+  /**
+   * Scopes restricts the token. Empty inherits the calling session's scopes.
+   */
+  scopes?: Scope[];
+}
+export interface SessionTokenResponse {
+  token: string;
+  expires_at: string /* RFC3339 */;
+  scopes?: Scope[];
+}
 export interface MeResponse {
   user?: UserDTO;
   team?: TeamDTO;
