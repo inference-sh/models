@@ -2849,9 +2849,12 @@ type PageMetadata struct {
 
 // MenuItem represents an item in a menu (can be nested)
 type MenuItem struct {
-	ID       string     `json:"id"`
-	Label    string     `json:"label"`
-	Slug     string     `json:"slug,omitempty"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Slug  string `json:"slug,omitempty"`
+	// Path is the linked page's path, filled in when a menu is read so a client
+	// can build the link without fetching each page. Never stored.
+	Path     string     `json:"path,omitempty"`
 	PageID   string     `json:"page_id,omitempty"`
 	URL      string     `json:"url,omitempty"`
 	Icon     string     `json:"icon,omitempty"`
@@ -2873,26 +2876,30 @@ type PageDTO struct {
 	Type               PageType     `json:"type"`
 	Metadata           PageMetadata `json:"metadata"`
 	Slug               string       `json:"slug"`
+	Path               string       `json:"path"`
 	// PublishAt mirrors Metadata.PublishAt, which remains the field clients write.
 	// Surfaced here so a reader does not have to reach into the metadata blob.
 	PublishAt *time.Time `json:"publish_at,omitempty"`
 }
 
 func (p *PageDTO) ToCreateRequest() *PageCreateRequest {
-	return &PageCreateRequest{Title: p.Title, Content: p.Content, Excerpt: p.Excerpt, Status: p.Status, Type: p.Type, Metadata: p.Metadata, Slug: p.Slug, Visibility: p.Visibility, IsFeatured: p.IsFeatured}
+	return &PageCreateRequest{Title: p.Title, Content: p.Content, Excerpt: p.Excerpt, Status: p.Status, Type: p.Type, Metadata: p.Metadata, Slug: p.Slug, Path: p.Path, Visibility: p.Visibility, IsFeatured: p.IsFeatured}
 }
 
 // PageCreateRequest is the request body for creating/updating a page.
 type PageCreateRequest struct {
-	Title      string       `json:"title"`
-	Content    string       `json:"content"`
-	Excerpt    string       `json:"excerpt"`
-	Status     PageStatus   `json:"status"`
-	Type       PageType     `json:"type"`
-	Metadata   PageMetadata `json:"metadata"`
-	Slug       string       `json:"slug"`
-	Visibility Visibility   `json:"visibility"`
-	IsFeatured bool         `json:"is_featured"`
+	Title    string       `json:"title"`
+	Content  string       `json:"content"`
+	Excerpt  string       `json:"excerpt"`
+	Status   PageStatus   `json:"status"`
+	Type     PageType     `json:"type"`
+	Metadata PageMetadata `json:"metadata"`
+	Slug     string       `json:"slug"`
+	// Path is where the page is served under its section (api/rest/tasks).
+	// Empty means the slug.
+	Path       string     `json:"path,omitempty"`
+	Visibility Visibility `json:"visibility"`
+	IsFeatured bool       `json:"is_featured"`
 }
 
 func (r *PageCreateRequest) ContentHash() string {
@@ -5804,6 +5811,9 @@ const (
 	RefRouteTypeApp   RefRouteType = "app"
 	RefRouteTypeAgent RefRouteType = "agent"
 	RefRouteTypeSkill RefRouteType = "skill"
+	// RefRouteTypeURL routes a site path to another (/docs/api-files →
+	// /docs/api/sdk/files). Alias and target are literal paths, not refs.
+	RefRouteTypeURL RefRouteType = "url"
 )
 
 type RefRouteMode string

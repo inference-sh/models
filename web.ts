@@ -4006,6 +4006,11 @@ export interface MenuItem {
   id: string;
   label: string;
   slug?: string;
+  /**
+   * Path is the linked page's path, filled in when a menu is read so a client
+   * can build the link without fetching each page. Never stored.
+   */
+  path?: string;
   page_id?: string;
   url?: string;
   icon?: string;
@@ -4026,6 +4031,7 @@ export interface PageDTO extends BaseModelDTO, PermissionModelDTO {
   type: PageType;
   metadata: PageMetadata;
   slug: string;
+  path: string;
   /**
    * PublishAt mirrors Metadata.PublishAt, which remains the field clients write.
    * Surfaced here so a reader does not have to reach into the metadata blob.
@@ -4043,6 +4049,11 @@ export interface PageCreateRequest {
   type: PageType;
   metadata: PageMetadata;
   slug: string;
+  /**
+   * Path is where the page is served under its section (api/rest/tasks).
+   * Empty means the slug.
+   */
+  path?: string;
   visibility: Visibility;
   is_featured: boolean;
 }
@@ -6815,6 +6826,11 @@ export type RefRouteType = string;
 export const RefRouteTypeApp: RefRouteType = "app";
 export const RefRouteTypeAgent: RefRouteType = "agent";
 export const RefRouteTypeSkill: RefRouteType = "skill";
+/**
+ * RefRouteTypeURL routes a site path to another (/docs/api-files →
+ * /docs/api/sdk/files). Alias and target are literal paths, not refs.
+ */
+export const RefRouteTypeURL: RefRouteType = "url";
 export type RefRouteMode = string;
 export const RefRouteModeRewrite: RefRouteMode = "rewrite";
 export const RefRouteModeRedirect: RefRouteMode = "redirect";
