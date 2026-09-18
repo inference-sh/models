@@ -1839,6 +1839,56 @@ type EntitlementErrorMeta struct {
 }
 
 // --------------------
+// source: exec_run.go
+// --------------------
+
+// ExecRunDTO is the API response for one command executed on a host. Output is
+// not here — it is read separately as ExecRunOutput events from LastSeq.
+type ExecRunDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	RemoteID           string          `json:"remote_id"`
+	Command            string          `json:"command"`
+	Args               []string        `json:"args"`
+	Cwd                string          `json:"cwd"`
+	Env                []string        `json:"env"`
+	Pty                bool            `json:"pty"`
+	TimeoutMs          int             `json:"timeout_ms"`
+	Status             ExecRunStatus   `json:"status"`
+	ExitCode           *int            `json:"exit_code,omitempty"`
+	Error              *string         `json:"error,omitempty"`
+	TimedOut           bool            `json:"timed_out"`
+	StartedAt          *time.Time      `json:"started_at,omitempty"`
+	EndedAt            *time.Time      `json:"ended_at,omitempty"`
+	DurationMs         *int64          `json:"duration_ms,omitempty"`
+	RequestedBy        ExecRequestedBy `json:"requested_by"`
+	AgentRunID         *string         `json:"agent_run_id,omitempty"`
+	LastSeq            int             `json:"last_seq"`
+}
+
+// ExecRunOutputDTO is one sequenced chunk of a run's output.
+type ExecRunOutputDTO struct {
+	ID        string     `json:"id"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExecRunID string     `json:"exec_run_id"`
+	Seq       int        `json:"seq"`
+	Stream    ExecStream `json:"stream"`
+	Data      []byte     `json:"data"`
+}
+
+// ExecRunCreateRequest asks a host to run a command. This is the loop/operator
+// entry point (POST /remotes/{id}/execs); the agent-initiated ACP path lands on
+// the same domain later.
+type ExecRunCreateRequest struct {
+	Command   string   `json:"command"`
+	Args      []string `json:"args,omitempty"`
+	Cwd       string   `json:"cwd,omitempty"`
+	Env       []string `json:"env,omitempty"`
+	Pty       bool     `json:"pty,omitempty"`
+	TimeoutMs int      `json:"timeout_ms,omitempty"`
+}
+
+// --------------------
 // source: file.go
 // --------------------
 
@@ -3166,6 +3216,7 @@ type RemoteDTO struct {
 	HeartbeatAt        *time.Time    `json:"heartbeat_at"`
 	SystemInfo         *SystemInfo   `json:"system_info"`
 	RemoteVersion      string        `json:"remote_version"`
+	ExecEnabled        bool          `json:"exec_enabled"`
 	Profiles           []*ProfileDTO `json:"profiles"`
 }
 
@@ -3190,6 +3241,8 @@ type RemoteRegisterRequest struct {
 	PublicKey     string      `json:"public_key"`
 	RemoteVersion string      `json:"remote_version"`
 	SystemInfo    *SystemInfo `json:"system_info,omitempty"`
+	// ExecEnabled is the daemon's per-host opt-in to running commands.
+	ExecEnabled bool `json:"exec_enabled,omitempty"`
 }
 
 // RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
@@ -3787,6 +3840,22 @@ type EngineTypes struct {
 	_toolParamType ToolParamType
 	_toolCallType  ToolCallType
 	_scope         Scope
+}
+
+// --------------------
+// source: sdk_exec_run.go
+// --------------------
+
+// ExecRunTypes is a phantom type for gotypegen dependency tracing. The exec-run
+// DTOs, request, and enums are not reachable from SDKTypes on their own, so
+// listing them here pulls them into the generated web and SDK types.
+type ExecRunTypes struct {
+	_execRun    ExecRunDTO
+	_execOutput ExecRunOutputDTO
+	_execCreate ExecRunCreateRequest
+	_execStatus ExecRunStatus
+	_execStream ExecStream
+	_execReqBy  ExecRequestedBy
 }
 
 // --------------------
@@ -4614,12 +4683,14 @@ type WsSessionEndPayload struct {
 const (
 	// Remote -> server.
 	WSEventRemoteHeartbeat WSEventType = "remote_heartbeat"
-	// Exec: the request/response primitive a loop uses to run a command and
-	// capture its result. Server -> remote to run/cancel; remote -> server with
-	// the captured result. Each result is one audit record for a command.
-	WSEventRemoteRun       WSEventType = "remote_run"
-	WSEventRemoteRunCancel WSEventType = "remote_run_cancel"
-	WSEventRemoteRunResult WSEventType = "remote_run_result"
+	// Exec: the durable exec_runs handle. Server -> remote to start a run and to
+	// signal (cancel/kill) it; remote -> server with sequenced output and the
+	// final exit. Each frame carries the ExecRunID so the api correlates it to a
+	// durable row and its replayable output stream (INF-832).
+	WSEventRemoteExecStart  WSEventType = "remote_exec_start"
+	WSEventRemoteExecSignal WSEventType = "remote_exec_signal"
+	WSEventRemoteExecOutput WSEventType = "remote_exec_output"
+	WSEventRemoteExecExit   WSEventType = "remote_exec_exit"
 	// Server -> remote: drive a PTY session.
 	WSEventRemoteTerminalOpen   WSEventType = "remote_terminal_open"
 	WSEventRemoteTerminalInput  WSEventType = "remote_terminal_input"
@@ -5151,6 +5222,48 @@ const (
 	WorkerStatusBusy     WorkerStatus = "busy"
 	WorkerStatusIdle     WorkerStatus = "idle"
 	WorkerStatusInactive WorkerStatus = "inactive"
+)
+
+// --------------------
+// source: exec_run.go
+// --------------------
+
+// ExecRunStatus is the lifecycle of one command executed on a host (a remote,
+// or later any compute we own). It follows the process-handle shape of INF-832:
+// a run is started, streams output as events, and ends — cleanly (exited), by
+// signal (killed), or was never allowed to run (denied by the host's policy).
+type ExecRunStatus string
+
+// ExecRunTerminal reports whether the run is in a final state.
+func (s ExecRunStatus) ExecRunTerminal() bool {
+	return s == ExecRunStatusExited || s == ExecRunStatusKilled || s == ExecRunStatusDenied
+}
+
+const (
+	ExecRunStatusPending ExecRunStatus = "pending"
+	ExecRunStatusRunning ExecRunStatus = "running"
+	ExecRunStatusExited  ExecRunStatus = "exited"
+	ExecRunStatusKilled  ExecRunStatus = "killed"
+	ExecRunStatusDenied  ExecRunStatus = "denied"
+)
+
+// ExecRequestedBy records who asked for a run, because the audit answer — what
+// ran on that machine, at whose request — depends on it. INF-832 requires both
+// callers meet the same policy wall; this is how the trail tells them apart.
+type ExecRequestedBy string
+
+const (
+	ExecRequestedByLoop  ExecRequestedBy = "loop"
+	ExecRequestedByAgent ExecRequestedBy = "agent"
+	ExecRequestedByUser  ExecRequestedBy = "user"
+)
+
+// ExecStream names which stream an output event carries.
+type ExecStream string
+
+const (
+	ExecStreamStdout ExecStream = "stdout"
+	ExecStreamStderr ExecStream = "stderr"
 )
 
 // --------------------

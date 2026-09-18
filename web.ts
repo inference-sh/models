@@ -2719,6 +2719,53 @@ export interface EntitlementErrorMeta {
   addon_plan_price?: number /* int */;
 }
 /**
+ * ExecRunDTO is the API response for one command executed on a host. Output is
+ * not here — it is read separately as ExecRunOutput events from LastSeq.
+ */
+export interface ExecRunDTO extends BaseModelDTO, PermissionModelDTO {
+  remote_id: string;
+  command: string;
+  args: string[];
+  cwd: string;
+  env: string[];
+  pty: boolean;
+  timeout_ms: number /* int */;
+  status: ExecRunStatus;
+  exit_code?: number /* int */;
+  error?: string;
+  timed_out: boolean;
+  started_at?: string /* RFC3339 */;
+  ended_at?: string /* RFC3339 */;
+  duration_ms?: number /* int64 */;
+  requested_by: ExecRequestedBy;
+  agent_run_id?: string;
+  last_seq: number /* int */;
+}
+/**
+ * ExecRunOutputDTO is one sequenced chunk of a run's output.
+ */
+export interface ExecRunOutputDTO {
+  id: string;
+  created_at: string /* RFC3339 */;
+  exec_run_id: string;
+  seq: number /* int */;
+  stream: ExecStream;
+  data: string;
+}
+/**
+ * ExecRunCreateRequest asks a host to run a command. This is the loop/operator
+ * entry point (POST /remotes/{id}/execs); the agent-initiated ACP path lands on
+ * the same domain later.
+ */
+export interface ExecRunCreateRequest {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: string[];
+  pty?: boolean;
+  timeout_ms?: number /* int */;
+}
+/**
  * FileMetadata holds probed media metadata cached on File records.
  */
 export interface FileMetadata {
@@ -4330,6 +4377,7 @@ export interface RemoteDTO extends BaseModelDTO, PermissionModelDTO {
   heartbeat_at?: string /* RFC3339 */;
   system_info?: SystemInfo;
   remote_version: string;
+  exec_enabled: boolean;
   profiles: (ProfileDTO | undefined)[];
 }
 /**
@@ -4354,6 +4402,10 @@ export interface RemoteRegisterRequest {
   public_key: string;
   remote_version: string;
   system_info?: SystemInfo;
+  /**
+   * ExecEnabled is the daemon's per-host opt-in to running commands.
+   */
+  exec_enabled?: boolean;
 }
 /**
  * RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
@@ -4690,6 +4742,13 @@ export interface SDKTypes {
  * These are types used by engine and CLI that aren't reachable from SDKTypes.
  */
 export interface EngineTypes {
+}
+/**
+ * ExecRunTypes is a phantom type for gotypegen dependency tracing. The exec-run
+ * DTOs, request, and enums are not reachable from SDKTypes on their own, so
+ * listing them here pulls them into the generated web and SDK types.
+ */
+export interface ExecRunTypes {
 }
 /**
  * RemoteTypes is a phantom type for gotypegen dependency tracing. The remote
@@ -5851,25 +5910,33 @@ export interface WsSessionEndPayload {
  */
 export const WSEventRemoteHeartbeat: WSEventType = "remote_heartbeat";
 /**
- * Exec: the request/response primitive a loop uses to run a command and
- * capture its result. Server -> remote to run/cancel; remote -> server with
- * the captured result. Each result is one audit record for a command.
+ * Exec: the durable exec_runs handle. Server -> remote to start a run and to
+ * signal (cancel/kill) it; remote -> server with sequenced output and the
+ * final exit. Each frame carries the ExecRunID so the api correlates it to a
+ * durable row and its replayable output stream (INF-832).
  */
-export const WSEventRemoteRun: WSEventType = "remote_run";
+export const WSEventRemoteExecStart: WSEventType = "remote_exec_start";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
  * connection. These event strings and payloads mirror the belt remote client's
  * internal/remote protocol exactly — the two sides are the same wire.
  */
-export const WSEventRemoteRunCancel: WSEventType = "remote_run_cancel";
+export const WSEventRemoteExecSignal: WSEventType = "remote_exec_signal";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
  * connection. These event strings and payloads mirror the belt remote client's
  * internal/remote protocol exactly — the two sides are the same wire.
  */
-export const WSEventRemoteRunResult: WSEventType = "remote_run_result";
+export const WSEventRemoteExecOutput: WSEventType = "remote_exec_output";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. These event strings and payloads mirror the belt remote client's
+ * internal/remote protocol exactly — the two sides are the same wire.
+ */
+export const WSEventRemoteExecExit: WSEventType = "remote_exec_exit";
 /**
  * Server -> remote: drive a PTY session.
  */
@@ -6356,6 +6423,33 @@ export const WorkerStatusReserved: WorkerStatus = "reserved";
 export const WorkerStatusBusy: WorkerStatus = "busy";
 export const WorkerStatusIdle: WorkerStatus = "idle";
 export const WorkerStatusInactive: WorkerStatus = "inactive";
+/**
+ * ExecRunStatus is the lifecycle of one command executed on a host (a remote,
+ * or later any compute we own). It follows the process-handle shape of INF-832:
+ * a run is started, streams output as events, and ends — cleanly (exited), by
+ * signal (killed), or was never allowed to run (denied by the host's policy).
+ */
+export type ExecRunStatus = string;
+export const ExecRunStatusPending: ExecRunStatus = "pending";
+export const ExecRunStatusRunning: ExecRunStatus = "running";
+export const ExecRunStatusExited: ExecRunStatus = "exited";
+export const ExecRunStatusKilled: ExecRunStatus = "killed";
+export const ExecRunStatusDenied: ExecRunStatus = "denied";
+/**
+ * ExecRequestedBy records who asked for a run, because the audit answer — what
+ * ran on that machine, at whose request — depends on it. INF-832 requires both
+ * callers meet the same policy wall; this is how the trail tells them apart.
+ */
+export type ExecRequestedBy = string;
+export const ExecRequestedByLoop: ExecRequestedBy = "loop";
+export const ExecRequestedByAgent: ExecRequestedBy = "agent";
+export const ExecRequestedByUser: ExecRequestedBy = "user";
+/**
+ * ExecStream names which stream an output event carries.
+ */
+export type ExecStream = string;
+export const ExecStreamStdout: ExecStream = "stdout";
+export const ExecStreamStderr: ExecStream = "stderr";
 export type FlowRunStatus = number /* int */;
 export const FlowRunStatusUnknown: FlowRunStatus = 0;
 export const FlowRunStatusPending: FlowRunStatus = 1;
