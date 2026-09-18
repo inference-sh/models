@@ -783,7 +783,7 @@ export interface AppVersionInput {
   env?: { [key: string]: string};
   kernel?: string;
   required_secrets?: SecretRequirement[];
-  required_integrations?: IntegrationRequirement[];
+  required_integrations?: CredentialRequirement[];
   resources?: AppResources;
 }
 /**
@@ -924,7 +924,7 @@ export interface SecretUpdateRequest {
   value: string;
   description?: string;
 }
-export interface IntegrationConnectRequest {
+export interface CredentialConnectRequest {
   provider: string;
   type: string;
   scopes?: string[];
@@ -938,15 +938,15 @@ export interface IntegrationConnectRequest {
    */
   connection_scope?: CredentialScope;
 }
-export interface IntegrationCompleteOAuthRequest {
+export interface CredentialCompleteOAuthRequest {
   provider: string;
   type: string;
   code: string;
   state: string;
   code_verifier?: string;
 }
-export interface IntegrationConnectResponse {
-  integration?: IntegrationDTO;
+export interface CredentialConnectResponse {
+  integration?: CredentialDTO;
   auth_url?: string;
   state?: string;
   code_verifier?: string;
@@ -1633,12 +1633,12 @@ export interface SecretRequirement {
   optional?: boolean;
 }
 /**
- * IntegrationRequirement defines an integration that an app requires.
+ * CredentialRequirement defines an integration that an app requires.
  * Key is the provider slug (e.g. "bytedance", "google").
  * Secrets lists the specific env var names to inject from this integration.
  * Scopes lists OAuth scopes needed (for OAuth integrations).
  */
-export interface IntegrationRequirement {
+export interface CredentialRequirement {
   key: string;
   description?: string;
   optional?: boolean;
@@ -1678,7 +1678,7 @@ export interface AppVersionDTO extends BaseModelDTO {
   env: { [key: string]: string};
   kernel: string;
   required_secrets?: SecretRequirement[];
-  required_integrations?: IntegrationRequirement[];
+  required_integrations?: CredentialRequirement[];
   resources: AppResources;
   checksum?: string;
 }
@@ -2454,6 +2454,16 @@ export interface CredentialConfigDTO {
   credential?: CredentialDTO;
 }
 /**
+ * SecretFieldConfig defines a secret field for the UI
+ */
+export interface SecretFieldConfig {
+  key: string;
+  label: string;
+  placeholder: string;
+  sensitive: boolean;
+  optional: boolean;
+}
+/**
  * CreditGrantDTO is the API response for credit grants
  */
 export interface CreditGrantDTO extends BaseModelDTO, PermissionModelDTO {
@@ -3161,58 +3171,6 @@ export interface InstanceTypeBootTime {
   average_seconds: number /* int */;
   updated_at: string;
   sample_size: number /* int */;
-}
-/**
- * IntegrationDTO for API responses (never exposes tokens)
- */
-export interface IntegrationDTO extends BaseModelDTO, PermissionModelDTO {
-  scope: IntegrationScope;
-  grant?: IntegrationGrant;
-  provider: IntegrationProvider;
-  type: IntegrationAuthType;
-  auth: IntegrationAuthType;
-  status: IntegrationStatus;
-  display_name: string;
-  icon_url?: string;
-  scopes: StringSlice;
-  expires_at?: string /* RFC3339 */;
-  service_account_email?: string;
-  metadata?: { [key: string]: any};
-  account_identifier?: string;
-  account_name?: string;
-  is_primary: boolean;
-  error_message?: string;
-}
-/**
- * IntegrationConfigDTO is the API response for integration configuration
- */
-export interface IntegrationConfigDTO {
-  slug: string;
-  provider: string;
-  type: string;
-  auth: string;
-  name: string;
-  short_name: string;
-  description: string;
-  icon_url?: string;
-  how_it_works?: string[];
-  docs_url?: string;
-  secret_fields?: SecretFieldConfig[];
-  allows_byok: boolean;
-  available: boolean;
-  has_managed: boolean;
-  grant?: IntegrationGrant;
-  integration?: IntegrationDTO;
-}
-/**
- * SecretFieldConfig defines a secret field for the UI
- */
-export interface SecretFieldConfig {
-  key: string;
-  label: string;
-  placeholder: string;
-  sensitive: boolean;
-  optional: boolean;
 }
 export interface InterruptDTO extends BaseModelDTO, PermissionModelDTO {
   run_id: string;
@@ -4707,7 +4665,7 @@ export interface CapabilitiesResponse {
  */
 export interface CheckRequirementsRequest {
   secrets?: SecretRequirement[];
-  integrations?: IntegrationRequirement[];
+  integrations?: CredentialRequirement[];
 }
 /**
  * CheckRequirementsResponse is the API response for checking requirements
@@ -7063,59 +7021,57 @@ export const ContentViolenceGraphic: ContentRating = "violence_graphic";
 export const ContentGore: ContentRating = "gore";
 export const ContentUnrated: ContentRating = "unrated";
 /**
- * IntegrationProvider represents an external integration provider.
+ * CredentialProvider names the external service a credential is for.
  */
-export type IntegrationProvider = string;
-export const IntegrationProviderGoogle: IntegrationProvider = "google";
-export const IntegrationProviderGoogleSA: IntegrationProvider = "google-sa";
-export const IntegrationProviderSlack: IntegrationProvider = "slack";
-export const IntegrationProviderNotion: IntegrationProvider = "notion";
-export const IntegrationProviderGitHub: IntegrationProvider = "github";
-export const IntegrationProviderX: IntegrationProvider = "x";
-export const IntegrationProviderMicrosoft: IntegrationProvider = "microsoft";
-export const IntegrationProviderSalesforce: IntegrationProvider = "salesforce";
-export const IntegrationProviderDiscord: IntegrationProvider = "discord";
-export const IntegrationProviderGCP: IntegrationProvider = "gcp";
-export const IntegrationProviderMCP: IntegrationProvider = "mcp";
-export const IntegrationProviderReddit: IntegrationProvider = "reddit";
+export type CredentialProvider = string;
 /**
- * IntegrationAuthType describes the authentication mechanism of an integration.
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
-export type IntegrationAuthType = string;
-export const IntegrationAuthTypeServiceAccount: IntegrationAuthType = "service_account";
-export const IntegrationAuthTypeOAuth: IntegrationAuthType = "oauth";
-export const IntegrationAuthTypeAPIKey: IntegrationAuthType = "api_key";
-export const IntegrationAuthTypeWIF: IntegrationAuthType = "wif";
-export const IntegrationAuthTypeMCP: IntegrationAuthType = "mcp";
+export const CredentialProviderGoogle: CredentialProvider = "google";
 /**
- * IntegrationStatus represents the status of an integration connection.
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
-export type IntegrationStatus = string;
-export const IntegrationStatusPending: IntegrationStatus = "pending";
-export const IntegrationStatusConnected: IntegrationStatus = "connected";
-export const IntegrationStatusDisconnected: IntegrationStatus = "disconnected";
-export const IntegrationStatusExpired: IntegrationStatus = "expired";
-export const IntegrationStatusError: IntegrationStatus = "error";
+export const CredentialProviderGoogleSA: CredentialProvider = "google-sa";
 /**
- * IntegrationScope controls credential resolution priority and ownership.
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
-export type IntegrationScope = string;
-export const IntegrationScopeTeam: IntegrationScope = "team";
-export const IntegrationScopePlatform: IntegrationScope = "platform";
-export const IntegrationScopeUser: IntegrationScope = "user";
+export const CredentialProviderSlack: CredentialProvider = "slack";
 /**
- * IntegrationGrant describes what an integration provides.
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
-export type IntegrationGrant = string;
+export const CredentialProviderNotion: CredentialProvider = "notion";
 /**
- * IntegrationGrantCredentials provides OAuth app credentials (client_id/secret).
- * Users connect their own accounts against it. Only valid for type=oauth.
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
-export const IntegrationGrantCredentials: IntegrationGrant = "credentials";
+export const CredentialProviderGitHub: CredentialProvider = "github";
 /**
- * IntegrationGrantToken provides ready-to-use access (token, API key, etc.).
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
-export const IntegrationGrantToken: IntegrationGrant = "token";
+export const CredentialProviderX: CredentialProvider = "x";
+/**
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
+ */
+export const CredentialProviderMicrosoft: CredentialProvider = "microsoft";
+/**
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
+ */
+export const CredentialProviderSalesforce: CredentialProvider = "salesforce";
+/**
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
+ */
+export const CredentialProviderDiscord: CredentialProvider = "discord";
+/**
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
+ */
+export const CredentialProviderGCP: CredentialProvider = "gcp";
+/**
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
+ */
+export const CredentialProviderMCP: CredentialProvider = "mcp";
+/**
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
+ */
+export const CredentialProviderReddit: CredentialProvider = "reddit";
 /**
  * CredentialType describes the credential category.
  */
