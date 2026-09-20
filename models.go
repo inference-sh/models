@@ -450,16 +450,16 @@ type ApiAgentRunRequest struct {
 
 // CreateAgentMessageRequest is the request for creating agent messages.
 type CreateAgentMessageRequest struct {
-	ChatID             *string             `json:"chat_id,omitempty"`
-	AgentID            *string             `json:"agent_id,omitempty"`
-	AgentVersionID     *string             `json:"agent_version_id,omitempty"`
-	Agent              *string             `json:"agent,omitempty"`
-	ToolCallID         *string             `json:"tool_call_id,omitempty"`
-	Input              LLMInput            `json:"input" validate:"required"`
-	IntegrationContext *IntegrationContext `json:"integration_context,omitempty"`
-	AgentConfig        *AgentConfigInput   `json:"agent_config,omitempty"`
-	AgentName          *string             `json:"agent_name,omitempty"`
-	Context            map[string]string   `json:"context,omitempty"`
+	ChatID         *string           `json:"chat_id,omitempty"`
+	AgentID        *string           `json:"agent_id,omitempty"`
+	AgentVersionID *string           `json:"agent_version_id,omitempty"`
+	Agent          *string           `json:"agent,omitempty"`
+	ToolCallID     *string           `json:"tool_call_id,omitempty"`
+	Input          LLMInput          `json:"input" validate:"required"`
+	ChannelContext *ChannelContext   `json:"channel_context,omitempty"`
+	AgentConfig    *AgentConfigInput `json:"agent_config,omitempty"`
+	AgentName      *string           `json:"agent_name,omitempty"`
+	Context        map[string]string `json:"context,omitempty"`
 }
 
 type CreateAgentMessageResponse struct {
@@ -5166,13 +5166,13 @@ const (
 	ChatMessageContentTypeTool      ChatMessageContentType = "tool"
 )
 
-type IntegrationType string
+type ChannelType string
 
 const (
-	IntegrationTypeSlack    IntegrationType = "slack"
-	IntegrationTypeDiscord  IntegrationType = "discord"
-	IntegrationTypeTeams    IntegrationType = "teams"
-	IntegrationTypeTelegram IntegrationType = "telegram"
+	ChannelTypeSlack    ChannelType = "slack"
+	ChannelTypeDiscord  ChannelType = "discord"
+	ChannelTypeTeams    ChannelType = "teams"
+	ChannelTypeTelegram ChannelType = "telegram"
 )
 
 // --------------------
@@ -5205,10 +5205,37 @@ type ChatMessageContent struct {
 	ToolCalls *[]ToolCall            `json:"tool_calls"`
 }
 
-// IntegrationContext holds integration-specific metadata for a chat
-type IntegrationContext struct {
-	IntegrationType     *IntegrationType `json:"integration_type,omitempty"`
-	IntegrationMetadata json.RawMessage  `json:"integration_metadata,omitempty"`
+// ChannelContext records which channel a chat or message came through
+// (slack, telegram, an OpenAI-dialect tag, ...) and the transport metadata
+// needed to route a reply back to it.
+type ChannelContext struct {
+	ChannelType     *ChannelType    `json:"channel_type,omitempty"`
+	ChannelMetadata json.RawMessage `json:"channel_metadata,omitempty"`
+}
+
+// UnmarshalJSON accepts the keys this struct was stored under before the
+// channel rename (integration_type, integration_metadata), so rows written
+// before the cut keep reading without a data migration. New writes always use
+// the current keys.
+func (c *ChannelContext) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		ChannelType         *ChannelType    `json:"channel_type"`
+		ChannelMetadata     json.RawMessage `json:"channel_metadata"`
+		IntegrationType     *ChannelType    `json:"integration_type"`
+		IntegrationMetadata json.RawMessage `json:"integration_metadata"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	c.ChannelType = raw.ChannelType
+	c.ChannelMetadata = raw.ChannelMetadata
+	if c.ChannelType == nil {
+		c.ChannelType = raw.IntegrationType
+	}
+	if len(c.ChannelMetadata) == 0 {
+		c.ChannelMetadata = raw.IntegrationMetadata
+	}
+	return nil
 }
 
 // --------------------

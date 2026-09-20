@@ -1345,7 +1345,7 @@ public struct CreateAgentMessageRequest: Codable {
     public var agent: String?
     public var toolCallId: String?
     public var input: LLMInput
-    public var integrationContext: IntegrationContext?
+    public var channelContext: ChannelContext?
     public var agentConfig: AgentConfigInput?
     public var agentName: String?
     public var context: [String: String]?
@@ -1357,7 +1357,7 @@ public struct CreateAgentMessageRequest: Codable {
         agent: String? = nil,
         toolCallId: String? = nil,
         input: LLMInput,
-        integrationContext: IntegrationContext? = nil,
+        channelContext: ChannelContext? = nil,
         agentConfig: AgentConfigInput? = nil,
         agentName: String? = nil,
         context: [String: String]? = nil
@@ -1368,7 +1368,7 @@ public struct CreateAgentMessageRequest: Codable {
         self.agent = agent
         self.toolCallId = toolCallId
         self.input = input
-        self.integrationContext = integrationContext
+        self.channelContext = channelContext
         self.agentConfig = agentConfig
         self.agentName = agentName
         self.context = context
@@ -1381,7 +1381,7 @@ public struct CreateAgentMessageRequest: Codable {
         case agent = "agent"
         case toolCallId = "tool_call_id"
         case input = "input"
-        case integrationContext = "integration_context"
+        case channelContext = "channel_context"
         case agentConfig = "agent_config"
         case agentName = "agent_name"
         case context = "context"
@@ -12450,14 +12450,14 @@ public struct ChatMessageContentType: RawRepresentable, Codable, Hashable, Senda
     public static let tool = ChatMessageContentType(rawValue: "tool")
 }
 
-public struct IntegrationType: RawRepresentable, Codable, Hashable, Sendable {
+public struct ChannelType: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
-    public static let slack = IntegrationType(rawValue: "slack")
-    public static let discord = IntegrationType(rawValue: "discord")
-    public static let teams = IntegrationType(rawValue: "teams")
-    public static let telegram = IntegrationType(rawValue: "telegram")
+    public static let slack = ChannelType(rawValue: "slack")
+    public static let discord = ChannelType(rawValue: "discord")
+    public static let teams = ChannelType(rawValue: "teams")
+    public static let telegram = ChannelType(rawValue: "telegram")
 }
 
 /// ChatData contains agent-specific data for a chat session
@@ -12549,22 +12549,24 @@ public struct ChatMessageContent: Codable {
     }
 }
 
-/// IntegrationContext holds integration-specific metadata for a chat
-public struct IntegrationContext: Codable {
-    public var integrationType: IntegrationType?
-    public var integrationMetadata: JSONValue?
+/// ChannelContext records which channel a chat or message came through
+/// (slack, telegram, an OpenAI-dialect tag, ...) and the transport metadata
+/// needed to route a reply back to it.
+public struct ChannelContext: Codable {
+    public var channelType: ChannelType?
+    public var channelMetadata: JSONValue?
 
     public init(
-        integrationType: IntegrationType? = nil,
-        integrationMetadata: JSONValue? = nil
+        channelType: ChannelType? = nil,
+        channelMetadata: JSONValue? = nil
     ) {
-        self.integrationType = integrationType
-        self.integrationMetadata = integrationMetadata
+        self.channelType = channelType
+        self.channelMetadata = channelMetadata
     }
 
     enum CodingKeys: String, CodingKey {
-        case integrationType = "integration_type"
-        case integrationMetadata = "integration_metadata"
+        case channelType = "channel_type"
+        case channelMetadata = "channel_metadata"
     }
 }
 

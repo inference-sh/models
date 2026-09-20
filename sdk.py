@@ -264,7 +264,7 @@ class CreateAgentMessageRequest(TypedDict, total=False):
     agent: Optional[str]
     tool_call_id: Optional[str]
     input: LLMInput
-    integration_context: Optional[IntegrationContext]
+    channel_context: Optional[ChannelContext]
     agent_config: Optional[AgentConfigInput]
     agent_name: Optional[str]
     context: Dict[str, str]
@@ -1976,10 +1976,12 @@ class ChatMessageContent(TypedDict, total=False):
     file: Optional[str]
     tool_calls: Optional[List[ToolCall]]
 
-# IntegrationContext holds integration-specific metadata for a chat
-class IntegrationContext(TypedDict, total=False):
-    integration_type: Optional[IntegrationType]
-    integration_metadata: Any
+# ChannelContext records which channel a chat or message came through
+# (slack, telegram, an OpenAI-dialect tag, ...) and the transport metadata
+# needed to route a reply back to it.
+class ChannelContext(TypedDict, total=False):
+    channel_type: Optional[ChannelType]
+    channel_metadata: Any
 
 # FlowViewport represents the viewport state of a flow canvas
 class FlowViewport(TypedDict, total=False):
@@ -3417,7 +3419,7 @@ class ChatMessageContentType(str, Enum):
     FILE = "file"
     TOOL = "tool"
 
-class IntegrationType(str, Enum):
+class ChannelType(str, Enum):
     SLACK = "slack"
     DISCORD = "discord"
     TEAMS = "teams"
