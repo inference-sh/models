@@ -13009,29 +13009,6 @@ public struct ToolCallDelta: Codable {
     ]
 }
 
-/// DeltaEvent is the generic streaming envelope on the NDJSON wire.
-/// Delta is raw bytes — consumers parse based on context.
-public struct DeltaEvent: Codable {
-    public var delta: JSONValue
-    public var seq: Int
-
-    public init(
-        delta: JSONValue = .null,
-        seq: Int = 0
-    ) {
-        self.delta = delta
-        self.seq = seq
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case delta = "delta"
-        case seq = "seq"
-    }
-}
-
-/// LLMDeltaEvent is a typed alias for backward compatibility.
-public typealias LLMDeltaEvent = DeltaEvent
-
 /// ToolCallFunctionDelta carries partial tool call function data.
 /// Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
 public struct ToolCallFunctionDelta: Codable {
@@ -13834,6 +13811,49 @@ public struct NotificationStatus: RawRepresentable, Codable, Hashable, Sendable 
     public static let bounced = NotificationStatus(rawValue: "bounced")
     public static let cancelled = NotificationStatus(rawValue: "cancelled")
 }
+
+/// DeltaEvent is the generic streaming envelope on the NDJSON wire.
+/// Delta is raw bytes — consumers parse based on context.
+/// 
+/// It is deliberately not LLM-specific: agent lifecycle events and any future
+/// delta producer share this envelope, which is why the identity field below is
+/// a bare resource id rather than anything named after chat.
+public struct DeltaEvent: Codable {
+    public var delta: JSONValue
+    public var seq: Int
+    /// ResourceID names what this delta belongs to — for an LLM task, the
+    /// assistant chat message being generated.
+    /// 
+    /// Without it a consumer can only assume deltas belong to whatever it is
+    /// currently building, which breaks the moment a message carries no text
+    /// (a tool-call-only turn) and the previous message's state is still live.
+    /// 
+    /// The producer copies this from the graph and never interprets it: ids come
+    /// from one idgen space, so a consumer matches against the ids it already
+    /// tracks and buffers anything it does not recognise yet. A resource_type
+    /// companion is deliberately absent — nothing needs to route before matching.
+    /// Empty when the task has no execution edge (a plain app run).
+    public var resourceId: String?
+
+    public init(
+        delta: JSONValue = .null,
+        seq: Int = 0,
+        resourceId: String? = nil
+    ) {
+        self.delta = delta
+        self.seq = seq
+        self.resourceId = resourceId
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case delta = "delta"
+        case seq = "seq"
+        case resourceId = "resource_id"
+    }
+}
+
+/// LLMDeltaEvent is a typed alias for backward compatibility.
+public typealias LLMDeltaEvent = DeltaEvent
 
 /// TaskStatus represents the state of a task in its lifecycle.
 public struct TaskStatus: RawRepresentable, Codable, Hashable, Sendable {

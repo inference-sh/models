@@ -2075,12 +2075,6 @@ class ToolCallDelta(TypedDict, total=False):
         "function": {"merge": "nested"},
     }
 
-# DeltaEvent is the generic streaming envelope on the NDJSON wire.
-# Delta is raw bytes — consumers parse based on context.
-class DeltaEvent(TypedDict, total=False):
-    delta: Any
-    seq: int
-
 # ToolCallFunctionDelta carries partial tool call function data.
 # Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
 class ToolCallFunctionDelta(TypedDict, total=False):
@@ -2145,6 +2139,29 @@ class LLMContextMessage(TypedDict, total=False):
     tools: Optional[List[Tool]]
     tool_calls: Optional[List[ToolCall]]
     tool_call_id: Optional[str]
+
+# DeltaEvent is the generic streaming envelope on the NDJSON wire.
+# Delta is raw bytes — consumers parse based on context.
+# 
+# It is deliberately not LLM-specific: agent lifecycle events and any future
+# delta producer share this envelope, which is why the identity field below is
+# a bare resource id rather than anything named after chat.
+class DeltaEvent(TypedDict, total=False):
+    delta: Any
+    seq: int
+    # ResourceID names what this delta belongs to — for an LLM task, the
+    # assistant chat message being generated.
+    # 
+    # Without it a consumer can only assume deltas belong to whatever it is
+    # currently building, which breaks the moment a message carries no text
+    # (a tool-call-only turn) and the previous message's state is still live.
+    # 
+    # The producer copies this from the graph and never interprets it: ids come
+    # from one idgen space, so a consumer matches against the ids it already
+    # tracks and buffers anything it does not recognise yet. A resource_type
+    # companion is deliberately absent — nothing needs to route before matching.
+    # Empty when the task has no execution edge (a plain app run).
+    resource_id: str
 
 # TaskAction defines an action to execute when a task reaches a specific status.
 class TaskAction(TypedDict, total=False):
@@ -3110,9 +3127,6 @@ class LLMDelta(StreamDelta, TypedDict, total=False):
         "usage": {"merge": "replace"},
     }
 
-# LLMDeltaEvent is a typed alias for backward compatibility.
-LLMDeltaEvent = DeltaEvent
-
 # LLMInput is the input envelope for an LLM provider task: the settings plus
 # the conversation, with the current turn split out of the context.
 class LLMInput(LLMSettings, TypedDict, total=False):
@@ -3124,6 +3138,9 @@ class LLMInput(LLMSettings, TypedDict, total=False):
     images: Optional[List[str]]
     files: Optional[List[str]]
     tool_call_id: Optional[str]
+
+# LLMDeltaEvent is a typed alias for backward compatibility.
+LLMDeltaEvent = DeltaEvent
 
 # ArtifactCommentThreadDTO is one thread: its root plus replies in order.
 class ArtifactCommentThreadDTO(CommentDTO, TypedDict, total=False):
