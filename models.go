@@ -297,11 +297,13 @@ type AgentDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
 	ProjectModelDTO    `tstype:",extends"`
-	Namespace          string           `json:"namespace"`
-	Name               string           `json:"name"`
-	Images             AgentImages      `json:"images"`
-	VersionID          string           `json:"version_id"`
-	Version            *AgentVersionDTO `json:"version"`
+	Namespace          string `json:"namespace"`
+	Name               string `json:"name"`
+	// Title is the human-readable name; empty falls back to Name.
+	Title     string           `json:"title"`
+	Images    AgentImages      `json:"images"`
+	VersionID string           `json:"version_id"`
+	Version   *AgentVersionDTO `json:"version"`
 }
 
 // FullName returns the full name in the format "namespace/name"
@@ -333,6 +335,7 @@ type AgentVersionDTO struct {
 type CreateAgentRequest struct {
 	ID        string      `json:"id,omitempty"`
 	Name      string      `json:"name"`
+	Title     string      `json:"title,omitempty"`
 	Namespace string      `json:"namespace,omitempty"`
 	Images    AgentImages `json:"images,omitempty"`
 	// Version config (embedded - backend generates version ID, timestamps, etc)
@@ -505,6 +508,7 @@ type CreateAppRequest struct {
 	ID                     string           `json:"id,omitempty"`
 	Namespace              string           `json:"namespace,omitempty"`
 	Name                   string           `json:"name"`
+	Title                  string           `json:"title,omitempty"`
 	Description            string           `json:"description,omitempty"`
 	AgentDescription       string           `json:"agent_description,omitempty"`
 	Category               AppCategory      `json:"category,omitempty"`
@@ -1051,17 +1055,22 @@ type CredentialRequirement struct {
 type AppDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Namespace          string         `json:"namespace"`
-	Name               string         `json:"name"`
-	Description        string         `json:"description"`
-	AgentDescription   string         `json:"agent_description"`
-	Category           AppCategory    `json:"category"`
-	Images             AppImages      `json:"images"`
-	VersionID          string         `json:"version_id"`
-	Version            *AppVersionDTO `json:"version"`
-	Status             AppStatus      `json:"status"`
-	StatusMessage      string         `json:"status_message,omitempty"`
-	StatusChangedAt    *time.Time     `json:"status_changed_at,omitempty"`
+	Namespace          string `json:"namespace"`
+	Name               string `json:"name"`
+	// Title is the human-readable name shown wherever this resource is presented:
+	// "Veo 3.1" for the app named veo-3-1. Name stays the immutable slug that
+	// addresses it. Empty means the surface falls back to the name, so nothing
+	// breaks for a resource that never sets one.
+	Title            string         `json:"title"`
+	Description      string         `json:"description"`
+	AgentDescription string         `json:"agent_description"`
+	Category         AppCategory    `json:"category"`
+	Images           AppImages      `json:"images"`
+	VersionID        string         `json:"version_id"`
+	Version          *AppVersionDTO `json:"version"`
+	Status           AppStatus      `json:"status"`
+	StatusMessage    string         `json:"status_message,omitempty"`
+	StatusChangedAt  *time.Time     `json:"status_changed_at,omitempty"`
 }
 
 // FullName returns the full name in the format "namespace/name".
@@ -1147,12 +1156,14 @@ type AppStoreListingDTO struct {
 
 // PublicAppStoreDTO is a lean DTO for public app store display.
 type PublicAppStoreDTO struct {
-	ID                 string    `json:"id"`
-	Category           string    `json:"category"`
-	Subcategory        string    `json:"subcategory,omitempty"`
-	Tags               []string  `json:"tags,omitempty"`
-	Namespace          string    `json:"namespace"`
-	Name               string    `json:"name"`
+	ID          string   `json:"id"`
+	Category    string   `json:"category"`
+	Subcategory string   `json:"subcategory,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Namespace   string   `json:"namespace"`
+	Name        string   `json:"name"`
+	// Title is the human-readable name; empty falls back to Name.
+	Title              string    `json:"title"`
 	Description        string    `json:"description"`
 	Images             AppImages `json:"images"`
 	IsFeatured         bool      `json:"is_featured"`
@@ -1996,8 +2007,10 @@ type FlowNodeDataMap map[string]FlowNodeData
 type FlowDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Namespace          string          `json:"namespace"`
-	Name               string          `json:"name"`
+	Namespace          string `json:"namespace"`
+	Name               string `json:"name"`
+	// Title is the human-readable name; empty falls back to Name.
+	Title              string          `json:"title"`
 	Description        string          `json:"description"`
 	CardImage          string          `json:"card_image"`
 	Thumbnail          string          `json:"thumbnail"`
@@ -2388,15 +2401,17 @@ type SkillVersionDTO struct {
 type KnowledgeDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Namespace          string               `json:"namespace"`
-	Name               string               `json:"name"`
-	Description        string               `json:"description"`
-	Type               KnowledgeType        `json:"type"`
-	Lifecycle          KnowledgeLifecycle   `json:"lifecycle"`
-	VersionID          string               `json:"version_id"`
-	Version            *KnowledgeVersionDTO `json:"version"`
-	Uses               int64                `json:"uses"`
-	Installs           int64                `json:"installs"`
+	Namespace          string `json:"namespace"`
+	Name               string `json:"name"`
+	// Title is the human-readable name; empty falls back to Name.
+	Title       string               `json:"title"`
+	Description string               `json:"description"`
+	Type        KnowledgeType        `json:"type"`
+	Lifecycle   KnowledgeLifecycle   `json:"lifecycle"`
+	VersionID   string               `json:"version_id"`
+	Version     *KnowledgeVersionDTO `json:"version"`
+	Uses        int64                `json:"uses"`
+	Installs    int64                `json:"installs"`
 }
 
 // FullName returns "namespace/name"
@@ -2756,8 +2771,10 @@ func (s *StringSlice) Scan(value interface{}) error {
 type MCPServerDTO struct {
 	ID string `json:"id"`
 	PermissionModelDTO
-	Slug             string            `json:"slug"`
-	Name             string            `json:"name"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+	// Title is the human-readable name; empty falls back to Name.
+	Title            string            `json:"title"`
 	Description      string            `json:"description"`
 	IconURL          string            `json:"icon_url"`
 	ServerURL        string            `json:"server_url"`
@@ -2771,9 +2788,11 @@ type MCPServerDTO struct {
 
 // PublicMCPServerDTO is a lean DTO for the public MCP directory.
 type PublicMCPServerDTO struct {
-	ID               string            `json:"id"`
-	Slug             string            `json:"slug"`
-	Name             string            `json:"name"`
+	ID   string `json:"id"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+	// Title is the human-readable name; empty falls back to Name.
+	Title            string            `json:"title"`
 	Description      string            `json:"description"`
 	IconURL          string            `json:"icon_url"`
 	Category         MCPServerCategory `json:"category"`
@@ -3234,6 +3253,21 @@ type RemoteRegisterRequest struct {
 	SystemInfo    *SystemInfo `json:"system_info,omitempty"`
 	// ExecEnabled is the daemon's per-host opt-in to running commands.
 	ExecEnabled bool `json:"exec_enabled,omitempty"`
+	// Harnesses are the agent CLIs the daemon discovered on the machine. The
+	// api reconciles them into Profiles — one row per harness the remote can
+	// serve. It never carries a credential: LoggedIn is only a hint the daemon
+	// derived from whether a vendor auth file exists.
+	Harnesses []HarnessInfo `json:"harnesses,omitempty"`
+}
+
+// HarnessInfo is one agent harness the daemon found installed on a remote. It
+// is the wire shape of belt's discovery probe and the source the api syncs
+// Profiles from. It holds no token — LoggedIn is a presence hint only.
+type HarnessInfo struct {
+	Kind     string `json:"kind"`
+	Command  string `json:"command"`
+	Version  string `json:"version,omitempty"`
+	LoggedIn bool   `json:"logged_in"`
 }
 
 // RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
@@ -3250,6 +3284,7 @@ type RemoteHeartbeatRequest struct {
 // KnowledgeCreateRequest is the request body for POST /knowledge.
 type KnowledgeCreateRequest struct {
 	Name        string             `json:"name"`
+	Title       string             `json:"title,omitempty"`
 	Description string             `json:"description,omitempty"`
 	RepoURL     string             `json:"repo_url,omitempty"`
 	Type        KnowledgeType      `json:"type,omitempty"`
@@ -3275,6 +3310,7 @@ type KnowledgeVersionInput struct {
 
 // KnowledgeUpdateRequest is the request body for PUT /knowledge/{id}.
 type KnowledgeUpdateRequest struct {
+	Title       string                 `json:"title,omitempty"`
 	Description string                 `json:"description,omitempty"`
 	Version     *KnowledgeVersionInput `json:"version,omitempty"`
 }
@@ -6568,13 +6604,25 @@ const (
 // source: utility.go
 // --------------------
 
+type UtilityPreset string
+
+const (
+	UtilityPresetGate     UtilityPreset = "gate"
+	UtilityPresetSelector UtilityPreset = "selector"
+	UtilityPresetMerge    UtilityPreset = "merge"
+	UtilityPresetConstant UtilityPreset = "constant"
+)
+
 // UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
 type UtilityConfig struct {
-	Preset     string          `json:"preset"`
+	Preset     UtilityPreset   `json:"preset"`
 	Expression string          `json:"expression,omitempty"`
 	Gate       *GateCondition  `json:"gate,omitempty"`
 	Selector   *SelectorConfig `json:"selector,omitempty"`
 	Constant   any             `json:"constant,omitempty"`
+	Random     bool            `json:"random,omitempty"`
+	RandomMin  *float64        `json:"random_min,omitempty"`
+	RandomMax  *float64        `json:"random_max,omitempty"`
 }
 
 // --------------------

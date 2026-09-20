@@ -742,6 +742,8 @@ public struct AgentDTO: Codable {
     public var project: ProjectDTO?
     public var namespace: String
     public var name: String
+    /// Title is the human-readable name; empty falls back to Name.
+    public var title: String
     public var images: AgentImages
     public var versionId: String
     public var version: AgentVersionDTO?
@@ -762,6 +764,7 @@ public struct AgentDTO: Codable {
         project: ProjectDTO? = nil,
         namespace: String = "",
         name: String = "",
+        title: String = "",
         images: AgentImages,
         versionId: String = "",
         version: AgentVersionDTO? = nil
@@ -781,6 +784,7 @@ public struct AgentDTO: Codable {
         self.project = project
         self.namespace = namespace
         self.name = name
+        self.title = title
         self.images = images
         self.versionId = versionId
         self.version = version
@@ -802,6 +806,7 @@ public struct AgentDTO: Codable {
         case project = "project"
         case namespace = "namespace"
         case name = "name"
+        case title = "title"
         case images = "images"
         case versionId = "version_id"
         case version = "version"
@@ -908,6 +913,7 @@ public struct AgentVersionDTO: Codable {
 public struct CreateAgentRequest: Codable {
     public var id: String?
     public var name: String
+    public var title: String?
     public var namespace: String?
     public var images: AgentImages?
     /// Version config (embedded - backend generates version ID, timestamps, etc)
@@ -916,12 +922,14 @@ public struct CreateAgentRequest: Codable {
     public init(
         id: String? = nil,
         name: String = "",
+        title: String? = nil,
         namespace: String? = nil,
         images: AgentImages? = nil,
         version: AgentConfigInput? = nil
     ) {
         self.id = id
         self.name = name
+        self.title = title
         self.namespace = namespace
         self.images = images
         self.version = version
@@ -930,6 +938,7 @@ public struct CreateAgentRequest: Codable {
     enum CodingKeys: String, CodingKey {
         case id = "id"
         case name = "name"
+        case title = "title"
         case namespace = "namespace"
         case images = "images"
         case version = "version"
@@ -1529,6 +1538,7 @@ public struct CreateAppRequest: Codable {
     public var id: String?
     public var namespace: String?
     public var name: String
+    public var title: String?
     public var description: String?
     public var agentDescription: String?
     public var category: AppCategory?
@@ -1540,6 +1550,7 @@ public struct CreateAppRequest: Codable {
         id: String? = nil,
         namespace: String? = nil,
         name: String = "",
+        title: String? = nil,
         description: String? = nil,
         agentDescription: String? = nil,
         category: AppCategory? = nil,
@@ -1550,6 +1561,7 @@ public struct CreateAppRequest: Codable {
         self.id = id
         self.namespace = namespace
         self.name = name
+        self.title = title
         self.description = description
         self.agentDescription = agentDescription
         self.category = category
@@ -1562,6 +1574,7 @@ public struct CreateAppRequest: Codable {
         case id = "id"
         case namespace = "namespace"
         case name = "name"
+        case title = "title"
         case description = "description"
         case agentDescription = "agent_description"
         case category = "category"
@@ -2749,6 +2762,11 @@ public struct AppDTO: Codable {
     public var visibility: Visibility
     public var namespace: String
     public var name: String
+    /// Title is the human-readable name shown wherever this resource is presented:
+    /// "Veo 3.1" for the app named veo-3-1. Name stays the immutable slug that
+    /// addresses it. Empty means the surface falls back to the name, so nothing
+    /// breaks for a resource that never sets one.
+    public var title: String
     public var description: String
     public var agentDescription: String
     public var category: AppCategory
@@ -2773,6 +2791,7 @@ public struct AppDTO: Codable {
         visibility: Visibility,
         namespace: String = "",
         name: String = "",
+        title: String = "",
         description: String = "",
         agentDescription: String = "",
         category: AppCategory,
@@ -2796,6 +2815,7 @@ public struct AppDTO: Codable {
         self.visibility = visibility
         self.namespace = namespace
         self.name = name
+        self.title = title
         self.description = description
         self.agentDescription = agentDescription
         self.category = category
@@ -2821,6 +2841,7 @@ public struct AppDTO: Codable {
         case visibility = "visibility"
         case namespace = "namespace"
         case name = "name"
+        case title = "title"
         case description = "description"
         case agentDescription = "agent_description"
         case category = "category"
@@ -3149,6 +3170,8 @@ public struct PublicAppStoreDTO: Codable {
     public var tags: [String]?
     public var namespace: String
     public var name: String
+    /// Title is the human-readable name; empty falls back to Name.
+    public var title: String
     public var description: String
     public var images: AppImages
     public var isFeatured: Bool
@@ -3164,6 +3187,7 @@ public struct PublicAppStoreDTO: Codable {
         tags: [String]? = nil,
         namespace: String = "",
         name: String = "",
+        title: String = "",
         description: String = "",
         images: AppImages,
         isFeatured: Bool = false,
@@ -3178,6 +3202,7 @@ public struct PublicAppStoreDTO: Codable {
         self.tags = tags
         self.namespace = namespace
         self.name = name
+        self.title = title
         self.description = description
         self.images = images
         self.isFeatured = isFeatured
@@ -3194,6 +3219,7 @@ public struct PublicAppStoreDTO: Codable {
         case tags = "tags"
         case namespace = "namespace"
         case name = "name"
+        case title = "title"
         case description = "description"
         case images = "images"
         case isFeatured = "is_featured"
@@ -5828,6 +5854,8 @@ public struct FlowDTO: Codable {
     public var visibility: Visibility
     public var namespace: String
     public var name: String
+    /// Title is the human-readable name; empty falls back to Name.
+    public var title: String
     public var description: String
     public var cardImage: String
     public var thumbnail: String
@@ -5859,6 +5887,7 @@ public struct FlowDTO: Codable {
         visibility: Visibility,
         namespace: String = "",
         name: String = "",
+        title: String = "",
         description: String = "",
         cardImage: String = "",
         thumbnail: String = "",
@@ -5889,6 +5918,7 @@ public struct FlowDTO: Codable {
         self.visibility = visibility
         self.namespace = namespace
         self.name = name
+        self.title = title
         self.description = description
         self.cardImage = cardImage
         self.thumbnail = thumbnail
@@ -5921,6 +5951,7 @@ public struct FlowDTO: Codable {
         case visibility = "visibility"
         case namespace = "namespace"
         case name = "name"
+        case title = "title"
         case description = "description"
         case cardImage = "card_image"
         case thumbnail = "thumbnail"
@@ -7369,6 +7400,8 @@ public struct KnowledgeDTO: Codable {
     public var visibility: Visibility
     public var namespace: String
     public var name: String
+    /// Title is the human-readable name; empty falls back to Name.
+    public var title: String
     public var description: String
     public var type: KnowledgeType
     public var lifecycle: KnowledgeLifecycle
@@ -7391,6 +7424,7 @@ public struct KnowledgeDTO: Codable {
         visibility: Visibility,
         namespace: String = "",
         name: String = "",
+        title: String = "",
         description: String = "",
         type: KnowledgeType,
         lifecycle: KnowledgeLifecycle,
@@ -7412,6 +7446,7 @@ public struct KnowledgeDTO: Codable {
         self.visibility = visibility
         self.namespace = namespace
         self.name = name
+        self.title = title
         self.description = description
         self.type = type
         self.lifecycle = lifecycle
@@ -7435,6 +7470,7 @@ public struct KnowledgeDTO: Codable {
         case visibility = "visibility"
         case namespace = "namespace"
         case name = "name"
+        case title = "title"
         case description = "description"
         case type = "type"
         case lifecycle = "lifecycle"
@@ -8094,6 +8130,8 @@ public struct MCPServerDTO: Codable {
     public var visibility: Visibility
     public var slug: String
     public var name: String
+    /// Title is the human-readable name; empty falls back to Name.
+    public var title: String
     public var description: String
     public var iconUrl: String
     public var serverUrl: String
@@ -8113,6 +8151,7 @@ public struct MCPServerDTO: Codable {
         visibility: Visibility,
         slug: String = "",
         name: String = "",
+        title: String = "",
         description: String = "",
         iconUrl: String = "",
         serverUrl: String = "",
@@ -8131,6 +8170,7 @@ public struct MCPServerDTO: Codable {
         self.visibility = visibility
         self.slug = slug
         self.name = name
+        self.title = title
         self.description = description
         self.iconUrl = iconUrl
         self.serverUrl = serverUrl
@@ -8151,6 +8191,7 @@ public struct MCPServerDTO: Codable {
         case visibility = "visibility"
         case slug = "slug"
         case name = "name"
+        case title = "title"
         case description = "description"
         case iconUrl = "icon_url"
         case serverUrl = "server_url"
@@ -9328,6 +9369,7 @@ public struct RefRouteDTO: Codable {
 /// KnowledgeCreateRequest is the request body for POST /knowledge.
 public struct KnowledgeCreateRequest: Codable {
     public var name: String
+    public var title: String?
     public var description: String?
     public var repoUrl: String?
     public var type: KnowledgeType?
@@ -9337,6 +9379,7 @@ public struct KnowledgeCreateRequest: Codable {
 
     public init(
         name: String = "",
+        title: String? = nil,
         description: String? = nil,
         repoUrl: String? = nil,
         type: KnowledgeType? = nil,
@@ -9344,6 +9387,7 @@ public struct KnowledgeCreateRequest: Codable {
         version: KnowledgeVersionInput? = nil
     ) {
         self.name = name
+        self.title = title
         self.description = description
         self.repoUrl = repoUrl
         self.type = type
@@ -9353,6 +9397,7 @@ public struct KnowledgeCreateRequest: Codable {
 
     enum CodingKeys: String, CodingKey {
         case name = "name"
+        case title = "title"
         case description = "description"
         case repoUrl = "repo_url"
         case type = "type"
@@ -9421,18 +9466,22 @@ public struct KnowledgeVersionInput: Codable {
 
 /// KnowledgeUpdateRequest is the request body for PUT /knowledge/{id}.
 public struct KnowledgeUpdateRequest: Codable {
+    public var title: String?
     public var description: String?
     public var version: KnowledgeVersionInput?
 
     public init(
+        title: String? = nil,
         description: String? = nil,
         version: KnowledgeVersionInput? = nil
     ) {
+        self.title = title
         self.description = description
         self.version = version
     }
 
     enum CodingKeys: String, CodingKey {
+        case title = "title"
         case description = "description"
         case version = "version"
     }
@@ -13907,26 +13956,45 @@ public struct Role: RawRepresentable, Codable, Hashable, Sendable {
     public static let system = Role(rawValue: "system")
 }
 
+public struct UtilityPreset: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let gate = UtilityPreset(rawValue: "gate")
+    public static let selector = UtilityPreset(rawValue: "selector")
+    public static let merge = UtilityPreset(rawValue: "merge")
+    public static let constant = UtilityPreset(rawValue: "constant")
+}
+
 /// UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
 public struct UtilityConfig: Codable {
-    public var preset: String
+    public var preset: UtilityPreset
     public var expression: String?
     public var gate: GateCondition?
     public var selector: SelectorConfig?
     public var constant: JSONValue?
+    public var random: Bool?
+    public var randomMin: Double?
+    public var randomMax: Double?
 
     public init(
-        preset: String = "",
+        preset: UtilityPreset,
         expression: String? = nil,
         gate: GateCondition? = nil,
         selector: SelectorConfig? = nil,
-        constant: JSONValue? = nil
+        constant: JSONValue? = nil,
+        random: Bool? = nil,
+        randomMin: Double? = nil,
+        randomMax: Double? = nil
     ) {
         self.preset = preset
         self.expression = expression
         self.gate = gate
         self.selector = selector
         self.constant = constant
+        self.random = random
+        self.randomMin = randomMin
+        self.randomMax = randomMax
     }
 
     enum CodingKeys: String, CodingKey {
@@ -13935,6 +14003,9 @@ public struct UtilityConfig: Codable {
         case gate = "gate"
         case selector = "selector"
         case constant = "constant"
+        case random = "random"
+        case randomMin = "random_min"
+        case randomMax = "random_max"
     }
 }
 

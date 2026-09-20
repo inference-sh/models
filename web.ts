@@ -228,6 +228,10 @@ export interface CoreAppConfigDTO {
 export interface AgentDTO extends BaseModelDTO, PermissionModelDTO, ProjectModelDTO {
   namespace: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   images: AgentImages;
   version_id: string;
   version?: AgentVersionDTO;
@@ -252,6 +256,7 @@ export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
 export interface CreateAgentRequest {
   id?: string;
   name: string;
+  title?: string;
   namespace?: string;
   images?: AgentImages;
   /**
@@ -793,6 +798,7 @@ export interface CreateAppRequest {
   id?: string;
   namespace?: string;
   name: string;
+  title?: string;
   description?: string;
   agent_description?: string;
   category?: AppCategory;
@@ -1669,6 +1675,13 @@ export interface CredentialRequirement {
 export interface AppDTO extends BaseModelDTO, PermissionModelDTO {
   namespace: string;
   name: string;
+  /**
+   * Title is the human-readable name shown wherever this resource is presented:
+   * "Veo 3.1" for the app named veo-3-1. Name stays the immutable slug that
+   * addresses it. Empty means the surface falls back to the name, so nothing
+   * breaks for a resource that never sets one.
+   */
+  title: string;
   description: string;
   agent_description: string;
   category: AppCategory;
@@ -1773,6 +1786,10 @@ export interface PublicAppStoreDTO {
   tags?: string[];
   namespace: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   description: string;
   images: AppImages;
   is_featured: boolean;
@@ -2855,6 +2872,10 @@ export type FlowNodeDataMap = { [key: string]: FlowNodeData};
 export interface FlowDTO extends BaseModelDTO, PermissionModelDTO {
   namespace: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   description: string;
   card_image: string;
   thumbnail: string;
@@ -3267,6 +3288,10 @@ export interface SkillVersionDTO extends BaseModelDTO {
 export interface KnowledgeDTO extends BaseModelDTO, PermissionModelDTO {
   namespace: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   description: string;
   type: KnowledgeType;
   lifecycle: KnowledgeLifecycle;
@@ -3785,6 +3810,10 @@ export interface MCPServerDTO {
   visibility: Visibility;
   slug: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   description: string;
   icon_url: string;
   server_url: string;
@@ -3801,6 +3830,10 @@ export interface PublicMCPServerDTO {
   id: string;
   slug: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   description: string;
   icon_url: string;
   category: MCPServerCategory;
@@ -3822,6 +3855,10 @@ export interface AdminMCPServerDTO {
   id: string;
   slug: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   description: string;
   icon_url: string;
   server_url: string;
@@ -4294,6 +4331,10 @@ export interface PublicationDTO extends BaseModelDTO, PermissionModelDTO {
   resource_id: string;
   namespace: string;
   name: string;
+  /**
+   * Title is the human-readable name; empty falls back to Name.
+   */
+  title: string;
   allowed_origins?: string[];
   rate_limit_rpm?: number /* int */;
   theme?: PublicationTheme;
@@ -4382,6 +4423,24 @@ export interface RemoteRegisterRequest {
    * ExecEnabled is the daemon's per-host opt-in to running commands.
    */
   exec_enabled?: boolean;
+  /**
+   * Harnesses are the agent CLIs the daemon discovered on the machine. The
+   * api reconciles them into Profiles — one row per harness the remote can
+   * serve. It never carries a credential: LoggedIn is only a hint the daemon
+   * derived from whether a vendor auth file exists.
+   */
+  harnesses?: HarnessInfo[];
+}
+/**
+ * HarnessInfo is one agent harness the daemon found installed on a remote. It
+ * is the wire shape of belt's discovery probe and the source the api syncs
+ * Profiles from. It holds no token — LoggedIn is a presence hint only.
+ */
+export interface HarnessInfo {
+  kind: string;
+  command: string;
+  version?: string;
+  logged_in: boolean;
 }
 /**
  * RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
@@ -4396,6 +4455,7 @@ export interface RemoteHeartbeatRequest {
  */
 export interface KnowledgeCreateRequest {
   name: string;
+  title?: string;
   description?: string;
   repo_url?: string;
   type?: KnowledgeType;
@@ -4425,6 +4485,7 @@ export interface KnowledgeVersionInput {
  * KnowledgeUpdateRequest is the request body for PUT /knowledge/{id}.
  */
 export interface KnowledgeUpdateRequest {
+  title?: string;
   description?: string;
   version?: KnowledgeVersionInput;
 }
@@ -7405,15 +7466,23 @@ export const RoleGuest: Role = "guest";
 export const RoleUser: Role = "user";
 export const RoleAdmin: Role = "admin";
 export const RoleSystem: Role = "system";
+export type UtilityPreset = string;
+export const UtilityPresetGate: UtilityPreset = "gate";
+export const UtilityPresetSelector: UtilityPreset = "selector";
+export const UtilityPresetMerge: UtilityPreset = "merge";
+export const UtilityPresetConstant: UtilityPreset = "constant";
 /**
  * UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
  */
 export interface UtilityConfig {
-  preset: string;
+  preset: UtilityPreset;
   expression?: string;
   gate?: GateCondition;
   selector?: SelectorConfig;
   constant?: any;
+  random?: boolean;
+  random_min?: number /* float64 */;
+  random_max?: number /* float64 */;
 }
 /**
  * AgentEventType identifies what happened in an agent run.
