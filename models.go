@@ -1001,6 +1001,14 @@ type AppFunction struct {
 	// LLMInput and returns an LLMOutput). Promoted onto the version's
 	// metadata by AppVersion.DeriveCapabilities.
 	Capabilities []string `json:"capabilities,omitempty"`
+	// Kind is how the function talks to its caller, from engine discovery:
+	// a stream function declares a socket parameter. Empty means run.
+	Kind FunctionKind `json:"kind,omitempty"`
+}
+
+// IsStream reports whether calling the function opens a socket.
+func (f AppFunction) IsStream() bool {
+	return f.Kind == FunctionKindStream
 }
 
 // AppImages holds developer-provided images for the app.
@@ -1621,7 +1629,10 @@ type CredentialConfigDTO struct {
 	Available    bool                `json:"available"`
 	HasManaged   bool                `json:"has_managed"`
 	Grant        CredentialGrant     `json:"grant,omitempty"`
-	Credential   *CredentialDTO      `json:"credential,omitempty"`
+	// CustomProviderID is set when the provider is one the team defined
+	// itself (models.CustomProvider), so the UI can offer edit and remove.
+	CustomProviderID string         `json:"custom_provider_id,omitempty"`
+	Credential       *CredentialDTO `json:"credential,omitempty"`
 }
 
 // --------------------
@@ -1701,6 +1712,67 @@ type CursorListResponse[T any] struct {
 // CountResponse is the response for count endpoints.
 type CountResponse struct {
 	Count int64 `json:"count"`
+}
+
+// --------------------
+// source: custom_provider.go
+// --------------------
+
+// CustomProviderDTO is a team-defined provider: its own OAuth app registered
+// against a third-party service. Secrets never leave the vault; the DTO
+// carries the keys they are stored under.
+type CustomProviderDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Scope              CredentialScope `json:"scope"`
+	Slug               string          `json:"slug"`
+	Name               string          `json:"name"`
+	Description        string          `json:"description,omitempty"`
+	IconURL            string          `json:"icon_url,omitempty"`
+	DocsURL            string          `json:"docs_url,omitempty"`
+	AuthSchemes        []AuthScheme    `json:"auth_schemes"`
+	// Where the OAuth app's client id and secret live in the team vault.
+	ClientIDKey     string `json:"client_id_key"`
+	ClientSecretKey string `json:"client_secret_key"`
+}
+
+// CustomProviderCreateRequest registers a provider. ClientID and ClientSecret
+// are written to the vault, not to the provider row.
+type CustomProviderCreateRequest struct {
+	Slug         string       `json:"slug"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description,omitempty"`
+	IconURL      string       `json:"icon_url,omitempty"`
+	DocsURL      string       `json:"docs_url,omitempty"`
+	AuthSchemes  []AuthScheme `json:"auth_schemes"`
+	ClientID     string       `json:"client_id"`
+	ClientSecret string       `json:"client_secret"`
+	// Scope is who may connect through it. Empty = team. Org and platform
+	// follow the credential rule: chosen from the team that owns them.
+	Scope CredentialScope `json:"scope,omitempty"`
+}
+
+// CustomProviderUpdateRequest changes display fields and schemes; the slug is
+// the provider's identity (stored on every credential) and cannot change.
+// Empty secrets leave the stored ones alone.
+type CustomProviderUpdateRequest struct {
+	Name         string       `json:"name,omitempty"`
+	Description  string       `json:"description,omitempty"`
+	IconURL      string       `json:"icon_url,omitempty"`
+	DocsURL      string       `json:"docs_url,omitempty"`
+	AuthSchemes  []AuthScheme `json:"auth_schemes,omitempty"`
+	ClientID     string       `json:"client_id,omitempty"`
+	ClientSecret string       `json:"client_secret,omitempty"`
+}
+
+// CustomProviderTypes is a phantom root for gotypegen dependency tracing.
+type CustomProviderTypes struct {
+	_dto        CustomProviderDTO
+	_create     CustomProviderCreateRequest
+	_update     CustomProviderUpdateRequest
+	_scheme     AuthScheme
+	_schemeKind AuthSchemeKind
+	_clientAuth AuthSchemeClientAuth
 }
 
 // --------------------
@@ -3236,13 +3308,18 @@ type RemoteDTO struct {
 type ProfileDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	RemoteID           string        `json:"remote_id"`
-	HarnessKind        string        `json:"harness_kind"`
-	Name               string        `json:"name"`
-	Command            string        `json:"command"`
-	Args               []string      `json:"args"`
-	Status             ProfileStatus `json:"status"`
-	MaxConcurrent      int           `json:"max_concurrent"`
+	RemoteID           string `json:"remote_id"`
+	HarnessKind        string `json:"harness_kind"`
+	// DisplayName and Vendor come from the harness registry for the kind:
+	// "Claude Code" by Anthropic for harness_kind "claude". Show these; key
+	// on HarnessKind.
+	DisplayName   string        `json:"display_name"`
+	Vendor        string        `json:"vendor"`
+	Name          string        `json:"name"`
+	Command       string        `json:"command"`
+	Args          []string      `json:"args"`
+	Status        ProfileStatus `json:"status"`
+	MaxConcurrent int           `json:"max_concurrent"`
 }
 
 // RemoteRegisterRequest creates a remote from a connecting daemon.
@@ -3550,6 +3627,8 @@ type SDKTypes struct {
 	_createAgent        CreateAgentRequest
 	_graphEdge          GraphEdgeDTO
 	_appSession         AppSessionDTO
+	_socket             SocketDTO
+	_socketAccess       SocketAccess
 	_licenseRecord      LicenseRecordDTO
 	_resourceStatus     ResourceStatusDTO
 	_file               FileDTO
@@ -3921,6 +4000,43 @@ type SecretDTO struct {
 }
 
 // --------------------
+// source: socket.go
+// --------------------
+
+// SocketAccess is where one end of a socket dials and the credential it
+// presents. The task's caller gets one in the run response; the worker gets
+// its own with the dispatch.
+//
+// Browsers cannot set headers on a WebSocket: they append
+// `?access_token=<token>` to the URL. Everything else sends
+// `Authorization: Bearer <token>`.
+type SocketAccess struct {
+	ID        string    `json:"id"`
+	URL       string    `json:"url"`
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// SocketDTO is a socket and what is known of its life. The traffic figures
+// come from the relay once the socket has closed.
+type SocketDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	TaskID             string        `json:"task_id"`
+	Relay              string        `json:"relay"`
+	Status             SocketStatus  `json:"status"`
+	PairedAt           *time.Time    `json:"paired_at,omitempty"`
+	EndedAt            *time.Time    `json:"ended_at,omitempty"`
+	Outcome            SocketOutcome `json:"outcome,omitempty"`
+	CloseCode          int           `json:"close_code,omitempty"`
+	CloseReason        string        `json:"close_reason,omitempty"`
+	ClientFrames       int64         `json:"client_frames"`
+	ClientBytes        int64         `json:"client_bytes"`
+	WorkerFrames       int64         `json:"worker_frames"`
+	WorkerBytes        int64         `json:"worker_bytes"`
+}
+
+// --------------------
 // source: stats.go
 // --------------------
 
@@ -4232,6 +4348,9 @@ type TaskResultDTO struct {
 	CreatedAt  time.Time       `json:"created_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
 	RunAt      *time.Time      `json:"run_at,omitempty"`
+	// Socket is set when the function is a stream function: the caller dials
+	// it to talk to the app. POST /sockets/{id}/access issues a fresh one.
+	Socket *SocketAccess `json:"socket,omitempty"`
 }
 
 // TaskLogsDTO is a lightweight response for task logs endpoint.
@@ -4646,6 +4765,10 @@ const (
 type WsTaskRunPayload struct {
 	Task    TaskDispatchPayload `json:"task"`
 	Secrets string              `json:"secrets"`
+	// Socket is set for a stream function: where the worker dials to meet
+	// the task's caller. Beside the task, not on it, because the task is
+	// also what clients read.
+	Socket *SocketAccess `json:"socket,omitempty"`
 }
 
 type WsTaskCancelPayload struct {
@@ -4965,6 +5088,50 @@ const (
 	GPUTypeAMD    GPUType = "amd"
 	GPUTypeApple  GPUType = "apple"
 )
+
+// --------------------
+// source: auth_scheme.go
+// --------------------
+
+// AuthSchemeKind is how a provider authenticates. One kind ships today; the
+// list is open so client-credentials, OAuth1 or API-key schemes can be added
+// without changing the AuthProvider shape.
+type AuthSchemeKind string
+
+const AuthSchemeOAuth2AuthorizationCode AuthSchemeKind = "oauth2_authorization_code"
+
+// AuthSchemeClientAuth is how client_id/client_secret reach the token
+// endpoint. Most providers accept either; a few insist on one.
+type AuthSchemeClientAuth string
+
+const (
+	// AuthSchemeClientAuthBasic sends them as an HTTP Basic Authorization
+	// header (RFC 6749 §2.3.1, the default).
+	AuthSchemeClientAuthBasic AuthSchemeClientAuth = "basic"
+	// AuthSchemeClientAuthBody sends them as form fields in the request body.
+	AuthSchemeClientAuthBody AuthSchemeClientAuth = "body"
+)
+
+// AuthScheme is one way to authenticate against a provider. Fields are
+// grouped by the kind that reads them; a kind ignores the others.
+type AuthScheme struct {
+	Kind AuthSchemeKind `json:"kind"`
+	// oauth2_authorization_code
+	AuthorizeURL string               `json:"authorize_url,omitempty"`
+	TokenURL     string               `json:"token_url,omitempty"`
+	Scopes       []string             `json:"scopes,omitempty"` // requested by default; a connect request may override
+	PKCE         bool                 `json:"pkce,omitempty"`
+	ClientAuth   AuthSchemeClientAuth `json:"client_auth,omitempty"` // empty = basic
+	// ExtraAuthorizeParams are appended to the authorize URL verbatim, for
+	// provider quirks such as Google's access_type=offline.
+	ExtraAuthorizeParams map[string]string `json:"extra_authorize_params,omitempty"`
+	// Optional identity lookup after the token exchange, so the credential
+	// can show which account was connected. Paths are dotted JSON paths into
+	// the userinfo response ("data.email", "login").
+	UserInfoURL            string `json:"userinfo_url,omitempty"`
+	UserInfoIdentifierPath string `json:"userinfo_identifier_path,omitempty"`
+	UserInfoNamePath       string `json:"userinfo_name_path,omitempty"`
+}
 
 // --------------------
 // source: base.go
@@ -6367,6 +6534,51 @@ const (
 	ProfileStatusIdle        ProfileStatus = "idle"
 	ProfileStatusBusy        ProfileStatus = "busy"
 	ProfileStatusUnavailable ProfileStatus = "unavailable"
+)
+
+// --------------------
+// source: socket.go
+// --------------------
+
+// FunctionKind is how an app function talks to its caller.
+type FunctionKind string
+
+const (
+	// FunctionKindRun takes an input and returns an output (optionally
+	// yielding progress on the way). The zero value means this.
+	FunctionKindRun FunctionKind = "run"
+	// FunctionKindStream holds a socket with the caller for the life of the
+	// task: frames both ways, no input/output exchange.
+	FunctionKindStream FunctionKind = "stream"
+)
+
+// SocketStatus is where a socket is in its life.
+type SocketStatus string
+
+const (
+	// SocketStatusPending: opened, and the two ends have not met yet. An end
+	// that gave up waiting may dial again, so an unpaired end does not close
+	// the socket; the task ending does.
+	SocketStatusPending SocketStatus = "pending"
+	// SocketStatusOpen: both ends are connected through the relay.
+	SocketStatusOpen SocketStatus = "open"
+	// SocketStatusClosed: over. Outcome says why.
+	SocketStatusClosed SocketStatus = "closed"
+)
+
+// SocketOutcome is why a socket closed.
+type SocketOutcome string
+
+const (
+	SocketOutcomeClientClosed SocketOutcome = "client_closed"
+	SocketOutcomeWorkerClosed SocketOutcome = "worker_closed"
+	// SocketOutcomeDrained: the relay restarted under a live socket.
+	SocketOutcomeDrained SocketOutcome = "drained"
+	// SocketOutcomeNeverPaired: the task ended before the two ends met.
+	SocketOutcomeNeverPaired SocketOutcome = "never_paired"
+	// SocketOutcomeTaskEnded: the task ended and the relay's own account of
+	// the socket has not arrived (yet).
+	SocketOutcomeTaskEnded SocketOutcome = "task_ended"
 )
 
 // --------------------

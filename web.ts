@@ -1614,6 +1614,11 @@ export interface AppFunction {
    * metadata by AppVersion.DeriveCapabilities.
    */
   capabilities?: string[];
+  /**
+   * Kind is how the function talks to its caller, from engine discovery:
+   * a stream function declares a socket parameter. Empty means run.
+   */
+  kind?: FunctionKind;
 }
 /**
  * AppImages holds developer-provided images for the app.
@@ -2486,6 +2491,11 @@ export interface CredentialConfigDTO {
   available: boolean;
   has_managed: boolean;
   grant?: CredentialGrant;
+  /**
+   * CustomProviderID is set when the provider is one the team defined
+   * itself (models.CustomProvider), so the UI can offer edit and remove.
+   */
+  custom_provider_id?: string;
   credential?: CredentialDTO;
 }
 /**
@@ -2595,6 +2605,63 @@ export interface CursorListResponse<T extends any> {
  */
 export interface CountResponse {
   count: number /* int64 */;
+}
+/**
+ * CustomProviderDTO is a team-defined provider: its own OAuth app registered
+ * against a third-party service. Secrets never leave the vault; the DTO
+ * carries the keys they are stored under.
+ */
+export interface CustomProviderDTO extends BaseModelDTO, PermissionModelDTO {
+  scope: CredentialScope;
+  slug: string;
+  name: string;
+  description?: string;
+  icon_url?: string;
+  docs_url?: string;
+  auth_schemes: AuthScheme[];
+  /**
+   * Where the OAuth app's client id and secret live in the team vault.
+   */
+  client_id_key: string;
+  client_secret_key: string;
+}
+/**
+ * CustomProviderCreateRequest registers a provider. ClientID and ClientSecret
+ * are written to the vault, not to the provider row.
+ */
+export interface CustomProviderCreateRequest {
+  slug: string;
+  name: string;
+  description?: string;
+  icon_url?: string;
+  docs_url?: string;
+  auth_schemes: AuthScheme[];
+  client_id: string;
+  client_secret: string;
+  /**
+   * Scope is who may connect through it. Empty = team. Org and platform
+   * follow the credential rule: chosen from the team that owns them.
+   */
+  scope?: CredentialScope;
+}
+/**
+ * CustomProviderUpdateRequest changes display fields and schemes; the slug is
+ * the provider's identity (stored on every credential) and cannot change.
+ * Empty secrets leave the stored ones alone.
+ */
+export interface CustomProviderUpdateRequest {
+  name?: string;
+  description?: string;
+  icon_url?: string;
+  docs_url?: string;
+  auth_schemes?: AuthScheme[];
+  client_id?: string;
+  client_secret?: string;
+}
+/**
+ * CustomProviderTypes is a phantom root for gotypegen dependency tracing.
+ */
+export interface CustomProviderTypes {
 }
 /**
  * EngineConfig holds engine configuration (no gorm tags).
@@ -4405,6 +4472,13 @@ export interface RemoteDTO extends BaseModelDTO, PermissionModelDTO {
 export interface ProfileDTO extends BaseModelDTO, PermissionModelDTO {
   remote_id: string;
   harness_kind: string;
+  /**
+   * DisplayName and Vendor come from the harness registry for the kind:
+   * "Claude Code" by Anthropic for harness_kind "claude". Show these; key
+   * on HarnessKind.
+   */
+  display_name: string;
+  vendor: string;
   name: string;
   command: string;
   args: string[];
@@ -4853,6 +4927,38 @@ export interface SecretDTO extends BaseModelDTO, PermissionModelDTO {
   scope?: SecretScope;
 }
 /**
+ * SocketAccess is where one end of a socket dials and the credential it
+ * presents. The task's caller gets one in the run response; the worker gets
+ * its own with the dispatch.
+ * Browsers cannot set headers on a WebSocket: they append
+ * `?access_token=<token>` to the URL. Everything else sends
+ * `Authorization: Bearer <token>`.
+ */
+export interface SocketAccess {
+  id: string;
+  url: string;
+  token: string;
+  expires_at: string /* RFC3339 */;
+}
+/**
+ * SocketDTO is a socket and what is known of its life. The traffic figures
+ * come from the relay once the socket has closed.
+ */
+export interface SocketDTO extends BaseModelDTO, PermissionModelDTO {
+  task_id: string;
+  relay: string;
+  status: SocketStatus;
+  paired_at?: string /* RFC3339 */;
+  ended_at?: string /* RFC3339 */;
+  outcome?: SocketOutcome;
+  close_code?: number /* int */;
+  close_reason?: string;
+  client_frames: number /* int64 */;
+  client_bytes: number /* int64 */;
+  worker_frames: number /* int64 */;
+  worker_bytes: number /* int64 */;
+}
+/**
  * MeStatsResponse is returned by GET /me/stats.
  */
 export interface MeStatsResponse {
@@ -5168,6 +5274,11 @@ export interface TaskResultDTO {
   created_at: string /* RFC3339 */;
   updated_at: string /* RFC3339 */;
   run_at?: string /* RFC3339 */;
+  /**
+   * Socket is set when the function is a stream function: the caller dials
+   * it to talk to the app. POST /sockets/{id}/access issues a fresh one.
+   */
+  socket?: SocketAccess;
 }
 /**
  * TaskLogsDTO is a lightweight response for task logs endpoint.
@@ -5885,6 +5996,12 @@ export const WSEventSessionEnd: WSEventType = "session_end";
 export interface WsTaskRunPayload {
   task: TaskDispatchPayload;
   secrets: string;
+  /**
+   * Socket is set for a stream function: where the worker dials to meet
+   * the task's caller. Beside the task, not on it, because the task is
+   * also what clients read.
+   */
+  socket?: SocketAccess;
 }
 export interface WsTaskCancelPayload {
   task: TaskDTO;
@@ -6204,6 +6321,55 @@ export const GPUTypeIntel: GPUType = "intel";
 export const GPUTypeNvidia: GPUType = "nvidia";
 export const GPUTypeAMD: GPUType = "amd";
 export const GPUTypeApple: GPUType = "apple";
+/**
+ * AuthSchemeKind is how a provider authenticates. One kind ships today; the
+ * list is open so client-credentials, OAuth1 or API-key schemes can be added
+ * without changing the AuthProvider shape.
+ */
+export type AuthSchemeKind = string;
+export const AuthSchemeOAuth2AuthorizationCode: AuthSchemeKind = "oauth2_authorization_code";
+/**
+ * AuthSchemeClientAuth is how client_id/client_secret reach the token
+ * endpoint. Most providers accept either; a few insist on one.
+ */
+export type AuthSchemeClientAuth = string;
+/**
+ * AuthSchemeClientAuthBasic sends them as an HTTP Basic Authorization
+ * header (RFC 6749 §2.3.1, the default).
+ */
+export const AuthSchemeClientAuthBasic: AuthSchemeClientAuth = "basic";
+/**
+ * AuthSchemeClientAuthBody sends them as form fields in the request body.
+ */
+export const AuthSchemeClientAuthBody: AuthSchemeClientAuth = "body";
+/**
+ * AuthScheme is one way to authenticate against a provider. Fields are
+ * grouped by the kind that reads them; a kind ignores the others.
+ */
+export interface AuthScheme {
+  kind: AuthSchemeKind;
+  /**
+   * oauth2_authorization_code
+   */
+  authorize_url?: string;
+  token_url?: string;
+  scopes?: string[]; // requested by default; a connect request may override
+  pkce?: boolean;
+  client_auth?: AuthSchemeClientAuth; // empty = basic
+  /**
+   * ExtraAuthorizeParams are appended to the authorize URL verbatim, for
+   * provider quirks such as Google's access_type=offline.
+   */
+  extra_authorize_params?: { [key: string]: string};
+  /**
+   * Optional identity lookup after the token exchange, so the credential
+   * can show which account was connected. Paths are dotted JSON paths into
+   * the userinfo response ("data.email", "login").
+   */
+  userinfo_url?: string;
+  userinfo_identifier_path?: string;
+  userinfo_name_path?: string;
+}
 /**
  * Visibility represents the visibility level of a resource
  */
@@ -7384,6 +7550,57 @@ export type ProfileStatus = string;
 export const ProfileStatusIdle: ProfileStatus = "idle";
 export const ProfileStatusBusy: ProfileStatus = "busy";
 export const ProfileStatusUnavailable: ProfileStatus = "unavailable";
+/**
+ * FunctionKind is how an app function talks to its caller.
+ */
+export type FunctionKind = string;
+/**
+ * FunctionKindRun takes an input and returns an output (optionally
+ * yielding progress on the way). The zero value means this.
+ */
+export const FunctionKindRun: FunctionKind = "run";
+/**
+ * FunctionKindStream holds a socket with the caller for the life of the
+ * task: frames both ways, no input/output exchange.
+ */
+export const FunctionKindStream: FunctionKind = "stream";
+/**
+ * SocketStatus is where a socket is in its life.
+ */
+export type SocketStatus = string;
+/**
+ * SocketStatusPending: opened, and the two ends have not met yet. An end
+ * that gave up waiting may dial again, so an unpaired end does not close
+ * the socket; the task ending does.
+ */
+export const SocketStatusPending: SocketStatus = "pending";
+/**
+ * SocketStatusOpen: both ends are connected through the relay.
+ */
+export const SocketStatusOpen: SocketStatus = "open";
+/**
+ * SocketStatusClosed: over. Outcome says why.
+ */
+export const SocketStatusClosed: SocketStatus = "closed";
+/**
+ * SocketOutcome is why a socket closed.
+ */
+export type SocketOutcome = string;
+export const SocketOutcomeClientClosed: SocketOutcome = "client_closed";
+export const SocketOutcomeWorkerClosed: SocketOutcome = "worker_closed";
+/**
+ * SocketOutcomeDrained: the relay restarted under a live socket.
+ */
+export const SocketOutcomeDrained: SocketOutcome = "drained";
+/**
+ * SocketOutcomeNeverPaired: the task ended before the two ends met.
+ */
+export const SocketOutcomeNeverPaired: SocketOutcome = "never_paired";
+/**
+ * SocketOutcomeTaskEnded: the task ended and the relay's own account of
+ * the socket has not arrived (yet).
+ */
+export const SocketOutcomeTaskEnded: SocketOutcome = "task_ended";
 /**
  * DeltaEvent is the generic streaming envelope on the NDJSON wire.
  * Delta is raw bytes — consumers parse based on context.
