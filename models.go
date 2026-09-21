@@ -646,6 +646,21 @@ type SecretCreateRequest struct {
 	// chosen once, here; scope is immutable after creation. Empty = the
 	// provider's default (team). Requires the matching admin role.
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
+	// ProviderName and ProviderWebsite describe a provider the platform does
+	// not list: the name the credential is shown under, and the site its
+	// logo is looked up from. Ignored for a provider the platform knows.
+	ProviderName    string `json:"provider_name,omitempty"`
+	ProviderWebsite string `json:"provider_website,omitempty"`
+}
+
+// SecretProviderRequest attaches an existing secret to a provider's
+// credential — the link a secret gets when it is created against a provider.
+// An empty Provider detaches it back to a plain secret.
+type SecretProviderRequest struct {
+	Provider        string          `json:"provider"`
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
+	ProviderName    string          `json:"provider_name,omitempty"`
+	ProviderWebsite string          `json:"provider_website,omitempty"`
 }
 
 type SecretUpdateRequest struct {
@@ -3764,9 +3779,10 @@ type SDKTypes struct {
 	// Files
 	_fileCreate FileCreateRequest
 	// Secrets
-	_secretDTO    SecretDTO
-	_secretCreate SecretCreateRequest
-	_secretUpdate SecretUpdateRequest
+	_secretDTO      SecretDTO
+	_secretCreate   SecretCreateRequest
+	_secretUpdate   SecretUpdateRequest
+	_secretProvider SecretProviderRequest
 	// Projects
 	_projectDTO    ProjectDTO
 	_projectCreate ProjectCreateRequest
@@ -3997,6 +4013,9 @@ type SecretDTO struct {
 	MaskedValue        string      `json:"masked_value"`
 	Description        string      `json:"description,omitempty"`
 	Scope              SecretScope `json:"scope,omitempty"`
+	// CredentialID is the credential this secret is attached to; empty for
+	// a plain secret.
+	CredentialID string `json:"credential_id,omitempty"`
 }
 
 // --------------------
