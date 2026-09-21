@@ -6703,6 +6703,12 @@ func (ts TaskStatus) IsInProgress() bool {
 	return ts == TaskStatusDispatched || ts == TaskStatusPreparing || ts == TaskStatusServing || ts == TaskStatusSettingUp || ts == TaskStatusRunning || ts == TaskStatusCancelling || ts == TaskStatusUploading
 }
 
+// IsPreHandoff reports whether the task is still bound to its worker, i.e.
+// before the upload handoff. See PreHandoffStatuses.
+func (ts TaskStatus) IsPreHandoff() bool {
+	return ts.StatusOrder() < TaskStatusUploading.StatusOrder()
+}
+
 func (ts TaskStatus) IsCancelling() bool {
 	return ts == TaskStatusCancelling
 }
