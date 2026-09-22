@@ -1574,16 +1574,19 @@ type ChatDTO struct {
 	Status             ChatStatus        `json:"status"`
 	Output             *json.RawMessage  `json:"output,omitempty"`
 	Context            map[string]string `json:"context,omitempty"`
-	AgentID            *string           `json:"agent_id,omitempty"`
-	Agent              *AgentDTO         `json:"agent,omitempty"`
-	AgentVersionID     *string           `json:"agent_version_id,omitempty"`
-	AgentVersion       *AgentVersionDTO  `json:"agent_version,omitempty"`
-	Name               string            `json:"name"`
-	Description        string            `json:"description"`
-	ChatMessages       []ChatMessageDTO  `json:"chat_messages"`
-	AgentData          ChatData          `json:"agent_data"`
-	ActiveRun          *AgentRunDTO      `json:"active_run,omitempty"`
-	PendingInterrupts  []InterruptDTO    `json:"pending_interrupts,omitempty"`
+	// ChannelContext names the channel this chat came through (slack, a
+	// wearable's tag, ...). Unset for chats started in the app or the SDK.
+	ChannelContext    *ChannelContext  `json:"channel_context,omitempty"`
+	AgentID           *string          `json:"agent_id,omitempty"`
+	Agent             *AgentDTO        `json:"agent,omitempty"`
+	AgentVersionID    *string          `json:"agent_version_id,omitempty"`
+	AgentVersion      *AgentVersionDTO `json:"agent_version,omitempty"`
+	Name              string           `json:"name"`
+	Description       string           `json:"description"`
+	ChatMessages      []ChatMessageDTO `json:"chat_messages"`
+	AgentData         ChatData         `json:"agent_data"`
+	ActiveRun         *AgentRunDTO     `json:"active_run,omitempty"`
+	PendingInterrupts []InterruptDTO   `json:"pending_interrupts,omitempty"`
 }
 
 // ChatMessageDTO for API responses
