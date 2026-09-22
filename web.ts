@@ -4278,7 +4278,12 @@ export interface PaymentRecordDTO extends BaseModelDTO, PermissionModelDTO {
   session_url?: string;
   provider_session_id?: string;
   provider_metadata?: { [key: string]: any};
+  /**
+   * Invoice is the document that currently stands for this payment; Invoices is every invoice and
+   * credit note issued against it, oldest first.
+   */
   invoice?: InvoiceDTO;
+  invoices?: InvoiceDTO[];
 }
 /**
  * TaxBreakdownItem represents a single tax component
