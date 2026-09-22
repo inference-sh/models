@@ -6476,6 +6476,7 @@ const (
 	NotificationTypeUsageSummary              NotificationType = "usage_summary"
 	NotificationTypeSpendingLimit             NotificationType = "spending_limit"
 	NotificationTypeInvoice                   NotificationType = "invoice"
+	NotificationTypeCreditNote                NotificationType = "credit_note"
 	NotificationTypeSubscriptionCreated       NotificationType = "subscription_created"
 	NotificationTypeSubscriptionCredit        NotificationType = "subscription_credit"
 	NotificationTypeSubscriptionCanceled      NotificationType = "subscription_canceled"
