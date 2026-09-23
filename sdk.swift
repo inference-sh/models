@@ -424,9 +424,24 @@ public struct ClientToolConfig: Codable {
     }
 }
 
+/// ToolAuthType says how an HTTP tool authenticates.
+public struct ToolAuthType: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// ToolAuthTypeNone sends no credentials (same as leaving type empty).
+    public static let none = ToolAuthType(rawValue: "none")
+    /// ToolAuthTypeCredential sends a connected credential's access token.
+    public static let credential = ToolAuthType(rawValue: "credential")
+    /// ToolAuthTypeAPIKey sends a vault secret in a header.
+    public static let apiKey = ToolAuthType(rawValue: "api_key")
+    /// ToolAuthTypeBearer sends a vault secret as a bearer token.
+    public static let bearer = ToolAuthType(rawValue: "bearer")
+}
+
 /// ToolAuthConfig declares how a tool authenticates.
 public struct ToolAuthConfig: Codable {
-    public var type: String
+    public var type: ToolAuthType
     public var provider: String?
     public var credentialId: String?
     /// Deprecated: the credential id used to be called integration_id. Read
@@ -436,7 +451,7 @@ public struct ToolAuthConfig: Codable {
     public var header: String?
 
     public init(
-        type: String = "",
+        type: ToolAuthType,
         provider: String? = nil,
         credentialId: String? = nil,
         integrationId: String? = nil,
@@ -1520,7 +1535,7 @@ public struct AppVersionInput: Codable {
     public var env: [String: String]?
     public var kernel: String?
     public var requiredSecrets: [SecretRequirement]?
-    public var requiredIntegrations: [CredentialRequirement]?
+    public var requiredCredentials: [CredentialRequirement]?
     public var resources: AppResources?
 
     public init(
@@ -1535,7 +1550,7 @@ public struct AppVersionInput: Codable {
         env: [String: String]? = nil,
         kernel: String? = nil,
         requiredSecrets: [SecretRequirement]? = nil,
-        requiredIntegrations: [CredentialRequirement]? = nil,
+        requiredCredentials: [CredentialRequirement]? = nil,
         resources: AppResources? = nil
     ) {
         self.metadata = metadata
@@ -1549,7 +1564,7 @@ public struct AppVersionInput: Codable {
         self.env = env
         self.kernel = kernel
         self.requiredSecrets = requiredSecrets
-        self.requiredIntegrations = requiredIntegrations
+        self.requiredCredentials = requiredCredentials
         self.resources = resources
     }
 
@@ -1565,7 +1580,7 @@ public struct AppVersionInput: Codable {
         case env = "env"
         case kernel = "kernel"
         case requiredSecrets = "required_secrets"
-        case requiredIntegrations = "required_integrations"
+        case requiredCredentials = "required_credentials"
         case resources = "resources"
     }
 }
@@ -2085,7 +2100,7 @@ public struct CredentialCompleteOAuthRequest: Codable {
 }
 
 public struct CredentialConnectResponse: Codable {
-    public var integration: CredentialDTO?
+    public var credential: CredentialDTO?
     public var authUrl: String?
     public var state: String?
     public var codeVerifier: String?
@@ -2095,7 +2110,7 @@ public struct CredentialConnectResponse: Codable {
     public var message: String?
 
     public init(
-        integration: CredentialDTO? = nil,
+        credential: CredentialDTO? = nil,
         authUrl: String? = nil,
         state: String? = nil,
         codeVerifier: String? = nil,
@@ -2104,7 +2119,7 @@ public struct CredentialConnectResponse: Codable {
         confirmationType: String? = nil,
         message: String? = nil
     ) {
-        self.integration = integration
+        self.credential = credential
         self.authUrl = authUrl
         self.state = state
         self.codeVerifier = codeVerifier
@@ -2115,7 +2130,7 @@ public struct CredentialConnectResponse: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case integration = "integration"
+        case credential = "credential"
         case authUrl = "auth_url"
         case state = "state"
         case codeVerifier = "code_verifier"
@@ -2334,9 +2349,10 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     /// Action-level scopes for Secrets (sensitive - excluded from read-only preset)
     public static let secretsRead = Scope(rawValue: "secrets:read")
     public static let secretsWrite = Scope(rawValue: "secrets:write")
-    /// Action-level scopes for Integrations
-    public static let integrationsRead = Scope(rawValue: "integrations:read")
-    public static let integrationsWrite = Scope(rawValue: "integrations:write")
+    /// Action-level scopes for credentials (connected accounts, vaults,
+    /// custom providers, MCP servers). Formerly integrations:read|write.
+    public static let credentialsRead = Scope(rawValue: "credentials:read")
+    public static let credentialsWrite = Scope(rawValue: "credentials:write")
     /// Action-level scopes for Engines
     public static let enginesRead = Scope(rawValue: "engines:read")
     public static let enginesWrite = Scope(rawValue: "engines:write")
@@ -2373,7 +2389,7 @@ public struct ScopeGroup: RawRepresentable, Codable, Hashable, Sendable {
     public static let teams = ScopeGroup(rawValue: "teams")
     public static let billing = ScopeGroup(rawValue: "billing")
     public static let secrets = ScopeGroup(rawValue: "secrets")
-    public static let integrations = ScopeGroup(rawValue: "integrations")
+    public static let credentials = ScopeGroup(rawValue: "credentials")
     public static let engines = ScopeGroup(rawValue: "engines")
     public static let apiKeys = ScopeGroup(rawValue: "apikeys")
     public static let knowledge = ScopeGroup(rawValue: "knowledge")
@@ -2796,10 +2812,10 @@ public struct SecretRequirement: Codable {
     }
 }
 
-/// CredentialRequirement defines an integration that an app requires.
+/// CredentialRequirement defines a credential that an app requires.
 /// Key is the provider slug (e.g. "bytedance", "google").
-/// Secrets lists the specific env var names to inject from this integration.
-/// Scopes lists OAuth scopes needed (for OAuth integrations).
+/// Secrets lists the specific env var names to inject from this credential.
+/// Scopes lists OAuth scopes needed (for OAuth credentials).
 public struct CredentialRequirement: Codable {
     public var key: String
     public var description: String?
@@ -2855,7 +2871,7 @@ public struct AppDTO: Codable {
     public var category: AppCategory
     public var images: AppImages
     public var versionId: String
-    public var version: AppVersionDTO?
+    public var version: JSONValue?
     public var status: AppStatus
     public var statusMessage: String?
     public var statusChangedAt: String?
@@ -2880,7 +2896,7 @@ public struct AppDTO: Codable {
         category: AppCategory,
         images: AppImages,
         versionId: String = "",
-        version: AppVersionDTO? = nil,
+        version: JSONValue? = nil,
         status: AppStatus,
         statusMessage: String? = nil,
         statusChangedAt: String? = nil
@@ -2957,7 +2973,7 @@ public struct AppVersionDTO: Codable {
     public var env: [String: String]?
     public var kernel: String
     public var requiredSecrets: [SecretRequirement]?
-    public var requiredIntegrations: [CredentialRequirement]?
+    public var requiredCredentials: [CredentialRequirement]?
     public var resources: AppResources
     public var checksum: String?
 
@@ -2980,7 +2996,7 @@ public struct AppVersionDTO: Codable {
         env: [String: String]? = nil,
         kernel: String = "",
         requiredSecrets: [SecretRequirement]? = nil,
-        requiredIntegrations: [CredentialRequirement]? = nil,
+        requiredCredentials: [CredentialRequirement]? = nil,
         resources: AppResources,
         checksum: String? = nil
     ) {
@@ -3002,7 +3018,7 @@ public struct AppVersionDTO: Codable {
         self.env = env
         self.kernel = kernel
         self.requiredSecrets = requiredSecrets
-        self.requiredIntegrations = requiredIntegrations
+        self.requiredCredentials = requiredCredentials
         self.resources = resources
         self.checksum = checksum
     }
@@ -3026,7 +3042,7 @@ public struct AppVersionDTO: Codable {
         case env = "env"
         case kernel = "kernel"
         case requiredSecrets = "required_secrets"
-        case requiredIntegrations = "required_integrations"
+        case requiredCredentials = "required_credentials"
         case resources = "resources"
         case checksum = "checksum"
     }
@@ -9820,8 +9836,8 @@ public struct CompletePaymentRequest: Codable {
     }
 }
 
-/// UpdateIntegrationScopesRequest updates integration scopes.
-public struct UpdateIntegrationScopesRequest: Codable {
+/// UpdateCredentialScopesRequest adds OAuth scopes to a connected credential.
+public struct UpdateCredentialScopesRequest: Codable {
     public var scopes: [String]?
 
     public init(
@@ -9941,13 +9957,13 @@ public struct RequirementType: RawRepresentable, Codable, Hashable, Sendable {
     public init(rawValue: String) { self.rawValue = rawValue }
 
     public static let secret = RequirementType(rawValue: "secret")
-    public static let integration = RequirementType(rawValue: "integration")
+    public static let credential = RequirementType(rawValue: "credential")
     public static let scope = RequirementType(rawValue: "scope")
 }
 
 /// RequirementError represents a single missing requirement with actionable info
 public struct RequirementError: Codable {
-    /// "secret" | "integration" | "scope"
+    /// "secret" | "credential" | "scope"
     public var type: RequirementType
     /// The requirement key that's missing
     public var key: String
@@ -10024,19 +10040,19 @@ public struct SetupAction: Codable {
 /// CheckRequirementsRequest is the request body for checking requirements
 public struct CheckRequirementsRequest: Codable {
     public var secrets: [SecretRequirement]?
-    public var integrations: [CredentialRequirement]?
+    public var credentials: [CredentialRequirement]?
 
     public init(
         secrets: [SecretRequirement]? = nil,
-        integrations: [CredentialRequirement]? = nil
+        credentials: [CredentialRequirement]? = nil
     ) {
         self.secrets = secrets
-        self.integrations = integrations
+        self.credentials = credentials
     }
 
     enum CodingKeys: String, CodingKey {
         case secrets = "secrets"
-        case integrations = "integrations"
+        case credentials = "credentials"
     }
 }
 
@@ -11095,7 +11111,7 @@ public struct TaskDTO: Codable {
     public var appId: String
     public var app: AppDTO?
     public var appVersionId: String
-    public var appVersion: AppVersionDTO?
+    public var appVersion: JSONValue?
     public var appVariant: String
     public var function: String
     public var infra: Infra
@@ -11143,7 +11159,7 @@ public struct TaskDTO: Codable {
         appId: String = "",
         app: AppDTO? = nil,
         appVersionId: String = "",
-        appVersion: AppVersionDTO? = nil,
+        appVersion: JSONValue? = nil,
         appVariant: String = "",
         function: String = "",
         infra: Infra,
@@ -13104,7 +13120,7 @@ public struct GraphNodeType: RawRepresentable, Codable, Hashable, Sendable {
     public static let conditional = GraphNodeType(rawValue: "conditional")
     public static let flowNode = GraphNodeType(rawValue: "flow_node")
     public static let trigger = GraphNodeType(rawValue: "trigger")
-    public static let integrationRequirement = GraphNodeType(rawValue: "integration_requirement")
+    public static let credentialRequirement = GraphNodeType(rawValue: "credential_requirement")
 }
 
 /// GraphNodeStatus represents the status of a node

@@ -209,11 +209,36 @@ type ClientToolConfig struct {
 	OutputSchema *json.RawMessage `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
+// ToolAuthType says how an HTTP tool authenticates.
+type ToolAuthType string
+
+// Canonical returns the current spelling of the auth type.
+func (t ToolAuthType) Canonical() ToolAuthType {
+	if t == toolAuthTypeLegacyIntegration {
+		return ToolAuthTypeCredential
+	}
+	return t
+}
+
+const (
+	// ToolAuthTypeNone sends no credentials (same as leaving type empty).
+	ToolAuthTypeNone ToolAuthType = "none"
+	// ToolAuthTypeCredential sends a connected credential's access token.
+	ToolAuthTypeCredential ToolAuthType = "credential"
+	// ToolAuthTypeAPIKey sends a vault secret in a header.
+	ToolAuthTypeAPIKey ToolAuthType = "api_key"
+	// ToolAuthTypeBearer sends a vault secret as a bearer token.
+	ToolAuthTypeBearer ToolAuthType = "bearer"
+	// toolAuthTypeLegacyIntegration is how agent versions and inf.yml files
+	// written before the credential rename spell ToolAuthTypeCredential.
+	toolAuthTypeLegacyIntegration ToolAuthType = "integration"
+)
+
 // ToolAuthConfig declares how a tool authenticates.
 type ToolAuthConfig struct {
-	Type         string `json:"type" yaml:"type"`
-	Provider     string `json:"provider,omitempty" yaml:"provider,omitempty"`
-	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
+	Type         ToolAuthType `json:"type" yaml:"type"`
+	Provider     string       `json:"provider,omitempty" yaml:"provider,omitempty"`
+	CredentialID string       `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
 	// Deprecated: the credential id used to be called integration_id. Read
 	// through CredentialRef(); never written.
 	IntegrationID string `json:"integration_id,omitempty" yaml:"integration_id,omitempty"`
@@ -528,19 +553,36 @@ type FileCreateRequest struct {
 
 // AppVersionInput is the API input shape for app version config (no gorm tags).
 type AppVersionInput struct {
-	Metadata             map[string]any          `json:"metadata,omitempty"`
-	Repository           string                  `json:"repository,omitempty"`
-	SetupSchema          json.RawMessage         `json:"setup_schema,omitempty"`
-	InputSchema          json.RawMessage         `json:"input_schema,omitempty"`
-	OutputSchema         json.RawMessage         `json:"output_schema,omitempty"`
-	Functions            map[string]AppFunction  `json:"functions,omitempty"`
-	DefaultFunction      string                  `json:"default_function,omitempty"`
-	Variants             map[string]AppVariant   `json:"variants,omitempty"`
-	Env                  map[string]string       `json:"env,omitempty"`
-	Kernel               string                  `json:"kernel,omitempty"`
-	RequiredSecrets      []SecretRequirement     `json:"required_secrets,omitempty"`
-	RequiredIntegrations []CredentialRequirement `json:"required_integrations,omitempty"`
-	RequiredResources    AppResources            `json:"resources,omitempty"`
+	Metadata            map[string]any          `json:"metadata,omitempty"`
+	Repository          string                  `json:"repository,omitempty"`
+	SetupSchema         json.RawMessage         `json:"setup_schema,omitempty"`
+	InputSchema         json.RawMessage         `json:"input_schema,omitempty"`
+	OutputSchema        json.RawMessage         `json:"output_schema,omitempty"`
+	Functions           map[string]AppFunction  `json:"functions,omitempty"`
+	DefaultFunction     string                  `json:"default_function,omitempty"`
+	Variants            map[string]AppVariant   `json:"variants,omitempty"`
+	Env                 map[string]string       `json:"env,omitempty"`
+	Kernel              string                  `json:"kernel,omitempty"`
+	RequiredSecrets     []SecretRequirement     `json:"required_secrets,omitempty"`
+	RequiredCredentials []CredentialRequirement `json:"required_credentials,omitempty"`
+	RequiredResources   AppResources            `json:"resources,omitempty"`
+}
+
+// UnmarshalJSON accepts required_integrations from clients built before the rename.
+func (v *AppVersionInput) UnmarshalJSON(data []byte) error {
+	type plain AppVersionInput
+	var in struct {
+		plain
+		Legacy []CredentialRequirement `json:"required_integrations"`
+	}
+	if err := json.Unmarshal(data, &in); err != nil {
+		return err
+	}
+	*v = AppVersionInput(in.plain)
+	if v.RequiredCredentials == nil {
+		v.RequiredCredentials = in.Legacy
+	}
+	return nil
 }
 
 // CreateAppRequest is the request body for POST /apps
@@ -730,7 +772,7 @@ type CredentialCompleteOAuthRequest struct {
 }
 
 type CredentialConnectResponse struct {
-	Credential           *CredentialDTO `json:"integration"`
+	Credential           *CredentialDTO `json:"credential"`
 	AuthURL              string         `json:"auth_url,omitempty"`
 	State                string         `json:"state,omitempty"`
 	CodeVerifier         string         `json:"code_verifier,omitempty"`
@@ -738,6 +780,15 @@ type CredentialConnectResponse struct {
 	RequiresConfirmation bool           `json:"requires_confirmation,omitempty"`
 	ConfirmationType     string         `json:"confirmation_type,omitempty"`
 	Message              string         `json:"message,omitempty"`
+}
+
+// MarshalJSON also writes integration for CLIs built before the rename.
+func (r CredentialConnectResponse) MarshalJSON() ([]byte, error) {
+	type plain CredentialConnectResponse
+	return json.Marshal(struct {
+		plain
+		Legacy *CredentialDTO `json:"integration,omitempty"`
+	}{plain(r), r.Credential})
 }
 
 type ProjectCreateRequest struct {
@@ -909,9 +960,10 @@ const (
 	// Action-level scopes for Secrets (sensitive - excluded from read-only preset)
 	ScopeSecretsRead  Scope = "secrets:read"
 	ScopeSecretsWrite Scope = "secrets:write"
-	// Action-level scopes for Integrations
-	ScopeIntegrationsRead  Scope = "integrations:read"
-	ScopeIntegrationsWrite Scope = "integrations:write"
+	// Action-level scopes for credentials (connected accounts, vaults,
+	// custom providers, MCP servers). Formerly integrations:read|write.
+	ScopeCredentialsRead  Scope = "credentials:read"
+	ScopeCredentialsWrite Scope = "credentials:write"
 	// Action-level scopes for Engines
 	ScopeEnginesRead  Scope = "engines:read"
 	ScopeEnginesWrite Scope = "engines:write"
@@ -947,7 +999,7 @@ const (
 	ScopeGroupTeams         ScopeGroup = "teams"
 	ScopeGroupBilling       ScopeGroup = "billing"
 	ScopeGroupSecrets       ScopeGroup = "secrets"
-	ScopeGroupIntegrations  ScopeGroup = "integrations"
+	ScopeGroupCredentials   ScopeGroup = "credentials"
 	ScopeGroupEngines       ScopeGroup = "engines"
 	ScopeGroupApiKeys       ScopeGroup = "apikeys"
 	ScopeGroupKnowledge     ScopeGroup = "knowledge"
@@ -1102,10 +1154,10 @@ type SecretRequirement struct {
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
 }
 
-// CredentialRequirement defines an integration that an app requires.
+// CredentialRequirement defines a credential that an app requires.
 // Key is the provider slug (e.g. "bytedance", "google").
-// Secrets lists the specific env var names to inject from this integration.
-// Scopes lists OAuth scopes needed (for OAuth integrations).
+// Secrets lists the specific env var names to inject from this credential.
+// Scopes lists OAuth scopes needed (for OAuth credentials).
 type CredentialRequirement struct {
 	Key         string   `json:"key" yaml:"key"`
 	Description string   `json:"description,omitempty" yaml:"description,omitempty"`
@@ -1146,23 +1198,32 @@ func (a *AppDTO) FullName() string {
 
 // AppVersionDTO is the API response for an app version.
 type AppVersionDTO struct {
-	BaseModelDTO         `tstype:",extends"`
-	Metadata             map[string]any          `json:"metadata"`
-	Repository           string                  `json:"repository"`
-	FlowVersionID        *string                 `json:"flow_version_id"`
-	FlowVersion          *FlowVersionDTO         `json:"flow_version"`
-	SetupSchema          json.RawMessage         `json:"setup_schema"`
-	InputSchema          json.RawMessage         `json:"input_schema"`
-	OutputSchema         json.RawMessage         `json:"output_schema"`
-	Functions            map[string]AppFunction  `json:"functions,omitempty"`
-	DefaultFunction      string                  `json:"default_function,omitempty"`
-	Variants             map[string]AppVariant   `json:"variants"`
-	Env                  map[string]string       `json:"env"`
-	Kernel               string                  `json:"kernel"`
-	RequiredSecrets      []SecretRequirement     `json:"required_secrets,omitempty"`
-	RequiredIntegrations []CredentialRequirement `json:"required_integrations,omitempty"`
-	RequiredResources    AppResources            `json:"resources"`
-	Checksum             string                  `json:"checksum,omitempty"`
+	BaseModelDTO        `tstype:",extends"`
+	Metadata            map[string]any          `json:"metadata"`
+	Repository          string                  `json:"repository"`
+	FlowVersionID       *string                 `json:"flow_version_id"`
+	FlowVersion         *FlowVersionDTO         `json:"flow_version"`
+	SetupSchema         json.RawMessage         `json:"setup_schema"`
+	InputSchema         json.RawMessage         `json:"input_schema"`
+	OutputSchema        json.RawMessage         `json:"output_schema"`
+	Functions           map[string]AppFunction  `json:"functions,omitempty"`
+	DefaultFunction     string                  `json:"default_function,omitempty"`
+	Variants            map[string]AppVariant   `json:"variants"`
+	Env                 map[string]string       `json:"env"`
+	Kernel              string                  `json:"kernel"`
+	RequiredSecrets     []SecretRequirement     `json:"required_secrets,omitempty"`
+	RequiredCredentials []CredentialRequirement `json:"required_credentials,omitempty"`
+	RequiredResources   AppResources            `json:"resources"`
+	Checksum            string                  `json:"checksum,omitempty"`
+}
+
+// MarshalJSON also writes required_integrations for CLIs built before the rename.
+func (v AppVersionDTO) MarshalJSON() ([]byte, error) {
+	type plain AppVersionDTO
+	return json.Marshal(struct {
+		plain
+		Legacy []CredentialRequirement `json:"required_integrations,omitempty"`
+	}{plain(v), v.RequiredCredentials})
 }
 
 // LicenseRecordDTO is the API response for a license record.
@@ -3550,8 +3611,8 @@ type CompletePaymentRequest struct {
 	PaymentID string `json:"payment_id,omitempty"`
 }
 
-// UpdateIntegrationScopesRequest updates integration scopes.
-type UpdateIntegrationScopesRequest struct {
+// UpdateCredentialScopesRequest adds OAuth scopes to a connected credential.
+type UpdateCredentialScopesRequest struct {
 	Scopes []string `json:"scopes"`
 }
 
@@ -3592,14 +3653,14 @@ type RequirementType string
 
 // Requirement error types
 const (
-	RequirementTypeSecret      RequirementType = "secret"
-	RequirementTypeIntegration RequirementType = "integration"
-	RequirementTypeScope       RequirementType = "scope"
+	RequirementTypeSecret     RequirementType = "secret"
+	RequirementTypeCredential RequirementType = "credential"
+	RequirementTypeScope      RequirementType = "scope"
 )
 
 // RequirementError represents a single missing requirement with actionable info
 type RequirementError struct {
-	Type    RequirementType `json:"type"`    // "secret" | "integration" | "scope"
+	Type    RequirementType `json:"type"`    // "secret" | "credential" | "scope"
 	Key     string          `json:"key"`     // The requirement key that's missing
 	Message string          `json:"message"` // Human-readable error message
 	Action  *SetupAction    `json:"action,omitempty"`
@@ -3623,7 +3684,7 @@ type SetupAction struct {
 	ScopeDescriptions map[string]string `json:"scope_descriptions,omitempty"` // Scope key → friendly description
 }
 
-// Capability represents an integration capability that can be requested by apps
+// Capability represents a credential capability that can be requested by apps
 type Capability struct {
 	Key         string   `json:"key"`                   // e.g., "google.sheets"
 	Provider    string   `json:"provider"`              // e.g., "google"
@@ -3642,8 +3703,25 @@ type CapabilitiesResponse struct {
 
 // CheckRequirementsRequest is the request body for checking requirements
 type CheckRequirementsRequest struct {
-	Secrets      []SecretRequirement     `json:"secrets,omitempty"`
-	Integrations []CredentialRequirement `json:"integrations,omitempty"`
+	Secrets     []SecretRequirement     `json:"secrets,omitempty"`
+	Credentials []CredentialRequirement `json:"credentials,omitempty"`
+}
+
+// UnmarshalJSON accepts integrations from clients built before the rename.
+func (r *CheckRequirementsRequest) UnmarshalJSON(data []byte) error {
+	type plain CheckRequirementsRequest
+	var in struct {
+		plain
+		Legacy []CredentialRequirement `json:"integrations"`
+	}
+	if err := json.Unmarshal(data, &in); err != nil {
+		return err
+	}
+	*r = CheckRequirementsRequest(in.plain)
+	if r.Credentials == nil {
+		r.Credentials = in.Legacy
+	}
+	return nil
 }
 
 // CheckRequirementsResponse is the API response for checking requirements
@@ -3781,7 +3859,7 @@ type SDKTypes struct {
 	_integCompleteOAuth CredentialCompleteOAuthRequest
 	_integConnectResp   CredentialConnectResponse
 	_integConfigDTO     CredentialConfigDTO
-	_integUpdateScopes  UpdateIntegrationScopesRequest
+	_credUpdateScopes   UpdateCredentialScopesRequest
 	// Resource sharing
 	_shareReq ShareRequest
 	_shareDTO ResourceShareDTO
@@ -5767,16 +5845,16 @@ func (v GraphNodeType) Value() (driver.Value, error) {
 }
 
 const (
-	GraphNodeTypeUnknown                GraphNodeType = "unknown"
-	GraphNodeTypeJoin                   GraphNodeType = "join"
-	GraphNodeTypeSplit                  GraphNodeType = "split"
-	GraphNodeTypeExecution              GraphNodeType = "execution"
-	GraphNodeTypeResource               GraphNodeType = "resource"
-	GraphNodeTypeApproval               GraphNodeType = "approval"
-	GraphNodeTypeConditional            GraphNodeType = "conditional"
-	GraphNodeTypeFlowNode               GraphNodeType = "flow_node"
-	GraphNodeTypeTrigger                GraphNodeType = "trigger"
-	GraphNodeTypeIntegrationRequirement GraphNodeType = "integration_requirement"
+	GraphNodeTypeUnknown               GraphNodeType = "unknown"
+	GraphNodeTypeJoin                  GraphNodeType = "join"
+	GraphNodeTypeSplit                 GraphNodeType = "split"
+	GraphNodeTypeExecution             GraphNodeType = "execution"
+	GraphNodeTypeResource              GraphNodeType = "resource"
+	GraphNodeTypeApproval              GraphNodeType = "approval"
+	GraphNodeTypeConditional           GraphNodeType = "conditional"
+	GraphNodeTypeFlowNode              GraphNodeType = "flow_node"
+	GraphNodeTypeTrigger               GraphNodeType = "trigger"
+	GraphNodeTypeCredentialRequirement GraphNodeType = "credential_requirement"
 )
 
 // GraphNodeStatus represents the status of a node
