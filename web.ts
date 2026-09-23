@@ -6070,6 +6070,12 @@ export interface WsTaskOutputPayload {
   task_id: string;
   output: string;
   is_delta?: boolean;
+  /**
+   * Seq numbers a task's deltas in the order the engine produced them,
+   * 1-based. The API releases deltas to the bus in this order; the socket
+   * alone does not keep it. Zero from an engine that does not number yet.
+   */
+  seq?: number /* int64 */;
 }
 export interface WsTaskFailedPayload {
   task_id: string;

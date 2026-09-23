@@ -4816,6 +4816,10 @@ type WsTaskOutputPayload struct {
 	TaskID  string `json:"task_id"`
 	Output  []byte `json:"output"`
 	IsDelta bool   `json:"is_delta,omitempty"`
+	// Seq numbers a task's deltas in the order the engine produced them,
+	// 1-based. The API releases deltas to the bus in this order; the socket
+	// alone does not keep it. Zero from an engine that does not number yet.
+	Seq int64 `json:"seq,omitempty"`
 }
 
 type WsTaskFailedPayload struct {
