@@ -210,11 +210,26 @@ type ClientToolConfig struct {
 
 // ToolAuthConfig declares how a tool authenticates.
 type ToolAuthConfig struct {
-	Type          string `json:"type" yaml:"type"`
-	Provider      string `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Type         string `json:"type" yaml:"type"`
+	Provider     string `json:"provider,omitempty" yaml:"provider,omitempty"`
+	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
+	// Deprecated: the credential id used to be called integration_id. Read
+	// through CredentialRef(); never written.
 	IntegrationID string `json:"integration_id,omitempty" yaml:"integration_id,omitempty"`
 	Secret        string `json:"secret,omitempty" yaml:"secret,omitempty"`
 	Header        string `json:"header,omitempty" yaml:"header,omitempty"`
+}
+
+// CredentialRef is the credential this auth config names, accepting the
+// legacy integration_id spelling stored by older agent versions.
+func (c *ToolAuthConfig) CredentialRef() string {
+	if c == nil {
+		return ""
+	}
+	if c.CredentialID != "" {
+		return c.CredentialID
+	}
+	return c.IntegrationID
 }
 
 type HTTPToolConfig struct {
@@ -227,8 +242,23 @@ type HTTPToolConfig struct {
 }
 
 type MCPToolConfig struct {
-	IntegrationID string `json:"integration_id" yaml:"integration_id"`
+	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
+	// Deprecated: the credential id used to be called integration_id. Read
+	// through CredentialRef(); never written.
+	IntegrationID string `json:"integration_id,omitempty" yaml:"integration_id,omitempty"`
 	ToolName      string `json:"tool_name" yaml:"tool_name"`
+}
+
+// CredentialRef is the MCP credential this tool runs through, accepting the
+// legacy integration_id spelling stored by older agent versions.
+func (c *MCPToolConfig) CredentialRef() string {
+	if c == nil {
+		return ""
+	}
+	if c.CredentialID != "" {
+		return c.CredentialID
+	}
+	return c.IntegrationID
 }
 
 type AppToolConfigDTO struct {
@@ -271,8 +301,8 @@ type HTTPToolConfigDTO struct {
 }
 
 type MCPToolConfigDTO struct {
-	IntegrationID string `json:"integration_id"`
-	ToolName      string `json:"tool_name"`
+	CredentialID string `json:"credential_id"`
+	ToolName     string `json:"tool_name"`
 }
 
 // AgentImages contains display images for an agent

@@ -149,6 +149,11 @@ export interface ClientToolConfig {
 export interface ToolAuthConfig {
   type: string;
   provider?: string;
+  credential_id?: string;
+  /**
+   * Deprecated: the credential id used to be called integration_id. Read
+   * through CredentialRef(); never written.
+   */
   integration_id?: string;
   secret?: string;
   header?: string;
@@ -162,7 +167,12 @@ export interface HTTPToolConfig {
   output_schema?: any;
 }
 export interface MCPToolConfig {
-  integration_id: string;
+  credential_id?: string;
+  /**
+   * Deprecated: the credential id used to be called integration_id. Read
+   * through CredentialRef(); never written.
+   */
+  integration_id?: string;
   tool_name: string;
 }
 export interface AppToolConfigDTO {
@@ -200,7 +210,7 @@ export interface HTTPToolConfigDTO {
   output_schema?: any;
 }
 export interface MCPToolConfigDTO {
-  integration_id: string;
+  credential_id: string;
   tool_name: string;
 }
 /**
@@ -3972,7 +3982,7 @@ export interface AdminMCPServerDTO {
  * MCPToolCallDTO tracks an MCP tool invocation — inputs, outputs, status, timing.
  */
 export interface MCPToolCallDTO extends BaseModelDTO, PermissionModelDTO {
-  integration_id: string;
+  credential_id: string;
   server_slug: string;
   tool_name: string;
   input: { [key: string]: any};
