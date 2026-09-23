@@ -16,6 +16,7 @@ export interface InternalToolsConfig {
   meta?: boolean;
   artifact?: boolean;
   spawn?: boolean;
+  remote?: boolean;
 }
 /**
  * AgentTool represents a unified tool that can be used by an agent
@@ -206,6 +207,15 @@ export interface AgentDTO extends BaseModelDTO, PermissionModelDTO, ProjectModel
   images: AgentImages;
   version_id: string;
   version?: AgentVersionDTO;
+  /**
+   * ProfileID is set when a harness profile on a remote thinks for this
+   * agent instead of our loop.
+   */
+  profile_id?: string;
+  /**
+   * RemoteID is the machine the agent's terminal tools run on by default.
+   */
+  remote_id?: string;
 }
 export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
   description: string;
@@ -277,6 +287,12 @@ export interface AgentRunDTO extends BaseModelDTO, PermissionModelDTO {
   tool_invocation_id?: string;
   trigger_id?: string;
   metadata?: any;
+  /**
+   * ProfileID is the harness profile that thought for this run; nil when it
+   * was our own loop. RemoteID is the machine it ran on, if any.
+   */
+  profile_id?: string;
+  remote_id?: string;
 }
 export interface APIResponse<T extends any> {
   success: boolean;
@@ -1598,6 +1614,15 @@ export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
   agent_data: ChatData;
   active_run?: AgentRunDTO;
   pending_interrupts?: InterruptDTO[];
+  /**
+   * HarnessSessionID is the harness's own session id when a remote profile
+   * thinks for this chat; `claude --resume <id>` opens it on that machine.
+   */
+  harness_session_id?: string;
+  /**
+   * ForkedFromMessageID is the message this chat was branched at.
+   */
+  forked_from_message_id?: string;
 }
 /**
  * ChatMessageDTO for API responses

@@ -120,6 +120,7 @@ type InternalToolsConfig struct {
 	Meta        *bool `json:"meta,omitempty" yaml:"meta,omitempty"`
 	Artifact    *bool `json:"artifact,omitempty" yaml:"artifact,omitempty"`
 	Spawn       *bool `json:"spawn,omitempty" yaml:"spawn,omitempty"`
+	Remote      *bool `json:"remote,omitempty" yaml:"remote,omitempty"`
 }
 
 // AgentTool represents a unified tool that can be used by an agent
@@ -334,6 +335,11 @@ type AgentDTO struct {
 	Images    AgentImages      `json:"images"`
 	VersionID string           `json:"version_id"`
 	Version   *AgentVersionDTO `json:"version"`
+	// ProfileID is set when a harness profile on a remote thinks for this
+	// agent instead of our loop.
+	ProfileID *string `json:"profile_id,omitempty"`
+	// RemoteID is the machine the agent's terminal tools run on by default.
+	RemoteID *string `json:"remote_id,omitempty"`
 }
 
 // FullName returns the full name in the format "namespace/name"
@@ -418,6 +424,10 @@ type AgentRunDTO struct {
 	ToolInvocationID   *string          `json:"tool_invocation_id,omitempty"`
 	TriggerID          *string          `json:"trigger_id,omitempty"`
 	Metadata           json.RawMessage  `json:"metadata,omitempty"`
+	// ProfileID is the harness profile that thought for this run; nil when it
+	// was our own loop. RemoteID is the machine it ran on, if any.
+	ProfileID *string `json:"profile_id,omitempty"`
+	RemoteID  *string `json:"remote_id,omitempty"`
 }
 
 // --------------------
@@ -1617,6 +1627,11 @@ type ChatDTO struct {
 	AgentData         ChatData         `json:"agent_data"`
 	ActiveRun         *AgentRunDTO     `json:"active_run,omitempty"`
 	PendingInterrupts []InterruptDTO   `json:"pending_interrupts,omitempty"`
+	// HarnessSessionID is the harness's own session id when a remote profile
+	// thinks for this chat; `claude --resume <id>` opens it on that machine.
+	HarnessSessionID *string `json:"harness_session_id,omitempty"`
+	// ForkedFromMessageID is the message this chat was branched at.
+	ForkedFromMessageID *string `json:"forked_from_message_id,omitempty"`
 }
 
 // ChatMessageDTO for API responses
@@ -3368,6 +3383,29 @@ type ProfileDTO struct {
 	Args          []string      `json:"args"`
 	Status        ProfileStatus `json:"status"`
 	MaxConcurrent int           `json:"max_concurrent"`
+	// Capabilities is what the harness behind this profile supports, as the
+	// daemon reported it. Nil means not reported yet (a daemon older than
+	// the field); callers treat that as all false.
+	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
+}
+
+// HarnessCapabilities says what a harness session can do, so the api decides
+// by capability and never by harness kind. It mirrors agentprotocol's
+// driver.Capabilities, which the daemon reads them from, with json names
+// fixed here because the wire shape is ours.
+type HarnessCapabilities struct {
+	// Steer: a prompt sent during a running turn redirects it. When false a
+	// message sent mid-turn is queued for the next turn.
+	Steer bool `json:"steer"`
+	// Approvals: the harness asks permission before some tool calls, so a run
+	// can park on an approval.
+	Approvals bool `json:"approvals"`
+	// Interrupt: a turn can be cancelled without ending the session.
+	Interrupt bool `json:"interrupt"`
+	// Resume: a session can be reopened by id after its process is gone.
+	Resume bool `json:"resume"`
+	// Tools: the caller can supply tools for the harness to call.
+	Tools bool `json:"tools"`
 }
 
 // RemoteRegisterRequest creates a remote from a connecting daemon.
@@ -3393,6 +3431,9 @@ type HarnessInfo struct {
 	Command  string `json:"command"`
 	Version  string `json:"version,omitempty"`
 	LoggedIn bool   `json:"logged_in"`
+	// Capabilities is what this harness supports. Omitted by daemons older
+	// than the field; the api then keeps whatever it had.
+	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
 }
 
 // RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.

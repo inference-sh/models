@@ -38,6 +38,7 @@ export interface InternalToolsConfig {
   meta?: boolean;
   artifact?: boolean;
   spawn?: boolean;
+  remote?: boolean;
 }
 /**
  * InternalToolDefinition describes a built-in tool category available to agents
@@ -245,6 +246,15 @@ export interface AgentDTO extends BaseModelDTO, PermissionModelDTO, ProjectModel
   images: AgentImages;
   version_id: string;
   version?: AgentVersionDTO;
+  /**
+   * ProfileID is set when a harness profile on a remote thinks for this
+   * agent instead of our loop.
+   */
+  profile_id?: string;
+  /**
+   * RemoteID is the machine the agent's terminal tools run on by default.
+   */
+  remote_id?: string;
 }
 export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
   description: string;
@@ -316,6 +326,12 @@ export interface AgentRunDTO extends BaseModelDTO, PermissionModelDTO {
   tool_invocation_id?: string;
   trigger_id?: string;
   metadata?: any;
+  /**
+   * ProfileID is the harness profile that thought for this run; nil when it
+   * was our own loop. RemoteID is the machine it ran on, if any.
+   */
+  profile_id?: string;
+  remote_id?: string;
 }
 /**
  * TimeWindow represents a single analytics time window
@@ -2449,6 +2465,15 @@ export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
   agent_data: ChatData;
   active_run?: AgentRunDTO;
   pending_interrupts?: InterruptDTO[];
+  /**
+   * HarnessSessionID is the harness's own session id when a remote profile
+   * thinks for this chat; `claude --resume <id>` opens it on that machine.
+   */
+  harness_session_id?: string;
+  /**
+   * ForkedFromMessageID is the message this chat was branched at.
+   */
+  forked_from_message_id?: string;
 }
 /**
  * ChatMessageDTO for API responses
@@ -4522,6 +4547,42 @@ export interface ProfileDTO extends BaseModelDTO, PermissionModelDTO {
   args: string[];
   status: ProfileStatus;
   max_concurrent: number /* int */;
+  /**
+   * Capabilities is what the harness behind this profile supports, as the
+   * daemon reported it. Nil means not reported yet (a daemon older than
+   * the field); callers treat that as all false.
+   */
+  capabilities?: HarnessCapabilities;
+}
+/**
+ * HarnessCapabilities says what a harness session can do, so the api decides
+ * by capability and never by harness kind. It mirrors agentprotocol's
+ * driver.Capabilities, which the daemon reads them from, with json names
+ * fixed here because the wire shape is ours.
+ */
+export interface HarnessCapabilities {
+  /**
+   * Steer: a prompt sent during a running turn redirects it. When false a
+   * message sent mid-turn is queued for the next turn.
+   */
+  steer: boolean;
+  /**
+   * Approvals: the harness asks permission before some tool calls, so a run
+   * can park on an approval.
+   */
+  approvals: boolean;
+  /**
+   * Interrupt: a turn can be cancelled without ending the session.
+   */
+  interrupt: boolean;
+  /**
+   * Resume: a session can be reopened by id after its process is gone.
+   */
+  resume: boolean;
+  /**
+   * Tools: the caller can supply tools for the harness to call.
+   */
+  tools: boolean;
 }
 /**
  * RemoteRegisterRequest creates a remote from a connecting daemon.
@@ -4553,6 +4614,11 @@ export interface HarnessInfo {
   command: string;
   version?: string;
   logged_in: boolean;
+  /**
+   * Capabilities is what this harness supports. Omitted by daemons older
+   * than the field; the api then keeps whatever it had.
+   */
+  capabilities?: HarnessCapabilities;
 }
 /**
  * RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.

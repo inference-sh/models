@@ -73,6 +73,7 @@ public struct InternalToolsConfig: Codable {
     public var meta: Bool?
     public var artifact: Bool?
     public var spawn: Bool?
+    public var remote: Bool?
 
     public init(
         plan: Bool? = nil,
@@ -83,7 +84,8 @@ public struct InternalToolsConfig: Codable {
         hostContext: Bool? = nil,
         meta: Bool? = nil,
         artifact: Bool? = nil,
-        spawn: Bool? = nil
+        spawn: Bool? = nil,
+        remote: Bool? = nil
     ) {
         self.plan = plan
         self.memory = memory
@@ -94,6 +96,7 @@ public struct InternalToolsConfig: Codable {
         self.meta = meta
         self.artifact = artifact
         self.spawn = spawn
+        self.remote = remote
     }
 
     enum CodingKeys: String, CodingKey {
@@ -106,6 +109,7 @@ public struct InternalToolsConfig: Codable {
         case meta = "meta"
         case artifact = "artifact"
         case spawn = "spawn"
+        case remote = "remote"
     }
 }
 
@@ -759,6 +763,11 @@ public struct AgentDTO: Codable {
     public var images: AgentImages
     public var versionId: String
     public var version: AgentVersionDTO?
+    /// ProfileID is set when a harness profile on a remote thinks for this
+    /// agent instead of our loop.
+    public var profileId: String?
+    /// RemoteID is the machine the agent's terminal tools run on by default.
+    public var remoteId: String?
 
     public init(
         id: String = "",
@@ -779,7 +788,9 @@ public struct AgentDTO: Codable {
         title: String = "",
         images: AgentImages,
         versionId: String = "",
-        version: AgentVersionDTO? = nil
+        version: AgentVersionDTO? = nil,
+        profileId: String? = nil,
+        remoteId: String? = nil
     ) {
         self.id = id
         self.shortId = shortId
@@ -800,6 +811,8 @@ public struct AgentDTO: Codable {
         self.images = images
         self.versionId = versionId
         self.version = version
+        self.profileId = profileId
+        self.remoteId = remoteId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -822,6 +835,8 @@ public struct AgentDTO: Codable {
         case images = "images"
         case versionId = "version_id"
         case version = "version"
+        case profileId = "profile_id"
+        case remoteId = "remote_id"
     }
 }
 
@@ -1070,6 +1085,10 @@ public struct AgentRunDTO: Codable {
     public var toolInvocationId: String?
     public var triggerId: String?
     public var metadata: JSONValue?
+    /// ProfileID is the harness profile that thought for this run; nil when it
+    /// was our own loop. RemoteID is the machine it ran on, if any.
+    public var profileId: String?
+    public var remoteId: String?
 
     public init(
         id: String = "",
@@ -1096,7 +1115,9 @@ public struct AgentRunDTO: Codable {
         interruptMeta: JSONValue? = nil,
         toolInvocationId: String? = nil,
         triggerId: String? = nil,
-        metadata: JSONValue? = nil
+        metadata: JSONValue? = nil,
+        profileId: String? = nil,
+        remoteId: String? = nil
     ) {
         self.id = id
         self.shortId = shortId
@@ -1123,6 +1144,8 @@ public struct AgentRunDTO: Codable {
         self.toolInvocationId = toolInvocationId
         self.triggerId = triggerId
         self.metadata = metadata
+        self.profileId = profileId
+        self.remoteId = remoteId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1151,6 +1174,8 @@ public struct AgentRunDTO: Codable {
         case toolInvocationId = "tool_invocation_id"
         case triggerId = "trigger_id"
         case metadata = "metadata"
+        case profileId = "profile_id"
+        case remoteId = "remote_id"
     }
 }
 
@@ -4461,6 +4486,11 @@ public final class ChatDTO: Codable {
     public var agentData: ChatData
     public var activeRun: AgentRunDTO?
     public var pendingInterrupts: [InterruptDTO]?
+    /// HarnessSessionID is the harness's own session id when a remote profile
+    /// thinks for this chat; `claude --resume <id>` opens it on that machine.
+    public var harnessSessionId: String?
+    /// ForkedFromMessageID is the message this chat was branched at.
+    public var forkedFromMessageId: String?
 
     public init(
         id: String = "",
@@ -4490,7 +4520,9 @@ public final class ChatDTO: Codable {
         chatMessages: [ChatMessageDTO]? = nil,
         agentData: ChatData,
         activeRun: AgentRunDTO? = nil,
-        pendingInterrupts: [InterruptDTO]? = nil
+        pendingInterrupts: [InterruptDTO]? = nil,
+        harnessSessionId: String? = nil,
+        forkedFromMessageId: String? = nil
     ) {
         self.id = id
         self.shortId = shortId
@@ -4520,6 +4552,8 @@ public final class ChatDTO: Codable {
         self.agentData = agentData
         self.activeRun = activeRun
         self.pendingInterrupts = pendingInterrupts
+        self.harnessSessionId = harnessSessionId
+        self.forkedFromMessageId = forkedFromMessageId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -4551,6 +4585,8 @@ public final class ChatDTO: Codable {
         case agentData = "agent_data"
         case activeRun = "active_run"
         case pendingInterrupts = "pending_interrupts"
+        case harnessSessionId = "harness_session_id"
+        case forkedFromMessageId = "forked_from_message_id"
     }
 }
 
