@@ -766,6 +766,10 @@ public struct AgentDTO: Codable {
     public var images: AgentImages
     public var versionId: String
     public var version: AgentVersionDTO?
+    /// Harness is what drives the agent: "inference" for our own loop, or an
+    /// agentprotocol registry id (claude, codex, ...) for an external harness,
+    /// whose instructions, tools and versions are its own.
+    public var harness: String
     /// ProfileID is set when a harness profile on a remote thinks for this
     /// agent instead of our loop.
     public var profileId: String?
@@ -792,6 +796,7 @@ public struct AgentDTO: Codable {
         images: AgentImages,
         versionId: String = "",
         version: AgentVersionDTO? = nil,
+        harness: String = "",
         profileId: String? = nil,
         remoteId: String? = nil
     ) {
@@ -814,6 +819,7 @@ public struct AgentDTO: Codable {
         self.images = images
         self.versionId = versionId
         self.version = version
+        self.harness = harness
         self.profileId = profileId
         self.remoteId = remoteId
     }
@@ -838,6 +844,7 @@ public struct AgentDTO: Codable {
         case images = "images"
         case versionId = "version_id"
         case version = "version"
+        case harness = "harness"
         case profileId = "profile_id"
         case remoteId = "remote_id"
     }
@@ -4517,6 +4524,8 @@ public final class ChatDTO: Codable {
     /// HarnessSessionID is the harness's own session id when a remote profile
     /// thinks for this chat; `claude --resume <id>` opens it on that machine.
     public var harnessSessionId: String?
+    /// WorkDir is the folder a harness works in for this chat.
+    public var workDir: String?
     /// ForkedFromMessageID is the message this chat was branched at.
     public var forkedFromMessageId: String?
 
@@ -4550,6 +4559,7 @@ public final class ChatDTO: Codable {
         activeRun: AgentRunDTO? = nil,
         pendingInterrupts: [InterruptDTO]? = nil,
         harnessSessionId: String? = nil,
+        workDir: String? = nil,
         forkedFromMessageId: String? = nil
     ) {
         self.id = id
@@ -4581,6 +4591,7 @@ public final class ChatDTO: Codable {
         self.activeRun = activeRun
         self.pendingInterrupts = pendingInterrupts
         self.harnessSessionId = harnessSessionId
+        self.workDir = workDir
         self.forkedFromMessageId = forkedFromMessageId
     }
 
@@ -4614,6 +4625,7 @@ public final class ChatDTO: Codable {
         case activeRun = "active_run"
         case pendingInterrupts = "pending_interrupts"
         case harnessSessionId = "harness_session_id"
+        case workDir = "work_dir"
         case forkedFromMessageId = "forked_from_message_id"
     }
 }
@@ -11497,19 +11509,29 @@ public struct TeamMemberDTO: Codable {
     public var teamId: String
     public var role: TeamRole
     public var user: TeamMemberUserDTO?
+    /// AssignableRoles are the roles the caller may set this member to, the
+    /// current one included; Removable, whether the caller may remove them.
+    /// Set on GET /teams/{id}/members by the rules the member writes enforce;
+    /// absent means none.
+    public var assignableRoles: [TeamRole]?
+    public var removable: Bool?
 
     public init(
         id: String = "",
         userId: String = "",
         teamId: String = "",
         role: TeamRole,
-        user: TeamMemberUserDTO? = nil
+        user: TeamMemberUserDTO? = nil,
+        assignableRoles: [TeamRole]? = nil,
+        removable: Bool? = nil
     ) {
         self.id = id
         self.userId = userId
         self.teamId = teamId
         self.role = role
         self.user = user
+        self.assignableRoles = assignableRoles
+        self.removable = removable
     }
 
     enum CodingKeys: String, CodingKey {
@@ -11518,6 +11540,8 @@ public struct TeamMemberDTO: Codable {
         case teamId = "team_id"
         case role = "role"
         case user = "user"
+        case assignableRoles = "assignable_roles"
+        case removable = "removable"
     }
 }
 

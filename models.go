@@ -328,6 +328,10 @@ type AgentDTO struct {
 	Images    AgentImages      `json:"images"`
 	VersionID string           `json:"version_id"`
 	Version   *AgentVersionDTO `json:"version"`
+	// Harness is what drives the agent: "inference" for our own loop, or an
+	// agentprotocol registry id (claude, codex, ...) for an external harness,
+	// whose instructions, tools and versions are its own.
+	Harness string `json:"harness"`
 	// ProfileID is set when a harness profile on a remote thinks for this
 	// agent instead of our loop.
 	ProfileID *string `json:"profile_id,omitempty"`
@@ -645,11 +649,12 @@ type SessionTokenResponse struct {
 type MeResponse struct {
 	User *UserDTO `json:"user"`
 	Team *TeamDTO `json:"team,omitempty"`
-	// Org of the current team, when the team belongs to one. IsAdmin on it
-	// reflects the caller (org_admins grant list).
+	// Org of the current team, when the team belongs to one. Team.Role and
+	// Org.IsAdmin are left unset: what the caller may do is TeamView.Can
+	// and TeamView.Org.Can.
 	Org *OrgDTO `json:"org,omitempty"`
 	// TeamView is the current team as the caller sees it in settings: kind,
-	// role, governance and capabilities (GET /teams/{id}/view).
+	// governance and capabilities (GET /teams/{id}/view).
 	TeamView    *TeamViewDTO       `json:"team_view,omitempty"`
 	Diagnostics *DiagnosticsConfig `json:"diagnostics,omitempty"`
 }
@@ -1713,6 +1718,8 @@ type ChatDTO struct {
 	// HarnessSessionID is the harness's own session id when a remote profile
 	// thinks for this chat; `claude --resume <id>` opens it on that machine.
 	HarnessSessionID *string `json:"harness_session_id,omitempty"`
+	// WorkDir is the folder a harness works in for this chat.
+	WorkDir string `json:"work_dir,omitempty"`
 	// ForkedFromMessageID is the message this chat was branched at.
 	ForkedFromMessageID *string `json:"forked_from_message_id,omitempty"`
 }
@@ -3469,6 +3476,18 @@ type RemoteHeartbeatRequest struct {
 	Status RemoteStatus `json:"status"`
 }
 
+// RemoteLaunchRequest opens a new chat with a harness on a remote: which
+// harness (its profile), in which folder, and optionally a session the
+// harness already has, to continue it.
+type RemoteLaunchRequest struct {
+	ProfileID string `json:"profile_id"`
+	// WorkDir is the folder the harness works in. Empty uses the daemon's.
+	WorkDir string `json:"work_dir,omitempty"`
+	// ResumeSessionID continues a session the harness has on the machine,
+	// as listed by GET /remotes/{id}/sessions, instead of starting fresh.
+	ResumeSessionID string `json:"resume_session_id,omitempty"`
+}
+
 // --------------------
 // source: requests.go
 // --------------------
@@ -4103,6 +4122,7 @@ type RemoteTypes struct {
 	_profile      ProfileDTO
 	_remoteReg    RemoteRegisterRequest
 	_remoteBeat   RemoteHeartbeatRequest
+	_launch       RemoteLaunchRequest
 	_remoteStatus RemoteStatus
 	_profileStat  ProfileStatus
 	// Harness session frames on the remote socket, so belt imports them from
@@ -4561,6 +4581,12 @@ type TeamMemberDTO struct {
 	TeamID string             `json:"team_id"`
 	Role   TeamRole           `json:"role"`
 	User   *TeamMemberUserDTO `json:"user"`
+	// AssignableRoles are the roles the caller may set this member to, the
+	// current one included; Removable, whether the caller may remove them.
+	// Set on GET /teams/{id}/members by the rules the member writes enforce;
+	// absent means none.
+	AssignableRoles []TeamRole `json:"assignable_roles,omitempty"`
+	Removable       bool       `json:"removable,omitempty"`
 }
 
 // TeamMemberUserDTO is a lightweight user view within team membership.
@@ -4630,18 +4656,17 @@ type TeamViewOrg struct {
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
 	AvatarURL string `json:"avatar_url"`
-	// IsAdmin: the caller administers this org.
-	IsAdmin bool `json:"is_admin"`
+	// Can is what the caller may do on the org's workspace, by the same
+	// table as TeamViewDTO.Can: the org's settings and billing live there.
+	Can []TeamCapability `json:"can"`
 }
 
 // TeamViewDTO is a team as the caller sees it in settings: what kind of
-// workspace it is, the caller's role in it, who governs it, and what the
-// caller may do there. Can is computed by the same table the API's route
+// workspace it is, who governs it, and what the caller may do there. Can is computed by the same table the API's route
 // gates evaluate, so clients read permissions instead of re-deriving them.
 type TeamViewDTO struct {
 	TeamID     string           `json:"team_id"`
 	Kind       TeamKind         `json:"kind"`
-	Role       TeamRole         `json:"role"`
 	Org        *TeamViewOrg     `json:"org,omitempty"`
 	Governance TeamGovernance   `json:"governance"`
 	Can        []TeamCapability `json:"can"`
@@ -7191,6 +7216,7 @@ const (
 	TeamCapabilityManageVault   TeamCapability = "manage_vault"
 	TeamCapabilityViewBilling   TeamCapability = "view_billing"
 	TeamCapabilityManageBilling TeamCapability = "manage_billing"
+	TeamCapabilityViewPolicy    TeamCapability = "view_policy"
 	TeamCapabilityManagePolicy  TeamCapability = "manage_policy"
 	TeamCapabilityManageOrg     TeamCapability = "manage_org"
 	TeamCapabilityManageSSO     TeamCapability = "manage_sso"

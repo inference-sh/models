@@ -218,6 +218,12 @@ export interface AgentDTO extends BaseModelDTO, PermissionModelDTO, ProjectModel
   version_id: string;
   version?: AgentVersionDTO;
   /**
+   * Harness is what drives the agent: "inference" for our own loop, or an
+   * agentprotocol registry id (claude, codex, ...) for an external harness,
+   * whose instructions, tools and versions are its own.
+   */
+  harness: string;
+  /**
    * ProfileID is set when a harness profile on a remote thinks for this
    * agent instead of our loop.
    */
@@ -1645,6 +1651,10 @@ export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
    * thinks for this chat; `claude --resume <id>` opens it on that machine.
    */
   harness_session_id?: string;
+  /**
+   * WorkDir is the folder a harness works in for this chat.
+   */
+  work_dir?: string;
   /**
    * ForkedFromMessageID is the message this chat was branched at.
    */
@@ -3516,6 +3526,14 @@ export interface TeamMemberDTO {
   team_id: string;
   role: TeamRole;
   user?: TeamMemberUserDTO;
+  /**
+   * AssignableRoles are the roles the caller may set this member to, the
+   * current one included; Removable, whether the caller may remove them.
+   * Set on GET /teams/{id}/members by the rules the member writes enforce;
+   * absent means none.
+   */
+  assignable_roles?: TeamRole[];
+  removable?: boolean;
 }
 /**
  * TeamMemberUserDTO is a lightweight user view within team membership.

@@ -257,6 +257,12 @@ export interface AgentDTO extends BaseModelDTO, PermissionModelDTO, ProjectModel
   version_id: string;
   version?: AgentVersionDTO;
   /**
+   * Harness is what drives the agent: "inference" for our own loop, or an
+   * agentprotocol registry id (claude, codex, ...) for an external harness,
+   * whose instructions, tools and versions are its own.
+   */
+  harness: string;
+  /**
    * ProfileID is set when a harness profile on a remote thinks for this
    * agent instead of our loop.
    */
@@ -947,13 +953,14 @@ export interface MeResponse {
   user?: UserDTO;
   team?: TeamDTO;
   /**
-   * Org of the current team, when the team belongs to one. IsAdmin on it
-   * reflects the caller (org_admins grant list).
+   * Org of the current team, when the team belongs to one. Team.Role and
+   * Org.IsAdmin are left unset: what the caller may do is TeamView.Can
+   * and TeamView.Org.Can.
    */
   org?: OrgDTO;
   /**
    * TeamView is the current team as the caller sees it in settings: kind,
-   * role, governance and capabilities (GET /teams/{id}/view).
+   * governance and capabilities (GET /teams/{id}/view).
    */
   team_view?: TeamViewDTO;
   diagnostics?: DiagnosticsConfig;
@@ -2554,6 +2561,10 @@ export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
    * thinks for this chat; `claude --resume <id>` opens it on that machine.
    */
   harness_session_id?: string;
+  /**
+   * WorkDir is the folder a harness works in for this chat.
+   */
+  work_dir?: string;
   /**
    * ForkedFromMessageID is the message this chat was branched at.
    */
@@ -4672,6 +4683,23 @@ export interface RemoteHeartbeatRequest {
   status: RemoteStatus;
 }
 /**
+ * RemoteLaunchRequest opens a new chat with a harness on a remote: which
+ * harness (its profile), in which folder, and optionally a session the
+ * harness already has, to continue it.
+ */
+export interface RemoteLaunchRequest {
+  profile_id: string;
+  /**
+   * WorkDir is the folder the harness works in. Empty uses the daemon's.
+   */
+  work_dir?: string;
+  /**
+   * ResumeSessionID continues a session the harness has on the machine,
+   * as listed by GET /remotes/{id}/sessions, instead of starting fresh.
+   */
+  resume_session_id?: string;
+}
+/**
  * KnowledgeCreateRequest is the request body for POST /knowledge.
  */
 export interface KnowledgeCreateRequest {
@@ -5534,6 +5562,14 @@ export interface TeamMemberDTO {
   team_id: string;
   role: TeamRole;
   user?: TeamMemberUserDTO;
+  /**
+   * AssignableRoles are the roles the caller may set this member to, the
+   * current one included; Removable, whether the caller may remove them.
+   * Set on GET /teams/{id}/members by the rules the member writes enforce;
+   * absent means none.
+   */
+  assignable_roles?: TeamRole[];
+  removable?: boolean;
 }
 /**
  * TeamMemberUserDTO is a lightweight user view within team membership.
@@ -5616,20 +5652,19 @@ export interface TeamViewOrg {
   slug: string;
   avatar_url: string;
   /**
-   * IsAdmin: the caller administers this org.
+   * Can is what the caller may do on the org's workspace, by the same
+   * table as TeamViewDTO.Can: the org's settings and billing live there.
    */
-  is_admin: boolean;
+  can: TeamCapability[];
 }
 /**
  * TeamViewDTO is a team as the caller sees it in settings: what kind of
- * workspace it is, the caller's role in it, who governs it, and what the
- * caller may do there. Can is computed by the same table the API's route
+ * workspace it is, who governs it, and what the caller may do there. Can is computed by the same table the API's route
  * gates evaluate, so clients read permissions instead of re-deriving them.
  */
 export interface TeamViewDTO {
   team_id: string;
   kind: TeamKind;
-  role: TeamRole;
   org?: TeamViewOrg;
   governance: TeamGovernance;
   can: TeamCapability[];
@@ -5872,8 +5907,9 @@ export interface TeamUsageBreakdown {
   period_end: string;
   trend_percent?: number /* float64 */;
   /**
-   * PerTeam is the period's usage by team, costliest first. An
-   * organization workspace's breakdown has a row per team it pays for.
+   * PerTeam is the period's usage by team, costliest first: a row per team
+   * the organization workspace pays for, on its breakdown without a team
+   * filter. Empty on every other breakdown, which covers one team.
    */
   per_team: UsagePerTeam[];
 }
@@ -8340,6 +8376,7 @@ export const TeamCapabilityManageKeys: TeamCapability = "manage_keys";
 export const TeamCapabilityManageVault: TeamCapability = "manage_vault";
 export const TeamCapabilityViewBilling: TeamCapability = "view_billing";
 export const TeamCapabilityManageBilling: TeamCapability = "manage_billing";
+export const TeamCapabilityViewPolicy: TeamCapability = "view_policy";
 export const TeamCapabilityManagePolicy: TeamCapability = "manage_policy";
 export const TeamCapabilityManageOrg: TeamCapability = "manage_org";
 export const TeamCapabilityManageSSO: TeamCapability = "manage_sso";
