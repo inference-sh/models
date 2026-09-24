@@ -906,7 +906,7 @@ const (
 	ScopeSecretsRead  Scope = "secrets:read"
 	ScopeSecretsWrite Scope = "secrets:write"
 	// Action-level scopes for credentials (connected accounts, vaults,
-	// custom providers, MCP servers).
+	// auth schemes, MCP servers).
 	ScopeCredentialsRead  Scope = "credentials:read"
 	ScopeCredentialsWrite Scope = "credentials:write"
 	// Action-level scopes for Engines
@@ -1504,6 +1504,61 @@ type ArtifactFrameDTO struct {
 }
 
 // --------------------
+// source: auth_scheme.go
+// --------------------
+
+// AuthSchemeDTO is how a team connects to a service it defined itself: its
+// own OAuth app registered against a third party. Secrets never leave the
+// vault; the DTO carries the keys they are stored under.
+type AuthSchemeDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Scope              CredentialScope  `json:"scope"`
+	Slug               string           `json:"slug"`
+	DisplayName        string           `json:"display_name"`
+	IconURL            string           `json:"icon_url,omitempty"`
+	Specs              []AuthSchemeSpec `json:"specs"`
+	// Where the OAuth app's client id and secret live in the team vault.
+	ClientIDKey     string `json:"client_id_key"`
+	ClientSecretKey string `json:"client_secret_key"`
+}
+
+// AuthSchemeCreateRequest registers a team's OAuth app. ClientID and
+// ClientSecret are written to the vault, not to the row.
+type AuthSchemeCreateRequest struct {
+	Slug         string           `json:"slug"`
+	DisplayName  string           `json:"display_name"`
+	IconURL      string           `json:"icon_url,omitempty"`
+	Specs        []AuthSchemeSpec `json:"specs"`
+	ClientID     string           `json:"client_id"`
+	ClientSecret string           `json:"client_secret"`
+	// Scope is who may connect through it. Empty = team. Org and platform
+	// follow the credential rule: chosen from the team that owns them.
+	Scope CredentialScope `json:"scope,omitempty"`
+}
+
+// AuthSchemeUpdateRequest changes the display fields and specs; the slug is
+// the provider key (stored on every credential) and cannot change. Empty
+// secrets leave the stored ones alone.
+type AuthSchemeUpdateRequest struct {
+	DisplayName  string           `json:"display_name,omitempty"`
+	IconURL      string           `json:"icon_url,omitempty"`
+	Specs        []AuthSchemeSpec `json:"specs,omitempty"`
+	ClientID     string           `json:"client_id,omitempty"`
+	ClientSecret string           `json:"client_secret,omitempty"`
+}
+
+// AuthSchemeTypes is a phantom root for gotypegen dependency tracing.
+type AuthSchemeTypes struct {
+	_dto        AuthSchemeDTO
+	_create     AuthSchemeCreateRequest
+	_update     AuthSchemeUpdateRequest
+	_spec       AuthSchemeSpec
+	_specKind   AuthSchemeKind
+	_clientAuth AuthSchemeClientAuth
+}
+
+// --------------------
 // source: auth_session.go
 // --------------------
 
@@ -1720,10 +1775,10 @@ type CredentialConfigDTO struct {
 	Available    bool                `json:"available"`
 	HasManaged   bool                `json:"has_managed"`
 	Grant        CredentialGrant     `json:"grant,omitempty"`
-	// CustomProviderID is set when the provider is one the team defined
-	// itself (models.CustomProvider), so the UI can offer edit and remove.
-	CustomProviderID string         `json:"custom_provider_id,omitempty"`
-	Credential       *CredentialDTO `json:"credential,omitempty"`
+	// AuthSchemeID is set when the provider is one the team defined
+	// itself (models.AuthScheme), so the UI can offer edit and remove.
+	AuthSchemeID string         `json:"auth_scheme_id,omitempty"`
+	Credential   *CredentialDTO `json:"credential,omitempty"`
 }
 
 // --------------------
@@ -1803,67 +1858,6 @@ type CursorListResponse[T any] struct {
 // CountResponse is the response for count endpoints.
 type CountResponse struct {
 	Count int64 `json:"count"`
-}
-
-// --------------------
-// source: custom_provider.go
-// --------------------
-
-// CustomProviderDTO is a team-defined provider: its own OAuth app registered
-// against a third-party service. Secrets never leave the vault; the DTO
-// carries the keys they are stored under.
-type CustomProviderDTO struct {
-	BaseModelDTO       `tstype:",extends"`
-	PermissionModelDTO `tstype:",extends"`
-	Scope              CredentialScope `json:"scope"`
-	Slug               string          `json:"slug"`
-	Name               string          `json:"name"`
-	Description        string          `json:"description,omitempty"`
-	IconURL            string          `json:"icon_url,omitempty"`
-	DocsURL            string          `json:"docs_url,omitempty"`
-	AuthSchemes        []AuthScheme    `json:"auth_schemes"`
-	// Where the OAuth app's client id and secret live in the team vault.
-	ClientIDKey     string `json:"client_id_key"`
-	ClientSecretKey string `json:"client_secret_key"`
-}
-
-// CustomProviderCreateRequest registers a provider. ClientID and ClientSecret
-// are written to the vault, not to the provider row.
-type CustomProviderCreateRequest struct {
-	Slug         string       `json:"slug"`
-	Name         string       `json:"name"`
-	Description  string       `json:"description,omitempty"`
-	IconURL      string       `json:"icon_url,omitempty"`
-	DocsURL      string       `json:"docs_url,omitempty"`
-	AuthSchemes  []AuthScheme `json:"auth_schemes"`
-	ClientID     string       `json:"client_id"`
-	ClientSecret string       `json:"client_secret"`
-	// Scope is who may connect through it. Empty = team. Org and platform
-	// follow the credential rule: chosen from the team that owns them.
-	Scope CredentialScope `json:"scope,omitempty"`
-}
-
-// CustomProviderUpdateRequest changes display fields and schemes; the slug is
-// the provider's identity (stored on every credential) and cannot change.
-// Empty secrets leave the stored ones alone.
-type CustomProviderUpdateRequest struct {
-	Name         string       `json:"name,omitempty"`
-	Description  string       `json:"description,omitempty"`
-	IconURL      string       `json:"icon_url,omitempty"`
-	DocsURL      string       `json:"docs_url,omitempty"`
-	AuthSchemes  []AuthScheme `json:"auth_schemes,omitempty"`
-	ClientID     string       `json:"client_id,omitempty"`
-	ClientSecret string       `json:"client_secret,omitempty"`
-}
-
-// CustomProviderTypes is a phantom root for gotypegen dependency tracing.
-type CustomProviderTypes struct {
-	_dto        CustomProviderDTO
-	_create     CustomProviderCreateRequest
-	_update     CustomProviderUpdateRequest
-	_scheme     AuthScheme
-	_schemeKind AuthSchemeKind
-	_clientAuth AuthSchemeClientAuth
 }
 
 // --------------------
@@ -5467,7 +5461,7 @@ const (
 
 // AuthScheme is one way to authenticate against a provider. Fields are
 // grouped by the kind that reads them; a kind ignores the others.
-type AuthScheme struct {
+type AuthSchemeSpec struct {
 	Kind AuthSchemeKind `json:"kind"`
 	// oauth2_authorization_code
 	AuthorizeURL string               `json:"authorize_url,omitempty"`

@@ -2338,7 +2338,7 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     public static let secretsRead = Scope(rawValue: "secrets:read")
     public static let secretsWrite = Scope(rawValue: "secrets:write")
     /// Action-level scopes for credentials (connected accounts, vaults,
-    /// custom providers, MCP servers).
+    /// auth schemes, MCP servers).
     public static let credentialsRead = Scope(rawValue: "credentials:read")
     public static let credentialsWrite = Scope(rawValue: "credentials:write")
     /// Action-level scopes for Engines
@@ -4848,9 +4848,9 @@ public struct CredentialConfigDTO: Codable {
     public var available: Bool
     public var hasManaged: Bool
     public var grant: CredentialGrant?
-    /// CustomProviderID is set when the provider is one the team defined
-    /// itself (models.CustomProvider), so the UI can offer edit and remove.
-    public var customProviderId: String?
+    /// AuthSchemeID is set when the provider is one the team defined
+    /// itself (models.AuthScheme), so the UI can offer edit and remove.
+    public var authSchemeId: String?
     public var credential: CredentialDTO?
 
     public init(
@@ -4868,7 +4868,7 @@ public struct CredentialConfigDTO: Codable {
         available: Bool = false,
         hasManaged: Bool = false,
         grant: CredentialGrant? = nil,
-        customProviderId: String? = nil,
+        authSchemeId: String? = nil,
         credential: CredentialDTO? = nil
     ) {
         self.slug = slug
@@ -4885,7 +4885,7 @@ public struct CredentialConfigDTO: Codable {
         self.available = available
         self.hasManaged = hasManaged
         self.grant = grant
-        self.customProviderId = customProviderId
+        self.authSchemeId = authSchemeId
         self.credential = credential
     }
 
@@ -4904,7 +4904,7 @@ public struct CredentialConfigDTO: Codable {
         case available = "available"
         case hasManaged = "has_managed"
         case grant = "grant"
-        case customProviderId = "custom_provider_id"
+        case authSchemeId = "auth_scheme_id"
         case credential = "credential"
     }
 }

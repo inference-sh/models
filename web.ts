@@ -1488,7 +1488,7 @@ export const ScopeSecretsRead: Scope = "secrets:read";
 export const ScopeSecretsWrite: Scope = "secrets:write";
 /**
  * Action-level scopes for credentials (connected accounts, vaults,
- * custom providers, MCP servers).
+ * auth schemes, MCP servers).
  */
 export const ScopeCredentialsRead: Scope = "credentials:read";
 /**
@@ -2210,6 +2210,57 @@ export interface ArtifactFrameDTO {
   expires_at?: string /* RFC3339 */;
 }
 /**
+ * AuthSchemeDTO is how a team connects to a service it defined itself: its
+ * own OAuth app registered against a third party. Secrets never leave the
+ * vault; the DTO carries the keys they are stored under.
+ */
+export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
+  scope: CredentialScope;
+  slug: string;
+  display_name: string;
+  icon_url?: string;
+  specs: AuthSchemeSpec[];
+  /**
+   * Where the OAuth app's client id and secret live in the team vault.
+   */
+  client_id_key: string;
+  client_secret_key: string;
+}
+/**
+ * AuthSchemeCreateRequest registers a team's OAuth app. ClientID and
+ * ClientSecret are written to the vault, not to the row.
+ */
+export interface AuthSchemeCreateRequest {
+  slug: string;
+  display_name: string;
+  icon_url?: string;
+  specs: AuthSchemeSpec[];
+  client_id: string;
+  client_secret: string;
+  /**
+   * Scope is who may connect through it. Empty = team. Org and platform
+   * follow the credential rule: chosen from the team that owns them.
+   */
+  scope?: CredentialScope;
+}
+/**
+ * AuthSchemeUpdateRequest changes the display fields and specs; the slug is
+ * the provider key (stored on every credential) and cannot change. Empty
+ * secrets leave the stored ones alone.
+ */
+export interface AuthSchemeUpdateRequest {
+  display_name?: string;
+  icon_url?: string;
+  specs?: AuthSchemeSpec[];
+  client_id?: string;
+  client_secret?: string;
+}
+/**
+ * AuthSchemeTypes is a phantom root for gotypegen dependency tracing.
+ */
+export interface AuthSchemeTypes {
+}
+/**
  * AuthSessionDTO is a safe representation of AuthSession for API responses.
  */
 export interface AuthSessionDTO {
@@ -2583,10 +2634,10 @@ export interface CredentialConfigDTO {
   has_managed: boolean;
   grant?: CredentialGrant;
   /**
-   * CustomProviderID is set when the provider is one the team defined
-   * itself (models.CustomProvider), so the UI can offer edit and remove.
+   * AuthSchemeID is set when the provider is one the team defined
+   * itself (models.AuthScheme), so the UI can offer edit and remove.
    */
-  custom_provider_id?: string;
+  auth_scheme_id?: string;
   credential?: CredentialDTO;
 }
 /**
@@ -2696,63 +2747,6 @@ export interface CursorListResponse<T extends any> {
  */
 export interface CountResponse {
   count: number /* int64 */;
-}
-/**
- * CustomProviderDTO is a team-defined provider: its own OAuth app registered
- * against a third-party service. Secrets never leave the vault; the DTO
- * carries the keys they are stored under.
- */
-export interface CustomProviderDTO extends BaseModelDTO, PermissionModelDTO {
-  scope: CredentialScope;
-  slug: string;
-  name: string;
-  description?: string;
-  icon_url?: string;
-  docs_url?: string;
-  auth_schemes: AuthScheme[];
-  /**
-   * Where the OAuth app's client id and secret live in the team vault.
-   */
-  client_id_key: string;
-  client_secret_key: string;
-}
-/**
- * CustomProviderCreateRequest registers a provider. ClientID and ClientSecret
- * are written to the vault, not to the provider row.
- */
-export interface CustomProviderCreateRequest {
-  slug: string;
-  name: string;
-  description?: string;
-  icon_url?: string;
-  docs_url?: string;
-  auth_schemes: AuthScheme[];
-  client_id: string;
-  client_secret: string;
-  /**
-   * Scope is who may connect through it. Empty = team. Org and platform
-   * follow the credential rule: chosen from the team that owns them.
-   */
-  scope?: CredentialScope;
-}
-/**
- * CustomProviderUpdateRequest changes display fields and schemes; the slug is
- * the provider's identity (stored on every credential) and cannot change.
- * Empty secrets leave the stored ones alone.
- */
-export interface CustomProviderUpdateRequest {
-  name?: string;
-  description?: string;
-  icon_url?: string;
-  docs_url?: string;
-  auth_schemes?: AuthScheme[];
-  client_id?: string;
-  client_secret?: string;
-}
-/**
- * CustomProviderTypes is a phantom root for gotypegen dependency tracing.
- */
-export interface CustomProviderTypes {
 }
 /**
  * EngineConfig holds engine configuration (no gorm tags).
@@ -6818,7 +6812,7 @@ export const AuthSchemeClientAuthBody: AuthSchemeClientAuth = "body";
  * AuthScheme is one way to authenticate against a provider. Fields are
  * grouped by the kind that reads them; a kind ignores the others.
  */
-export interface AuthScheme {
+export interface AuthSchemeSpec {
   kind: AuthSchemeKind;
   /**
    * oauth2_authorization_code
