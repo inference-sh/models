@@ -14174,21 +14174,29 @@ public struct DeltaEvent: Codable {
     /// companion is deliberately absent — nothing needs to route before matching.
     /// Empty when the task has no execution edge (a plain app run).
     public var resourceId: String?
+    /// End, when set, carries no delta: it is the id of the task or agent run
+    /// whose deltas on this key are complete. It follows the last of them on
+    /// the same key, so an in-process follower reads to it instead of guessing
+    /// when the stream is over. The stream layer never sends it to clients.
+    public var end: String?
 
     public init(
         delta: JSONValue = .null,
         seq: Int = 0,
-        resourceId: String? = nil
+        resourceId: String? = nil,
+        end: String? = nil
     ) {
         self.delta = delta
         self.seq = seq
         self.resourceId = resourceId
+        self.end = end
     }
 
     enum CodingKeys: String, CodingKey {
         case delta = "delta"
         case seq = "seq"
         case resourceId = "resource_id"
+        case end = "end"
     }
 }
 

@@ -951,6 +951,11 @@ export interface MeResponse {
    * reflects the caller (org_admins grant list).
    */
   org?: OrgDTO;
+  /**
+   * TeamView is the current team as the caller sees it in settings: kind,
+   * role, governance and capabilities (GET /teams/{id}/view).
+   */
+  team_view?: TeamViewDTO;
   diagnostics?: DiagnosticsConfig;
 }
 export interface TeamCreateRequest {
@@ -2325,6 +2330,7 @@ export interface BillingSettingsDTO extends BaseModelDTO, PermissionModelDTO {
   credit_limit: number /* int64 */;
   billing_email: string;
   low_balance_alerts: boolean;
+  receipt_emails: boolean;
   usage_summary_enabled: boolean;
   usage_summary_interval: string;
   company_name: string;
@@ -2351,6 +2357,7 @@ export interface BillingSettingsUpdateRequest {
   auto_recharge_threshold?: number /* int64 */;
   billing_email?: string;
   low_balance_alerts?: boolean;
+  receipt_emails?: boolean;
   usage_summary_enabled?: boolean;
   usage_summary_interval?: string;
   company_name?: string;
@@ -5580,6 +5587,49 @@ export interface TeamPlanDTO extends BaseModelDTO {
   price_monthly?: number /* int */;
   plan?: PlanDTO;
 }
+/**
+ * GovernanceSource says who decides one aspect of a team. By is
+ * shared.GovernedBySelf (the team itself) or shared.GovernedByOrg; TeamID is
+ * the deciding team: the team itself, or the org's workspace.
+ */
+export interface GovernanceSource {
+  by: string;
+  team_id: string;
+}
+/**
+ * TeamGovernance is who decides a team's billing and usage policy.
+ */
+export interface TeamGovernance {
+  billing: GovernanceSource;
+  policy: GovernanceSource;
+}
+/**
+ * TeamViewOrg is the org a team belongs to, as the caller sees it.
+ */
+export interface TeamViewOrg {
+  id: string;
+  name: string;
+  slug: string;
+  avatar_url: string;
+  /**
+   * IsAdmin: the caller administers this org.
+   */
+  is_admin: boolean;
+}
+/**
+ * TeamViewDTO is a team as the caller sees it in settings: what kind of
+ * workspace it is, the caller's role in it, who governs it, and what the
+ * caller may do there. Can is computed by the same table the API's route
+ * gates evaluate, so clients read permissions instead of re-deriving them.
+ */
+export interface TeamViewDTO {
+  team_id: string;
+  kind: TeamKind;
+  role: TeamRole;
+  org?: TeamViewOrg;
+  governance: TeamGovernance;
+  can: TeamCapability[];
+}
 export interface TelemetryReportDTO extends BaseModelDTO, PermissionModelDTO {
   ip: string;
   level: number /* int */;
@@ -8047,6 +8097,13 @@ export interface DeltaEvent {
    * Empty when the task has no execution edge (a plain app run).
    */
   resource_id?: string;
+  /**
+   * End, when set, carries no delta: it is the id of the task or agent run
+   * whose deltas on this key are complete. It follows the last of them on
+   * the same key, so an in-process follower reads to it instead of guessing
+   * when the stream is over. The stream layer never sends it to clients.
+   */
+  end?: string;
 }
 /**
  * LLMDeltaEvent is a typed alias for backward compatibility.
@@ -8119,6 +8176,46 @@ export type TeamRole = string;
 export const TeamRoleOwner: TeamRole = "owner";
 export const TeamRoleAdmin: TeamRole = "admin";
 export const TeamRoleMember: TeamRole = "member";
+/**
+ * TeamKind is what a team is from the caller's side of settings: the team
+ * type plus whether it sits inside an org. Capabilities and governance key
+ * on it (see team.Subject).
+ */
+export type TeamKind = string;
+/**
+ * TeamKindPersonal is an account's own workspace.
+ */
+export const TeamKindPersonal: TeamKind = "personal";
+/**
+ * TeamKindTeam is a shared workspace outside any org.
+ */
+export const TeamKindTeam: TeamKind = "team";
+/**
+ * TeamKindOrgMember is a shared workspace inside an org: billed by the
+ * org and governed by the org's usage policy.
+ */
+export const TeamKindOrgMember: TeamKind = "org_member";
+/**
+ * TeamKindOrg is an org's own workspace (TeamTypeOrg).
+ */
+export const TeamKindOrg: TeamKind = "org";
+/**
+ * TeamCapability is one thing a caller may do to a team's settings. The set is
+ * closed; team.Subject.Can is the only place that grants them.
+ */
+export type TeamCapability = string;
+export const TeamCapabilityEditProfile: TeamCapability = "edit_profile";
+export const TeamCapabilityManageMembers: TeamCapability = "manage_members";
+export const TeamCapabilityViewMembers: TeamCapability = "view_members";
+export const TeamCapabilityManageKeys: TeamCapability = "manage_keys";
+export const TeamCapabilityViewBilling: TeamCapability = "view_billing";
+export const TeamCapabilityManageBilling: TeamCapability = "manage_billing";
+export const TeamCapabilityManagePolicy: TeamCapability = "manage_policy";
+export const TeamCapabilityManageOrg: TeamCapability = "manage_org";
+export const TeamCapabilityManageSSO: TeamCapability = "manage_sso";
+export const TeamCapabilityArchive: TeamCapability = "archive";
+export const TeamCapabilityCreateTeam: TeamCapability = "create_team";
+export const TeamCapabilityCreateOrg: TeamCapability = "create_org";
 export type Role = string;
 export const RoleGuest: Role = "guest";
 export const RoleUser: Role = "user";

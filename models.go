@@ -647,7 +647,10 @@ type MeResponse struct {
 	Team *TeamDTO `json:"team,omitempty"`
 	// Org of the current team, when the team belongs to one. IsAdmin on it
 	// reflects the caller (org_admins grant list).
-	Org         *OrgDTO            `json:"org,omitempty"`
+	Org *OrgDTO `json:"org,omitempty"`
+	// TeamView is the current team as the caller sees it in settings: kind,
+	// role, governance and capabilities (GET /teams/{id}/view).
+	TeamView    *TeamViewDTO       `json:"team_view,omitempty"`
 	Diagnostics *DiagnosticsConfig `json:"diagnostics,omitempty"`
 }
 
@@ -4610,6 +4613,47 @@ type TeamInviteCreateRequest struct {
 }
 
 // --------------------
+// source: team_view.go
+// --------------------
+
+// GovernanceSource says who decides one aspect of a team. By is
+// shared.GovernedBySelf (the team itself) or shared.GovernedByOrg; TeamID is
+// the deciding team: the team itself, or the org's workspace.
+type GovernanceSource struct {
+	By     string `json:"by"`
+	TeamID string `json:"team_id"`
+}
+
+// TeamGovernance is who decides a team's billing and usage policy.
+type TeamGovernance struct {
+	Billing GovernanceSource `json:"billing"`
+	Policy  GovernanceSource `json:"policy"`
+}
+
+// TeamViewOrg is the org a team belongs to, as the caller sees it.
+type TeamViewOrg struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	AvatarURL string `json:"avatar_url"`
+	// IsAdmin: the caller administers this org.
+	IsAdmin bool `json:"is_admin"`
+}
+
+// TeamViewDTO is a team as the caller sees it in settings: what kind of
+// workspace it is, the caller's role in it, who governs it, and what the
+// caller may do there. Can is computed by the same table the API's route
+// gates evaluate, so clients read permissions instead of re-deriving them.
+type TeamViewDTO struct {
+	TeamID     string           `json:"team_id"`
+	Kind       TeamKind         `json:"kind"`
+	Role       TeamRole         `json:"role"`
+	Org        *TeamViewOrg     `json:"org,omitempty"`
+	Governance TeamGovernance   `json:"governance"`
+	Can        []TeamCapability `json:"can"`
+}
+
+// --------------------
 // source: telemetry.go
 // --------------------
 
@@ -6892,6 +6936,11 @@ type DeltaEvent struct {
 	// companion is deliberately absent — nothing needs to route before matching.
 	// Empty when the task has no execution edge (a plain app run).
 	ResourceID string `json:"resource_id,omitempty"`
+	// End, when set, carries no delta: it is the id of the task or agent run
+	// whose deltas on this key are complete. It follows the last of them on
+	// the same key, so an in-process follower reads to it instead of guessing
+	// when the stream is over. The stream layer never sends it to clients.
+	End string `json:"end,omitempty"`
 }
 
 // LLMDeltaEvent is a typed alias for backward compatibility.
@@ -7117,6 +7166,42 @@ const (
 	TeamRoleOwner  TeamRole = "owner"
 	TeamRoleAdmin  TeamRole = "admin"
 	TeamRoleMember TeamRole = "member"
+)
+
+// TeamKind is what a team is from the caller's side of settings: the team
+// type plus whether it sits inside an org. Capabilities and governance key
+// on it (see team.Subject).
+type TeamKind string
+
+const (
+	// TeamKindPersonal is an account's own workspace.
+	TeamKindPersonal TeamKind = "personal"
+	// TeamKindTeam is a shared workspace outside any org.
+	TeamKindTeam TeamKind = "team"
+	// TeamKindOrgMember is a shared workspace inside an org: billed by the
+	// org and governed by the org's usage policy.
+	TeamKindOrgMember TeamKind = "org_member"
+	// TeamKindOrg is an org's own workspace (TeamTypeOrg).
+	TeamKindOrg TeamKind = "org"
+)
+
+// TeamCapability is one thing a caller may do to a team's settings. The set is
+// closed; team.Subject.Can is the only place that grants them.
+type TeamCapability string
+
+const (
+	TeamCapabilityEditProfile   TeamCapability = "edit_profile"
+	TeamCapabilityManageMembers TeamCapability = "manage_members"
+	TeamCapabilityViewMembers   TeamCapability = "view_members"
+	TeamCapabilityManageKeys    TeamCapability = "manage_keys"
+	TeamCapabilityViewBilling   TeamCapability = "view_billing"
+	TeamCapabilityManageBilling TeamCapability = "manage_billing"
+	TeamCapabilityManagePolicy  TeamCapability = "manage_policy"
+	TeamCapabilityManageOrg     TeamCapability = "manage_org"
+	TeamCapabilityManageSSO     TeamCapability = "manage_sso"
+	TeamCapabilityArchive       TeamCapability = "archive"
+	TeamCapabilityCreateTeam    TeamCapability = "create_team"
+	TeamCapabilityCreateOrg     TeamCapability = "create_org"
 )
 
 // --------------------
