@@ -7188,6 +7188,7 @@ const (
 	TeamCapabilityManageMembers TeamCapability = "manage_members"
 	TeamCapabilityViewMembers   TeamCapability = "view_members"
 	TeamCapabilityManageKeys    TeamCapability = "manage_keys"
+	TeamCapabilityManageVault   TeamCapability = "manage_vault"
 	TeamCapabilityViewBilling   TeamCapability = "view_billing"
 	TeamCapabilityManageBilling TeamCapability = "manage_billing"
 	TeamCapabilityManagePolicy  TeamCapability = "manage_policy"
@@ -7196,6 +7197,10 @@ const (
 	TeamCapabilityArchive       TeamCapability = "archive"
 	TeamCapabilityCreateTeam    TeamCapability = "create_team"
 	TeamCapabilityCreateOrg     TeamCapability = "create_org"
+	// Connecting a credential the whole org, or the whole platform, resolves.
+	// The workspace level is manage_vault.
+	TeamCapabilityConnectOrgCredential      TeamCapability = "connect_org_credential"
+	TeamCapabilityConnectPlatformCredential TeamCapability = "connect_platform_credential"
 )
 
 // --------------------

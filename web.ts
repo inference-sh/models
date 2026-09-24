@@ -4161,7 +4161,8 @@ export interface OrgCreateRequest {
   slug: string;
 }
 /**
- * OrgUpdateRequest updates org display fields.
+ * OrgUpdateRequest updates org display fields. Absent fields are left as
+ * they are; an empty avatar_url removes the icon.
  */
 export interface OrgUpdateRequest {
   name?: string;
@@ -5843,6 +5844,14 @@ export interface UsagePerApp {
   cost: number /* int64 */;
 }
 /**
+ * UsagePerTeam is one team's share of the usage in a breakdown.
+ */
+export interface UsagePerTeam {
+  team_id: string;
+  call_count: number /* int64 */;
+  cost: number /* int64 */;
+}
+/**
  * TeamUsageBreakdown is the response for the usage breakdown API
  */
 export interface TeamUsageBreakdown {
@@ -5853,6 +5862,11 @@ export interface TeamUsageBreakdown {
   period_start: string;
   period_end: string;
   trend_percent?: number /* float64 */;
+  /**
+   * PerTeam is the period's usage by team, costliest first. An
+   * organization workspace's breakdown has a row per team it pays for.
+   */
+  per_team: UsagePerTeam[];
 }
 /**
  * UsageEventDTO is the API representation of a usage event.
@@ -5938,6 +5952,70 @@ export interface UsagePolicySetRequest {
   name?: string;
   entries: UsagePolicyEntries;
   rules?: UsagePolicyRuleRequest[];
+}
+/**
+ * UsagePolicyDraftEntry is one category of a policy that is not saved yet:
+ * the effective-access list evaluates it in place of the policy in force, so
+ * an editor sees the outcome before saving.
+ */
+export interface UsagePolicyDraftEntry {
+  reach: Reach;
+  rules?: UsagePolicyRuleRequest[];
+}
+/**
+ * UsageAccessRequest asks for one page of the resources a team's members can
+ * see in one category, each with the usage policy's verdict. GET takes the
+ * fields as query parameters (category, query, outcome, cursor, limit) and
+ * evaluates the policy in force; POST takes them as a body and may carry a
+ * draft to evaluate instead.
+ */
+export interface UsageAccessRequest {
+  category: UsageCategory;
+  /**
+   * Query searches names and publishers.
+   */
+  query?: string;
+  /**
+   * Outcome keeps only allowed or only blocked resources; empty keeps both.
+   */
+  outcome?: UsageAccessOutcome;
+  cursor?: string;
+  limit?: number /* int */;
+  /**
+   * Draft replaces the policy in force for this category. nil = in force.
+   */
+  draft?: UsagePolicyDraftEntry;
+}
+/**
+ * UsageAccessItemDTO is one resource and the usage policy's verdict on it.
+ */
+export interface UsageAccessItemDTO {
+  resource_id: string;
+  /**
+   * Ref is how the resource is addressed ("bytedance/seedance", an MCP slug).
+   */
+  ref: string;
+  /**
+   * OwnerTeamID and Publisher (the owner's username) are what a publisher
+   * rule names.
+   */
+  owner_team_id?: string;
+  publisher?: string;
+  /**
+   * Source and SourceName: "workspace" + the team's name, "organization" +
+   * the org's name, or "publisher" + the publisher's name.
+   */
+  source: UsageAccessSource;
+  source_name?: string;
+  outcome: UsageAccessOutcome;
+  reason: UsageAccessReason;
+}
+/**
+ * UsageAccessPageDTO is one page of the effective-access list.
+ */
+export interface UsageAccessPageDTO {
+  items: UsageAccessItemDTO[];
+  next_cursor?: string;
 }
 /**
  * UserDTO is the API response for a full user.
@@ -7944,21 +8022,20 @@ export const NotificationStatusCancelled: NotificationStatus = "cancelled";
  */
 export type Reach = string;
 /**
- * ReachPublic — everything visible is usable; block rules carve exceptions.
+ * ReachPublic: every resource the caller can see is eligible.
  */
 export const ReachPublic: Reach = "public";
 /**
- * ReachOrg — only resources owned inside the caller's org; allow rules
- * punch holes for named foreign resources.
+ * ReachOrg: only resources owned inside the caller's org are eligible.
  */
 export const ReachOrg: Reach = "org";
 /**
- * ReachTeam — only the caller's own team's resources (+ allow rules).
+ * ReachTeam: nothing outside the caller's own team is eligible.
  */
 export const ReachTeam: Reach = "team";
 /**
- * ReachPrivate — fully closed: nothing beyond allow rules. Kept for enum
- * symmetry with visibility; collapses into team in practice.
+ * ReachPrivate: nothing outside is eligible. Kept for enum symmetry with
+ * visibility; it evaluates exactly like team.
  */
 export const ReachPrivate: Reach = "private";
 /**
@@ -7978,17 +8055,19 @@ export const UsageCategoryMCP: UsageCategory = "mcp";
 export const UsageCategoryAgent: UsageCategory = "agent";
 export const UsageCategoryFlow: UsageCategory = "flow";
 /**
- * UsagePolicyRuleEffect is the effect of a usage-policy rule.
+ * UsagePolicyRuleEffect names which list a usage-policy rule belongs to. The
+ * two lists are independent of the reach and of each other: a rule means the
+ * same thing whatever the reach is set to.
  */
 export type UsagePolicyRuleEffect = string;
 /**
- * RuleEffectAllow punches a hole in a closed reach (< public): the named
- * foreign resource is usable even though the horizon excludes it.
+ * RuleEffectAllow: the named resource or publisher is usable even though
+ * it is outside the reach.
  */
 export const RuleEffectAllow: UsagePolicyRuleEffect = "allow";
 /**
- * RuleEffectBlock carves an exception from an open reach (= public): the
- * named resource is blocked even though everything else is usable.
+ * RuleEffectBlock: the named resource or publisher is not usable even
+ * though it is inside the reach.
  */
 export const RuleEffectBlock: UsagePolicyRuleEffect = "block";
 /**
@@ -7996,6 +8075,53 @@ export const RuleEffectBlock: UsagePolicyRuleEffect = "block";
  * reach (ungoverned) — the zero state is exactly today's behavior.
  */
 export type UsagePolicyEntries = { [key: UsageCategory]: Reach};
+/**
+ * UsageAccessOutcome is the verdict of a usage policy on one resource.
+ */
+export type UsageAccessOutcome = string;
+export const UsageAccessAllowed: UsageAccessOutcome = "allowed";
+export const UsageAccessBlocked: UsageAccessOutcome = "blocked";
+/**
+ * UsageAccessReason says which part of the policy produced the outcome.
+ */
+export type UsageAccessReason = string;
+/**
+ * UsageAccessOwnWorkspace: the caller's own workspace owns the resource.
+ */
+export const UsageAccessOwnWorkspace: UsageAccessReason = "own_workspace";
+/**
+ * UsageAccessDefault: inside the reach and not blocked.
+ */
+export const UsageAccessDefault: UsageAccessReason = "default";
+/**
+ * UsageAccessAllowRule: an allow rule names the resource or its publisher.
+ */
+export const UsageAccessAllowRule: UsageAccessReason = "allow_rule";
+/**
+ * UsageAccessBlockRule: a block rule names the resource or its publisher.
+ */
+export const UsageAccessBlockRule: UsageAccessReason = "block_rule";
+/**
+ * UsageAccessOutsideReach: outside the reach and no allow rule names it.
+ */
+export const UsageAccessOutsideReach: UsageAccessReason = "outside_reach";
+/**
+ * UsageAccessSource says where a resource comes from, seen from the team the
+ * effective-access list is for.
+ */
+export type UsageAccessSource = string;
+/**
+ * UsageAccessSourceWorkspace: the team itself owns it.
+ */
+export const UsageAccessSourceWorkspace: UsageAccessSource = "workspace";
+/**
+ * UsageAccessSourceOrganization: another team in the same org owns it.
+ */
+export const UsageAccessSourceOrganization: UsageAccessSource = "organization";
+/**
+ * UsageAccessSourcePublisher: a team outside the org publishes it.
+ */
+export const UsageAccessSourcePublisher: UsageAccessSource = "publisher";
 /**
  * RemoteStatus is the liveness state of a remote — a machine that hosts agent
  * harnesses and connects to us as a daemon. It is deliberately simpler than
@@ -8202,6 +8328,7 @@ export const TeamCapabilityEditProfile: TeamCapability = "edit_profile";
 export const TeamCapabilityManageMembers: TeamCapability = "manage_members";
 export const TeamCapabilityViewMembers: TeamCapability = "view_members";
 export const TeamCapabilityManageKeys: TeamCapability = "manage_keys";
+export const TeamCapabilityManageVault: TeamCapability = "manage_vault";
 export const TeamCapabilityViewBilling: TeamCapability = "view_billing";
 export const TeamCapabilityManageBilling: TeamCapability = "manage_billing";
 export const TeamCapabilityManagePolicy: TeamCapability = "manage_policy";
@@ -8210,6 +8337,12 @@ export const TeamCapabilityManageSSO: TeamCapability = "manage_sso";
 export const TeamCapabilityArchive: TeamCapability = "archive";
 export const TeamCapabilityCreateTeam: TeamCapability = "create_team";
 export const TeamCapabilityCreateOrg: TeamCapability = "create_org";
+/**
+ * Connecting a credential the whole org, or the whole platform, resolves.
+ * The workspace level is manage_vault.
+ */
+export const TeamCapabilityConnectOrgCredential: TeamCapability = "connect_org_credential";
+export const TeamCapabilityConnectPlatformCredential: TeamCapability = "connect_platform_credential";
 export type Role = string;
 export const RoleGuest: Role = "guest";
 export const RoleUser: Role = "user";
