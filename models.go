@@ -212,12 +212,13 @@ type ClientToolConfig struct {
 // ToolAuthType says how an HTTP tool authenticates.
 type ToolAuthType string
 
-// Canonical returns the current spelling of the auth type.
-func (t ToolAuthType) Canonical() ToolAuthType {
-	if t == toolAuthTypeLegacyIntegration {
-		return ToolAuthTypeCredential
+// Valid reports whether t is an auth type the runtime understands; empty means none.
+func (t ToolAuthType) Valid() bool {
+	switch t {
+	case "", ToolAuthTypeNone, ToolAuthTypeCredential, ToolAuthTypeAPIKey, ToolAuthTypeBearer:
+		return true
 	}
-	return t
+	return false
 }
 
 const (
@@ -229,9 +230,6 @@ const (
 	ToolAuthTypeAPIKey ToolAuthType = "api_key"
 	// ToolAuthTypeBearer sends a vault secret as a bearer token.
 	ToolAuthTypeBearer ToolAuthType = "bearer"
-	// toolAuthTypeLegacyIntegration is how agent versions and inf.yml files
-	// written before the credential rename spell ToolAuthTypeCredential.
-	toolAuthTypeLegacyIntegration ToolAuthType = "integration"
 )
 
 // ToolAuthConfig declares how a tool authenticates.
@@ -239,23 +237,8 @@ type ToolAuthConfig struct {
 	Type         ToolAuthType `json:"type" yaml:"type"`
 	Provider     string       `json:"provider,omitempty" yaml:"provider,omitempty"`
 	CredentialID string       `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
-	// Deprecated: the credential id used to be called integration_id. Read
-	// through CredentialRef(); never written.
-	IntegrationID string `json:"integration_id,omitempty" yaml:"integration_id,omitempty"`
-	Secret        string `json:"secret,omitempty" yaml:"secret,omitempty"`
-	Header        string `json:"header,omitempty" yaml:"header,omitempty"`
-}
-
-// CredentialRef is the credential this auth config names, accepting the
-// legacy integration_id spelling stored by older agent versions.
-func (c *ToolAuthConfig) CredentialRef() string {
-	if c == nil {
-		return ""
-	}
-	if c.CredentialID != "" {
-		return c.CredentialID
-	}
-	return c.IntegrationID
+	Secret       string       `json:"secret,omitempty" yaml:"secret,omitempty"`
+	Header       string       `json:"header,omitempty" yaml:"header,omitempty"`
 }
 
 type HTTPToolConfig struct {
@@ -269,22 +252,7 @@ type HTTPToolConfig struct {
 
 type MCPToolConfig struct {
 	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
-	// Deprecated: the credential id used to be called integration_id. Read
-	// through CredentialRef(); never written.
-	IntegrationID string `json:"integration_id,omitempty" yaml:"integration_id,omitempty"`
-	ToolName      string `json:"tool_name" yaml:"tool_name"`
-}
-
-// CredentialRef is the MCP credential this tool runs through, accepting the
-// legacy integration_id spelling stored by older agent versions.
-func (c *MCPToolConfig) CredentialRef() string {
-	if c == nil {
-		return ""
-	}
-	if c.CredentialID != "" {
-		return c.CredentialID
-	}
-	return c.IntegrationID
+	ToolName     string `json:"tool_name" yaml:"tool_name"`
 }
 
 type AppToolConfigDTO struct {
@@ -568,23 +536,6 @@ type AppVersionInput struct {
 	RequiredResources   AppResources            `json:"resources,omitempty"`
 }
 
-// UnmarshalJSON accepts required_integrations from clients built before the rename.
-func (v *AppVersionInput) UnmarshalJSON(data []byte) error {
-	type plain AppVersionInput
-	var in struct {
-		plain
-		Legacy []CredentialRequirement `json:"required_integrations"`
-	}
-	if err := json.Unmarshal(data, &in); err != nil {
-		return err
-	}
-	*v = AppVersionInput(in.plain)
-	if v.RequiredCredentials == nil {
-		v.RequiredCredentials = in.Legacy
-	}
-	return nil
-}
-
 // CreateAppRequest is the request body for POST /apps
 type CreateAppRequest struct {
 	ID                     string           `json:"id,omitempty"`
@@ -782,15 +733,6 @@ type CredentialConnectResponse struct {
 	Message              string         `json:"message,omitempty"`
 }
 
-// MarshalJSON also writes integration for CLIs built before the rename.
-func (r CredentialConnectResponse) MarshalJSON() ([]byte, error) {
-	type plain CredentialConnectResponse
-	return json.Marshal(struct {
-		plain
-		Legacy *CredentialDTO `json:"integration,omitempty"`
-	}{plain(r), r.Credential})
-}
-
 type ProjectCreateRequest struct {
 	Name string      `json:"name" validate:"required"`
 	Type ProjectType `json:"type" validate:"required"`
@@ -961,7 +903,7 @@ const (
 	ScopeSecretsRead  Scope = "secrets:read"
 	ScopeSecretsWrite Scope = "secrets:write"
 	// Action-level scopes for credentials (connected accounts, vaults,
-	// custom providers, MCP servers). Formerly integrations:read|write.
+	// custom providers, MCP servers).
 	ScopeCredentialsRead  Scope = "credentials:read"
 	ScopeCredentialsWrite Scope = "credentials:write"
 	// Action-level scopes for Engines
@@ -1154,16 +1096,47 @@ type SecretRequirement struct {
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
 }
 
-// CredentialRequirement defines a credential that an app requires.
-// Key is the provider slug (e.g. "bytedance", "google").
-// Secrets lists the specific env var names to inject from this credential.
-// Scopes lists OAuth scopes needed (for OAuth credentials).
+// CredentialRequirement is an entry under credentials: in inf.yml: keys an
+// app needs that belong to a provider. Provider names whose credential
+// supplies them; Secrets lists the keys to inject from it (an API key
+// credential), Scopes what to ask for (an OAuth one).
+//
+//	credentials:
+//	  - provider: acme
+//	    name: Acme CRM
+//	    website: acme.com
+//	    secrets: [ACME_API_KEY]
+//
+// Key is a capability of a provider the platform defines ("x.tweet.read",
+// "google.sheets"): an OAuth grant with the scopes it implies. An entry sets
+// Provider, Key, or both; with both, Key decides how it is resolved.
 type CredentialRequirement struct {
-	Key         string   `json:"key" yaml:"key"`
+	Provider string `json:"provider,omitempty" yaml:"provider,omitempty"`
+	// Name and Website describe a provider the platform does not list: the
+	// name its credential is shown under and the site its logo comes from.
+	Name        string   `json:"name,omitempty" yaml:"name,omitempty"`
+	Website     string   `json:"website,omitempty" yaml:"website,omitempty"`
+	Key         string   `json:"key,omitempty" yaml:"key,omitempty"`
 	Description string   `json:"description,omitempty" yaml:"description,omitempty"`
 	Optional    bool     `json:"optional,omitempty" yaml:"optional,omitempty"`
 	Secrets     []string `json:"secrets,omitempty" yaml:"secrets,omitempty"`
 	Scopes      []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+}
+
+// Ref identifies the requirement in satisfied lists and requirement errors:
+// the capability key when there is one, else the provider.
+func (r CredentialRequirement) Ref() string {
+	if r.Key != "" {
+		return r.Key
+	}
+	return r.Provider
+}
+
+// ByProvider reports whether the requirement is resolved through the
+// provider's credential. A capability key, when given, wins: it carries the
+// scopes the app needs, which the capability path checks.
+func (r CredentialRequirement) ByProvider() bool {
+	return r.Provider != "" && r.Key == ""
 }
 
 // AppDTO is the API response for a full app.
@@ -1215,15 +1188,6 @@ type AppVersionDTO struct {
 	RequiredCredentials []CredentialRequirement `json:"required_credentials,omitempty"`
 	RequiredResources   AppResources            `json:"resources"`
 	Checksum            string                  `json:"checksum,omitempty"`
-}
-
-// MarshalJSON also writes required_integrations for CLIs built before the rename.
-func (v AppVersionDTO) MarshalJSON() ([]byte, error) {
-	type plain AppVersionDTO
-	return json.Marshal(struct {
-		plain
-		Legacy []CredentialRequirement `json:"required_integrations,omitempty"`
-	}{plain(v), v.RequiredCredentials})
 }
 
 // LicenseRecordDTO is the API response for a license record.
@@ -3423,6 +3387,7 @@ type RemoteDTO struct {
 	SystemInfo         *SystemInfo   `json:"system_info"`
 	RemoteVersion      string        `json:"remote_version"`
 	ExecEnabled        bool          `json:"exec_enabled"`
+	AgentsEnabled      bool          `json:"agents_enabled"`
 	Profiles           []*ProfileDTO `json:"profiles"`
 }
 
@@ -3477,6 +3442,9 @@ type RemoteRegisterRequest struct {
 	SystemInfo    *SystemInfo `json:"system_info,omitempty"`
 	// ExecEnabled is the daemon's per-host opt-in to running commands.
 	ExecEnabled bool `json:"exec_enabled,omitempty"`
+	// AgentsEnabled is the daemon's per-host opt-in to running agent
+	// harness sessions.
+	AgentsEnabled bool `json:"agents_enabled,omitempty"`
 	// Harnesses are the agent CLIs the daemon discovered on the machine. The
 	// api reconciles them into Profiles — one row per harness the remote can
 	// serve. It never carries a credential: LoggedIn is only a hint the daemon
@@ -3682,6 +3650,12 @@ type SetupAction struct {
 	ProviderName      string            `json:"provider_name,omitempty"`      // Display name (e.g. "Google Account")
 	Scopes            []string          `json:"scopes,omitempty"`             // Scopes to request
 	ScopeDescriptions map[string]string `json:"scope_descriptions,omitempty"` // Scope key → friendly description
+	// Secrets are the keys to supply for an add_secret action on a
+	// provider: saved against Provider, they become its credential.
+	Secrets []string `json:"secrets,omitempty"`
+	// ProviderWebsite is where the logo of a provider the platform does not
+	// list comes from; sent back when the keys are saved.
+	ProviderWebsite string `json:"provider_website,omitempty"`
 }
 
 // Capability represents a credential capability that can be requested by apps
@@ -3705,23 +3679,6 @@ type CapabilitiesResponse struct {
 type CheckRequirementsRequest struct {
 	Secrets     []SecretRequirement     `json:"secrets,omitempty"`
 	Credentials []CredentialRequirement `json:"credentials,omitempty"`
-}
-
-// UnmarshalJSON accepts integrations from clients built before the rename.
-func (r *CheckRequirementsRequest) UnmarshalJSON(data []byte) error {
-	type plain CheckRequirementsRequest
-	var in struct {
-		plain
-		Legacy []CredentialRequirement `json:"integrations"`
-	}
-	if err := json.Unmarshal(data, &in); err != nil {
-		return err
-	}
-	*r = CheckRequirementsRequest(in.plain)
-	if r.Credentials == nil {
-		r.Credentials = in.Legacy
-	}
-	return nil
 }
 
 // CheckRequirementsResponse is the API response for checking requirements
@@ -3854,7 +3811,7 @@ type SDKTypes struct {
 	_teamMemberRole   TeamMemberUpdateRoleRequest
 	_teamInvite       TeamInviteDTO
 	_teamInviteCreate TeamInviteCreateRequest
-	// Integrations
+	// Credentials
 	_integConnect       CredentialConnectRequest
 	_integCompleteOAuth CredentialCompleteOAuthRequest
 	_integConnectResp   CredentialConnectResponse
@@ -4151,6 +4108,20 @@ type RemoteTypes struct {
 	_remoteBeat   RemoteHeartbeatRequest
 	_remoteStatus RemoteStatus
 	_profileStat  ProfileStatus
+	// Harness session frames on the remote socket, so belt imports them from
+	// models instead of mirroring them.
+	_sessOpen      WsRemoteSessionOpen
+	_sessPrompt    WsRemoteSessionPrompt
+	_sessInterrupt WsRemoteSessionInterrupt
+	_sessResolve   WsRemoteSessionResolve
+	_sessClose     WsRemoteSessionClose
+	_sessAck       WsRemoteSessionAck
+	_sessReplay    WsRemoteSessionReplay
+	_sessList      WsRemoteSessionsList
+	_sessOpened    WsRemoteSessionOpened
+	_sessEvent     WsRemoteSessionEvent
+	_sessClosed    WsRemoteSessionClosed
+	_sessListed    WsRemoteSessionsListed
 }
 
 // --------------------
@@ -4895,8 +4866,8 @@ type WsTaskOutputPayload struct {
 	Output  []byte `json:"output"`
 	IsDelta bool   `json:"is_delta,omitempty"`
 	// Seq numbers a task's deltas in the order the engine produced them,
-	// 1-based. The API releases deltas to the bus in this order; the socket
-	// alone does not keep it. Zero from an engine that does not number yet.
+	// 1-based, and passed through to clients on each delta event. Zero from
+	// an engine that does not number yet.
 	Seq int64 `json:"seq,omitempty"`
 }
 
@@ -5030,6 +5001,169 @@ const (
 	WSEventRemoteTerminalOutput WSEventType = "remote_terminal_output"
 	WSEventRemoteTerminalExit   WSEventType = "remote_terminal_exit"
 )
+
+// --------------------
+// source: ws_remote_session.go
+// --------------------
+
+// Harness sessions over the remote socket (INF-831). The api drives an agent
+// harness — Claude Code, Codex, Gemini and the rest — through a session the
+// daemon hosts, one per chat. The loop stays here: the daemon launches the
+// harness in ACP mode, forwards what it says, and applies the decisions sent
+// back. These are the wire contract with belt's session host; they are
+// generated into models so belt imports them rather than mirroring them.
+const (
+	// Server -> remote.
+	WSEventRemoteSessionOpen      WSEventType = "remote_session_open"
+	WSEventRemoteSessionPrompt    WSEventType = "remote_session_prompt"
+	WSEventRemoteSessionInterrupt WSEventType = "remote_session_interrupt"
+	WSEventRemoteSessionResolve   WSEventType = "remote_session_resolve"
+	WSEventRemoteSessionClose     WSEventType = "remote_session_close"
+	WSEventRemoteSessionAck       WSEventType = "remote_session_ack"
+	WSEventRemoteSessionReplay    WSEventType = "remote_session_replay"
+	WSEventRemoteSessionsList     WSEventType = "remote_sessions_list"
+	// Remote -> server.
+	WSEventRemoteSessionOpened  WSEventType = "remote_session_opened"
+	WSEventRemoteSessionEvent   WSEventType = "remote_session_event"
+	WSEventRemoteSessionClosed  WSEventType = "remote_session_closed"
+	WSEventRemoteSessionsListed WSEventType = "remote_sessions_listed"
+)
+
+// WsRemoteSessionOpen asks the daemon to start a harness session for a chat,
+// or to reopen one the harness persisted. The chat keys everything after it:
+// one chat, one harness session, for the chat's whole life.
+type WsRemoteSessionOpen struct {
+	ChatID string `json:"chat_id"`
+	// Harness is the registry id: claude, codex, gemini, ...
+	Harness string `json:"harness"`
+	// Cwd is where the agent works. Empty uses the daemon's working directory.
+	Cwd string `json:"cwd,omitempty"`
+	// ResumeSessionID is the harness's own id for a session to reopen with its
+	// history (ACP session/load). Empty starts fresh.
+	ResumeSessionID string `json:"resume_session_id,omitempty"`
+}
+
+// WsRemoteSessionPrompt sends a user message into a chat's session. RunID is
+// the run this turn belongs to; the daemon stamps it on every event the turn
+// produces, since one harness session serves many runs.
+type WsRemoteSessionPrompt struct {
+	ChatID string `json:"chat_id"`
+	RunID  string `json:"run_id"`
+	Text   string `json:"text"`
+}
+
+// WsRemoteSessionInterrupt abandons the turn in flight and keeps the session.
+type WsRemoteSessionInterrupt struct {
+	ChatID string `json:"chat_id"`
+}
+
+// WsRemoteSessionResolve answers a permission request the harness raised.
+// RequestID is the harness's own tool call id from the approval-required
+// event.
+type WsRemoteSessionResolve struct {
+	ChatID    string              `json:"chat_id"`
+	RequestID string              `json:"request_id"`
+	Decision  InterruptResolution `json:"decision"`
+	// Scope is "once" (default), "session" or "always", where the harness can
+	// express it.
+	Scope  string `json:"scope,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// WsRemoteSessionClose ends a chat's session and stops its process.
+type WsRemoteSessionClose struct {
+	ChatID string `json:"chat_id"`
+}
+
+// WsRemoteSessionAck tells the daemon every event up to Seq is stored, so it
+// can drop them from its replay buffer.
+type WsRemoteSessionAck struct {
+	ChatID string `json:"chat_id"`
+	Seq    int64  `json:"seq"`
+}
+
+// WsRemoteSessionReplay asks the daemon to send again every buffered event
+// after AfterSeq. Sent when a remote reconnects, for each chat with a run on
+// it: events produced while the socket was down never arrived.
+type WsRemoteSessionReplay struct {
+	ChatID   string `json:"chat_id"`
+	AfterSeq int64  `json:"after_seq"`
+}
+
+// WsRemoteSessionsList asks which harness sessions exist on the machine.
+type WsRemoteSessionsList struct {
+	RequestID string `json:"request_id"`
+	Cwd       string `json:"cwd,omitempty"`
+}
+
+// WsRemoteSessionOpened reports a live session and the harness's own id for
+// it, which the api stores on the chat to reopen it later.
+type WsRemoteSessionOpened struct {
+	ChatID           string `json:"chat_id"`
+	HarnessSessionID string `json:"harness_session_id"`
+	// Resumed is true when ResumeSessionID was honoured.
+	Resumed bool `json:"resumed"`
+	// Seq is the last event number the daemon's session has produced: 0 for a
+	// process it just launched. Event numbers restart with the process, so a
+	// Seq below what the api stored means the old numbering is gone.
+	Seq int64 `json:"seq"`
+}
+
+// WsRemoteSessionEvent carries one event from a harness session, stamped
+// with the run of the prompt that caused it (Event.RunID). Seq is monotonic
+// per chat for the life of the daemon's session. Gap marks the first replayed
+// event when the daemon's buffer no longer reached back to the one asked for.
+type WsRemoteSessionEvent struct {
+	ChatID string     `json:"chat_id"`
+	Seq    int64      `json:"seq"`
+	Gap    bool       `json:"gap,omitempty"`
+	Event  AgentEvent `json:"event"`
+}
+
+// WsRemoteSessionClosed reports that a chat's session ended: closed on
+// request, the harness exited, or it never opened. Error is set when it was
+// not a clean close.
+type WsRemoteSessionClosed struct {
+	ChatID string `json:"chat_id"`
+	Error  string `json:"error,omitempty"`
+}
+
+// WsRemoteSessionsListed answers a WsRemoteSessionsList.
+type WsRemoteSessionsListed struct {
+	RequestID string                   `json:"request_id"`
+	Sessions  []RemoteListedSession    `json:"sessions"`
+	Errors    []RemoteSessionListError `json:"errors,omitempty"`
+}
+
+// RemoteListedSession is one harness session on a machine, without content.
+type RemoteListedSession struct {
+	Harness string          `json:"harness"`
+	ID      string          `json:"id"`
+	Cwd     string          `json:"cwd,omitempty"`
+	Title   string          `json:"title,omitempty"`
+	Updated time.Time       `json:"updated"`
+	Live    SessionLiveness `json:"live"`
+}
+
+// SessionLiveness says whether a process holds a session right now and how
+// that was decided; agentprotocol's transcript.Liveness on the wire.
+type SessionLiveness struct {
+	// State is active, idle or unknown.
+	State string `json:"state"`
+	// Evidence names what decided it: lock-file, open-file, no-process,
+	// held-elsewhere (proof); process-in-cwd, recent-write, no-process-in-cwd
+	// (heuristic); none.
+	Evidence  string `json:"evidence"`
+	Heuristic bool   `json:"heuristic"`
+	PID       int    `json:"pid,omitempty"`
+	Detail    string `json:"detail,omitempty"`
+}
+
+// RemoteSessionListError is a harness store the daemon could not read.
+type RemoteSessionListError struct {
+	Harness string `json:"harness"`
+	Error   string `json:"error"`
+}
 
 // --------------------
 // source: a2ui.go
@@ -5555,31 +5689,6 @@ type ChannelContext struct {
 	ChannelMetadata json.RawMessage `json:"channel_metadata,omitempty"`
 }
 
-// UnmarshalJSON accepts the keys this struct was stored under before the
-// channel rename (integration_type, integration_metadata), so rows written
-// before the cut keep reading without a data migration. New writes always use
-// the current keys.
-func (c *ChannelContext) UnmarshalJSON(data []byte) error {
-	var raw struct {
-		ChannelType         *ChannelType    `json:"channel_type"`
-		ChannelMetadata     json.RawMessage `json:"channel_metadata"`
-		IntegrationType     *ChannelType    `json:"integration_type"`
-		IntegrationMetadata json.RawMessage `json:"integration_metadata"`
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	c.ChannelType = raw.ChannelType
-	c.ChannelMetadata = raw.ChannelMetadata
-	if c.ChannelType == nil {
-		c.ChannelType = raw.IntegrationType
-	}
-	if len(c.ChannelMetadata) == 0 {
-		c.ChannelMetadata = raw.IntegrationMetadata
-	}
-	return nil
-}
-
 // --------------------
 // source: engine.go
 // --------------------
@@ -6088,7 +6197,7 @@ func (v SecretScope) Value() (driver.Value, error) {
 const (
 	// SecretScopeTeam is a normal user secret, visible in team secret lists
 	SecretScopeTeam SecretScope = "team"
-	// SecretScopeInternal is an integration-managed secret, hidden from user lists
+	// SecretScopeInternal is a credential-managed secret, hidden from user lists
 	SecretScopeInternal SecretScope = "internal"
 	// SecretScopeSystem is a global system setting, owned by system team, admin-only
 	SecretScopeSystem SecretScope = "system"

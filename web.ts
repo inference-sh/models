@@ -171,11 +171,6 @@ export interface ToolAuthConfig {
   type: ToolAuthType;
   provider?: string;
   credential_id?: string;
-  /**
-   * Deprecated: the credential id used to be called integration_id. Read
-   * through CredentialRef(); never written.
-   */
-  integration_id?: string;
   secret?: string;
   header?: string;
 }
@@ -189,11 +184,6 @@ export interface HTTPToolConfig {
 }
 export interface MCPToolConfig {
   credential_id?: string;
-  /**
-   * Deprecated: the credential id used to be called integration_id. Read
-   * through CredentialRef(); never written.
-   */
-  integration_id?: string;
   tool_name: string;
 }
 export interface AppToolConfigDTO {
@@ -1493,7 +1483,7 @@ export const ScopeSecretsRead: Scope = "secrets:read";
 export const ScopeSecretsWrite: Scope = "secrets:write";
 /**
  * Action-level scopes for credentials (connected accounts, vaults,
- * custom providers, MCP servers). Formerly integrations:read|write.
+ * custom providers, MCP servers).
  */
 export const ScopeCredentialsRead: Scope = "credentials:read";
 /**
@@ -1727,13 +1717,28 @@ export interface SecretRequirement {
   optional?: boolean;
 }
 /**
- * CredentialRequirement defines a credential that an app requires.
- * Key is the provider slug (e.g. "bytedance", "google").
- * Secrets lists the specific env var names to inject from this credential.
- * Scopes lists OAuth scopes needed (for OAuth credentials).
+ * CredentialRequirement is an entry under credentials: in inf.yml: keys an
+ * app needs that belong to a provider. Provider names whose credential
+ * supplies them; Secrets lists the keys to inject from it (an API key
+ * credential), Scopes what to ask for (an OAuth one).
+ * 	credentials:
+ * 	  - provider: acme
+ * 	    name: Acme CRM
+ * 	    website: acme.com
+ * 	    secrets: [ACME_API_KEY]
+ * Key is a capability of a provider the platform defines ("x.tweet.read",
+ * "google.sheets"): an OAuth grant with the scopes it implies. An entry sets
+ * Provider, Key, or both; with both, Key decides how it is resolved.
  */
 export interface CredentialRequirement {
-  key: string;
+  provider?: string;
+  /**
+   * Name and Website describe a provider the platform does not list: the
+   * name its credential is shown under and the site its logo comes from.
+   */
+  name?: string;
+  website?: string;
+  key?: string;
   description?: string;
   optional?: boolean;
   secrets?: string[];
@@ -4546,6 +4551,7 @@ export interface RemoteDTO extends BaseModelDTO, PermissionModelDTO {
   system_info?: SystemInfo;
   remote_version: string;
   exec_enabled: boolean;
+  agents_enabled: boolean;
   profiles: (ProfileDTO | undefined)[];
 }
 /**
@@ -4617,6 +4623,11 @@ export interface RemoteRegisterRequest {
    * ExecEnabled is the daemon's per-host opt-in to running commands.
    */
   exec_enabled?: boolean;
+  /**
+   * AgentsEnabled is the daemon's per-host opt-in to running agent
+   * harness sessions.
+   */
+  agents_enabled?: boolean;
   /**
    * Harnesses are the agent CLIs the daemon discovered on the machine. The
    * api reconciles them into Profiles — one row per harness the remote can
@@ -4918,6 +4929,16 @@ export interface SetupAction {
   provider_name?: string; // Display name (e.g. "Google Account")
   scopes?: string[]; // Scopes to request
   scope_descriptions?: { [key: string]: string}; // Scope key → friendly description
+  /**
+   * Secrets are the keys to supply for an add_secret action on a
+   * provider: saved against Provider, they become its credential.
+   */
+  secrets?: string[];
+  /**
+   * ProviderWebsite is where the logo of a provider the platform does not
+   * list comes from; sent back when the keys are saved.
+   */
+  provider_website?: string;
 }
 /**
  * Capability represents a credential capability that can be requested by apps
@@ -6093,8 +6114,8 @@ export interface WsTaskOutputPayload {
   is_delta?: boolean;
   /**
    * Seq numbers a task's deltas in the order the engine produced them,
-   * 1-based. The API releases deltas to the bus in this order; the socket
-   * alone does not keep it. Zero from an engine that does not number yet.
+   * 1-based, and passed through to clients on each delta event. Zero from
+   * an engine that does not number yet.
    */
   seq?: number /* int64 */;
 }
@@ -6263,6 +6284,271 @@ export const WSEventRemoteTerminalOutput: WSEventType = "remote_terminal_output"
  * internal/remote protocol exactly — the two sides are the same wire.
  */
 export const WSEventRemoteTerminalExit: WSEventType = "remote_terminal_exit";
+/**
+ * Server -> remote.
+ */
+export const WSEventRemoteSessionOpen: WSEventType = "remote_session_open";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionPrompt: WSEventType = "remote_session_prompt";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionInterrupt: WSEventType = "remote_session_interrupt";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionResolve: WSEventType = "remote_session_resolve";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionClose: WSEventType = "remote_session_close";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionAck: WSEventType = "remote_session_ack";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionReplay: WSEventType = "remote_session_replay";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionsList: WSEventType = "remote_sessions_list";
+/**
+ * Remote -> server.
+ */
+export const WSEventRemoteSessionOpened: WSEventType = "remote_session_opened";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionEvent: WSEventType = "remote_session_event";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionClosed: WSEventType = "remote_session_closed";
+/**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionsListed: WSEventType = "remote_sessions_listed";
+/**
+ * WsRemoteSessionOpen asks the daemon to start a harness session for a chat,
+ * or to reopen one the harness persisted. The chat keys everything after it:
+ * one chat, one harness session, for the chat's whole life.
+ */
+export interface WsRemoteSessionOpen {
+  chat_id: string;
+  /**
+   * Harness is the registry id: claude, codex, gemini, ...
+   */
+  harness: string;
+  /**
+   * Cwd is where the agent works. Empty uses the daemon's working directory.
+   */
+  cwd?: string;
+  /**
+   * ResumeSessionID is the harness's own id for a session to reopen with its
+   * history (ACP session/load). Empty starts fresh.
+   */
+  resume_session_id?: string;
+}
+/**
+ * WsRemoteSessionPrompt sends a user message into a chat's session. RunID is
+ * the run this turn belongs to; the daemon stamps it on every event the turn
+ * produces, since one harness session serves many runs.
+ */
+export interface WsRemoteSessionPrompt {
+  chat_id: string;
+  run_id: string;
+  text: string;
+}
+/**
+ * WsRemoteSessionInterrupt abandons the turn in flight and keeps the session.
+ */
+export interface WsRemoteSessionInterrupt {
+  chat_id: string;
+}
+/**
+ * WsRemoteSessionResolve answers a permission request the harness raised.
+ * RequestID is the harness's own tool call id from the approval-required
+ * event.
+ */
+export interface WsRemoteSessionResolve {
+  chat_id: string;
+  request_id: string;
+  decision: InterruptResolution;
+  /**
+   * Scope is "once" (default), "session" or "always", where the harness can
+   * express it.
+   */
+  scope?: string;
+  reason?: string;
+}
+/**
+ * WsRemoteSessionClose ends a chat's session and stops its process.
+ */
+export interface WsRemoteSessionClose {
+  chat_id: string;
+}
+/**
+ * WsRemoteSessionAck tells the daemon every event up to Seq is stored, so it
+ * can drop them from its replay buffer.
+ */
+export interface WsRemoteSessionAck {
+  chat_id: string;
+  seq: number /* int64 */;
+}
+/**
+ * WsRemoteSessionReplay asks the daemon to send again every buffered event
+ * after AfterSeq. Sent when a remote reconnects, for each chat with a run on
+ * it: events produced while the socket was down never arrived.
+ */
+export interface WsRemoteSessionReplay {
+  chat_id: string;
+  after_seq: number /* int64 */;
+}
+/**
+ * WsRemoteSessionsList asks which harness sessions exist on the machine.
+ */
+export interface WsRemoteSessionsList {
+  request_id: string;
+  cwd?: string;
+}
+/**
+ * WsRemoteSessionOpened reports a live session and the harness's own id for
+ * it, which the api stores on the chat to reopen it later.
+ */
+export interface WsRemoteSessionOpened {
+  chat_id: string;
+  harness_session_id: string;
+  /**
+   * Resumed is true when ResumeSessionID was honoured.
+   */
+  resumed: boolean;
+  /**
+   * Seq is the last event number the daemon's session has produced: 0 for a
+   * process it just launched. Event numbers restart with the process, so a
+   * Seq below what the api stored means the old numbering is gone.
+   */
+  seq: number /* int64 */;
+}
+/**
+ * WsRemoteSessionEvent carries one event from a harness session, stamped
+ * with the run of the prompt that caused it (Event.RunID). Seq is monotonic
+ * per chat for the life of the daemon's session. Gap marks the first replayed
+ * event when the daemon's buffer no longer reached back to the one asked for.
+ */
+export interface WsRemoteSessionEvent {
+  chat_id: string;
+  seq: number /* int64 */;
+  gap?: boolean;
+  event: AgentEvent;
+}
+/**
+ * WsRemoteSessionClosed reports that a chat's session ended: closed on
+ * request, the harness exited, or it never opened. Error is set when it was
+ * not a clean close.
+ */
+export interface WsRemoteSessionClosed {
+  chat_id: string;
+  error?: string;
+}
+/**
+ * WsRemoteSessionsListed answers a WsRemoteSessionsList.
+ */
+export interface WsRemoteSessionsListed {
+  request_id: string;
+  sessions: RemoteListedSession[];
+  errors?: RemoteSessionListError[];
+}
+/**
+ * RemoteListedSession is one harness session on a machine, without content.
+ */
+export interface RemoteListedSession {
+  harness: string;
+  id: string;
+  cwd?: string;
+  title?: string;
+  updated: string /* RFC3339 */;
+  live: SessionLiveness;
+}
+/**
+ * SessionLiveness says whether a process holds a session right now and how
+ * that was decided; agentprotocol's transcript.Liveness on the wire.
+ */
+export interface SessionLiveness {
+  /**
+   * State is active, idle or unknown.
+   */
+  state: string;
+  /**
+   * Evidence names what decided it: lock-file, open-file, no-process,
+   * held-elsewhere (proof); process-in-cwd, recent-write, no-process-in-cwd
+   * (heuristic); none.
+   */
+  evidence: string;
+  heuristic: boolean;
+  pid?: number /* int */;
+  detail?: string;
+}
+/**
+ * RemoteSessionListError is a harness store the daemon could not read.
+ */
+export interface RemoteSessionListError {
+  harness: string;
+  error: string;
+}
 export type A2UIComponentType = string;
 export const A2UIRow: A2UIComponentType = "Row";
 export const A2UIColumn: A2UIComponentType = "Column";
@@ -7070,7 +7356,7 @@ export type SecretScope = string;
  */
 export const SecretScopeTeam: SecretScope = "team";
 /**
- * SecretScopeInternal is an integration-managed secret, hidden from user lists
+ * SecretScopeInternal is a credential-managed secret, hidden from user lists
  */
 export const SecretScopeInternal: SecretScope = "internal";
 /**

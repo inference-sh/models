@@ -132,11 +132,6 @@ export interface ToolAuthConfig {
   type: ToolAuthType;
   provider?: string;
   credential_id?: string;
-  /**
-   * Deprecated: the credential id used to be called integration_id. Read
-   * through CredentialRef(); never written.
-   */
-  integration_id?: string;
   secret?: string;
   header?: string;
 }
@@ -150,11 +145,6 @@ export interface HTTPToolConfig {
 }
 export interface MCPToolConfig {
   credential_id?: string;
-  /**
-   * Deprecated: the credential id used to be called integration_id. Read
-   * through CredentialRef(); never written.
-   */
-  integration_id?: string;
   tool_name: string;
 }
 export interface AppToolConfigDTO {
@@ -836,7 +826,7 @@ export const ScopeSecretsRead: Scope = "secrets:read";
 export const ScopeSecretsWrite: Scope = "secrets:write";
 /**
  * Action-level scopes for credentials (connected accounts, vaults,
- * custom providers, MCP servers). Formerly integrations:read|write.
+ * custom providers, MCP servers).
  */
 export const ScopeCredentialsRead: Scope = "credentials:read";
 /**
@@ -1070,13 +1060,28 @@ export interface SecretRequirement {
   optional?: boolean;
 }
 /**
- * CredentialRequirement defines a credential that an app requires.
- * Key is the provider slug (e.g. "bytedance", "google").
- * Secrets lists the specific env var names to inject from this credential.
- * Scopes lists OAuth scopes needed (for OAuth credentials).
+ * CredentialRequirement is an entry under credentials: in inf.yml: keys an
+ * app needs that belong to a provider. Provider names whose credential
+ * supplies them; Secrets lists the keys to inject from it (an API key
+ * credential), Scopes what to ask for (an OAuth one).
+ * 	credentials:
+ * 	  - provider: acme
+ * 	    name: Acme CRM
+ * 	    website: acme.com
+ * 	    secrets: [ACME_API_KEY]
+ * Key is a capability of a provider the platform defines ("x.tweet.read",
+ * "google.sheets"): an OAuth grant with the scopes it implies. An entry sets
+ * Provider, Key, or both; with both, Key decides how it is resolved.
  */
 export interface CredentialRequirement {
-  key: string;
+  provider?: string;
+  /**
+   * Name and Website describe a provider the platform does not list: the
+   * name its credential is shown under and the site its logo comes from.
+   */
+  name?: string;
+  website?: string;
+  key?: string;
   description?: string;
   optional?: boolean;
   secrets?: string[];
@@ -3120,6 +3125,16 @@ export interface SetupAction {
   provider_name?: string; // Display name (e.g. "Google Account")
   scopes?: string[]; // Scopes to request
   scope_descriptions?: { [key: string]: string}; // Scope key → friendly description
+  /**
+   * Secrets are the keys to supply for an add_secret action on a
+   * provider: saved against Provider, they become its credential.
+   */
+  secrets?: string[];
+  /**
+   * ProviderWebsite is where the logo of a provider the platform does not
+   * list comes from; sent back when the keys are saved.
+   */
+  provider_website?: string;
 }
 /**
  * CheckRequirementsRequest is the request body for checking requirements
@@ -4318,7 +4333,7 @@ export type SecretScope = string;
  */
 export const SecretScopeTeam: SecretScope = "team";
 /**
- * SecretScopeInternal is an integration-managed secret, hidden from user lists
+ * SecretScopeInternal is a credential-managed secret, hidden from user lists
  */
 export const SecretScopeInternal: SecretScope = "internal";
 /**

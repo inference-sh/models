@@ -444,9 +444,6 @@ public struct ToolAuthConfig: Codable {
     public var type: ToolAuthType
     public var provider: String?
     public var credentialId: String?
-    /// Deprecated: the credential id used to be called integration_id. Read
-    /// through CredentialRef(); never written.
-    public var integrationId: String?
     public var secret: String?
     public var header: String?
 
@@ -454,14 +451,12 @@ public struct ToolAuthConfig: Codable {
         type: ToolAuthType,
         provider: String? = nil,
         credentialId: String? = nil,
-        integrationId: String? = nil,
         secret: String? = nil,
         header: String? = nil
     ) {
         self.type = type
         self.provider = provider
         self.credentialId = credentialId
-        self.integrationId = integrationId
         self.secret = secret
         self.header = header
     }
@@ -470,7 +465,6 @@ public struct ToolAuthConfig: Codable {
         case type = "type"
         case provider = "provider"
         case credentialId = "credential_id"
-        case integrationId = "integration_id"
         case secret = "secret"
         case header = "header"
     }
@@ -512,24 +506,18 @@ public struct HTTPToolConfig: Codable {
 
 public struct MCPToolConfig: Codable {
     public var credentialId: String?
-    /// Deprecated: the credential id used to be called integration_id. Read
-    /// through CredentialRef(); never written.
-    public var integrationId: String?
     public var toolName: String
 
     public init(
         credentialId: String? = nil,
-        integrationId: String? = nil,
         toolName: String = ""
     ) {
         self.credentialId = credentialId
-        self.integrationId = integrationId
         self.toolName = toolName
     }
 
     enum CodingKeys: String, CodingKey {
         case credentialId = "credential_id"
-        case integrationId = "integration_id"
         case toolName = "tool_name"
     }
 }
@@ -2350,7 +2338,7 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     public static let secretsRead = Scope(rawValue: "secrets:read")
     public static let secretsWrite = Scope(rawValue: "secrets:write")
     /// Action-level scopes for credentials (connected accounts, vaults,
-    /// custom providers, MCP servers). Formerly integrations:read|write.
+    /// custom providers, MCP servers).
     public static let credentialsRead = Scope(rawValue: "credentials:read")
     public static let credentialsWrite = Scope(rawValue: "credentials:write")
     /// Action-level scopes for Engines
@@ -2812,24 +2800,45 @@ public struct SecretRequirement: Codable {
     }
 }
 
-/// CredentialRequirement defines a credential that an app requires.
-/// Key is the provider slug (e.g. "bytedance", "google").
-/// Secrets lists the specific env var names to inject from this credential.
-/// Scopes lists OAuth scopes needed (for OAuth credentials).
+/// CredentialRequirement is an entry under credentials: in inf.yml: keys an
+/// app needs that belong to a provider. Provider names whose credential
+/// supplies them; Secrets lists the keys to inject from it (an API key
+/// credential), Scopes what to ask for (an OAuth one).
+/// 
+/// 	credentials:
+/// 	  - provider: acme
+/// 	    name: Acme CRM
+/// 	    website: acme.com
+/// 	    secrets: [ACME_API_KEY]
+/// 
+/// Key is a capability of a provider the platform defines ("x.tweet.read",
+/// "google.sheets"): an OAuth grant with the scopes it implies. An entry sets
+/// Provider, Key, or both; with both, Key decides how it is resolved.
 public struct CredentialRequirement: Codable {
-    public var key: String
+    public var provider: String?
+    /// Name and Website describe a provider the platform does not list: the
+    /// name its credential is shown under and the site its logo comes from.
+    public var name: String?
+    public var website: String?
+    public var key: String?
     public var description: String?
     public var optional: Bool?
     public var secrets: [String]?
     public var scopes: [String]?
 
     public init(
-        key: String = "",
+        provider: String? = nil,
+        name: String? = nil,
+        website: String? = nil,
+        key: String? = nil,
         description: String? = nil,
         optional: Bool? = nil,
         secrets: [String]? = nil,
         scopes: [String]? = nil
     ) {
+        self.provider = provider
+        self.name = name
+        self.website = website
         self.key = key
         self.description = description
         self.optional = optional
@@ -2838,6 +2847,9 @@ public struct CredentialRequirement: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case provider = "provider"
+        case name = "name"
+        case website = "website"
         case key = "key"
         case description = "description"
         case optional = "optional"
@@ -2871,7 +2883,7 @@ public struct AppDTO: Codable {
     public var category: AppCategory
     public var images: AppImages
     public var versionId: String
-    public var version: JSONValue?
+    public var version: AppVersionDTO?
     public var status: AppStatus
     public var statusMessage: String?
     public var statusChangedAt: String?
@@ -2896,7 +2908,7 @@ public struct AppDTO: Codable {
         category: AppCategory,
         images: AppImages,
         versionId: String = "",
-        version: JSONValue? = nil,
+        version: AppVersionDTO? = nil,
         status: AppStatus,
         statusMessage: String? = nil,
         statusChangedAt: String? = nil
@@ -10013,19 +10025,29 @@ public struct SetupAction: Codable {
     public var scopes: [String]?
     /// Scope key → friendly description
     public var scopeDescriptions: [String: String]?
+    /// Secrets are the keys to supply for an add_secret action on a
+    /// provider: saved against Provider, they become its credential.
+    public var secrets: [String]?
+    /// ProviderWebsite is where the logo of a provider the platform does not
+    /// list comes from; sent back when the keys are saved.
+    public var providerWebsite: String?
 
     public init(
         type: SetupActionType,
         provider: String? = nil,
         providerName: String? = nil,
         scopes: [String]? = nil,
-        scopeDescriptions: [String: String]? = nil
+        scopeDescriptions: [String: String]? = nil,
+        secrets: [String]? = nil,
+        providerWebsite: String? = nil
     ) {
         self.type = type
         self.provider = provider
         self.providerName = providerName
         self.scopes = scopes
         self.scopeDescriptions = scopeDescriptions
+        self.secrets = secrets
+        self.providerWebsite = providerWebsite
     }
 
     enum CodingKeys: String, CodingKey {
@@ -10034,6 +10056,8 @@ public struct SetupAction: Codable {
         case providerName = "provider_name"
         case scopes = "scopes"
         case scopeDescriptions = "scope_descriptions"
+        case secrets = "secrets"
+        case providerWebsite = "provider_website"
     }
 }
 
@@ -11111,7 +11135,7 @@ public struct TaskDTO: Codable {
     public var appId: String
     public var app: AppDTO?
     public var appVersionId: String
-    public var appVersion: JSONValue?
+    public var appVersion: AppVersionDTO?
     public var appVariant: String
     public var function: String
     public var infra: Infra
@@ -11159,7 +11183,7 @@ public struct TaskDTO: Codable {
         appId: String = "",
         app: AppDTO? = nil,
         appVersionId: String = "",
-        appVersion: JSONValue? = nil,
+        appVersion: AppVersionDTO? = nil,
         appVariant: String = "",
         function: String = "",
         infra: Infra,
@@ -13628,7 +13652,7 @@ public struct SecretScope: RawRepresentable, Codable, Hashable, Sendable {
 
     /// SecretScopeTeam is a normal user secret, visible in team secret lists
     public static let team = SecretScope(rawValue: "team")
-    /// SecretScopeInternal is an integration-managed secret, hidden from user lists
+    /// SecretScopeInternal is a credential-managed secret, hidden from user lists
     public static let `internal` = SecretScope(rawValue: "internal")
     /// SecretScopeSystem is a global system setting, owned by system team, admin-only
     public static let system = SecretScope(rawValue: "system")
