@@ -4129,6 +4129,15 @@ export interface OrgDTO extends BaseModelDTO {
   is_admin?: boolean;
 }
 /**
+ * OrgTeamDTO is one of an org's teams in its admins' list
+ * (GET /orgs/{id}/teams): the team, its kind (the org's own workspace or a
+ * member team) and its live member count.
+ */
+export interface OrgTeamDTO extends TeamDTO {
+  kind: TeamKind;
+  member_count: number /* int64 */;
+}
+/**
  * OrgPlanDTO is an org-level subscription to a plan (INF-799). Managed by
  * platform admins; while active its limits apply to every attached team.
  */
