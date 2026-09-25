@@ -4648,7 +4648,7 @@ export interface RemoteDTO extends BaseModelDTO, PermissionModelDTO {
  */
 export interface ProfileDTO extends BaseModelDTO, PermissionModelDTO {
   remote_id: string;
-  harness_kind: string;
+  harness_kind: HarnessID;
   /**
    * DisplayName and Vendor come from the harness registry for the kind:
    * "Claude Code" by Anthropic for harness_kind "claude". Show these; key
@@ -4738,7 +4738,7 @@ export interface RemoteRegisterRequest {
  * Profiles from. It holds no token — LoggedIn is a presence hint only.
  */
 export interface HarnessInfo {
-  kind: string;
+  kind: HarnessID;
   command: string;
   version?: string;
   logged_in: boolean;
@@ -4779,26 +4779,22 @@ export interface RemoteLaunchRequest {
  * has it installed.
  */
 export interface HarnessCatalogEntry {
-  /**
-   * ID is the registry id: claude, codex, gemini, ...
-   */
-  id: string;
+  id: HarnessID;
   display_name: string;
   vendor: string;
   /**
-   * Driver is how the daemon drives it: claude-code, codex, pi or acp.
+   * Driver is how the daemon drives it.
    */
-  driver: string;
+  driver: DriverKind;
   capabilities: HarnessCapabilities;
 }
 /**
- * HarnessSupport is whether inference has tested an installed harness
- * version. Level is supported, newer-than-tested or older-than-tested (both
- * warnings, it still runs), older-than-supported (refused: below a floor the
- * driver needs, and Reason says what is missing), or unknown.
+ * HarnessSupport is agentprotocol's harness.SupportVerdict for display: the
+ * same fields, with UpgradeCmd joined into one line. Level older-than-supported
+ * means refused, and Reason says what is missing.
  */
 export interface HarnessSupport {
-  level: string;
+  level: SupportLevel;
   reason?: string;
   version?: string;
   tested_min?: string;
@@ -6543,22 +6539,22 @@ export const WSEventRemoteExecStart: WSEventType = "remote_exec_start";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
- * connection. These event strings and payloads mirror the belt remote client's
- * internal/remote protocol exactly — the two sides are the same wire.
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
  */
 export const WSEventRemoteExecSignal: WSEventType = "remote_exec_signal";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
- * connection. These event strings and payloads mirror the belt remote client's
- * internal/remote protocol exactly — the two sides are the same wire.
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
  */
 export const WSEventRemoteExecOutput: WSEventType = "remote_exec_output";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
- * connection. These event strings and payloads mirror the belt remote client's
- * internal/remote protocol exactly — the two sides are the same wire.
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
  */
 export const WSEventRemoteExecExit: WSEventType = "remote_exec_exit";
 /**
@@ -6568,22 +6564,22 @@ export const WSEventRemoteTerminalOpen: WSEventType = "remote_terminal_open";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
- * connection. These event strings and payloads mirror the belt remote client's
- * internal/remote protocol exactly — the two sides are the same wire.
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
  */
 export const WSEventRemoteTerminalInput: WSEventType = "remote_terminal_input";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
- * connection. These event strings and payloads mirror the belt remote client's
- * internal/remote protocol exactly — the two sides are the same wire.
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
  */
 export const WSEventRemoteTerminalResize: WSEventType = "remote_terminal_resize";
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
- * connection. These event strings and payloads mirror the belt remote client's
- * internal/remote protocol exactly — the two sides are the same wire.
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
  */
 export const WSEventRemoteTerminalClose: WSEventType = "remote_terminal_close";
 /**
@@ -6593,10 +6589,125 @@ export const WSEventRemoteTerminalOutput: WSEventType = "remote_terminal_output"
 /**
  * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
  * stay alive, and hosts terminal sessions the server drives over the same
- * connection. These event strings and payloads mirror the belt remote client's
- * internal/remote protocol exactly — the two sides are the same wire.
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
  */
 export const WSEventRemoteTerminalExit: WSEventType = "remote_terminal_exit";
+/**
+ * WsRemoteHeartbeatPayload is the periodic liveness beat over the socket. A
+ * healthy daemon reports running; the server uses the beat to revive a remote
+ * it had marked disconnected. Every few beats the daemon also sends a fresh
+ * system snapshot with live CPU, RAM and disk usage, the way engines send
+ * telemetry; the server stores it on the remote.
+ */
+export interface WsRemoteHeartbeatPayload {
+  status: RemoteStatus;
+  system_info?: SystemInfo;
+}
+/**
+ * WsRemoteExecStart asks the remote to start a command as a durable exec run,
+ * e.g. Command "bash", Args ["-c","ls"]. The command runs as the daemon's user
+ * in Cwd, Env appended to the daemon's env. Output streams back as sequenced
+ * WsRemoteExecOutput frames, not a captured blob.
+ */
+export interface WsRemoteExecStart {
+  exec_run_id: string;
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: string[];
+  pty?: boolean;
+  timeout_ms?: number /* int */;
+}
+/**
+ * WsRemoteExecSignal asks the remote to terminate a running exec (cancel/kill).
+ */
+export interface WsRemoteExecSignal {
+  exec_run_id: string;
+  signal: string; // "kill" for now
+}
+/**
+ * WsRemoteExecOutput is one sequenced chunk of a run's output. Seq is
+ * monotonic per run so the api stores it as a replayable event and a reader
+ * resumes from LastSeq.
+ */
+export interface WsRemoteExecOutput {
+  exec_run_id: string;
+  seq: number /* int */;
+  stream: ExecStream;
+  data: string;
+}
+/**
+ * WsRemoteExecExit reports that an exec ended. ExitCode is the process status
+ * (nil when it never ran or was killed before exit); Error is set only on a
+ * failure to start; TimedOut marks a wall-clock kill.
+ */
+export interface WsRemoteExecExit {
+  exec_run_id: string;
+  exit_code?: number /* int */;
+  error?: string;
+  timed_out?: boolean;
+  duration_ms: number /* int64 */;
+}
+/**
+ * WsRemoteTerminalOpen asks the remote to start a process on a PTY. An empty
+ * Command means the daemon's login shell.
+ */
+export interface WsRemoteTerminalOpen {
+  session_id: string;
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  cols?: number /* uint16 */;
+  rows?: number /* uint16 */;
+}
+/**
+ * WsRemoteTerminalInput carries keystrokes toward a running PTY.
+ */
+export interface WsRemoteTerminalInput {
+  session_id: string;
+  data: string;
+}
+/**
+ * WsRemoteTerminalResize updates a running PTY's window size.
+ */
+export interface WsRemoteTerminalResize {
+  session_id: string;
+  cols: number /* uint16 */;
+  rows: number /* uint16 */;
+}
+/**
+ * WsRemoteTerminalClose asks the remote to terminate a session.
+ */
+export interface WsRemoteTerminalClose {
+  session_id: string;
+}
+/**
+ * WsRemoteTerminalOutput streams a PTY's output back to the server.
+ */
+export interface WsRemoteTerminalOutput {
+  session_id: string;
+  data: string;
+}
+/**
+ * WsRemoteTerminalExit reports that a session's process ended.
+ */
+export interface WsRemoteTerminalExit {
+  session_id: string;
+  exit_code: number /* int */;
+  error?: string;
+}
+/**
+ * WsRemoteLane holds the ids a remote frame is ordered by. Frames with the
+ * same key are handled in the order they were read; different chats, execs
+ * and terminals run side by side. The api and belt's daemon both key their
+ * socket lanes with OrderingKey, so they agree on it.
+ */
+export interface WsRemoteLane {
+  chat_id?: string;
+  exec_run_id?: string;
+  session_id?: string;
+}
 /**
  * Server -> remote.
  */
@@ -6702,10 +6813,7 @@ export const WSEventRemoteSessionsListed: WSEventType = "remote_sessions_listed"
  */
 export interface WsRemoteSessionOpen {
   chat_id: string;
-  /**
-   * Harness is the registry id: claude, codex, gemini, ...
-   */
-  harness: string;
+  harness: HarnessID;
   /**
    * Cwd is where the agent works. Empty uses the daemon's working directory.
    */
@@ -6829,7 +6937,7 @@ export interface WsRemoteSessionsListed {
  * RemoteListedSession is one harness session on a machine, without content.
  */
 export interface RemoteListedSession {
-  harness: string;
+  harness: HarnessID;
   id: string;
   cwd?: string;
   title?: string;
@@ -6837,29 +6945,10 @@ export interface RemoteListedSession {
   live: SessionLiveness;
 }
 /**
- * SessionLiveness says whether a process holds a session right now and how
- * that was decided; agentprotocol's transcript.Liveness on the wire.
- */
-export interface SessionLiveness {
-  /**
-   * State is active, idle or unknown.
-   */
-  state: string;
-  /**
-   * Evidence names what decided it: lock-file, open-file, no-process,
-   * held-elsewhere (proof); process-in-cwd, recent-write, no-process-in-cwd
-   * (heuristic); none.
-   */
-  evidence: string;
-  heuristic: boolean;
-  pid?: number /* int */;
-  detail?: string;
-}
-/**
  * RemoteSessionListError is a harness store the daemon could not read.
  */
 export interface RemoteSessionListError {
-  harness: string;
+  harness: HarnessID;
   error: string;
 }
 export type A2UIComponentType = string;
@@ -8903,6 +8992,122 @@ export const InterruptReasonAuth: InterruptReason = "auth";
 export const InterruptReasonConfirmation: InterruptReason = "confirmation";
 export const InterruptReasonHookGate: InterruptReason = "hook_gate";
 export type StringEncodedMap = { [key: string]: any};
+/**
+ * HarnessID is a harness registry id: a key of harness.All and a
+ * Harness.Name ("claude", "codex", ...). Profiles and sessions carry it.
+ */
+export type HarnessID = string;
+/**
+ * DriverKind names a session driver. The driver package's backends report
+ * it as their Kind.
+ */
+export type DriverKind = string;
+export const DriverACP: DriverKind = "acp";
+export const DriverClaudeCode: DriverKind = "claude-code";
+export const DriverCodex: DriverKind = "codex";
+export const DriverPi: DriverKind = "pi";
+/**
+ * SupportLevel is what harness.Support concluded about an installed version.
+ */
+export type SupportLevel = string;
+/**
+ * SupportLevelSupported: the version is inside the tested range.
+ */
+export const SupportLevelSupported: SupportLevel = "supported";
+/**
+ * SupportLevelNewerThanTested: newer than anything tested. Likely fine; warn.
+ */
+export const SupportLevelNewerThanTested: SupportLevel = "newer-than-tested";
+/**
+ * SupportLevelOlderThanTested: older than anything tested but not below
+ * Harness.Requires. It may work; warn.
+ */
+export const SupportLevelOlderThanTested: SupportLevel = "older-than-tested";
+/**
+ * SupportLevelOlderThanSupported: below Harness.Requires, so something the
+ * driver needs is missing. Do not drive it; show Reason and UpgradeCmd.
+ */
+export const SupportLevelOlderThanSupported: SupportLevel = "older-than-supported";
+/**
+ * SupportLevelUnknown: the version could not be read, the agent is not in
+ * the registry, or nothing about it has been tested. Warn.
+ */
+export const SupportLevelUnknown: SupportLevel = "unknown";
+/**
+ * LiveState is whether a process is using a harness session right now.
+ */
+export type LiveState = string;
+/**
+ * LiveUnknown: nothing available could tell.
+ */
+export const LiveUnknown: LiveState = "unknown";
+/**
+ * LiveIdle: no process is using the session.
+ */
+export const LiveIdle: LiveState = "idle";
+/**
+ * LiveActive: a process is, or may be, using the session.
+ */
+export const LiveActive: LiveState = "active";
+/**
+ * Evidence is what a SessionLiveness answer rests on.
+ */
+export type Evidence = string;
+/**
+ * EvidenceLockFile: the agent's own in-use marker for this session names
+ * a running process. Proof.
+ */
+export const EvidenceLockFile: Evidence = "lock-file";
+/**
+ * EvidenceOpenFile: a process holds the session's own file or directory
+ * open. Proof.
+ */
+export const EvidenceOpenFile: Evidence = "open-file";
+/**
+ * EvidenceNoProcess: no process of the agent is running. Proof of idle.
+ */
+export const EvidenceNoProcess: Evidence = "no-process";
+/**
+ * EvidenceProcessInCwd: a process of the agent runs in the session's
+ * directory. It may be serving another session there. Heuristic.
+ */
+export const EvidenceProcessInCwd: Evidence = "process-in-cwd";
+/**
+ * EvidenceNoProcessInCwd: the agent runs, but not in the session's
+ * directory. Heuristic: agents rarely serve a session from elsewhere.
+ */
+export const EvidenceNoProcessInCwd: Evidence = "no-process-in-cwd";
+/**
+ * EvidenceHeldElsewhere: every agent process in the session's directory
+ * holds another session by the agent's own in-use markers. Proof of idle.
+ */
+export const EvidenceHeldElsewhere: Evidence = "held-elsewhere";
+/**
+ * EvidenceRecentWrite: the session was written within the recent window.
+ * Heuristic.
+ */
+export const EvidenceRecentWrite: Evidence = "recent-write";
+/**
+ * EvidenceNone: nothing to go on.
+ */
+export const EvidenceNone: Evidence = "none";
+/**
+ * SessionLiveness is whether a harness session is in use, and why that is
+ * believed.
+ */
+export interface SessionLiveness {
+  state: LiveState;
+  evidence: Evidence;
+  /**
+   * Heuristic is true when the answer is inferred rather than proven.
+   */
+  heuristic: boolean;
+  /**
+   * PID is the process the evidence points at, when there is one.
+   */
+  pid?: number /* int */;
+  detail?: string;
+}
 /**
  * InterruptStatus tracks the lifecycle of an interrupt gate.
  */

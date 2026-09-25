@@ -3458,8 +3458,8 @@ type RemoteDTO struct {
 type ProfileDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	RemoteID           string `json:"remote_id"`
-	HarnessKind        string `json:"harness_kind"`
+	RemoteID           string    `json:"remote_id"`
+	HarnessKind        HarnessID `json:"harness_kind"`
 	// DisplayName and Vendor come from the harness registry for the kind:
 	// "Claude Code" by Anthropic for harness_kind "claude". Show these; key
 	// on HarnessKind.
@@ -3522,10 +3522,10 @@ type RemoteRegisterRequest struct {
 // is the wire shape of belt's discovery probe and the source the api syncs
 // Profiles from. It holds no token — LoggedIn is a presence hint only.
 type HarnessInfo struct {
-	Kind     string `json:"kind"`
-	Command  string `json:"command"`
-	Version  string `json:"version,omitempty"`
-	LoggedIn bool   `json:"logged_in"`
+	Kind     HarnessID `json:"kind"`
+	Command  string    `json:"command"`
+	Version  string    `json:"version,omitempty"`
+	LoggedIn bool      `json:"logged_in"`
 	// Capabilities is what this harness supports. Omitted by daemons older
 	// than the field; the api then keeps whatever it had.
 	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
@@ -3554,26 +3554,24 @@ type RemoteLaunchRequest struct {
 // from agentprotocol's registry: what the launcher shows before any machine
 // has it installed.
 type HarnessCatalogEntry struct {
-	// ID is the registry id: claude, codex, gemini, ...
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
-	Vendor      string `json:"vendor"`
-	// Driver is how the daemon drives it: claude-code, codex, pi or acp.
-	Driver       string              `json:"driver"`
+	ID          HarnessID `json:"id"`
+	DisplayName string    `json:"display_name"`
+	Vendor      string    `json:"vendor"`
+	// Driver is how the daemon drives it.
+	Driver       DriverKind          `json:"driver"`
 	Capabilities HarnessCapabilities `json:"capabilities"`
 }
 
-// HarnessSupport is whether inference has tested an installed harness
-// version. Level is supported, newer-than-tested or older-than-tested (both
-// warnings, it still runs), older-than-supported (refused: below a floor the
-// driver needs, and Reason says what is missing), or unknown.
+// HarnessSupport is agentprotocol's harness.SupportVerdict for display: the
+// same fields, with UpgradeCmd joined into one line. Level older-than-supported
+// means refused, and Reason says what is missing.
 type HarnessSupport struct {
-	Level     string `json:"level"`
-	Reason    string `json:"reason,omitempty"`
-	Version   string `json:"version,omitempty"`
-	TestedMin string `json:"tested_min,omitempty"`
-	TestedMax string `json:"tested_max,omitempty"`
-	Requires  string `json:"requires,omitempty"`
+	Level     SupportLevel `json:"level"`
+	Reason    string       `json:"reason,omitempty"`
+	Version   string       `json:"version,omitempty"`
+	TestedMin string       `json:"tested_min,omitempty"`
+	TestedMax string       `json:"tested_max,omitempty"`
+	Requires  string       `json:"requires,omitempty"`
 	// UpgradeCmd installs the latest release over the installed one.
 	UpgradeCmd string `json:"upgrade_cmd,omitempty"`
 }
@@ -4216,8 +4214,20 @@ type RemoteTypes struct {
 	_catalog      HarnessCatalogEntry
 	_remoteStatus RemoteStatus
 	_profileStat  ProfileStatus
-	// Harness session frames on the remote socket, so belt imports them from
-	// models instead of mirroring them.
+	// Remote socket frames, so belt imports them from models instead of
+	// mirroring them.
+	_beat          WsRemoteHeartbeatPayload
+	_execStart     WsRemoteExecStart
+	_execSignal    WsRemoteExecSignal
+	_execOutput    WsRemoteExecOutput
+	_execExit      WsRemoteExecExit
+	_termOpen      WsRemoteTerminalOpen
+	_termInput     WsRemoteTerminalInput
+	_termResize    WsRemoteTerminalResize
+	_termClose     WsRemoteTerminalClose
+	_termOutput    WsRemoteTerminalOutput
+	_termExit      WsRemoteTerminalExit
+	_lane          WsRemoteLane
 	_sessOpen      WsRemoteSessionOpen
 	_sessPrompt    WsRemoteSessionPrompt
 	_sessInterrupt WsRemoteSessionInterrupt
@@ -5133,8 +5143,8 @@ type WsSessionEndPayload struct {
 
 // Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
 // stay alive, and hosts terminal sessions the server drives over the same
-// connection. These event strings and payloads mirror the belt remote client's
-// internal/remote protocol exactly — the two sides are the same wire.
+// connection. Generated into models (RemoteTypes); belt aliases these, so
+// both ends share one definition.
 const (
 	// Remote -> server.
 	WSEventRemoteHeartbeat WSEventType = "remote_heartbeat"
@@ -5155,6 +5165,127 @@ const (
 	WSEventRemoteTerminalOutput WSEventType = "remote_terminal_output"
 	WSEventRemoteTerminalExit   WSEventType = "remote_terminal_exit"
 )
+
+// WsRemoteHeartbeatPayload is the periodic liveness beat over the socket. A
+// healthy daemon reports running; the server uses the beat to revive a remote
+// it had marked disconnected. Every few beats the daemon also sends a fresh
+// system snapshot with live CPU, RAM and disk usage, the way engines send
+// telemetry; the server stores it on the remote.
+type WsRemoteHeartbeatPayload struct {
+	Status     RemoteStatus `json:"status"`
+	SystemInfo *SystemInfo  `json:"system_info,omitempty"`
+}
+
+// WsRemoteExecStart asks the remote to start a command as a durable exec run,
+// e.g. Command "bash", Args ["-c","ls"]. The command runs as the daemon's user
+// in Cwd, Env appended to the daemon's env. Output streams back as sequenced
+// WsRemoteExecOutput frames, not a captured blob.
+type WsRemoteExecStart struct {
+	ExecRunID string   `json:"exec_run_id"`
+	Command   string   `json:"command"`
+	Args      []string `json:"args,omitempty"`
+	Cwd       string   `json:"cwd,omitempty"`
+	Env       []string `json:"env,omitempty"`
+	Pty       bool     `json:"pty,omitempty"`
+	TimeoutMs int      `json:"timeout_ms,omitempty"`
+}
+
+// WsRemoteExecSignal asks the remote to terminate a running exec (cancel/kill).
+type WsRemoteExecSignal struct {
+	ExecRunID string `json:"exec_run_id"`
+	Signal    string `json:"signal"` // "kill" for now
+}
+
+// WsRemoteExecOutput is one sequenced chunk of a run's output. Seq is
+// monotonic per run so the api stores it as a replayable event and a reader
+// resumes from LastSeq.
+type WsRemoteExecOutput struct {
+	ExecRunID string     `json:"exec_run_id"`
+	Seq       int        `json:"seq"`
+	Stream    ExecStream `json:"stream"`
+	Data      []byte     `json:"data"`
+}
+
+// WsRemoteExecExit reports that an exec ended. ExitCode is the process status
+// (nil when it never ran or was killed before exit); Error is set only on a
+// failure to start; TimedOut marks a wall-clock kill.
+type WsRemoteExecExit struct {
+	ExecRunID  string `json:"exec_run_id"`
+	ExitCode   *int   `json:"exit_code,omitempty"`
+	Error      string `json:"error,omitempty"`
+	TimedOut   bool   `json:"timed_out,omitempty"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
+// WsRemoteTerminalOpen asks the remote to start a process on a PTY. An empty
+// Command means the daemon's login shell.
+type WsRemoteTerminalOpen struct {
+	SessionID string   `json:"session_id"`
+	Command   string   `json:"command,omitempty"`
+	Args      []string `json:"args,omitempty"`
+	Cwd       string   `json:"cwd,omitempty"`
+	Cols      uint16   `json:"cols,omitempty"`
+	Rows      uint16   `json:"rows,omitempty"`
+}
+
+// WsRemoteTerminalInput carries keystrokes toward a running PTY.
+type WsRemoteTerminalInput struct {
+	SessionID string `json:"session_id"`
+	Data      []byte `json:"data"`
+}
+
+// WsRemoteTerminalResize updates a running PTY's window size.
+type WsRemoteTerminalResize struct {
+	SessionID string `json:"session_id"`
+	Cols      uint16 `json:"cols"`
+	Rows      uint16 `json:"rows"`
+}
+
+// WsRemoteTerminalClose asks the remote to terminate a session.
+type WsRemoteTerminalClose struct {
+	SessionID string `json:"session_id"`
+}
+
+// WsRemoteTerminalOutput streams a PTY's output back to the server.
+type WsRemoteTerminalOutput struct {
+	SessionID string `json:"session_id"`
+	Data      []byte `json:"data"`
+}
+
+// WsRemoteTerminalExit reports that a session's process ended.
+type WsRemoteTerminalExit struct {
+	SessionID string `json:"session_id"`
+	ExitCode  int    `json:"exit_code"`
+	Error     string `json:"error,omitempty"`
+}
+
+// WsRemoteLane holds the ids a remote frame is ordered by. Frames with the
+// same key are handled in the order they were read; different chats, execs
+// and terminals run side by side. The api and belt's daemon both key their
+// socket lanes with OrderingKey, so they agree on it.
+type WsRemoteLane struct {
+	ChatID    string `json:"chat_id,omitempty"`
+	ExecRunID string `json:"exec_run_id,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
+}
+
+// OrderingKey is the lane key for a frame's data: its chat, else its exec
+// run, else its terminal session. "" when it carries none.
+func (WsRemoteLane) OrderingKey(data json.RawMessage) string {
+	var ids WsRemoteLane
+	if len(data) > 0 {
+		_ = json.Unmarshal(data, &ids)
+	}
+	switch {
+	case ids.ChatID != "":
+		return "chat:" + ids.ChatID
+	case ids.ExecRunID != "":
+		return "exec:" + ids.ExecRunID
+	case ids.SessionID != "":
+		return "terminal:" + ids.SessionID
+	}
+	return ""
+}
 
 // --------------------
 // source: ws_remote_session.go
@@ -5187,9 +5318,8 @@ const (
 // or to reopen one the harness persisted. The chat keys everything after it:
 // one chat, one harness session, for the chat's whole life.
 type WsRemoteSessionOpen struct {
-	ChatID string `json:"chat_id"`
-	// Harness is the registry id: claude, codex, gemini, ...
-	Harness string `json:"harness"`
+	ChatID  string    `json:"chat_id"`
+	Harness HarnessID `json:"harness"`
 	// Cwd is where the agent works. Empty uses the daemon's working directory.
 	Cwd string `json:"cwd,omitempty"`
 	// ResumeSessionID is the harness's own id for a session to reopen with its
@@ -5291,7 +5421,7 @@ type WsRemoteSessionsListed struct {
 
 // RemoteListedSession is one harness session on a machine, without content.
 type RemoteListedSession struct {
-	Harness string          `json:"harness"`
+	Harness HarnessID       `json:"harness"`
 	ID      string          `json:"id"`
 	Cwd     string          `json:"cwd,omitempty"`
 	Title   string          `json:"title,omitempty"`
@@ -5299,24 +5429,10 @@ type RemoteListedSession struct {
 	Live    SessionLiveness `json:"live"`
 }
 
-// SessionLiveness says whether a process holds a session right now and how
-// that was decided; agentprotocol's transcript.Liveness on the wire.
-type SessionLiveness struct {
-	// State is active, idle or unknown.
-	State string `json:"state"`
-	// Evidence names what decided it: lock-file, open-file, no-process,
-	// held-elsewhere (proof); process-in-cwd, recent-write, no-process-in-cwd
-	// (heuristic); none.
-	Evidence  string `json:"evidence"`
-	Heuristic bool   `json:"heuristic"`
-	PID       int    `json:"pid,omitempty"`
-	Detail    string `json:"detail,omitempty"`
-}
-
 // RemoteSessionListError is a harness store the daemon could not read.
 type RemoteSessionListError struct {
-	Harness string `json:"harness"`
-	Error   string `json:"error"`
+	Harness HarnessID `json:"harness"`
+	Error   string    `json:"error"`
 }
 
 // --------------------
@@ -7878,6 +7994,96 @@ func (m *StringEncodedMap) ToString() (string, error) {
 		return "", err
 	}
 	return string(jsonBytes), nil
+}
+
+// --------------------
+// source: harness_wire.go
+// --------------------
+
+// HarnessID is a harness registry id: a key of harness.All and a
+// Harness.Name ("claude", "codex", ...). Profiles and sessions carry it.
+type HarnessID string
+
+// DriverKind names a session driver. The driver package's backends report
+// it as their Kind.
+type DriverKind string
+
+const (
+	DriverACP        DriverKind = "acp"
+	DriverClaudeCode DriverKind = "claude-code"
+	DriverCodex      DriverKind = "codex"
+	DriverPi         DriverKind = "pi"
+)
+
+// SupportLevel is what harness.Support concluded about an installed version.
+type SupportLevel string
+
+const (
+	// SupportLevelSupported: the version is inside the tested range.
+	SupportLevelSupported SupportLevel = "supported"
+	// SupportLevelNewerThanTested: newer than anything tested. Likely fine; warn.
+	SupportLevelNewerThanTested SupportLevel = "newer-than-tested"
+	// SupportLevelOlderThanTested: older than anything tested but not below
+	// Harness.Requires. It may work; warn.
+	SupportLevelOlderThanTested SupportLevel = "older-than-tested"
+	// SupportLevelOlderThanSupported: below Harness.Requires, so something the
+	// driver needs is missing. Do not drive it; show Reason and UpgradeCmd.
+	SupportLevelOlderThanSupported SupportLevel = "older-than-supported"
+	// SupportLevelUnknown: the version could not be read, the agent is not in
+	// the registry, or nothing about it has been tested. Warn.
+	SupportLevelUnknown SupportLevel = "unknown"
+)
+
+// LiveState is whether a process is using a harness session right now.
+type LiveState string
+
+const (
+	// LiveUnknown: nothing available could tell.
+	LiveUnknown LiveState = "unknown"
+	// LiveIdle: no process is using the session.
+	LiveIdle LiveState = "idle"
+	// LiveActive: a process is, or may be, using the session.
+	LiveActive LiveState = "active"
+)
+
+// Evidence is what a SessionLiveness answer rests on.
+type Evidence string
+
+const (
+	// EvidenceLockFile: the agent's own in-use marker for this session names
+	// a running process. Proof.
+	EvidenceLockFile Evidence = "lock-file"
+	// EvidenceOpenFile: a process holds the session's own file or directory
+	// open. Proof.
+	EvidenceOpenFile Evidence = "open-file"
+	// EvidenceNoProcess: no process of the agent is running. Proof of idle.
+	EvidenceNoProcess Evidence = "no-process"
+	// EvidenceProcessInCwd: a process of the agent runs in the session's
+	// directory. It may be serving another session there. Heuristic.
+	EvidenceProcessInCwd Evidence = "process-in-cwd"
+	// EvidenceNoProcessInCwd: the agent runs, but not in the session's
+	// directory. Heuristic: agents rarely serve a session from elsewhere.
+	EvidenceNoProcessInCwd Evidence = "no-process-in-cwd"
+	// EvidenceHeldElsewhere: every agent process in the session's directory
+	// holds another session by the agent's own in-use markers. Proof of idle.
+	EvidenceHeldElsewhere Evidence = "held-elsewhere"
+	// EvidenceRecentWrite: the session was written within the recent window.
+	// Heuristic.
+	EvidenceRecentWrite Evidence = "recent-write"
+	// EvidenceNone: nothing to go on.
+	EvidenceNone Evidence = "none"
+)
+
+// SessionLiveness is whether a harness session is in use, and why that is
+// believed.
+type SessionLiveness struct {
+	State    LiveState `json:"state"`
+	Evidence Evidence  `json:"evidence"`
+	// Heuristic is true when the answer is inferred rather than proven.
+	Heuristic bool `json:"heuristic"`
+	// PID is the process the evidence points at, when there is one.
+	PID    int    `json:"pid,omitempty"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // --------------------
