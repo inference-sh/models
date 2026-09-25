@@ -1028,12 +1028,19 @@ export interface CredentialConnectRequest {
    */
   connection_scope?: CredentialScope;
 }
+/**
+ * CredentialCompleteOAuthRequest is what the provider's redirect delivered:
+ * the code and state, the PKCE verifier the client kept, and every other
+ * query param the callback carried (QuickBooks' realmId, Shopify's shop),
+ * which a scheme reads as {{callback.*}}.
+ */
 export interface CredentialCompleteOAuthRequest {
   provider: string;
   type: string;
   code: string;
   state: string;
   code_verifier?: string;
+  params?: { [key: string]: string};
 }
 export interface CredentialConnectResponse {
   credential?: CredentialDTO;
@@ -2226,6 +2233,11 @@ export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
   slug: string;
   display_name: string;
   icon_url?: string;
+  description?: string;
+  docs_url?: string;
+  how_it_works?: string[];
+  website?: string;
+  connection_scope?: CredentialScope;
   specs: AuthSchemeSpec[];
   /**
    * Where the OAuth app's client id and secret live in the team vault.
@@ -2242,9 +2254,18 @@ export interface AuthSchemeCreateRequest {
   slug: string;
   display_name: string;
   icon_url?: string;
+  description?: string;
+  docs_url?: string;
+  how_it_works?: string[];
+  website?: string;
+  connection_scope?: CredentialScope;
   specs: AuthSchemeSpec[];
-  client_id: string;
-  client_secret: string;
+  /**
+   * The OAuth app, required for a team scheme. A platform scheme's app
+   * is managed separately (PUT /credentials/{provider}/app).
+   */
+  client_id?: string;
+  client_secret?: string;
   /**
    * Scope is who may connect through it. Empty = team. Org and platform
    * follow the credential rule: chosen from the team that owns them.
@@ -2259,9 +2280,34 @@ export interface AuthSchemeCreateRequest {
 export interface AuthSchemeUpdateRequest {
   display_name?: string;
   icon_url?: string;
+  description?: string;
+  docs_url?: string;
+  how_it_works?: string[];
+  website?: string;
+  connection_scope?: CredentialScope;
   specs?: AuthSchemeSpec[];
   client_id?: string;
   client_secret?: string;
+}
+/**
+ * AuthSchemeHooksDTO lists the registered Go hooks a scheme spec may name
+ * in each slot (GET /auth-schemes/hooks).
+ */
+export interface AuthSchemeHooksDTO {
+  token_response: string[];
+  identity: string[];
+  vars: string[];
+}
+/**
+ * AuthSchemeSeedResult is what POST /admin/auth-schemes/seed did: the
+ * built-in definitions written as platform rows, and the logos looked up
+ * for rows that had none, with the reason for each still without one.
+ */
+export interface AuthSchemeSeedResult {
+  created: number /* int */;
+  updated: number /* int */;
+  branded: number /* int */;
+  unbranded?: { [key: string]: string}; // slug → why no logo
 }
 /**
  * AuthSchemeTypes is a phantom root for gotypegen dependency tracing.
@@ -6998,7 +7044,7 @@ export const GPUTypeApple: GPUType = "apple";
 /**
  * AuthSchemeKind is how a provider authenticates. One kind ships today; the
  * list is open so client-credentials, OAuth1 or API-key schemes can be added
- * without changing the AuthProvider shape.
+ * without changing the AuthScheme shape.
  */
 export type AuthSchemeKind = string;
 export const AuthSchemeOAuth2AuthorizationCode: AuthSchemeKind = "oauth2_authorization_code";
@@ -7017,32 +7063,209 @@ export const AuthSchemeClientAuthBasic: AuthSchemeClientAuth = "basic";
  */
 export const AuthSchemeClientAuthBody: AuthSchemeClientAuth = "body";
 /**
- * AuthScheme is one way to authenticate against a provider. Fields are
- * grouped by the kind that reads them; a kind ignores the others.
+ * AuthSchemeTokenRequest is the token request's body encoding.
+ */
+export type AuthSchemeTokenRequest = string;
+export const AuthSchemeTokenRequestForm: AuthSchemeTokenRequest = "form";
+export const AuthSchemeTokenRequestJSON: AuthSchemeTokenRequest = "json";
+/**
+ * AuthSchemeRefresh is when an access token is refreshed.
+ */
+export type AuthSchemeRefresh = string;
+/**
+ * AuthSchemeRefreshWhenExpiring refreshes within five minutes of the
+ * reported expiry; a token with no expiry is treated as long-lived
+ * (Slack without token rotation, Notion).
+ */
+export const AuthSchemeRefreshWhenExpiring: AuthSchemeRefresh = "";
+/**
+ * AuthSchemeRefreshAlways refreshes on every read: the provider reports
+ * no expiry but the token does expire (Salesforce's session timeout is
+ * per org and not reported).
+ */
+export const AuthSchemeRefreshAlways: AuthSchemeRefresh = "always";
+/**
+ * AuthSchemeRevokeStyle is how the token reaches the revoke endpoint.
+ */
+export type AuthSchemeRevokeStyle = string;
+export const AuthSchemeRevokeBearer: AuthSchemeRevokeStyle = "bearer";
+export const AuthSchemeRevokeQuery: AuthSchemeRevokeStyle = "query";
+export const AuthSchemeRevokeForm: AuthSchemeRevokeStyle = "form";
+/**
+ * AuthSchemeRevoke is the optional token revocation on disconnect.
+ */
+export interface AuthSchemeRevoke {
+  url: string;
+  style: AuthSchemeRevokeStyle;
+  /**
+   * ClientAuth also sends client_id and client_secret in the form
+   * (Discord).
+   */
+  client_auth?: boolean;
+}
+/**
+ * AuthSchemeAppKey is one key of the OAuth app a login goes through. The
+ * client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
+ * listing them only overrides their label and placeholder. Other keys
+ * (bot_token, signing_secret, tenant_id) are optional extras the app holds,
+ * read back by name in templates as {app.<name>} and by hooks.
+ */
+export interface AuthSchemeAppKey {
+  /**
+   * Name is the key's role: client_id, client_secret, bot_token, …
+   */
+  name: string;
+  /**
+   * Key is the vault key; default PREFIX_<NAME>.
+   */
+  key?: string;
+  label?: string;
+  placeholder?: string;
+  sensitive?: boolean;
+  /**
+   * Optional is implied for every name but client_id and client_secret.
+   */
+  optional?: boolean;
+}
+/**
+ * AuthSchemeLookup is a call made after the token exchange, with the new
+ * access token as bearer; its decoded response becomes a document root of
+ * its name for the identity, metadata and later lookups ({user.email},
+ * {resources.0.id}). userinfo_url is shorthand for the lookup named user.
+ * URL, body and headers are templates.
+ */
+export interface AuthSchemeLookup {
+  name: string;
+  url: string;
+  method?: string; // GET (default) or POST
+  /**
+   * Body is sent as is; a JSON body is the default content type
+   * (Dropbox's "null", Linear's GraphQL query).
+   */
+  body?: string;
+  content_type?: string;
+  headers?: { [key: string]: string};
+}
+/**
+ * AuthSchemeCapability is something an app can ask for from this provider,
+ * satisfied by a connection holding its scopes. Scopes are in the scheme's
+ * own (friendly) names, the ones a credential stores.
+ */
+export interface AuthSchemeCapability {
+  key: string; // "google.gmail.send"
+  scopes?: string[]; // required scopes; none = any connection
+  satisfies?: string[]; // other capability keys this one implies
+  display_name: string; // "Send Gmail"
+  description?: string; // "Send emails on your behalf"
+}
+/**
+ * AuthSchemeSpec is one way to authenticate against a provider, as data.
+ * Everything a standard OAuth2 provider needs is a field; where a provider
+ * deviates in a way data cannot express, the spec names a hook and Go
+ * supplies it (authprovider.RegisterTokenResponseHook and friends).
+ * Templates: URLs, headers, lookup bodies, identifier, name, metadata and
+ * env values are strings with {{path}} placeholders. A path is read from
+ * the flow's document, which grows as the flow goes:
+ * 	client_id                  from the authorize step on
+ * 	vars.* (and each var bare)  what the vars hook produced, e.g. {{tenant}}
+ * 	access_token, token.*      after the token exchange (token.* is the
+ * 	                           decoded response)
+ * 	callback.*                 the other query params the callback carried
+ * 	                           (QuickBooks' realmId, Shopify's shop)
+ * 	<lookup>.*                 each lookup's response, by its name; user.*
+ * 	                           is the userinfo lookup
+ * 	expires_at, metadata.*, app.*   env only: the token's expiry (RFC 3339),
+ * 	                           the stored metadata, the app's extra keys
+ * Array elements are indexed: {{resources.0.id}}. {{a|b}} takes the first
+ * path present. A template none of whose placeholders resolve renders "":
+ * omitted from env and metadata, blank as identifier or name.
  */
 export interface AuthSchemeSpec {
   kind: AuthSchemeKind;
-  /**
-   * oauth2_authorization_code
-   */
   authorize_url?: string;
-  token_url?: string;
   scopes?: string[]; // requested by default; a connect request may override
-  pkce?: boolean;
-  client_auth?: AuthSchemeClientAuth; // empty = basic
   /**
-   * ExtraAuthorizeParams are appended to the authorize URL verbatim, for
-   * provider quirks such as Google's access_type=offline.
+   * ScopeAliases map the scheme's own scope names to what the provider
+   * wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
+   * gmail.send"). Credentials store the alias; the wire form is used only
+   * in requests. A scope with no alias is sent as is.
+   */
+  scope_aliases?: { [key: string]: string};
+  scope_param?: string; // default "scope" (Slack: "user_scope")
+  scope_separator?: string; // default " " (Slack: ",")
+  omit_scope_param?: boolean; // the provider takes no scope (Notion)
+  pkce?: boolean;
+  /**
+   * ClientIDParam is the name the client id travels under in the
+   * authorize URL and the token body; default "client_id" (TikTok:
+   * "client_key").
+   */
+  client_id_param?: string;
+  /**
+   * ExtraAuthorizeParams are appended to the authorize URL verbatim
+   * (Google's access_type=offline). AddScopesParams override them when
+   * re-authorizing for more scopes (Google's include_granted_scopes).
    */
   extra_authorize_params?: { [key: string]: string};
+  add_scopes_params?: { [key: string]: string};
+  token_url?: string;
+  client_auth?: AuthSchemeClientAuth; // empty = basic
+  token_request?: AuthSchemeTokenRequest; // empty = form
   /**
-   * Optional identity lookup after the token exchange, so the credential
-   * can show which account was connected. Paths are dotted JSON paths into
-   * the userinfo response ("data.email", "login").
+   * Headers go on every request to the provider (User-Agent for Reddit,
+   * Notion-Version); values are templates ({{client_id}} for Twitch's
+   * Client-Id).
+   */
+  headers?: { [key: string]: string};
+  /**
+   * TokenResponseHook names the Go reader for a token response that is
+   * not the RFC 6749 shape (Slack's nested authed_user). Empty = standard.
+   */
+  token_response_hook?: string;
+  refresh?: AuthSchemeRefresh;
+  revoke?: AuthSchemeRevoke;
+  /**
+   * UserInfoURL is fetched with the new access token; the response is the
+   * identity document (user.*). UserInfoURLPath instead reads that URL
+   * from a path within the token response (Salesforce's "id"). Lookups
+   * are further calls, each becoming a root of its name, in order, after
+   * user. With none of these, the token response is all there is.
    */
   userinfo_url?: string;
-  userinfo_identifier_path?: string;
-  userinfo_name_path?: string;
+  userinfo_url_path?: string;
+  lookups?: AuthSchemeLookup[];
+  /**
+   * Identifier is the connected account's stable, human-readable id
+   * ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
+   */
+  identifier?: string;
+  name?: string;
+  /**
+   * IdentityHook names Go code that derives identifier and name when a
+   * template cannot (Discord's discriminator rule). It wins over both.
+   */
+  identity_hook?: string;
+  /**
+   * Metadata is what the credential stores about the account, by key.
+   */
+  metadata?: { [key: string]: string};
+  /**
+   * Env is what a run reads, by variable. Empty = PREFIX_ACCESS_TOKEN and
+   * PREFIX_ACCESS_TOKEN_EXPIRES_AT.
+   */
+  env?: { [key: string]: string};
+  /**
+   * AppKeys are the OAuth app's keys beyond the implied client id and
+   * secret, and label overrides for those.
+   */
+  app_keys?: AuthSchemeAppKey[];
+  /**
+   * VarsHook names Go code that turns the app's extra keys into the
+   * {var} values substituted into the URLs (Microsoft's tenant,
+   * Salesforce's sandbox host).
+   */
+  vars_hook?: string;
+  capabilities?: AuthSchemeCapability[];
 }
 /**
  * Visibility represents the visibility level of a resource
@@ -8264,10 +8487,9 @@ export const UsageAccessSourceOrganization: UsageAccessSource = "organization";
 export const UsageAccessSourcePublisher: UsageAccessSource = "publisher";
 /**
  * RemoteStatus is the liveness state of a remote — a machine that hosts agent
- * harnesses and connects to us as a daemon. It is deliberately simpler than
- * EngineStatus: a remote has no draining (a closed laptop does not finish its
- * work first) and no restarting, so the states are just the ones a heartbeat
- * can produce.
+ * harnesses and connects to us as a daemon. It follows the daemon's connection
+ * (node.Tracker). It is deliberately simpler than EngineStatus: a remote has no
+ * draining (a closed laptop does not finish its work first) and no restarting.
  */
 export type RemoteStatus = string;
 export const RemoteStatusPending: RemoteStatus = "pending";

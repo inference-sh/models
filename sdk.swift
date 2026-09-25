@@ -2052,25 +2052,32 @@ public struct CredentialConnectRequest: Codable {
     }
 }
 
+/// CredentialCompleteOAuthRequest is what the provider's redirect delivered:
+/// the code and state, the PKCE verifier the client kept, and every other
+/// query param the callback carried (QuickBooks' realmId, Shopify's shop),
+/// which a scheme reads as {{callback.*}}.
 public struct CredentialCompleteOAuthRequest: Codable {
     public var provider: String
     public var type: String
     public var code: String
     public var state: String
     public var codeVerifier: String?
+    public var params: [String: String]?
 
     public init(
         provider: String = "",
         type: String = "",
         code: String = "",
         state: String = "",
-        codeVerifier: String? = nil
+        codeVerifier: String? = nil,
+        params: [String: String]? = nil
     ) {
         self.provider = provider
         self.type = type
         self.code = code
         self.state = state
         self.codeVerifier = codeVerifier
+        self.params = params
     }
 
     enum CodingKeys: String, CodingKey {
@@ -2079,6 +2086,7 @@ public struct CredentialCompleteOAuthRequest: Codable {
         case code = "code"
         case state = "state"
         case codeVerifier = "code_verifier"
+        case params = "params"
     }
 }
 
