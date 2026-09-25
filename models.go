@@ -722,12 +722,17 @@ type CredentialConnectRequest struct {
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
 }
 
+// CredentialCompleteOAuthRequest is what the provider's redirect delivered:
+// the code and state, the PKCE verifier the client kept, and every other
+// query param the callback carried (QuickBooks' realmId, Shopify's shop),
+// which a scheme reads as {{callback.*}}.
 type CredentialCompleteOAuthRequest struct {
-	Provider     string `json:"provider"`
-	Type         string `json:"type"`
-	Code         string `json:"code"`
-	State        string `json:"state"`
-	CodeVerifier string `json:"code_verifier,omitempty"`
+	Provider     string            `json:"provider"`
+	Type         string            `json:"type"`
+	Code         string            `json:"code"`
+	State        string            `json:"state"`
+	CodeVerifier string            `json:"code_verifier,omitempty"`
+	Params       map[string]string `json:"params,omitempty"`
 }
 
 type CredentialConnectResponse struct {
@@ -1522,6 +1527,11 @@ type AuthSchemeDTO struct {
 	Slug               string           `json:"slug"`
 	DisplayName        string           `json:"display_name"`
 	IconURL            string           `json:"icon_url,omitempty"`
+	Description        string           `json:"description,omitempty"`
+	DocsURL            string           `json:"docs_url,omitempty"`
+	HowItWorks         []string         `json:"how_it_works,omitempty"`
+	Website            string           `json:"website,omitempty"`
+	ConnectionScope    CredentialScope  `json:"connection_scope,omitempty"`
 	Specs              []AuthSchemeSpec `json:"specs"`
 	// Where the OAuth app's client id and secret live in the team vault.
 	ClientIDKey     string `json:"client_id_key"`
@@ -1532,12 +1542,19 @@ type AuthSchemeDTO struct {
 // ClientID and ClientSecret are its OAuth app: they are written to the
 // team's app row (a grant=credentials credential), not to the scheme.
 type AuthSchemeCreateRequest struct {
-	Slug         string           `json:"slug"`
-	DisplayName  string           `json:"display_name"`
-	IconURL      string           `json:"icon_url,omitempty"`
-	Specs        []AuthSchemeSpec `json:"specs"`
-	ClientID     string           `json:"client_id"`
-	ClientSecret string           `json:"client_secret"`
+	Slug            string           `json:"slug"`
+	DisplayName     string           `json:"display_name"`
+	IconURL         string           `json:"icon_url,omitempty"`
+	Description     string           `json:"description,omitempty"`
+	DocsURL         string           `json:"docs_url,omitempty"`
+	HowItWorks      []string         `json:"how_it_works,omitempty"`
+	Website         string           `json:"website,omitempty"`
+	ConnectionScope CredentialScope  `json:"connection_scope,omitempty"`
+	Specs           []AuthSchemeSpec `json:"specs"`
+	// The OAuth app, required for a team scheme. A platform scheme's app
+	// is managed separately (PUT /credentials/{provider}/app).
+	ClientID     string `json:"client_id,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"`
 	// Scope is who may connect through it. Empty = team. Org and platform
 	// follow the credential rule: chosen from the team that owns them.
 	Scope CredentialScope `json:"scope,omitempty"`
@@ -1547,15 +1564,40 @@ type AuthSchemeCreateRequest struct {
 // the provider key (stored on every credential) and cannot change. Empty
 // secrets leave the stored ones alone.
 type AuthSchemeUpdateRequest struct {
-	DisplayName  string           `json:"display_name,omitempty"`
-	IconURL      string           `json:"icon_url,omitempty"`
-	Specs        []AuthSchemeSpec `json:"specs,omitempty"`
-	ClientID     string           `json:"client_id,omitempty"`
-	ClientSecret string           `json:"client_secret,omitempty"`
+	DisplayName     string           `json:"display_name,omitempty"`
+	IconURL         string           `json:"icon_url,omitempty"`
+	Description     string           `json:"description,omitempty"`
+	DocsURL         string           `json:"docs_url,omitempty"`
+	HowItWorks      []string         `json:"how_it_works,omitempty"`
+	Website         string           `json:"website,omitempty"`
+	ConnectionScope CredentialScope  `json:"connection_scope,omitempty"`
+	Specs           []AuthSchemeSpec `json:"specs,omitempty"`
+	ClientID        string           `json:"client_id,omitempty"`
+	ClientSecret    string           `json:"client_secret,omitempty"`
+}
+
+// AuthSchemeHooksDTO lists the registered Go hooks a scheme spec may name
+// in each slot (GET /auth-schemes/hooks).
+type AuthSchemeHooksDTO struct {
+	TokenResponse []string `json:"token_response"`
+	Identity      []string `json:"identity"`
+	Vars          []string `json:"vars"`
+}
+
+// AuthSchemeSeedResult is what POST /admin/auth-schemes/seed did: the
+// built-in definitions written as platform rows, and the logos looked up
+// for rows that had none, with the reason for each still without one.
+type AuthSchemeSeedResult struct {
+	Created   int               `json:"created"`
+	Updated   int               `json:"updated"`
+	Branded   int               `json:"branded"`
+	Unbranded map[string]string `json:"unbranded,omitempty"` // slug → why no logo
 }
 
 // AuthSchemeTypes is a phantom root for gotypegen dependency tracing.
 type AuthSchemeTypes struct {
+	_hooks      AuthSchemeHooksDTO
+	_seed       AuthSchemeSeedResult
 	_dto        AuthSchemeDTO
 	_create     AuthSchemeCreateRequest
 	_update     AuthSchemeUpdateRequest
@@ -5510,7 +5552,7 @@ const (
 
 // AuthSchemeKind is how a provider authenticates. One kind ships today; the
 // list is open so client-credentials, OAuth1 or API-key schemes can be added
-// without changing the AuthProvider shape.
+// without changing the AuthScheme shape.
 type AuthSchemeKind string
 
 const AuthSchemeOAuth2AuthorizationCode AuthSchemeKind = "oauth2_authorization_code"
@@ -5527,25 +5569,193 @@ const (
 	AuthSchemeClientAuthBody AuthSchemeClientAuth = "body"
 )
 
-// AuthScheme is one way to authenticate against a provider. Fields are
-// grouped by the kind that reads them; a kind ignores the others.
+// AuthSchemeTokenRequest is the token request's body encoding.
+type AuthSchemeTokenRequest string
+
+const (
+	AuthSchemeTokenRequestForm AuthSchemeTokenRequest = "form"
+	AuthSchemeTokenRequestJSON AuthSchemeTokenRequest = "json"
+)
+
+// AuthSchemeRefresh is when an access token is refreshed.
+type AuthSchemeRefresh string
+
+const (
+	// AuthSchemeRefreshWhenExpiring refreshes within five minutes of the
+	// reported expiry; a token with no expiry is treated as long-lived
+	// (Slack without token rotation, Notion).
+	AuthSchemeRefreshWhenExpiring AuthSchemeRefresh = ""
+	// AuthSchemeRefreshAlways refreshes on every read: the provider reports
+	// no expiry but the token does expire (Salesforce's session timeout is
+	// per org and not reported).
+	AuthSchemeRefreshAlways AuthSchemeRefresh = "always"
+)
+
+// AuthSchemeRevokeStyle is how the token reaches the revoke endpoint.
+type AuthSchemeRevokeStyle string
+
+const (
+	AuthSchemeRevokeBearer AuthSchemeRevokeStyle = "bearer"
+	AuthSchemeRevokeQuery  AuthSchemeRevokeStyle = "query"
+	AuthSchemeRevokeForm   AuthSchemeRevokeStyle = "form"
+)
+
+// AuthSchemeRevoke is the optional token revocation on disconnect.
+type AuthSchemeRevoke struct {
+	URL   string                `json:"url"`
+	Style AuthSchemeRevokeStyle `json:"style"`
+	// ClientAuth also sends client_id and client_secret in the form
+	// (Discord).
+	ClientAuth bool `json:"client_auth,omitempty"`
+}
+
+// AuthSchemeAppKey is one key of the OAuth app a login goes through. The
+// client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
+// listing them only overrides their label and placeholder. Other keys
+// (bot_token, signing_secret, tenant_id) are optional extras the app holds,
+// read back by name in templates as {app.<name>} and by hooks.
+type AuthSchemeAppKey struct {
+	// Name is the key's role: client_id, client_secret, bot_token, …
+	Name string `json:"name"`
+	// Key is the vault key; default PREFIX_<NAME>.
+	Key         string `json:"key,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Placeholder string `json:"placeholder,omitempty"`
+	Sensitive   bool   `json:"sensitive,omitempty"`
+	// Optional is implied for every name but client_id and client_secret.
+	Optional bool `json:"optional,omitempty"`
+}
+
+// AuthSchemeLookup is a call made after the token exchange, with the new
+// access token as bearer; its decoded response becomes a document root of
+// its name for the identity, metadata and later lookups ({user.email},
+// {resources.0.id}). userinfo_url is shorthand for the lookup named user.
+// URL, body and headers are templates.
+type AuthSchemeLookup struct {
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	Method string `json:"method,omitempty"` // GET (default) or POST
+	// Body is sent as is; a JSON body is the default content type
+	// (Dropbox's "null", Linear's GraphQL query).
+	Body        string            `json:"body,omitempty"`
+	ContentType string            `json:"content_type,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+}
+
+// AuthSchemeCapability is something an app can ask for from this provider,
+// satisfied by a connection holding its scopes. Scopes are in the scheme's
+// own (friendly) names, the ones a credential stores.
+type AuthSchemeCapability struct {
+	Key         string   `json:"key"`                   // "google.gmail.send"
+	Scopes      []string `json:"scopes,omitempty"`      // required scopes; none = any connection
+	Satisfies   []string `json:"satisfies,omitempty"`   // other capability keys this one implies
+	DisplayName string   `json:"display_name"`          // "Send Gmail"
+	Description string   `json:"description,omitempty"` // "Send emails on your behalf"
+}
+
+// AuthSchemeSpec is one way to authenticate against a provider, as data.
+// Everything a standard OAuth2 provider needs is a field; where a provider
+// deviates in a way data cannot express, the spec names a hook and Go
+// supplies it (authprovider.RegisterTokenResponseHook and friends).
+//
+// Templates: URLs, headers, lookup bodies, identifier, name, metadata and
+// env values are strings with {{path}} placeholders. A path is read from
+// the flow's document, which grows as the flow goes:
+//
+//	client_id                  from the authorize step on
+//	vars.* (and each var bare)  what the vars hook produced, e.g. {{tenant}}
+//	access_token, token.*      after the token exchange (token.* is the
+//	                           decoded response)
+//	callback.*                 the other query params the callback carried
+//	                           (QuickBooks' realmId, Shopify's shop)
+//	<lookup>.*                 each lookup's response, by its name; user.*
+//	                           is the userinfo lookup
+//	expires_at, metadata.*, app.*   env only: the token's expiry (RFC 3339),
+//	                           the stored metadata, the app's extra keys
+//
+// Array elements are indexed: {{resources.0.id}}. {{a|b}} takes the first
+// path present. A template none of whose placeholders resolve renders "":
+// omitted from env and metadata, blank as identifier or name.
 type AuthSchemeSpec struct {
-	Kind AuthSchemeKind `json:"kind"`
-	// oauth2_authorization_code
-	AuthorizeURL string               `json:"authorize_url,omitempty"`
-	TokenURL     string               `json:"token_url,omitempty"`
-	Scopes       []string             `json:"scopes,omitempty"` // requested by default; a connect request may override
-	PKCE         bool                 `json:"pkce,omitempty"`
-	ClientAuth   AuthSchemeClientAuth `json:"client_auth,omitempty"` // empty = basic
-	// ExtraAuthorizeParams are appended to the authorize URL verbatim, for
-	// provider quirks such as Google's access_type=offline.
-	ExtraAuthorizeParams map[string]string `json:"extra_authorize_params,omitempty"`
-	// Optional identity lookup after the token exchange, so the credential
-	// can show which account was connected. Paths are dotted JSON paths into
-	// the userinfo response ("data.email", "login").
-	UserInfoURL            string `json:"userinfo_url,omitempty"`
-	UserInfoIdentifierPath string `json:"userinfo_identifier_path,omitempty"`
-	UserInfoNamePath       string `json:"userinfo_name_path,omitempty"`
+	Kind         AuthSchemeKind `json:"kind"`
+	AuthorizeURL string         `json:"authorize_url,omitempty"`
+	Scopes       []string       `json:"scopes,omitempty"` // requested by default; a connect request may override
+	// ScopeAliases map the scheme's own scope names to what the provider
+	// wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
+	// gmail.send"). Credentials store the alias; the wire form is used only
+	// in requests. A scope with no alias is sent as is.
+	ScopeAliases   map[string]string `json:"scope_aliases,omitempty"`
+	ScopeParam     string            `json:"scope_param,omitempty"`      // default "scope" (Slack: "user_scope")
+	ScopeSeparator string            `json:"scope_separator,omitempty"`  // default " " (Slack: ",")
+	OmitScopeParam bool              `json:"omit_scope_param,omitempty"` // the provider takes no scope (Notion)
+	PKCE           bool              `json:"pkce,omitempty"`
+	// ClientIDParam is the name the client id travels under in the
+	// authorize URL and the token body; default "client_id" (TikTok:
+	// "client_key").
+	ClientIDParam string `json:"client_id_param,omitempty"`
+	// ExtraAuthorizeParams are appended to the authorize URL verbatim
+	// (Google's access_type=offline). AddScopesParams override them when
+	// re-authorizing for more scopes (Google's include_granted_scopes).
+	ExtraAuthorizeParams map[string]string      `json:"extra_authorize_params,omitempty"`
+	AddScopesParams      map[string]string      `json:"add_scopes_params,omitempty"`
+	TokenURL             string                 `json:"token_url,omitempty"`
+	ClientAuth           AuthSchemeClientAuth   `json:"client_auth,omitempty"`   // empty = basic
+	TokenRequest         AuthSchemeTokenRequest `json:"token_request,omitempty"` // empty = form
+	// Headers go on every request to the provider (User-Agent for Reddit,
+	// Notion-Version); values are templates ({{client_id}} for Twitch's
+	// Client-Id).
+	Headers map[string]string `json:"headers,omitempty"`
+	// TokenResponseHook names the Go reader for a token response that is
+	// not the RFC 6749 shape (Slack's nested authed_user). Empty = standard.
+	TokenResponseHook string            `json:"token_response_hook,omitempty"`
+	Refresh           AuthSchemeRefresh `json:"refresh,omitempty"`
+	Revoke            *AuthSchemeRevoke `json:"revoke,omitempty"`
+	// UserInfoURL is fetched with the new access token; the response is the
+	// identity document (user.*). UserInfoURLPath instead reads that URL
+	// from a path within the token response (Salesforce's "id"). Lookups
+	// are further calls, each becoming a root of its name, in order, after
+	// user. With none of these, the token response is all there is.
+	UserInfoURL     string             `json:"userinfo_url,omitempty"`
+	UserInfoURLPath string             `json:"userinfo_url_path,omitempty"`
+	Lookups         []AuthSchemeLookup `json:"lookups,omitempty"`
+	// Identifier is the connected account's stable, human-readable id
+	// ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
+	Identifier string `json:"identifier,omitempty"`
+	Name       string `json:"name,omitempty"`
+	// IdentityHook names Go code that derives identifier and name when a
+	// template cannot (Discord's discriminator rule). It wins over both.
+	IdentityHook string `json:"identity_hook,omitempty"`
+	// Metadata is what the credential stores about the account, by key.
+	Metadata map[string]string `json:"metadata,omitempty"`
+	// Env is what a run reads, by variable. Empty = PREFIX_ACCESS_TOKEN and
+	// PREFIX_ACCESS_TOKEN_EXPIRES_AT.
+	Env map[string]string `json:"env,omitempty"`
+	// AppKeys are the OAuth app's keys beyond the implied client id and
+	// secret, and label overrides for those.
+	AppKeys []AuthSchemeAppKey `json:"app_keys,omitempty"`
+	// VarsHook names Go code that turns the app's extra keys into the
+	// {var} values substituted into the URLs (Microsoft's tenant,
+	// Salesforce's sandbox host).
+	VarsHook     string                 `json:"vars_hook,omitempty"`
+	Capabilities []AuthSchemeCapability `json:"capabilities,omitempty"`
+}
+
+// Wire returns the provider's form of one of the scheme's scope names.
+func (s *AuthSchemeSpec) Wire(scope string) string {
+	if full, ok := s.ScopeAliases[scope]; ok {
+		return full
+	}
+	return scope
+}
+
+// Alias returns the scheme's own name for a scope the provider reported.
+func (s *AuthSchemeSpec) Alias(wire string) string {
+	for alias, full := range s.ScopeAliases {
+		if full == wire {
+			return alias
+		}
+	}
+	return wire
 }
 
 // --------------------
@@ -6904,10 +7114,9 @@ const (
 // --------------------
 
 // RemoteStatus is the liveness state of a remote — a machine that hosts agent
-// harnesses and connects to us as a daemon. It is deliberately simpler than
-// EngineStatus: a remote has no draining (a closed laptop does not finish its
-// work first) and no restarting, so the states are just the ones a heartbeat
-// can produce.
+// harnesses and connects to us as a daemon. It follows the daemon's connection
+// (node.Tracker). It is deliberately simpler than EngineStatus: a remote has no
+// draining (a closed laptop does not finish its work first) and no restarting.
 type RemoteStatus string
 
 // RemoteTerminal reports whether the remote is in a final, non-recoverable state.
