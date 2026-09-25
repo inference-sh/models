@@ -483,6 +483,8 @@ type ApiAgentRunRequest struct {
 	Input       LLMInput          `json:"input" validate:"required"`
 	Context     map[string]string `json:"context,omitempty"`
 	Stream      bool              `json:"stream,omitempty"`
+	// ChannelContext is recorded on the chat the first time it is seen.
+	ChannelContext *ChannelContext `json:"channel_context,omitempty"`
 }
 
 // CreateAgentMessageRequest is the request for creating agent messages.
@@ -882,6 +884,7 @@ const (
 	ScopeProjects      Scope = "projects"
 	ScopeTeams         Scope = "teams"
 	ScopeBilling       Scope = "billing"
+	ScopeArtifacts     Scope = "artifacts"
 	// Action-level scopes for Agents
 	ScopeAgentsRead    Scope = "agents:read"
 	ScopeAgentsWrite   Scope = "agents:write"
@@ -922,6 +925,9 @@ const (
 	// Action-level scopes for Engines
 	ScopeEnginesRead  Scope = "engines:read"
 	ScopeEnginesWrite Scope = "engines:write"
+	// Action-level scopes for Remotes
+	ScopeRemotesRead  Scope = "remotes:read"
+	ScopeRemotesWrite Scope = "remotes:write"
 	// Action-level scopes for API Keys
 	ScopeApiKeysRead  Scope = "apikeys:read"
 	ScopeApiKeysWrite Scope = "apikeys:write"
@@ -929,7 +935,6 @@ const (
 	ScopeKnowledgeRead  Scope = "knowledge:read"
 	ScopeKnowledgeWrite Scope = "knowledge:write"
 	// Action-level scopes for Artifacts (published HTML/Markdown pages)
-	ScopeArtifacts      Scope = "artifacts"
 	ScopeArtifactsRead  Scope = "artifacts:read"
 	ScopeArtifactsWrite Scope = "artifacts:write"
 	// Action-level scopes for User profile
@@ -956,6 +961,7 @@ const (
 	ScopeGroupSecrets       ScopeGroup = "secrets"
 	ScopeGroupCredentials   ScopeGroup = "credentials"
 	ScopeGroupEngines       ScopeGroup = "engines"
+	ScopeGroupRemotes       ScopeGroup = "remotes"
 	ScopeGroupApiKeys       ScopeGroup = "apikeys"
 	ScopeGroupKnowledge     ScopeGroup = "knowledge"
 	ScopeGroupArtifacts     ScopeGroup = "artifacts"
@@ -5959,6 +5965,18 @@ const (
 )
 
 type ChannelType string
+
+// IsRequestReply reports whether replies on this channel go back in the
+// caller's own HTTP response instead of through a registered transport. The
+// transport channels are the named consts above; any other value is a
+// free-form tag from the OpenAI-compatible agent route (?channel=g2).
+func (c ChannelType) IsRequestReply() bool {
+	switch c {
+	case ChannelTypeSlack, ChannelTypeDiscord, ChannelTypeTeams, ChannelTypeTelegram:
+		return false
+	}
+	return true
+}
 
 const (
 	ChannelTypeSlack    ChannelType = "slack"

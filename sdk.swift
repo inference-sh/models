@@ -1342,6 +1342,8 @@ public struct ApiAgentRunRequest: Codable {
     public var input: LLMInput
     public var context: [String: String]?
     public var stream: Bool?
+    /// ChannelContext is recorded on the chat the first time it is seen.
+    public var channelContext: ChannelContext?
 
     public init(
         chatId: String? = nil,
@@ -1350,7 +1352,8 @@ public struct ApiAgentRunRequest: Codable {
         agentName: String? = nil,
         input: LLMInput,
         context: [String: String]? = nil,
-        stream: Bool? = nil
+        stream: Bool? = nil,
+        channelContext: ChannelContext? = nil
     ) {
         self.chatId = chatId
         self.agent = agent
@@ -1359,6 +1362,7 @@ public struct ApiAgentRunRequest: Codable {
         self.input = input
         self.context = context
         self.stream = stream
+        self.channelContext = channelContext
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1369,6 +1373,7 @@ public struct ApiAgentRunRequest: Codable {
         case input = "input"
         case context = "context"
         case stream = "stream"
+        case channelContext = "channel_context"
     }
 }
 
@@ -2307,6 +2312,7 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     public static let projects = Scope(rawValue: "projects")
     public static let teams = Scope(rawValue: "teams")
     public static let billing = Scope(rawValue: "billing")
+    public static let artifacts = Scope(rawValue: "artifacts")
     /// Action-level scopes for Agents
     public static let agentsRead = Scope(rawValue: "agents:read")
     public static let agentsWrite = Scope(rawValue: "agents:write")
@@ -2347,6 +2353,9 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     /// Action-level scopes for Engines
     public static let enginesRead = Scope(rawValue: "engines:read")
     public static let enginesWrite = Scope(rawValue: "engines:write")
+    /// Action-level scopes for Remotes
+    public static let remotesRead = Scope(rawValue: "remotes:read")
+    public static let remotesWrite = Scope(rawValue: "remotes:write")
     /// Action-level scopes for API Keys
     public static let apiKeysRead = Scope(rawValue: "apikeys:read")
     public static let apiKeysWrite = Scope(rawValue: "apikeys:write")
@@ -2354,7 +2363,6 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     public static let knowledgeRead = Scope(rawValue: "knowledge:read")
     public static let knowledgeWrite = Scope(rawValue: "knowledge:write")
     /// Action-level scopes for Artifacts (published HTML/Markdown pages)
-    public static let artifacts = Scope(rawValue: "artifacts")
     public static let artifactsRead = Scope(rawValue: "artifacts:read")
     public static let artifactsWrite = Scope(rawValue: "artifacts:write")
     /// Action-level scopes for User profile
@@ -2382,6 +2390,7 @@ public struct ScopeGroup: RawRepresentable, Codable, Hashable, Sendable {
     public static let secrets = ScopeGroup(rawValue: "secrets")
     public static let credentials = ScopeGroup(rawValue: "credentials")
     public static let engines = ScopeGroup(rawValue: "engines")
+    public static let remotes = ScopeGroup(rawValue: "remotes")
     public static let apiKeys = ScopeGroup(rawValue: "apikeys")
     public static let knowledge = ScopeGroup(rawValue: "knowledge")
     public static let artifacts = ScopeGroup(rawValue: "artifacts")
