@@ -439,7 +439,7 @@ type APIResponse[T any] struct {
 }
 
 type APIError struct {
-	Code        string         `json:"code"`
+	Code        ErrorCode      `json:"code"`
 	Message     string         `json:"message"`
 	Suggestions []string       `json:"suggestions,omitempty"`
 	Meta        map[string]any `json:"meta,omitempty"`
@@ -2117,6 +2117,74 @@ type EntitlementErrorMeta struct {
 }
 
 // --------------------
+// source: error_codes.go
+// --------------------
+
+// ErrorCode is the machine-readable error code of an API error: the last
+// segment of the problem+json type URI (https://api.inference.sh/errors/<code>)
+// and APIError.Code on the legacy envelope. Clients branch on these, so a
+// code is a named const here, where it generates into models and the SDKs.
+type ErrorCode string
+
+const (
+	ErrorCodeInvalidRequest   ErrorCode = "invalid_request"
+	ErrorCodeValidationError  ErrorCode = "validation_error"
+	ErrorCodeUnauthorized     ErrorCode = "unauthorized"
+	ErrorCodeForbidden        ErrorCode = "forbidden"
+	ErrorCodeNotFound         ErrorCode = "not_found"
+	ErrorCodeConflict         ErrorCode = "conflict"
+	ErrorCodeNameConflict     ErrorCode = "name_conflict"
+	ErrorCodeAlreadyExists    ErrorCode = "already_exists"
+	ErrorCodeNotConfigured    ErrorCode = "not_configured"
+	ErrorCodeMethodNotAllowed ErrorCode = "method_not_allowed"
+	ErrorCodeRateLimited      ErrorCode = "rate_limited"
+	ErrorCodeInternalError    ErrorCode = "internal_error"
+	// ErrorCodeTeamRoleRequired: the caller's team role or org-admin status
+	// does not allow the action. Meta is TeamRoleRequiredMeta when a
+	// capability gate refused it.
+	ErrorCodeTeamRoleRequired ErrorCode = "team_role_required"
+	// ErrorCodeBlockedByUsagePolicy: the resource is outside the team or org
+	// usage policy. The message names who to ask.
+	ErrorCodeBlockedByUsagePolicy ErrorCode = "blocked_by_usage_policy"
+	ErrorCodeOTPRequired          ErrorCode = "otp_required"
+	ErrorCodeMCPAuthExpired       ErrorCode = "mcp_auth_expired"
+	// Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
+	// EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
+	// not be checked and the request is retriable.
+	ErrorCodeLimitExceeded          ErrorCode = "limit_exceeded"
+	ErrorCodeFeatureNotAvailable    ErrorCode = "feature_not_available"
+	ErrorCodeEntitlementUnavailable ErrorCode = "entitlement_unavailable"
+	ErrorCodePaymentRequired        ErrorCode = "payment_required"
+	// ErrorCodePaymentMethodRequired (402): a bounty program requires a saved
+	// payment method and the caller's team has none. Meta is
+	// PaymentMethodRequiredMeta; clients send the user to BillingPage.
+	ErrorCodePaymentMethodRequired ErrorCode = "payment_method_required"
+	// Remote harness refusals.
+	ErrorCodeAgentsDisabled     ErrorCode = "agents_disabled"
+	ErrorCodeRemoteOffline      ErrorCode = "remote_offline"
+	ErrorCodeRemoteTimeout      ErrorCode = "remote_timeout"
+	ErrorCodeHarnessNotDrivable ErrorCode = "harness_not_drivable"
+	ErrorCodeHarnessTooOld      ErrorCode = "harness_too_old"
+)
+
+// TeamRoleRequiredMeta is the meta of a team_role_required error from a
+// capability gate. Only Capability is always set: a team that does not
+// resolve answers with the capability alone, so clients must not assume
+// RequiredRole is present.
+type TeamRoleRequiredMeta struct {
+	Capability       TeamCapability `json:"capability"`
+	ActualRole       TeamRole       `json:"actual_role,omitempty"`
+	RequiredRole     TeamRole       `json:"required_role,omitempty"`
+	RequiresOrgAdmin *bool          `json:"requires_org_admin,omitempty"`
+}
+
+// PaymentMethodRequiredMeta is the meta of a payment_method_required error.
+type PaymentMethodRequiredMeta struct {
+	BountyID    string `json:"bounty_id"`
+	BillingPage string `json:"billing_page"`
+}
+
+// --------------------
 // source: exec_run.go
 // --------------------
 
@@ -3005,6 +3073,9 @@ type MCPServerDTO struct {
 	DefaultScopes    StringSlice       `json:"default_scopes"`
 	DocumentationURL string            `json:"documentation_url"`
 	ConnectionStatus string            `json:"connection_status,omitempty"`
+	// ConnectionScope is who the caller's connection to this server belongs
+	// to (user, team, org, platform); empty when not connected.
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
 }
 
 // PublicMCPServerDTO is a lean DTO for the public MCP directory.
@@ -3935,6 +4006,10 @@ type SDKTypes struct {
 	// Entitlements
 	_entitlementDTO     EntitlementDTO
 	_entitlementErrMeta EntitlementErrorMeta
+	// Error codes and typed error meta
+	_errorCode             ErrorCode
+	_teamRoleRequiredMeta  TeamRoleRequiredMeta
+	_paymentMethodReqdMeta PaymentMethodRequiredMeta
 	// Response envelope
 	_responseMessage ResponseMessage
 	// Output
@@ -4045,6 +4120,10 @@ type SDKTypes struct {
 	// Hook event definitions
 	_hookEventDef    HookEventDefinition
 	_hookHandlerType HookHandlerType
+	// Builtin hooks — clients enumerate these to show what an agent can
+	// switch on without hosting a handler.
+	_builtinHook    BuiltinHook
+	_builtinHookDef BuiltinHookDefinition
 	// Enums pulled in for const generation
 	_hookDecision    HookDecision
 	_toolInvStatus   ToolInvocationStatus
@@ -6046,7 +6125,8 @@ const (
 	ChatMessageRoleAssistant ChatMessageRole = "assistant"
 	ChatMessageRoleTool      ChatMessageRole = "tool"
 	// Internal bookkeeping roles — never sent to the LLM provider.
-	// BuildContext converts these to system messages or skips them.
+	// BuildContext folds injections into the user turn and replaces
+	// compaction markers with their summary.
 	ChatMessageRoleInjection  ChatMessageRole = "injection"
 	ChatMessageRoleCompaction ChatMessageRole = "compaction"
 )
@@ -8174,7 +8254,31 @@ const (
 	HookHandlerWebhook HookHandlerType = "webhook"
 	HookHandlerTask    HookHandlerType = "task"
 	HookHandlerGate    HookHandlerType = "gate"
+	HookHandlerBuiltin HookHandlerType = "builtin"
 )
+
+// BuiltinHook names a hook handler the platform implements itself. A builtin
+// runs in-process on the turn that fired it: no URL to host, no round trip, no
+// agent spawn. That is what lets it return an injection at all — a task hook
+// spawns an agent and discards its answer, so only webhook, gate and builtin
+// can put anything into context.
+//
+// This registry is the single source of truth. The runtime dispatches from it,
+// agent config is validated against it, and clients enumerate it to show what
+// an agent can switch on without hosting anything.
+type BuiltinHook string
+
+const BuiltinHookBeltSuggest BuiltinHook = "belt:suggest"
+
+// BuiltinHookDefinition describes a builtin hook and where it may be used.
+type BuiltinHookDefinition struct {
+	Name        BuiltinHook `json:"name"`
+	Description string      `json:"description"`
+	// Events the builtin may be attached to. A builtin that reads the turn's
+	// prompt is meaningless on agent.complete, so the set is part of its
+	// definition rather than a convention.
+	Events []HookEvent `json:"events"`
+}
 
 // --------------------
 // source: lifecycle_hook_wire.go
@@ -8220,6 +8324,12 @@ type ContextInjection struct {
 	Role     string `json:"role,omitempty"`      // default "system"
 	TTLTurns int    `json:"ttl_turns,omitempty"` // 0 = permanent
 	DedupKey string `json:"dedup_key,omitempty"` // new injection with same key supersedes prior
+	// Items names what this injection put in front of the model — resource
+	// refs, file paths, whatever the producer deals in. A hook that offers the
+	// same things every turn reads its own past Items back to see what it has
+	// already offered, instead of keeping a ledger somewhere else and hoping
+	// the two stay in step.
+	Items []string `json:"items,omitempty"`
 }
 
 // ToolCallEventData is the typed payload for agent.tool_call events.
@@ -8312,6 +8422,7 @@ const (
 	ToolTypeMCP      ToolType = "mcp"
 	ToolTypeClient   ToolType = "client"
 	ToolTypeInternal ToolType = "internal"
+	ToolTypeHarness  ToolType = "harness"
 )
 
 // --------------------
