@@ -2234,8 +2234,9 @@ export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
   client_secret_key: string;
 }
 /**
- * AuthSchemeCreateRequest registers a team's OAuth app. ClientID and
- * ClientSecret are written to the vault, not to the row.
+ * AuthSchemeCreateRequest registers how to connect to a team's own service.
+ * ClientID and ClientSecret are its OAuth app: they are written to the
+ * team's app row (a grant=credentials credential), not to the scheme.
  */
 export interface AuthSchemeCreateRequest {
   slug: string;
@@ -2305,7 +2306,6 @@ export interface PermissionModelDTO {
   user?: UserRelationDTO;
   team_id: string;
   team?: TeamRelationDTO;
-  org_id?: string;
   visibility: Visibility;
 }
 /**
@@ -2612,7 +2612,8 @@ export interface ConsentRecordDTO {
 export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   provider: string;
   type: CredentialType;
-  grant?: CredentialGrant;
+  grant: CredentialGrant;
+  app_credential_id?: string;
   scope: CredentialScope;
   status: CredentialStatus;
   display_name: string;
@@ -2625,6 +2626,14 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   metadata?: { [key: string]: any};
   is_primary: boolean;
   error_message?: string;
+}
+/**
+ * CredentialAppRequest is the body of PUT /credentials/{provider}/app: the
+ * OAuth app's keys by name (SLACK_CLIENT_ID). An omitted key keeps its
+ * stored value.
+ */
+export interface CredentialAppRequest {
+  values: { [key: string]: string};
 }
 /**
  * CredentialConfigDTO is the merged view: provider catalog + credential state.
@@ -2643,7 +2652,19 @@ export interface CredentialConfigDTO {
   allows_byok: boolean;
   available: boolean;
   has_managed: boolean;
-  grant?: CredentialGrant;
+  /**
+   * ConnectionScope is who a new connection belongs to by default: the
+   * team, or each user (their own account).
+   */
+  connection_scope: CredentialScope;
+  /**
+   * App is the OAuth app a login to this provider goes through (a
+   * grant=credentials row): the workspace's own, its org's or the
+   * platform's. Nil when the provider signs in through an app and none is
+   * set up yet, or when it doesn't sign in through one. Credential is the
+   * login itself.
+   */
+  app?: CredentialDTO;
   /**
    * AuthSchemeID is set when the provider is one the team defined
    * itself (models.AuthScheme), so the UI can offer edit and remove.
@@ -3969,7 +3990,6 @@ export interface MCPServerDTO {
   user?: UserRelationDTO;
   team_id: string;
   team?: TeamRelationDTO;
-  org_id?: string;
   visibility: Visibility;
   slug: string;
   name: string;
@@ -4147,22 +4167,6 @@ export interface OrgDTO extends BaseModelDTO {
 export interface OrgTeamDTO extends TeamDTO {
   kind: TeamKind;
   member_count: number /* int64 */;
-}
-/**
- * OrgPlanDTO is an org-level subscription to a plan (INF-799). Managed by
- * platform admins; while active its limits apply to every attached team.
- */
-export interface OrgPlanDTO extends BaseModelDTO {
-  org_id: string;
-  plan_id: string;
-  plan_name?: string;
-  status: TeamPlanStatus;
-}
-/**
- * OrgPlanSetRequest assigns a plan to an org (platform admin).
- */
-export interface OrgPlanSetRequest {
-  plan_id: string;
 }
 /**
  * OrgAdminDTO is one entry of the org admin grant list.
@@ -4597,6 +4601,15 @@ export interface ProfileDTO extends BaseModelDTO, PermissionModelDTO {
   status: ProfileStatus;
   max_concurrent: number /* int */;
   /**
+   * Version is what the harness's --version printed on the machine.
+   */
+  version?: string;
+  /**
+   * Support is whether inference has tested that version, from
+   * agentprotocol's registry; nil when no version was reported.
+   */
+  support?: HarnessSupport;
+  /**
    * Capabilities is what the harness behind this profile supports, as the
    * daemon reported it. Nil means not reported yet (a daemon older than
    * the field); callers treat that as all false.
@@ -4698,6 +4711,42 @@ export interface RemoteLaunchRequest {
    * as listed by GET /remotes/{id}/sessions, instead of starting fresh.
    */
   resume_session_id?: string;
+}
+/**
+ * HarnessCatalogEntry is one agent harness inference can drive on a remote,
+ * from agentprotocol's registry: what the launcher shows before any machine
+ * has it installed.
+ */
+export interface HarnessCatalogEntry {
+  /**
+   * ID is the registry id: claude, codex, gemini, ...
+   */
+  id: string;
+  display_name: string;
+  vendor: string;
+  /**
+   * Driver is how the daemon drives it: claude-code, codex, pi or acp.
+   */
+  driver: string;
+  capabilities: HarnessCapabilities;
+}
+/**
+ * HarnessSupport is whether inference has tested an installed harness
+ * version. Level is supported, newer-than-tested or older-than-tested (both
+ * warnings, it still runs), older-than-supported (refused: below a floor the
+ * driver needs, and Reason says what is missing), or unknown.
+ */
+export interface HarnessSupport {
+  level: string;
+  reason?: string;
+  version?: string;
+  tested_min?: string;
+  tested_max?: string;
+  requires?: string;
+  /**
+   * UpgradeCmd installs the latest release over the installed one.
+   */
+  upgrade_cmd?: string;
 }
 /**
  * KnowledgeCreateRequest is the request body for POST /knowledge.
@@ -5613,6 +5662,42 @@ export interface TeamInviteDTO {
 export interface TeamInviteCreateRequest {
   email: string;
   role: TeamRole;
+}
+/**
+ * TeamInviteInfoDTO is what an invite link shows whoever holds its token,
+ * signed in or not (GET /invites/info): which workspace, for whom, with
+ * what role, from whom, and whether it still stands.
+ */
+export interface TeamInviteInfoDTO {
+  id: string;
+  email: string;
+  role: TeamRole;
+  /**
+   * Status is the invite's standing now: a pending invite past its
+   * expiry reads expired, one to a workspace that admits no members
+   * reads revoked.
+   */
+  status: TeamInviteStatus;
+  expires_at: string /* RFC3339 */;
+  team: TeamInviteWorkspaceDTO;
+  /**
+   * OrgName names the organization the workspace belongs to; empty for a
+   * standalone workspace and for the org's own workspace.
+   */
+  org_name?: string;
+  /**
+   * InvitedBy is the inviter as the invite email names them.
+   */
+  invited_by: string;
+}
+/**
+ * TeamInviteWorkspaceDTO is the face of the workspace an invite is for.
+ */
+export interface TeamInviteWorkspaceDTO {
+  id: string;
+  type: TeamType;
+  name: string;
+  avatar_url: string;
 }
 /**
  * TeamPlanDTO for API responses
@@ -7930,10 +8015,20 @@ export const CredentialScopeTeam: CredentialScope = "team";
 export const CredentialScopeUser: CredentialScope = "user";
 export const CredentialScopeAgent: CredentialScope = "agent";
 /**
- * CredentialGrant describes what a credential provides.
+ * CredentialGrant is which layer a credential row is. OAuth has two: the
+ * app (client id and secret, owned by the platform, an org or a team) and
+ * the logins made through it (owned by a team or a user). Every other
+ * credential type is a token row.
  */
 export type CredentialGrant = string;
+/**
+ * CredentialGrantCredentials: an OAuth app. Never a connection.
+ */
 export const CredentialGrantCredentials: CredentialGrant = "credentials";
+/**
+ * CredentialGrantToken: a connection: an OAuth login, an API key, a
+ * service account, an MCP authorization.
+ */
 export const CredentialGrantToken: CredentialGrant = "token";
 export type ProviderCategory = string;
 export const ProviderCategoryAIML: ProviderCategory = "ai_ml";

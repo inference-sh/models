@@ -1528,8 +1528,9 @@ type AuthSchemeDTO struct {
 	ClientSecretKey string `json:"client_secret_key"`
 }
 
-// AuthSchemeCreateRequest registers a team's OAuth app. ClientID and
-// ClientSecret are written to the vault, not to the row.
+// AuthSchemeCreateRequest registers how to connect to a team's own service.
+// ClientID and ClientSecret are its OAuth app: they are written to the
+// team's app row (a grant=credentials credential), not to the scheme.
 type AuthSchemeCreateRequest struct {
 	Slug         string           `json:"slug"`
 	DisplayName  string           `json:"display_name"`
@@ -1605,7 +1606,6 @@ type PermissionModelDTO struct {
 	User       *UserRelationDTO `json:"user"`
 	TeamID     string           `json:"team_id"`
 	Team       *TeamRelationDTO `json:"team"`
-	OrgID      string           `json:"org_id,omitempty"`
 	Visibility Visibility       `json:"visibility"`
 }
 
@@ -1751,7 +1751,8 @@ type CredentialDTO struct {
 	PermissionModelDTO `tstype:",extends"`
 	Provider           string           `json:"provider"`
 	Type               CredentialType   `json:"type"`
-	Grant              *CredentialGrant `json:"grant,omitempty"`
+	Grant              CredentialGrant  `json:"grant"`
+	AppCredentialID    *string          `json:"app_credential_id,omitempty"`
 	Scope              CredentialScope  `json:"scope"`
 	Status             CredentialStatus `json:"status"`
 	DisplayName        string           `json:"display_name"`
@@ -1781,7 +1782,15 @@ type CredentialConfigDTO struct {
 	AllowsBYOK   bool                `json:"allows_byok"`
 	Available    bool                `json:"available"`
 	HasManaged   bool                `json:"has_managed"`
-	Grant        CredentialGrant     `json:"grant,omitempty"`
+	// ConnectionScope is who a new connection belongs to by default: the
+	// team, or each user (their own account).
+	ConnectionScope CredentialScope `json:"connection_scope"`
+	// App is the OAuth app a login to this provider goes through (a
+	// grant=credentials row): the workspace's own, its org's or the
+	// platform's. Nil when the provider signs in through an app and none is
+	// set up yet, or when it doesn't sign in through one. Credential is the
+	// login itself.
+	App *CredentialDTO `json:"app,omitempty"`
 	// AuthSchemeID is set when the provider is one the team defined
 	// itself (models.AuthScheme), so the UI can offer edit and remove.
 	AuthSchemeID string         `json:"auth_scheme_id,omitempty"`
@@ -3413,6 +3422,11 @@ type ProfileDTO struct {
 	Args          []string      `json:"args"`
 	Status        ProfileStatus `json:"status"`
 	MaxConcurrent int           `json:"max_concurrent"`
+	// Version is what the harness's --version printed on the machine.
+	Version string `json:"version,omitempty"`
+	// Support is whether inference has tested that version, from
+	// agentprotocol's registry; nil when no version was reported.
+	Support *HarnessSupport `json:"support,omitempty"`
 	// Capabilities is what the harness behind this profile supports, as the
 	// daemon reported it. Nil means not reported yet (a daemon older than
 	// the field); callers treat that as all false.
@@ -3486,6 +3500,34 @@ type RemoteLaunchRequest struct {
 	// ResumeSessionID continues a session the harness has on the machine,
 	// as listed by GET /remotes/{id}/sessions, instead of starting fresh.
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
+}
+
+// HarnessCatalogEntry is one agent harness inference can drive on a remote,
+// from agentprotocol's registry: what the launcher shows before any machine
+// has it installed.
+type HarnessCatalogEntry struct {
+	// ID is the registry id: claude, codex, gemini, ...
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Vendor      string `json:"vendor"`
+	// Driver is how the daemon drives it: claude-code, codex, pi or acp.
+	Driver       string              `json:"driver"`
+	Capabilities HarnessCapabilities `json:"capabilities"`
+}
+
+// HarnessSupport is whether inference has tested an installed harness
+// version. Level is supported, newer-than-tested or older-than-tested (both
+// warnings, it still runs), older-than-supported (refused: below a floor the
+// driver needs, and Reason says what is missing), or unknown.
+type HarnessSupport struct {
+	Level     string `json:"level"`
+	Reason    string `json:"reason,omitempty"`
+	Version   string `json:"version,omitempty"`
+	TestedMin string `json:"tested_min,omitempty"`
+	TestedMax string `json:"tested_max,omitempty"`
+	Requires  string `json:"requires,omitempty"`
+	// UpgradeCmd installs the latest release over the installed one.
+	UpgradeCmd string `json:"upgrade_cmd,omitempty"`
 }
 
 // --------------------
@@ -4123,6 +4165,7 @@ type RemoteTypes struct {
 	_remoteReg    RemoteRegisterRequest
 	_remoteBeat   RemoteHeartbeatRequest
 	_launch       RemoteLaunchRequest
+	_catalog      HarnessCatalogEntry
 	_remoteStatus RemoteStatus
 	_profileStat  ProfileStatus
 	// Harness session frames on the remote socket, so belt imports them from
@@ -6701,12 +6744,18 @@ const (
 	CredentialScopeAgent CredentialScope = "agent"
 )
 
-// CredentialGrant describes what a credential provides.
+// CredentialGrant is which layer a credential row is. OAuth has two: the
+// app (client id and secret, owned by the platform, an org or a team) and
+// the logins made through it (owned by a team or a user). Every other
+// credential type is a token row.
 type CredentialGrant string
 
 const (
+	// CredentialGrantCredentials: an OAuth app. Never a connection.
 	CredentialGrantCredentials CredentialGrant = "credentials"
-	CredentialGrantToken       CredentialGrant = "token"
+	// CredentialGrantToken: a connection: an OAuth login, an API key, a
+	// service account, an MCP authorization.
+	CredentialGrantToken CredentialGrant = "token"
 )
 
 type RejectionReason string
