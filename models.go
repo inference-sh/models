@@ -2839,8 +2839,21 @@ type ElicitationCapability struct {
 }
 
 // ClientCapabilities advertises what a client can do.
+//
+// Extensions carries the extensions the client supports, keyed by identifier
+// (e.g. ExtensionTasks), each with its extension-defined settings object.
 type ClientCapabilities struct {
 	Elicitation *ElicitationCapability `json:"elicitation,omitempty"`
+	Extensions  map[string]any         `json:"extensions,omitempty"`
+}
+
+// SupportsExtension reports whether the client declared the extension.
+func (c *ClientCapabilities) SupportsExtension(id string) bool {
+	if c == nil {
+		return false
+	}
+	_, ok := c.Extensions[id]
+	return ok
 }
 
 // SupportsElicitation reports whether the client declared any elicitation mode.
@@ -2884,6 +2897,9 @@ const (
 	// ResultTypeInputRequired marks a Multi Round-Trip Request interim result.
 	// Recognised so the outbound client never mistakes one for tool output.
 	ResultTypeInputRequired ResultType = "input_required"
+	// ResultTypeTask marks a CreateTaskResult: the server accepted the request
+	// as a task under the tasks extension and the result arrives via tasks/get.
+	ResultTypeTask ResultType = "task"
 )
 
 // CacheScope says who may reuse a cached result, per MCP 2026-07-28 (SEP-2549).
