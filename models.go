@@ -3998,6 +3998,7 @@ type SDKTypes struct {
 	_deviceAuthResp DeviceAuthResponse
 	_deviceAuthPoll DeviceAuthPollResponse
 	// Teams
+	_me               MeResponse // GET /me: current user and team
 	_teamCreate       TeamCreateRequest
 	_teamSetup        TeamSetupRequest
 	_teamMemberDTO    TeamMemberDTO
