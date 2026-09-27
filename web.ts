@@ -4161,6 +4161,11 @@ export interface ResourceContent {
  * decisions (e.g., auto-approve read-only tools). All fields are optional hints.
  */
 export interface ToolAnnotations {
+  /**
+   * Title is the human-readable name clients and the Claude directory show.
+   * It repeats MCPTool.Title because some clients read only this one.
+   */
+  title?: string;
   readOnlyHint?: boolean;
   destructiveHint?: boolean;
   idempotentHint?: boolean;

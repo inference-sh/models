@@ -2949,10 +2949,13 @@ type ResourceContent struct {
 // ToolAnnotations describes tool behavior so clients can make trust and UX
 // decisions (e.g., auto-approve read-only tools). All fields are optional hints.
 type ToolAnnotations struct {
-	ReadOnlyHint    *bool `json:"readOnlyHint,omitempty"`
-	DestructiveHint *bool `json:"destructiveHint,omitempty"`
-	IdempotentHint  *bool `json:"idempotentHint,omitempty"`
-	OpenWorldHint   *bool `json:"openWorldHint,omitempty"`
+	// Title is the human-readable name clients and the Claude directory show.
+	// It repeats MCPTool.Title because some clients read only this one.
+	Title           string `json:"title,omitempty"`
+	ReadOnlyHint    *bool  `json:"readOnlyHint,omitempty"`
+	DestructiveHint *bool  `json:"destructiveHint,omitempty"`
+	IdempotentHint  *bool  `json:"idempotentHint,omitempty"`
+	OpenWorldHint   *bool  `json:"openWorldHint,omitempty"`
 }
 
 // Tool represents a tool item
