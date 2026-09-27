@@ -128,6 +128,13 @@ export interface AppToolConfig {
   session_enabled?: boolean;
   setup?: any;
   input?: any;
+  /**
+   * FixedInput pins arguments: they are merged over whatever the model sent,
+   * and removed from the tool schema the model is shown, so it neither sees
+   * nor controls them. Input only supplies defaults the model may override;
+   * this is for values an operator decides, not the model.
+   */
+  fixed_input?: any;
 }
 export interface AgentToolConfig {
   ref: string;
@@ -195,6 +202,7 @@ export interface AppToolConfigDTO {
   session_enabled?: boolean;
   setup?: any;
   input?: any;
+  fixed_input?: any;
 }
 export interface AgentToolConfigDTO {
   ref: string;

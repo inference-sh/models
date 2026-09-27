@@ -189,6 +189,11 @@ type AppToolConfig struct {
 	SessionEnabled bool             `json:"session_enabled,omitempty" yaml:"session_enabled,omitempty"`
 	Setup          *json.RawMessage `json:"setup,omitempty" yaml:"setup,omitempty"`
 	Input          *json.RawMessage `json:"input,omitempty" yaml:"input,omitempty"`
+	// FixedInput pins arguments: they are merged over whatever the model sent,
+	// and removed from the tool schema the model is shown, so it neither sees
+	// nor controls them. Input only supplies defaults the model may override;
+	// this is for values an operator decides, not the model.
+	FixedInput *json.RawMessage `json:"fixed_input,omitempty" yaml:"fixed_input,omitempty"`
 }
 
 type AgentToolConfig struct {
@@ -264,6 +269,7 @@ type AppToolConfigDTO struct {
 	SessionEnabled bool             `json:"session_enabled,omitempty"`
 	Setup          *json.RawMessage `json:"setup,omitempty"`
 	Input          *json.RawMessage `json:"input,omitempty"`
+	FixedInput     *json.RawMessage `json:"fixed_input,omitempty"`
 }
 
 type AgentToolConfigDTO struct {
