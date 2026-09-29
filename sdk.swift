@@ -60,10 +60,54 @@ extension JSONValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, Ex
     }
 }
 
+
+/// Stores a field out of line so a struct can reach itself through a Go
+/// pointer cycle (a chat's parent chat) and still be a value type. The box
+/// is immutable: assigning a new value replaces it, so copies never share a
+/// mutation and the wrapper is Sendable.
+@propertyWrapper
+public struct Indirect<Value: Sendable>: Sendable {
+    private final class Box: Sendable {
+        let value: Value
+        init(_ value: Value) { self.value = value }
+    }
+
+    private var box: Box
+
+    public init(wrappedValue: Value) { box = Box(wrappedValue) }
+
+    public var wrappedValue: Value {
+        get { box.value }
+        set { box = Box(newValue) }
+    }
+}
+
+extension Indirect: Decodable where Value: Decodable {
+    public init(from decoder: Decoder) throws { self.init(wrappedValue: try Value(from: decoder)) }
+}
+
+extension Indirect: Encodable where Value: Encodable {
+    public func encode(to encoder: Encoder) throws { try wrappedValue.encode(to: encoder) }
+}
+
+// An optional indirect field codes like a plain optional one: a missing or
+// null key decodes to nil, and nil is left out when encoding.
+extension KeyedDecodingContainer {
+    public func decode<T: Decodable & Sendable>(_ type: Indirect<T?>.Type, forKey key: Key) throws -> Indirect<T?> {
+        Indirect(wrappedValue: try decodeIfPresent(T.self, forKey: key))
+    }
+}
+
+extension KeyedEncodingContainer {
+    public mutating func encode<T: Encodable & Sendable>(_ value: Indirect<T?>, forKey key: Key) throws {
+        try encodeIfPresent(value.wrappedValue, forKey: key)
+    }
+}
+
 // MARK: - models.go
 
 /// InternalToolsConfig controls which built-in tools are enabled for an agent
-public struct InternalToolsConfig: Codable {
+public struct InternalToolsConfig: Codable, Sendable {
     public var plan: Bool?
     public var memory: Bool?
     public var widget: Bool?
@@ -72,8 +116,9 @@ public struct InternalToolsConfig: Codable {
     public var hostContext: Bool?
     public var meta: Bool?
     public var artifact: Bool?
-    public var spawn: Bool?
+    public var agent: Bool?
     public var remote: Bool?
+    public var knowledge: Bool?
 
     public init(
         plan: Bool? = nil,
@@ -84,8 +129,9 @@ public struct InternalToolsConfig: Codable {
         hostContext: Bool? = nil,
         meta: Bool? = nil,
         artifact: Bool? = nil,
-        spawn: Bool? = nil,
-        remote: Bool? = nil
+        agent: Bool? = nil,
+        remote: Bool? = nil,
+        knowledge: Bool? = nil
     ) {
         self.plan = plan
         self.memory = memory
@@ -95,8 +141,9 @@ public struct InternalToolsConfig: Codable {
         self.hostContext = hostContext
         self.meta = meta
         self.artifact = artifact
-        self.spawn = spawn
+        self.agent = agent
         self.remote = remote
+        self.knowledge = knowledge
     }
 
     enum CodingKeys: String, CodingKey {
@@ -108,26 +155,27 @@ public struct InternalToolsConfig: Codable {
         case hostContext = "host_context"
         case meta = "meta"
         case artifact = "artifact"
-        case spawn = "spawn"
+        case agent = "agent"
         case remote = "remote"
+        case knowledge = "knowledge"
     }
 }
 
 /// AgentTool represents a unified tool that can be used by an agent
-public struct AgentTool: Codable {
+public struct AgentTool: Codable, Sendable {
     public var name: String
     public var displayName: String?
     public var description: String
     public var type: ToolType
     public var requireApproval: Bool?
-    public var app: AppToolConfig?
-    public var agent: AgentToolConfig?
-    public var hook: HookToolConfig?
-    public var http: HTTPToolConfig?
-    public var call: HTTPToolConfig?
-    public var mcp: MCPToolConfig?
-    public var client: ClientToolConfig?
-    public var `internal`: InternalToolConfig?
+    @Indirect public var app: AppToolConfig?
+    @Indirect public var agent: AgentToolConfig?
+    @Indirect public var hook: HookToolConfig?
+    @Indirect public var http: HTTPToolConfig?
+    @Indirect public var call: HTTPToolConfig?
+    @Indirect public var mcp: MCPToolConfig?
+    @Indirect public var client: ClientToolConfig?
+    @Indirect public var `internal`: InternalToolConfig?
 
     public init(
         name: String = "",
@@ -177,7 +225,7 @@ public struct AgentTool: Codable {
 }
 
 /// InternalToolConfig contains configuration for internal/built-in tools
-public struct InternalToolConfig: Codable {
+public struct InternalToolConfig: Codable, Sendable {
     public var category: String
     public var operation: String
 
@@ -196,7 +244,7 @@ public struct InternalToolConfig: Codable {
 }
 
 /// SkillConfig defines a skill available to the agent.
-public struct SkillConfig: Codable {
+public struct SkillConfig: Codable, Sendable {
     public var name: String
     public var description: String
     public var skillId: String?
@@ -235,7 +283,7 @@ public struct SkillConfig: Codable {
 }
 
 /// ContextField declares a context parameter expected by the agent.
-public struct ContextField: Codable {
+public struct ContextField: Codable, Sendable {
     public var name: String
     public var description: String?
     public var required: Bool?
@@ -262,19 +310,19 @@ public struct ContextField: Codable {
 }
 
 /// AgentToolDTO for API responses
-public struct AgentToolDTO: Codable {
+public struct AgentToolDTO: Codable, Sendable {
     public var name: String
     public var displayName: String?
     public var description: String
     public var type: ToolType
     public var requireApproval: Bool?
-    public var app: AppToolConfigDTO?
-    public var agent: AgentToolConfigDTO?
-    public var hook: HookToolConfigDTO?
-    public var http: HTTPToolConfigDTO?
-    public var call: HTTPToolConfigDTO?
-    public var mcp: MCPToolConfigDTO?
-    public var client: ClientToolConfigDTO?
+    @Indirect public var app: AppToolConfigDTO?
+    @Indirect public var agent: AgentToolConfigDTO?
+    @Indirect public var hook: HookToolConfigDTO?
+    @Indirect public var http: HTTPToolConfigDTO?
+    @Indirect public var call: HTTPToolConfigDTO?
+    @Indirect public var mcp: MCPToolConfigDTO?
+    @Indirect public var client: ClientToolConfigDTO?
 
     public init(
         name: String = "",
@@ -320,7 +368,7 @@ public struct AgentToolDTO: Codable {
     }
 }
 
-public struct AppToolConfig: Codable {
+public struct AppToolConfig: Codable, Sendable {
     public var ref: String
     public var id: String?
     public var versionId: String?
@@ -366,7 +414,7 @@ public struct AppToolConfig: Codable {
     }
 }
 
-public struct AgentToolConfig: Codable {
+public struct AgentToolConfig: Codable, Sendable {
     public var ref: String
     public var id: String?
     public var versionId: String?
@@ -388,7 +436,7 @@ public struct AgentToolConfig: Codable {
     }
 }
 
-public struct HookToolConfig: Codable {
+public struct HookToolConfig: Codable, Sendable {
     public var url: String
     public var secret: String?
     public var inputSchema: JSONValue?
@@ -414,7 +462,7 @@ public struct HookToolConfig: Codable {
     }
 }
 
-public struct ClientToolConfig: Codable {
+public struct ClientToolConfig: Codable, Sendable {
     public var inputSchema: JSONValue?
     public var outputSchema: JSONValue?
 
@@ -448,7 +496,7 @@ public struct ToolAuthType: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// ToolAuthConfig declares how a tool authenticates.
-public struct ToolAuthConfig: Codable {
+public struct ToolAuthConfig: Codable, Sendable {
     public var type: ToolAuthType
     public var provider: String?
     public var credentialId: String?
@@ -478,10 +526,10 @@ public struct ToolAuthConfig: Codable {
     }
 }
 
-public struct HTTPToolConfig: Codable {
+public struct HTTPToolConfig: Codable, Sendable {
     public var url: String
     public var method: String?
-    public var auth: ToolAuthConfig?
+    @Indirect public var auth: ToolAuthConfig?
     public var headers: [String: String]?
     public var inputSchema: JSONValue?
     public var outputSchema: JSONValue?
@@ -512,7 +560,7 @@ public struct HTTPToolConfig: Codable {
     }
 }
 
-public struct MCPToolConfig: Codable {
+public struct MCPToolConfig: Codable, Sendable {
     public var credentialId: String?
     public var toolName: String
 
@@ -530,11 +578,11 @@ public struct MCPToolConfig: Codable {
     }
 }
 
-public struct AppToolConfigDTO: Codable {
+public struct AppToolConfigDTO: Codable, Sendable {
     public var ref: String
     public var id: String?
     public var versionId: String?
-    public var app: AppDTO?
+    @Indirect public var app: AppDTO?
     public var function: String?
     public var sessionEnabled: Bool?
     public var setup: JSONValue?
@@ -576,11 +624,11 @@ public struct AppToolConfigDTO: Codable {
     }
 }
 
-public struct AgentToolConfigDTO: Codable {
+public struct AgentToolConfigDTO: Codable, Sendable {
     public var ref: String
     public var id: String?
     public var versionId: String?
-    public var agent: AgentDTO?
+    @Indirect public var agent: AgentDTO?
 
     public init(
         ref: String = "",
@@ -602,7 +650,7 @@ public struct AgentToolConfigDTO: Codable {
     }
 }
 
-public struct HookToolConfigDTO: Codable {
+public struct HookToolConfigDTO: Codable, Sendable {
     public var url: String
     public var secret: String?
     public var inputSchema: JSONValue?
@@ -628,7 +676,7 @@ public struct HookToolConfigDTO: Codable {
     }
 }
 
-public struct ClientToolConfigDTO: Codable {
+public struct ClientToolConfigDTO: Codable, Sendable {
     public var inputSchema: JSONValue?
     public var outputSchema: JSONValue?
 
@@ -646,10 +694,10 @@ public struct ClientToolConfigDTO: Codable {
     }
 }
 
-public struct HTTPToolConfigDTO: Codable {
+public struct HTTPToolConfigDTO: Codable, Sendable {
     public var url: String
     public var method: String?
-    public var auth: ToolAuthConfig?
+    @Indirect public var auth: ToolAuthConfig?
     public var headers: [String: String]?
     public var inputSchema: JSONValue?
     public var outputSchema: JSONValue?
@@ -680,7 +728,7 @@ public struct HTTPToolConfigDTO: Codable {
     }
 }
 
-public struct MCPToolConfigDTO: Codable {
+public struct MCPToolConfigDTO: Codable, Sendable {
     public var credentialId: String
     public var toolName: String
 
@@ -699,7 +747,7 @@ public struct MCPToolConfigDTO: Codable {
 }
 
 /// AgentImages contains display images for an agent
-public struct AgentImages: Codable {
+public struct AgentImages: Codable, Sendable {
     public var card: String
     public var thumbnail: String
     public var banner: String
@@ -722,11 +770,11 @@ public struct AgentImages: Codable {
 }
 
 /// CoreAppConfigDTO references an app used as the agent's core
-public struct CoreAppConfigDTO: Codable {
+public struct CoreAppConfigDTO: Codable, Sendable {
     public var id: String?
     public var versionId: String?
     public var ref: String?
-    public var app: AppDTO?
+    @Indirect public var app: AppDTO?
     public var setup: JSONValue?
     public var input: JSONValue?
 
@@ -757,26 +805,26 @@ public struct CoreAppConfigDTO: Codable {
 }
 
 /// AgentDTO for API responses
-public struct AgentDTO: Codable {
+public struct AgentDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var projectId: String?
-    public var project: ProjectDTO?
+    @Indirect public var project: ProjectDTO?
     public var namespace: String
     public var name: String
     /// Title is the human-readable name; empty falls back to Name.
     public var title: String
-    public var images: AgentImages
+    @Indirect public var images: AgentImages
     public var versionId: String
-    public var version: AgentVersionDTO?
+    @Indirect public var version: AgentVersionDTO?
     /// Harness is what drives the agent: "inference" for our own loop, or an
     /// agentprotocol registry id (claude, codex, ...) for an external harness,
     /// whose instructions, tools and versions are its own.
@@ -858,25 +906,25 @@ public struct AgentDTO: Codable {
     }
 }
 
-public struct AgentVersionDTO: Codable {
+public struct AgentVersionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var description: String
     public var systemPrompt: String
     public var examplePrompts: [String]?
-    public var coreApp: CoreAppConfigDTO?
+    @Indirect public var coreApp: CoreAppConfigDTO?
     public var tools: [AgentToolDTO]?
     public var skills: [SkillConfig]?
     public var context: [ContextField]?
-    public var internalTools: InternalToolsConfig?
+    @Indirect public var internalTools: InternalToolsConfig?
     public var hooks: [LifecycleHookConfig]?
     public var outputSchema: JSONValue?
 
@@ -951,14 +999,14 @@ public struct AgentVersionDTO: Codable {
 /// CreateAgentRequest is the request body for POST /agents
 /// For new agents: omit ID, backend generates it
 /// For new version of existing agent: include ID
-public struct CreateAgentRequest: Codable {
+public struct CreateAgentRequest: Codable, Sendable {
     public var id: String?
     public var name: String
     public var title: String?
     public var namespace: String?
-    public var images: AgentImages?
+    @Indirect public var images: AgentImages?
     /// Version config (embedded - backend generates version ID, timestamps, etc)
-    public var version: AgentConfigInput?
+    @Indirect public var version: AgentConfigInput?
 
     public init(
         id: String? = nil,
@@ -988,16 +1036,16 @@ public struct CreateAgentRequest: Codable {
 
 /// AgentConfigInput is the API input shape for agent version config.
 /// Mirrors AgentConfig's JSON contract without gorm tags or runtime pointers.
-public struct AgentConfigInput: Codable {
+public struct AgentConfigInput: Codable, Sendable {
     public var name: String?
     public var description: String?
     public var systemPrompt: String?
     public var examplePrompts: [String]?
-    public var coreApp: CoreAppConfigInput?
+    @Indirect public var coreApp: CoreAppConfigInput?
     public var tools: [AgentTool]?
     public var skills: [SkillConfig]?
     public var context: [ContextField]?
-    public var internalTools: InternalToolsConfig?
+    @Indirect public var internalTools: InternalToolsConfig?
     public var hooks: [LifecycleHookConfig]?
     public var outputSchema: JSONValue?
 
@@ -1043,7 +1091,7 @@ public struct AgentConfigInput: Codable {
 }
 
 /// CoreAppConfigInput is the API input shape for core app configuration.
-public struct CoreAppConfigInput: Codable {
+public struct CoreAppConfigInput: Codable, Sendable {
     public var id: String?
     public var versionId: String?
     public var ref: String?
@@ -1073,19 +1121,19 @@ public struct CoreAppConfigInput: Codable {
     }
 }
 
-public struct AgentRunDTO: Codable {
+public struct AgentRunDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var agentId: String
-    public var agent: AgentDTO?
+    @Indirect public var agent: AgentDTO?
     public var agentVersionId: String?
     public var chatId: String
     public var userMessageId: String?
@@ -1189,11 +1237,11 @@ public struct AgentRunDTO: Codable {
     }
 }
 
-public struct APIResponse<T: Codable>: Codable {
+public struct APIResponse<T: Codable & Sendable>: Codable, Sendable {
     public var success: Bool
     public var status: Int
     public var data: T
-    public var error: APIError?
+    @Indirect public var error: APIError?
 
     public init(
         success: Bool = false,
@@ -1215,7 +1263,7 @@ public struct APIResponse<T: Codable>: Codable {
     }
 }
 
-public struct APIError: Codable {
+public struct APIError: Codable, Sendable {
     public var code: ErrorCode
     public var message: String
     public var suggestions: [String]?
@@ -1244,7 +1292,7 @@ public struct APIError: Codable {
 /// ResponseMessage carries a non-error notice alongside a successful response.
 /// Inspired by GraphQL's coexisting data+errors pattern, but for actionable
 /// messages (warnings, info) rather than partial failures.
-public struct ResponseMessage: Codable {
+public struct ResponseMessage: Codable, Sendable {
     /// "info", "warning"
     public var level: String
     /// machine-readable identifier
@@ -1275,7 +1323,7 @@ public struct ResponseMessage: Codable {
 }
 
 /// ApiAppRunRequest is the request body for /apps/run endpoint.
-public struct ApiAppRunRequest: Codable {
+public struct ApiAppRunRequest: Codable, Sendable {
     public var app: String?
     public var appId: String?
     public var versionId: String?
@@ -1290,7 +1338,7 @@ public struct ApiAppRunRequest: Codable {
     public var session: String?
     public var sessionTimeout: Int?
     public var runAt: String?
-    public var metadata: TaskMetadata?
+    @Indirect public var metadata: TaskMetadata?
 
     public init(
         app: String? = nil,
@@ -1346,16 +1394,16 @@ public struct ApiAppRunRequest: Codable {
 }
 
 /// ApiAgentRunRequest is the request body for /agents/run endpoint.
-public struct ApiAgentRunRequest: Codable {
+public struct ApiAgentRunRequest: Codable, Sendable {
     public var chatId: String?
     public var agent: String?
-    public var agentConfig: AgentConfigInput?
+    @Indirect public var agentConfig: AgentConfigInput?
     public var agentName: String?
-    public var input: LLMInput
+    @Indirect public var input: LLMInput
     public var context: [String: String]?
     public var stream: Bool?
     /// ChannelContext is recorded on the chat the first time it is seen.
-    public var channelContext: ChannelContext?
+    @Indirect public var channelContext: ChannelContext?
 
     public init(
         chatId: String? = nil,
@@ -1390,15 +1438,15 @@ public struct ApiAgentRunRequest: Codable {
 }
 
 /// CreateAgentMessageRequest is the request for creating agent messages.
-public struct CreateAgentMessageRequest: Codable {
+public struct CreateAgentMessageRequest: Codable, Sendable {
     public var chatId: String?
     public var agentId: String?
     public var agentVersionId: String?
     public var agent: String?
     public var toolCallId: String?
-    public var input: LLMInput
-    public var channelContext: ChannelContext?
-    public var agentConfig: AgentConfigInput?
+    @Indirect public var input: LLMInput
+    @Indirect public var channelContext: ChannelContext?
+    @Indirect public var agentConfig: AgentConfigInput?
     public var agentName: String?
     public var context: [String: String]?
 
@@ -1440,9 +1488,9 @@ public struct CreateAgentMessageRequest: Codable {
     }
 }
 
-public struct CreateAgentMessageResponse: Codable {
-    public var userMessage: ChatMessageDTO?
-    public var assistantMessage: ChatMessageDTO?
+public struct CreateAgentMessageResponse: Codable, Sendable {
+    @Indirect public var userMessage: ChatMessageDTO?
+    @Indirect public var assistantMessage: ChatMessageDTO?
 
     public init(
         userMessage: ChatMessageDTO? = nil,
@@ -1459,7 +1507,7 @@ public struct CreateAgentMessageResponse: Codable {
 }
 
 /// ToolResultRequest represents a tool result submission
-public struct ToolResultRequest: Codable {
+public struct ToolResultRequest: Codable, Sendable {
     public var result: String
 
     public init(
@@ -1474,7 +1522,7 @@ public struct ToolResultRequest: Codable {
 }
 
 /// PartialFile is the clean DTO version (no gorm tags).
-public struct PartialFile: Codable {
+public struct PartialFile: Codable, Sendable {
     public var uri: String
     public var path: String?
     public var contentType: String?
@@ -1504,7 +1552,7 @@ public struct PartialFile: Codable {
     }
 }
 
-public struct FileCreateRequest: Codable {
+public struct FileCreateRequest: Codable, Sendable {
     public var category: String?
     public var files: [PartialFile]?
 
@@ -1523,7 +1571,7 @@ public struct FileCreateRequest: Codable {
 }
 
 /// AppVersionInput is the API input shape for app version config (no gorm tags).
-public struct AppVersionInput: Codable {
+public struct AppVersionInput: Codable, Sendable {
     public var metadata: [String: JSONValue]?
     public var repository: String?
     public var setupSchema: JSONValue?
@@ -1536,7 +1584,7 @@ public struct AppVersionInput: Codable {
     public var kernel: String?
     public var requiredSecrets: [SecretRequirement]?
     public var requiredCredentials: [CredentialRequirement]?
-    public var resources: AppResources?
+    @Indirect public var resources: AppResources?
 
     public init(
         metadata: [String: JSONValue]? = nil,
@@ -1586,7 +1634,7 @@ public struct AppVersionInput: Codable {
 }
 
 /// CreateAppRequest is the request body for POST /apps
-public struct CreateAppRequest: Codable {
+public struct CreateAppRequest: Codable, Sendable {
     public var id: String?
     public var namespace: String?
     public var name: String
@@ -1594,8 +1642,8 @@ public struct CreateAppRequest: Codable {
     public var description: String?
     public var agentDescription: String?
     public var category: AppCategory?
-    public var images: AppImages?
-    public var version: AppVersionInput?
+    @Indirect public var images: AppImages?
+    @Indirect public var version: AppVersionInput?
     public var preserveCurrentVersion: Bool?
 
     public init(
@@ -1636,7 +1684,7 @@ public struct CreateAppRequest: Codable {
     }
 }
 
-public struct SkillPublishRequest: Codable {
+public struct SkillPublishRequest: Codable, Sendable {
     public var namespace: String?
     public var name: String
     public var description: String?
@@ -1718,7 +1766,7 @@ public struct SkillPublishRequest: Codable {
     }
 }
 
-public struct CheckoutCreateRequest: Codable {
+public struct CheckoutCreateRequest: Codable, Sendable {
     public var amount: Int
     public var successUrl: String
     public var cancelUrl: String
@@ -1740,8 +1788,8 @@ public struct CheckoutCreateRequest: Codable {
     }
 }
 
-public struct AuthResponse: Codable {
-    public var user: UserDTO?
+public struct AuthResponse: Codable, Sendable {
+    @Indirect public var user: UserDTO?
     public var sessionId: String
     public var isNew: Bool?
     public var otpRequired: Bool?
@@ -1787,7 +1835,7 @@ public struct AuthResponse: Codable {
 /// DeviceAuthInitRequest is the optional body for initiating device auth.
 /// TokenKind selects the credential minted on approval; empty means
 /// DeviceTokenKindAPIKey (legacy CLIs send no body).
-public struct DeviceAuthInitRequest: Codable {
+public struct DeviceAuthInitRequest: Codable, Sendable {
     public var tokenKind: DeviceTokenKind?
     public var codeChallenge: String?
     public var codeChallengeMethod: String?
@@ -1809,7 +1857,7 @@ public struct DeviceAuthInitRequest: Codable {
     }
 }
 
-public struct DeviceAuthResponse: Codable {
+public struct DeviceAuthResponse: Codable, Sendable {
     public var userCode: String
     public var deviceCode: String
     public var pollUrl: String
@@ -1843,7 +1891,7 @@ public struct DeviceAuthResponse: Codable {
     }
 }
 
-public struct DeviceAuthPollResponse: Codable {
+public struct DeviceAuthPollResponse: Codable, Sendable {
     public var status: DeviceAuthStatus
     /// ApiKey is set for legacy device-auth API key logins.
     /// TODO: remove once CLIs older than the session-token release are retired.
@@ -1872,17 +1920,17 @@ public struct DeviceAuthPollResponse: Codable {
     }
 }
 
-public struct MeResponse: Codable {
-    public var user: UserDTO?
-    public var team: TeamDTO?
+public struct MeResponse: Codable, Sendable {
+    @Indirect public var user: UserDTO?
+    @Indirect public var team: TeamDTO?
     /// Org of the current team, when the team belongs to one. Team.Role and
     /// Org.IsAdmin are left unset: what the caller may do is TeamView.Can
     /// and TeamView.Org.Can.
-    public var org: OrgDTO?
+    @Indirect public var org: OrgDTO?
     /// TeamView is the current team as the caller sees it in settings: kind,
     /// governance and capabilities (GET /teams/{id}/view).
-    public var teamView: TeamViewDTO?
-    public var diagnostics: DiagnosticsConfig?
+    @Indirect public var teamView: TeamViewDTO?
+    @Indirect public var diagnostics: DiagnosticsConfig?
 
     public init(
         user: UserDTO? = nil,
@@ -1907,7 +1955,7 @@ public struct MeResponse: Codable {
     }
 }
 
-public struct TeamCreateRequest: Codable {
+public struct TeamCreateRequest: Codable, Sendable {
     public var name: String
     public var username: String
     public var email: String
@@ -1929,7 +1977,7 @@ public struct TeamCreateRequest: Codable {
     }
 }
 
-public struct TeamSetupRequest: Codable {
+public struct TeamSetupRequest: Codable, Sendable {
     public var username: String
 
     public init(
@@ -1943,7 +1991,7 @@ public struct TeamSetupRequest: Codable {
     }
 }
 
-public struct TeamMemberAddRequest: Codable {
+public struct TeamMemberAddRequest: Codable, Sendable {
     public var email: String
     public var role: TeamRole
 
@@ -1961,7 +2009,7 @@ public struct TeamMemberAddRequest: Codable {
     }
 }
 
-public struct TeamMemberUpdateRoleRequest: Codable {
+public struct TeamMemberUpdateRoleRequest: Codable, Sendable {
     public var role: TeamRole
 
     public init(
@@ -1975,7 +2023,7 @@ public struct TeamMemberUpdateRoleRequest: Codable {
     }
 }
 
-public struct SecretCreateRequest: Codable {
+public struct SecretCreateRequest: Codable, Sendable {
     public var key: String
     public var value: String
     public var description: String?
@@ -2022,7 +2070,7 @@ public struct SecretCreateRequest: Codable {
 /// SecretProviderRequest attaches an existing secret to a provider's
 /// credential — the link a secret gets when it is created against a provider.
 /// An empty Provider detaches it back to a plain secret.
-public struct SecretProviderRequest: Codable {
+public struct SecretProviderRequest: Codable, Sendable {
     public var provider: String
     public var connectionScope: CredentialScope?
     public var providerName: String?
@@ -2048,7 +2096,7 @@ public struct SecretProviderRequest: Codable {
     }
 }
 
-public struct SecretUpdateRequest: Codable {
+public struct SecretUpdateRequest: Codable, Sendable {
     public var value: String
     public var description: String?
 
@@ -2066,7 +2114,7 @@ public struct SecretUpdateRequest: Codable {
     }
 }
 
-public struct CredentialConnectRequest: Codable {
+public struct CredentialConnectRequest: Codable, Sendable {
     public var provider: String
     public var type: String
     public var scopes: [String]?
@@ -2108,7 +2156,7 @@ public struct CredentialConnectRequest: Codable {
 /// the code and state, the PKCE verifier the client kept, and every other
 /// query param the callback carried (QuickBooks' realmId, Shopify's shop),
 /// which a scheme reads as {{callback.*}}.
-public struct CredentialCompleteOAuthRequest: Codable {
+public struct CredentialCompleteOAuthRequest: Codable, Sendable {
     public var provider: String
     public var type: String
     public var code: String
@@ -2142,8 +2190,8 @@ public struct CredentialCompleteOAuthRequest: Codable {
     }
 }
 
-public struct CredentialConnectResponse: Codable {
-    public var credential: CredentialDTO?
+public struct CredentialConnectResponse: Codable, Sendable {
+    @Indirect public var credential: CredentialDTO?
     public var authUrl: String?
     public var state: String?
     public var codeVerifier: String?
@@ -2184,7 +2232,7 @@ public struct CredentialConnectResponse: Codable {
     }
 }
 
-public struct ProjectCreateRequest: Codable {
+public struct ProjectCreateRequest: Codable, Sendable {
     public var name: String
     public var type: ProjectType
 
@@ -2202,7 +2250,7 @@ public struct ProjectCreateRequest: Codable {
     }
 }
 
-public struct ProjectUpdateRequest: Codable {
+public struct ProjectUpdateRequest: Codable, Sendable {
     public var name: String
 
     public init(
@@ -2216,7 +2264,7 @@ public struct ProjectUpdateRequest: Codable {
     }
 }
 
-public struct MoveAgentToProjectRequest: Codable {
+public struct MoveAgentToProjectRequest: Codable, Sendable {
     public var agentId: String
     public var projectId: String
 
@@ -2235,7 +2283,7 @@ public struct MoveAgentToProjectRequest: Codable {
 }
 
 /// CancelTaskRequest is the optional request body for task cancellation.
-public struct CancelTaskRequest: Codable {
+public struct CancelTaskRequest: Codable, Sendable {
     /// If true, skip graceful cancel and force kill immediately
     public var force: Bool
     /// Milliseconds to wait for graceful cancel (default 10000)
@@ -2255,7 +2303,7 @@ public struct CancelTaskRequest: Codable {
     }
 }
 
-public struct CreateApiKeyRequest: Codable {
+public struct CreateApiKeyRequest: Codable, Sendable {
     public var name: String
     public var expiresAt: String?
     public var scopes: [String]?
@@ -2278,7 +2326,7 @@ public struct CreateApiKeyRequest: Codable {
 }
 
 /// EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
-public struct EstimateCostRequest: Codable {
+public struct EstimateCostRequest: Codable, Sendable {
     public var input: JSONValue
     public var function: String?
 
@@ -2297,7 +2345,7 @@ public struct EstimateCostRequest: Codable {
 }
 
 /// EstimateCostResponse is the response from the cost estimation endpoint.
-public struct EstimateCostResponse: Codable {
+public struct EstimateCostResponse: Codable, Sendable {
     /// Confidence: "exact" (all fees input-based), "range" (estimate expression),
     /// or "unknown" (output-dependent, no estimate expression).
     public var confidence: String
@@ -2446,7 +2494,7 @@ public struct ScopeGroup: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// ScopeDefinition describes a single scope for UI rendering
-public struct ScopeDefinition: Codable {
+public struct ScopeDefinition: Codable, Sendable {
     /// The scope string (e.g., "agents:read")
     public var value: Scope
     /// Human-readable label
@@ -2477,7 +2525,7 @@ public struct ScopeDefinition: Codable {
 }
 
 /// ScopeGroupDefinition describes a group of scopes for UI rendering
-public struct ScopeGroupDefinition: Codable {
+public struct ScopeGroupDefinition: Codable, Sendable {
     public var id: ScopeGroup
     public var label: String
     public var description: String
@@ -2500,7 +2548,7 @@ public struct ScopeGroupDefinition: Codable {
 }
 
 /// ScopesResponse is the API response for GET /scopes
-public struct ScopesResponse: Codable {
+public struct ScopesResponse: Codable, Sendable {
     public var scopes: [ScopeDefinition]?
     public var groups: [ScopeGroupDefinition]?
     public var presets: [ScopePreset]?
@@ -2523,7 +2571,7 @@ public struct ScopesResponse: Codable {
 }
 
 /// ScopePreset represents a predefined bundle of scopes for common use cases
-public struct ScopePreset: Codable {
+public struct ScopePreset: Codable, Sendable {
     public var id: String
     public var label: String
     public var description: String
@@ -2558,16 +2606,16 @@ public struct ScopePreset: Codable {
 }
 
 /// ApiKeyDTO for API responses
-public struct ApiKeyDTO: Codable {
+public struct ApiKeyDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var name: String
     public var key: String
@@ -2634,7 +2682,7 @@ public struct ApiKeyDTO: Codable {
 
 /// AppPricing configures all pricing using CEL expressions.
 /// Empty expressions use defaults. All values in microcents.
-public struct AppPricing: Codable {
+public struct AppPricing: Codable, Sendable {
     public var prices: [String: Int]?
     public var upstreamPricing: String?
     public var resourceExpression: String
@@ -2696,7 +2744,7 @@ public struct AppPricing: Codable {
 }
 
 /// AppFunction represents a callable entry point within an app version.
-public struct AppFunction: Codable {
+public struct AppFunction: Codable, Sendable {
     public var name: String
     public var description: String?
     public var inputSchema: JSONValue
@@ -2737,7 +2785,7 @@ public struct AppFunction: Codable {
 }
 
 /// AppImages holds developer-provided images for the app.
-public struct AppImages: Codable {
+public struct AppImages: Codable, Sendable {
     public var card: String
     public var thumbnail: String
     public var banner: String
@@ -2760,7 +2808,7 @@ public struct AppImages: Codable {
 }
 
 /// AppGPUResource describes GPU requirements.
-public struct AppGPUResource: Codable {
+public struct AppGPUResource: Codable, Sendable {
     public var count: Int
     public var vram: Int
     public var type: GPUType
@@ -2783,8 +2831,8 @@ public struct AppGPUResource: Codable {
 }
 
 /// AppResources describes resource requirements.
-public struct AppResources: Codable {
-    public var gpu: AppGPUResource
+public struct AppResources: Codable, Sendable {
+    @Indirect public var gpu: AppGPUResource
     public var ram: Int
 
     public init(
@@ -2802,10 +2850,10 @@ public struct AppResources: Codable {
 }
 
 /// AppVariant is a named resource/env configuration variant.
-public struct AppVariant: Codable {
+public struct AppVariant: Codable, Sendable {
     public var name: String
     public var order: Int
-    public var resources: AppResources
+    @Indirect public var resources: AppResources
     public var env: [String: String]?
     public var python: String
 
@@ -2833,7 +2881,7 @@ public struct AppVariant: Codable {
 }
 
 /// SecretRequirement defines a secret that an app requires to run.
-public struct SecretRequirement: Codable {
+public struct SecretRequirement: Codable, Sendable {
     public var key: String
     public var description: String?
     public var optional: Bool?
@@ -2869,7 +2917,7 @@ public struct SecretRequirement: Codable {
 /// Key is a capability of a provider the platform defines ("x.tweet.read",
 /// "google.sheets"): an OAuth grant with the scopes it implies. An entry sets
 /// Provider, Key, or both; with both, Key decides how it is resolved.
-public struct CredentialRequirement: Codable {
+public struct CredentialRequirement: Codable, Sendable {
     public var provider: String?
     /// Name and Website describe a provider the platform does not list: the
     /// name its credential is shown under and the site its logo comes from.
@@ -2914,16 +2962,16 @@ public struct CredentialRequirement: Codable {
 }
 
 /// AppDTO is the API response for a full app.
-public struct AppDTO: Codable {
+public struct AppDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var namespace: String
     public var name: String
@@ -2935,9 +2983,9 @@ public struct AppDTO: Codable {
     public var description: String
     public var agentDescription: String
     public var category: AppCategory
-    public var images: AppImages
+    @Indirect public var images: AppImages
     public var versionId: String
-    public var version: AppVersionDTO?
+    @Indirect public var version: AppVersionDTO?
     public var status: AppStatus
     public var statusMessage: String?
     public var statusChangedAt: String?
@@ -3017,7 +3065,7 @@ public struct AppDTO: Codable {
 }
 
 /// AppVersionDTO is the API response for an app version.
-public struct AppVersionDTO: Codable {
+public struct AppVersionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -3026,7 +3074,7 @@ public struct AppVersionDTO: Codable {
     public var metadata: [String: JSONValue]?
     public var repository: String
     public var flowVersionId: String?
-    public var flowVersion: FlowVersionDTO?
+    @Indirect public var flowVersion: FlowVersionDTO?
     public var setupSchema: JSONValue
     public var inputSchema: JSONValue
     public var outputSchema: JSONValue
@@ -3037,7 +3085,7 @@ public struct AppVersionDTO: Codable {
     public var kernel: String
     public var requiredSecrets: [SecretRequirement]?
     public var requiredCredentials: [CredentialRequirement]?
-    public var resources: AppResources
+    @Indirect public var resources: AppResources
     public var checksum: String?
 
     public init(
@@ -3112,7 +3160,7 @@ public struct AppVersionDTO: Codable {
 }
 
 /// LicenseRecordDTO is the API response for a license record.
-public struct LicenseRecordDTO: Codable {
+public struct LicenseRecordDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -3155,16 +3203,16 @@ public struct LicenseRecordDTO: Codable {
 }
 
 /// AppSessionDTO is the external representation
-public struct AppSessionDTO: Codable {
+public struct AppSessionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var workerId: String
     public var appId: String
@@ -3246,7 +3294,7 @@ public struct AppSessionDTO: Codable {
 }
 
 /// AppStoreListingDTO for API responses
-public struct AppStoreListingDTO: Codable {
+public struct AppStoreListingDTO: Codable, Sendable {
     public var id: String
     public var createdAt: String
     public var updatedAt: String
@@ -3321,7 +3369,7 @@ public struct AppStoreListingDTO: Codable {
 }
 
 /// PublicAppStoreDTO is a lean DTO for public app store display.
-public struct PublicAppStoreDTO: Codable {
+public struct PublicAppStoreDTO: Codable, Sendable {
     public var id: String
     public var category: String
     public var subcategory: String?
@@ -3331,7 +3379,7 @@ public struct PublicAppStoreDTO: Codable {
     /// Title is the human-readable name; empty falls back to Name.
     public var title: String
     public var description: String
-    public var images: AppImages
+    @Indirect public var images: AppImages
     public var isFeatured: Bool
     public var rank: Int
     public var hasApprovedVersion: Bool
@@ -3393,7 +3441,7 @@ public struct PublicAppStoreDTO: Codable {
 /// AppImages and AgentImages predate this and hold the same three fields;
 /// they should collapse onto this type, but aliasing them changes what
 /// gotypegen emits for existing consumers, so that migration is separate.
-public struct ResourceImages: Codable {
+public struct ResourceImages: Codable, Sendable {
     public var card: String
     public var thumbnail: String
     public var banner: String
@@ -3416,16 +3464,16 @@ public struct ResourceImages: Codable {
 }
 
 /// ArtifactDTO is the API shape of an artifact entry.
-public struct ArtifactDTO: Codable {
+public struct ArtifactDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     /// Namespace is the owning team's username, copied at creation. Immutable.
     public var namespace: String
@@ -3438,10 +3486,10 @@ public struct ArtifactDTO: Codable {
     public var type: ArtifactType
     /// Images are the cover images shown in galleries and headers, same as
     /// apps and agents. The favicon stays the rendered page's tab icon.
-    public var images: ResourceImages
+    @Indirect public var images: ResourceImages
     /// VersionID points at the latest published version.
     public var versionId: String
-    public var version: ArtifactVersionDTO?
+    @Indirect public var version: ArtifactVersionDTO?
     /// SharedVersionID pins the version viewers see. Empty = always latest.
     public var sharedVersionId: String?
     /// Capabilities declared by the latest version (runtime features the page
@@ -3529,7 +3577,7 @@ public struct ArtifactDTO: Codable {
 }
 
 /// ArtifactVersionDTO is one immutable publish of an artifact.
-public struct ArtifactVersionDTO: Codable {
+public struct ArtifactVersionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -3541,7 +3589,7 @@ public struct ArtifactVersionDTO: Codable {
     /// Content is the stored source file (uri/hash/size). The inline `content`
     /// field is only populated on write requests, never on reads — use the
     /// /content endpoint to fetch the body.
-    public var content: KnowledgeFile
+    @Indirect public var content: KnowledgeFile
     public var contentHash: String
     /// MD5 is the lowercase hex MD5 of the UTF-8 source; SizeBytes its byte
     /// length. Both let a DLP consumer dedupe without downloading.
@@ -3618,7 +3666,7 @@ public struct ArtifactVersionDTO: Codable {
 /// ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
 /// and its first version. When an artifact with the same name already exists
 /// in the caller's namespace a new version is published instead.
-public struct ArtifactCreateRequest: Codable {
+public struct ArtifactCreateRequest: Codable, Sendable {
     /// Name is optional; derived from Title when empty.
     public var name: String?
     public var title: String
@@ -3626,7 +3674,7 @@ public struct ArtifactCreateRequest: Codable {
     public var favicon: String?
     /// default html
     public var type: ArtifactType?
-    public var images: ResourceImages?
+    @Indirect public var images: ResourceImages?
     /// Content is the page source (HTML body/document or Markdown).
     public var content: String
     /// ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
@@ -3701,12 +3749,12 @@ public struct ArtifactCreateRequest: Codable {
 
 /// ArtifactUpdateRequest is the body for POST /artifacts/{id}. Metadata only;
 /// content changes go through ArtifactPublishRequest.
-public struct ArtifactUpdateRequest: Codable {
+public struct ArtifactUpdateRequest: Codable, Sendable {
     public var title: String?
     public var description: String?
     public var favicon: String?
     /// Images replaces the whole cover-image set when present.
-    public var images: ResourceImages?
+    @Indirect public var images: ResourceImages?
     /// SharedVersionID pins the version viewers see. Pass "" to share latest.
     public var sharedVersionId: String?
 
@@ -3734,7 +3782,7 @@ public struct ArtifactUpdateRequest: Codable {
 }
 
 /// ArtifactPublishRequest is the body for POST /artifacts/{id}/versions.
-public struct ArtifactPublishRequest: Codable {
+public struct ArtifactPublishRequest: Codable, Sendable {
     public var content: String
     /// ContentEncoding is "base64" when Content is base64-encoded UTF-8.
     public var contentEncoding: String?
@@ -3747,7 +3795,7 @@ public struct ArtifactPublishRequest: Codable {
     public var title: String?
     public var description: String?
     public var favicon: String?
-    public var images: ResourceImages?
+    @Indirect public var images: ResourceImages?
     /// BaseVersionID is the version this content was built on. When the
     /// artifact has moved past it, the publish is refused instead of
     /// discarding whatever landed in between. Leave it empty to publish
@@ -3805,7 +3853,7 @@ public struct ArtifactPublishRequest: Codable {
 }
 
 /// ArtifactContentResponse is the JSON form of an artifact version body.
-public struct ArtifactContentResponse: Codable {
+public struct ArtifactContentResponse: Codable, Sendable {
     public var artifactId: String
     public var versionId: String
     public var number: Int
@@ -3852,7 +3900,7 @@ public struct ArtifactContentResponse: Codable {
 }
 
 /// ArtifactDataDTO is one document in an artifact's store.
-public struct ArtifactDataDTO: Codable {
+public struct ArtifactDataDTO: Codable, Sendable {
     public var collection: String
     public var docId: String
     public var data: [String: JSONValue]?
@@ -3885,7 +3933,7 @@ public struct ArtifactDataDTO: Codable {
 
 /// ArtifactDataRequest addresses one document, or a collection when DocID is
 /// empty (list).
-public struct ArtifactDataRequest: Codable {
+public struct ArtifactDataRequest: Codable, Sendable {
     public var collection: String
     public var docId: String?
     /// Data is the document body for set and update.
@@ -3914,7 +3962,7 @@ public struct ArtifactDataRequest: Codable {
 }
 
 /// ArtifactDataListResponse is a page of documents from one collection.
-public struct ArtifactDataListResponse: Codable {
+public struct ArtifactDataListResponse: Codable, Sendable {
     public var collection: String
     public var documents: [ArtifactDataDTO]?
     public var count: Int
@@ -3938,7 +3986,7 @@ public struct ArtifactDataListResponse: Codable {
 
 /// ArtifactViewerDTO is what the user capability tells a page about whoever
 /// has it open. It carries no credential and no email.
-public struct ArtifactViewerDTO: Codable {
+public struct ArtifactViewerDTO: Codable, Sendable {
     /// SignedIn is false for someone opening a public link without an account.
     public var signedIn: Bool
     public var userId: String?
@@ -3974,7 +4022,7 @@ public struct ArtifactViewerDTO: Codable {
 /// absolute and is the only way a page may reference the bytes: the page has
 /// no network of its own, and the CSP names this origin only when the
 /// artifact declared the assets capability.
-public struct ArtifactAssetDTO: Codable {
+public struct ArtifactAssetDTO: Codable, Sendable {
     public var assetId: String
     public var filename: String?
     public var contentType: String?
@@ -4013,7 +4061,7 @@ public struct ArtifactAssetDTO: Codable {
 }
 
 /// ArtifactAssetListResponse is the body of the asset listing.
-public struct ArtifactAssetListResponse: Codable {
+public struct ArtifactAssetListResponse: Codable, Sendable {
     public var assets: [ArtifactAssetDTO]?
     public var count: Int
     /// TotalBytes is what this artifact's assets occupy, against the budget
@@ -4050,7 +4098,7 @@ public struct ArtifactAssetListResponse: Codable {
 /// content origin swaps for a cookie scoped to that origin and then redirects
 /// to the document, so the token leaves the address bar. When false the page
 /// is public and no credential is needed.
-public struct ArtifactFrameDTO: Codable {
+public struct ArtifactFrameDTO: Codable, Sendable {
     public var artifactId: String
     public var versionId: String
     public var versionShortId: String
@@ -4089,7 +4137,7 @@ public struct ArtifactFrameDTO: Codable {
 }
 
 /// AuthSessionDTO is a safe representation of AuthSession for API responses.
-public struct AuthSessionDTO: Codable {
+public struct AuthSessionDTO: Codable, Sendable {
     public var id: String
     public var createdAt: String
     public var expiresAt: String
@@ -4157,7 +4205,7 @@ public struct AuthSessionDTO: Codable {
 
 /// BaseModelDTO is the contract-layer base embed — same fields, no gorm tags.
 /// All DTOs should embed this instead of BaseModel.
-public struct BaseModelDTO: Codable {
+public struct BaseModelDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -4188,11 +4236,11 @@ public struct BaseModelDTO: Codable {
 }
 
 /// PermissionModelDTO is the contract-layer permission embed.
-public struct PermissionModelDTO: Codable {
+public struct PermissionModelDTO: Codable, Sendable {
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
 
     public init(
@@ -4219,7 +4267,7 @@ public struct PermissionModelDTO: Codable {
 }
 
 /// ResourceStatusDTO is a lightweight status-only response for polling transports.
-public struct ResourceStatusDTO: Codable {
+public struct ResourceStatusDTO: Codable, Sendable {
     public var id: String
     public var status: JSONValue
     public var updatedAt: String
@@ -4249,7 +4297,7 @@ public struct ResourceStatusDTO: Codable {
 /// its own handling. Reason exists because "not available" was previously
 /// indistinguishable from "reserved": every client that wanted to say why had to
 /// mirror the server's reserved-name list to guess, and those mirrors went stale.
-public struct AvailabilityResponse: Codable {
+public struct AvailabilityResponse: Codable, Sendable {
     /// Value is the normalized form of what was checked — the server may slugify
     /// or lowercase the input, and the client should show what it actually took.
     public var value: String
@@ -4275,16 +4323,16 @@ public struct AvailabilityResponse: Codable {
 }
 
 /// BountyProgramDTO is the API representation of a bounty program.
-public struct BountyProgramDTO: Codable {
+public struct BountyProgramDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var name: String
     public var description: String
@@ -4393,16 +4441,16 @@ public struct BountyProgramDTO: Codable {
 }
 
 /// BountySubmissionDTO is the API representation of a bounty claim.
-public struct BountySubmissionDTO: Codable {
+public struct BountySubmissionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var bountyId: String
     public var resourceId: String?
@@ -4468,7 +4516,7 @@ public struct BountySubmissionDTO: Codable {
 }
 
 /// SubmitBountyRequest is used to claim a bounty reward.
-public struct SubmitBountyRequest: Codable {
+public struct SubmitBountyRequest: Codable, Sendable {
     public var bountyId: String
     public var proofId: String
     public var agent: String?
@@ -4495,8 +4543,8 @@ public struct SubmitBountyRequest: Codable {
 }
 
 /// SubmitBountyResponse is returned when claiming a bounty.
-public struct SubmitBountyResponse: Codable {
-    public var submission: BountySubmissionDTO
+public struct SubmitBountyResponse: Codable, Sendable {
+    @Indirect public var submission: BountySubmissionDTO
     public var grantedAmount: Int?
 
     public init(
@@ -4514,35 +4562,35 @@ public struct SubmitBountyResponse: Codable {
 }
 
 /// ChatDTO for API responses
-public final class ChatDTO: Codable {
+public struct ChatDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var parentId: String?
-    public var parent: ChatDTO?
+    @Indirect public var parent: ChatDTO?
     public var children: [ChatDTO]?
     public var status: ChatStatus
     public var output: JSONValue?
     public var context: [String: String]?
     /// ChannelContext names the channel this chat came through (slack, a
     /// wearable's tag, ...). Unset for chats started in the app or the SDK.
-    public var channelContext: ChannelContext?
+    @Indirect public var channelContext: ChannelContext?
     public var agentId: String?
-    public var agent: AgentDTO?
+    @Indirect public var agent: AgentDTO?
     public var agentVersionId: String?
-    public var agentVersion: AgentVersionDTO?
+    @Indirect public var agentVersion: AgentVersionDTO?
     public var name: String
     public var description: String
     public var chatMessages: [ChatMessageDTO]?
-    public var agentData: ChatData
-    public var activeRun: AgentRunDTO?
+    @Indirect public var agentData: ChatData
+    @Indirect public var activeRun: AgentRunDTO?
     public var pendingInterrupts: [InterruptDTO]?
     /// HarnessSessionID is the harness's own session id when a remote profile
     /// thinks for this chat; `claude --resume <id>` opens it on that machine.
@@ -4651,19 +4699,19 @@ public final class ChatDTO: Codable {
 }
 
 /// ChatMessageDTO for API responses
-public struct ChatMessageDTO: Codable {
+public struct ChatMessageDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var chatId: String
-    public var chat: ChatDTO?
+    @Indirect public var chat: ChatDTO?
     public var agentRunId: String?
     public var order: Int
     public var status: ChatMessageStatus
@@ -4746,16 +4794,16 @@ public struct ChatMessageDTO: Codable {
 }
 
 /// CredentialDTO is the API response for a credential (never exposes secrets).
-public struct CredentialDTO: Codable {
+public struct CredentialDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var provider: String
     public var type: CredentialType
@@ -4861,7 +4909,7 @@ public struct CredentialDTO: Codable {
 }
 
 /// CredentialConfigDTO is the merged view: provider catalog + credential state.
-public struct CredentialConfigDTO: Codable {
+public struct CredentialConfigDTO: Codable, Sendable {
     public var slug: String
     public var provider: String
     public var type: String
@@ -4883,11 +4931,11 @@ public struct CredentialConfigDTO: Codable {
     /// platform's. Nil when the provider signs in through an app and none is
     /// set up yet, or when it doesn't sign in through one. Credential is the
     /// login itself.
-    public var app: CredentialDTO?
+    @Indirect public var app: CredentialDTO?
     /// AuthSchemeID is set when the provider is one the team defined
     /// itself (models.AuthScheme), so the UI can offer edit and remove.
     public var authSchemeId: String?
-    public var credential: CredentialDTO?
+    @Indirect public var credential: CredentialDTO?
 
     public init(
         slug: String = "",
@@ -4949,7 +4997,7 @@ public struct CredentialConfigDTO: Codable {
 }
 
 /// SecretFieldConfig defines a secret field for the UI
-public struct SecretFieldConfig: Codable {
+public struct SecretFieldConfig: Codable, Sendable {
     public var key: String
     public var label: String
     public var placeholder: String
@@ -4981,7 +5029,7 @@ public struct SecretFieldConfig: Codable {
 
 /// SearchRequest represents a search request.
 /// Each model declares its own SearchFields() on the repository.
-public struct SearchRequest: Codable {
+public struct SearchRequest: Codable, Sendable {
     public var term: String
     public var exact: Bool
 
@@ -5000,7 +5048,7 @@ public struct SearchRequest: Codable {
 }
 
 /// Filter represents a single filter condition
-public struct Filter: Codable {
+public struct Filter: Codable, Sendable {
     public var field: String
     public var `operator`: FilterOperator
     public var value: JSONValue
@@ -5023,7 +5071,7 @@ public struct Filter: Codable {
 }
 
 /// SortOrder represents sorting configuration
-public struct SortOrder: Codable {
+public struct SortOrder: Codable, Sendable {
     public var field: String
     /// "asc" or "desc"
     public var dir: String
@@ -5043,13 +5091,13 @@ public struct SortOrder: Codable {
 }
 
 /// CursorListRequest represents a cursor-based list request with all options
-public struct CursorListRequest: Codable {
+public struct CursorListRequest: Codable, Sendable {
     public var cursor: String
     /// Page number for offset-based pagination (used when Cursor is empty)
     public var page: Int?
     public var limit: Int
     public var direction: String
-    public var search: SearchRequest?
+    @Indirect public var search: SearchRequest?
     public var filters: [Filter]?
     public var preloads: [String]?
     public var sort: [SortOrder]?
@@ -5108,7 +5156,7 @@ public struct CursorListRequest: Codable {
 }
 
 /// CursorListResponse represents a cursor-based paginated response
-public struct CursorListResponse<T: Codable>: Codable {
+public struct CursorListResponse<T: Codable & Sendable>: Codable, Sendable {
     public var items: [T]?
     /// Base64 encoded timestamp
     public var nextCursor: String
@@ -5149,7 +5197,7 @@ public struct CursorListResponse<T: Codable>: Codable {
 }
 
 /// CountResponse is the response for count endpoints.
-public struct CountResponse: Codable {
+public struct CountResponse: Codable, Sendable {
     public var count: Int
 
     public init(
@@ -5164,12 +5212,12 @@ public struct CountResponse: Codable {
 }
 
 /// EngineConfig holds engine configuration (no gorm tags).
-public struct EngineConfig: Codable {
+public struct EngineConfig: Codable, Sendable {
     public var id: String
     public var name: String
     public var apiUrl: String
     public var enginePort: String
-    public var workers: WorkerConfig
+    @Indirect public var workers: WorkerConfig
     public var apiKey: String
     public var containerMode: Bool
     public var networkName: String
@@ -5223,7 +5271,7 @@ public struct EngineConfig: Codable {
 }
 
 /// WorkerGPUConfig defines GPU allocation for a worker.
-public struct WorkerGPUConfig: Codable {
+public struct WorkerGPUConfig: Codable, Sendable {
     public var gpus: [JSONValue]?
 
     public init(
@@ -5238,7 +5286,7 @@ public struct WorkerGPUConfig: Codable {
 }
 
 /// WorkerCPUConfig defines CPU allocation for a worker.
-public struct WorkerCPUConfig: Codable {
+public struct WorkerCPUConfig: Codable, Sendable {
     public var count: Int
 
     public init(
@@ -5253,9 +5301,9 @@ public struct WorkerCPUConfig: Codable {
 }
 
 /// WorkerConfig defines how workers are allocated on an engine.
-public struct WorkerConfig: Codable {
+public struct WorkerConfig: Codable, Sendable {
     public var gpu: [WorkerGPUConfig]?
-    public var cpu: WorkerCPUConfig
+    @Indirect public var cpu: WorkerCPUConfig
 
     public init(
         gpu: [WorkerGPUConfig]? = nil,
@@ -5272,24 +5320,24 @@ public struct WorkerConfig: Codable {
 }
 
 /// EngineDTO is the full API response for an engine.
-public struct EngineDTO: Codable {
+public struct EngineDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
-    public var instance: InstanceDTO?
-    public var config: EngineConfig
+    @Indirect public var instance: InstanceDTO?
+    @Indirect public var config: EngineConfig
     public var name: String
     public var apiUrl: String
     public var status: EngineStatus
     public var engineVersion: String
-    public var systemInfo: SystemInfo?
+    @Indirect public var systemInfo: SystemInfo?
     public var workers: [WorkerDTO]?
 
     public init(
@@ -5355,18 +5403,18 @@ public struct EngineDTO: Codable {
 }
 
 /// EngineSummary is a lightweight engine response embedded in tasks.
-public struct EngineSummary: Codable {
+public struct EngineSummary: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
-    public var instance: InstanceDTO?
+    @Indirect public var instance: InstanceDTO?
     public var name: String
     public var status: EngineStatus
     public var workers: [WorkerSummary]?
@@ -5422,7 +5470,7 @@ public struct EngineSummary: Codable {
 }
 
 /// WorkerDTO is the full API response for a worker.
-public struct WorkerDTO: Codable {
+public struct WorkerDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -5440,7 +5488,7 @@ public struct WorkerDTO: Codable {
     public var gpus: [WorkerGPU]?
     public var cpus: [WorkerCPU]?
     public var rams: [WorkerRAM]?
-    public var systemInfo: SystemInfo
+    @Indirect public var systemInfo: SystemInfo
     public var warmApps: [String]?
 
     public init(
@@ -5509,7 +5557,7 @@ public struct WorkerDTO: Codable {
 }
 
 /// WorkerSummary is a lightweight worker response.
-public struct WorkerSummary: Codable {
+public struct WorkerSummary: Codable, Sendable {
     public var id: String
     public var userId: String
     public var index: Int
@@ -5572,7 +5620,7 @@ public struct WorkerSummary: Codable {
 }
 
 /// WorkerGPU describes a GPU attached to a worker (contract-only, no gorm).
-public struct WorkerGPU: Codable {
+public struct WorkerGPU: Codable, Sendable {
     public var id: String
     public var workerId: String
     public var gpuId: String
@@ -5607,7 +5655,7 @@ public struct WorkerGPU: Codable {
 }
 
 /// WorkerCPU describes a CPU attached to a worker (contract-only, no gorm).
-public struct WorkerCPU: Codable {
+public struct WorkerCPU: Codable, Sendable {
     public var id: String
     public var workerId: String
     public var name: String
@@ -5650,7 +5698,7 @@ public struct WorkerCPU: Codable {
 }
 
 /// WorkerRAM describes RAM attached to a worker (contract-only, no gorm).
-public struct WorkerRAM: Codable {
+public struct WorkerRAM: Codable, Sendable {
     public var id: String
     public var workerId: String
     public var total: Int
@@ -5673,7 +5721,7 @@ public struct WorkerRAM: Codable {
 }
 
 /// EntitlementDTO for API responses
-public struct EntitlementDTO: Codable {
+public struct EntitlementDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -5756,7 +5804,7 @@ public struct EntitlementDTO: Codable {
 }
 
 /// EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
-public struct EntitlementErrorMeta: Codable {
+public struct EntitlementErrorMeta: Codable, Sendable {
     public var resource: EntitlementResource
     public var resourceLabel: String?
     public var limit: Int?
@@ -5850,7 +5898,7 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
 /// capability gate. Only Capability is always set: a team that does not
 /// resolve answers with the capability alone, so clients must not assume
 /// RequiredRole is present.
-public struct TeamRoleRequiredMeta: Codable {
+public struct TeamRoleRequiredMeta: Codable, Sendable {
     public var capability: TeamCapability
     public var actualRole: TeamRole?
     public var requiredRole: TeamRole?
@@ -5877,7 +5925,7 @@ public struct TeamRoleRequiredMeta: Codable {
 }
 
 /// PaymentMethodRequiredMeta is the meta of a payment_method_required error.
-public struct PaymentMethodRequiredMeta: Codable {
+public struct PaymentMethodRequiredMeta: Codable, Sendable {
     public var bountyId: String
     public var billingPage: String
 
@@ -5896,7 +5944,7 @@ public struct PaymentMethodRequiredMeta: Codable {
 }
 
 /// FileMetadata holds probed media metadata cached on File records.
-public struct FileMetadata: Codable {
+public struct FileMetadata: Codable, Sendable {
     public var type: String?
     public var width: Int?
     public var height: Int?
@@ -5939,16 +5987,16 @@ public struct FileMetadata: Codable {
 }
 
 /// FileDTO for API responses
-public struct FileDTO: Codable {
+public struct FileDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var path: String
     public var remotePath: String
@@ -5959,7 +6007,7 @@ public struct FileDTO: Codable {
     public var filename: String
     public var category: String
     public var rating: ContentRating
-    public var metadata: FileMetadata?
+    @Indirect public var metadata: FileMetadata?
 
     public init(
         id: String = "",
@@ -6030,8 +6078,8 @@ public struct FileDTO: Codable {
 }
 
 /// FlowNodeData describes a node's data within a flow
-public struct FlowNodeData: Codable {
-    public var app: AppDTO?
+public struct FlowNodeData: Codable, Sendable {
+    @Indirect public var app: AppDTO?
     public var appId: String
     public var appVersionId: String
     public var function: String?
@@ -6039,13 +6087,13 @@ public struct FlowNodeData: Codable {
     public var workers: [String]?
     public var setup: JSONValue?
     public var additional: JSONValue?
-    public var task: TaskDTO?
+    @Indirect public var task: TaskDTO?
     public var taskId: String?
     /// Primitive node configs (legacy, kept for backward compat)
-    public var gateCondition: GateCondition?
-    public var selectorConfig: SelectorConfig?
+    @Indirect public var gateCondition: GateCondition?
+    @Indirect public var selectorConfig: SelectorConfig?
     /// Unified utility node config (replaces gate_condition/selector_config)
-    public var utility: UtilityConfig?
+    @Indirect public var utility: UtilityConfig?
 
     public init(
         app: AppDTO? = nil,
@@ -6098,16 +6146,16 @@ public struct FlowNodeData: Codable {
 public typealias FlowNodeDataMap = [String: FlowNodeData]
 
 /// FlowDTO for API responses
-public struct FlowDTO: Codable {
+public struct FlowDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var namespace: String
     public var name: String
@@ -6118,9 +6166,9 @@ public struct FlowDTO: Codable {
     public var thumbnail: String
     public var bannerImage: String
     public var draftVersionId: String
-    public var draftVersion: FlowVersionDTO?
+    @Indirect public var draftVersion: FlowVersionDTO?
     public var publishedVersionId: String
-    public var publishedVersion: FlowVersionDTO?
+    @Indirect public var publishedVersion: FlowVersionDTO?
     public var inputSchema: JSONValue
     public var input: FlowRunInputs?
     public var outputSchema: JSONValue
@@ -6128,7 +6176,7 @@ public struct FlowDTO: Codable {
     public var nodeData: FlowNodeDataMap?
     public var nodes: [FlowNode]?
     public var edges: [FlowEdge]?
-    public var viewport: FlowViewport?
+    @Indirect public var viewport: FlowViewport?
 
     public init(
         id: String = "",
@@ -6226,7 +6274,7 @@ public struct FlowDTO: Codable {
 }
 
 /// FlowVersionDTO for API responses
-public struct FlowVersionDTO: Codable {
+public struct FlowVersionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -6240,7 +6288,7 @@ public struct FlowVersionDTO: Codable {
     public var nodeData: FlowNodeDataMap?
     public var nodes: [FlowNode]?
     public var edges: [FlowEdge]?
-    public var viewport: FlowViewport?
+    @Indirect public var viewport: FlowViewport?
 
     public init(
         id: String = "",
@@ -6293,9 +6341,9 @@ public struct FlowVersionDTO: Codable {
 }
 
 /// NodeTaskDTO represents a node task reference
-public struct NodeTaskDTO: Codable {
+public struct NodeTaskDTO: Codable, Sendable {
     public var taskId: String
-    public var task: TaskDTO?
+    @Indirect public var task: TaskDTO?
 
     public init(
         taskId: String = "",
@@ -6312,20 +6360,20 @@ public struct NodeTaskDTO: Codable {
 }
 
 /// FlowRunDTO for API responses
-public struct FlowRunDTO: Codable {
+public struct FlowRunDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var flowId: String
     public var flowVersionId: String
-    public var flowVersion: FlowVersionDTO?
+    @Indirect public var flowVersion: FlowVersionDTO?
     public var taskId: String?
     public var status: FlowRunStatus
     public var error: String?
@@ -6449,7 +6497,7 @@ public struct FlowActionType: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// FlowAction represents a single graph mutation.
-public struct FlowAction: Codable {
+public struct FlowAction: Codable, Sendable {
     public var type: FlowActionType
     public var payload: JSONValue
 
@@ -6468,7 +6516,7 @@ public struct FlowAction: Codable {
 }
 
 /// FlowActionsRequest is the request body for POST /flows/{id}/actions.
-public struct FlowActionsRequest: Codable {
+public struct FlowActionsRequest: Codable, Sendable {
     public var actions: [FlowAction]?
 
     public init(
@@ -6483,7 +6531,7 @@ public struct FlowActionsRequest: Codable {
 }
 
 /// FlowActionsResponse is the response from the actions endpoint.
-public struct FlowActionsResponse: Codable {
+public struct FlowActionsResponse: Codable, Sendable {
     public var version: Int
     public var actions: [FlowAction]?
     public var errors: [FlowActionError]?
@@ -6506,7 +6554,7 @@ public struct FlowActionsResponse: Codable {
 }
 
 /// FlowActionError is an error returned from an action.
-public struct FlowActionError: Codable {
+public struct FlowActionError: Codable, Sendable {
     public var type: String?
     public var message: String
 
@@ -6524,11 +6572,11 @@ public struct FlowActionError: Codable {
     }
 }
 
-public struct AddNodePayload: Codable {
+public struct AddNodePayload: Codable, Sendable {
     public var id: String
     public var type: String
-    public var position: FlowNodePosition
-    public var data: FlowNodeData
+    @Indirect public var position: FlowNodePosition
+    @Indirect public var data: FlowNodeData
 
     public init(
         id: String = "",
@@ -6550,7 +6598,7 @@ public struct AddNodePayload: Codable {
     }
 }
 
-public struct RemoveNodePayload: Codable {
+public struct RemoveNodePayload: Codable, Sendable {
     public var id: String
 
     public init(
@@ -6564,9 +6612,9 @@ public struct RemoveNodePayload: Codable {
     }
 }
 
-public struct MoveNodePayload: Codable {
+public struct MoveNodePayload: Codable, Sendable {
     public var id: String
-    public var position: FlowNodePosition
+    @Indirect public var position: FlowNodePosition
 
     public init(
         id: String = "",
@@ -6582,7 +6630,7 @@ public struct MoveNodePayload: Codable {
     }
 }
 
-public struct MoveNodesPayload: Codable {
+public struct MoveNodesPayload: Codable, Sendable {
     public var positions: [String: FlowNodePosition]?
 
     public init(
@@ -6596,10 +6644,10 @@ public struct MoveNodesPayload: Codable {
     }
 }
 
-public struct DuplicateNodePayload: Codable {
+public struct DuplicateNodePayload: Codable, Sendable {
     public var sourceId: String
     public var newId: String
-    public var offset: FlowNodePosition
+    @Indirect public var offset: FlowNodePosition
 
     public init(
         sourceId: String = "",
@@ -6618,7 +6666,7 @@ public struct DuplicateNodePayload: Codable {
     }
 }
 
-public struct RenameNodePayload: Codable {
+public struct RenameNodePayload: Codable, Sendable {
     public var oldId: String
     public var newId: String
 
@@ -6636,7 +6684,7 @@ public struct RenameNodePayload: Codable {
     }
 }
 
-public struct SetNodeAppPayload: Codable {
+public struct SetNodeAppPayload: Codable, Sendable {
     public var nodeId: String
     public var appId: String
     public var appVersionId: String
@@ -6662,7 +6710,7 @@ public struct SetNodeAppPayload: Codable {
     }
 }
 
-public struct UpdateNodeDataPayload: Codable {
+public struct UpdateNodeDataPayload: Codable, Sendable {
     public var nodeId: String
     public var patch: [String: JSONValue]?
 
@@ -6680,10 +6728,10 @@ public struct UpdateNodeDataPayload: Codable {
     }
 }
 
-public struct SetInputPayload: Codable {
+public struct SetInputPayload: Codable, Sendable {
     public var nodeId: String
     public var inputKey: String
-    public var input: JSONValue
+    @Indirect public var input: JSONValue
 
     public init(
         nodeId: String = "",
@@ -6702,7 +6750,7 @@ public struct SetInputPayload: Codable {
     }
 }
 
-public struct ClearInputPayload: Codable {
+public struct ClearInputPayload: Codable, Sendable {
     public var nodeId: String
     public var inputKey: String
 
@@ -6720,7 +6768,7 @@ public struct ClearInputPayload: Codable {
     }
 }
 
-public struct AddEdgePayload: Codable {
+public struct AddEdgePayload: Codable, Sendable {
     public var id: String
     public var source: String
     public var target: String
@@ -6750,7 +6798,7 @@ public struct AddEdgePayload: Codable {
     }
 }
 
-public struct RemoveEdgePayload: Codable {
+public struct RemoveEdgePayload: Codable, Sendable {
     public var id: String
 
     public init(
@@ -6764,7 +6812,7 @@ public struct RemoveEdgePayload: Codable {
     }
 }
 
-public struct SetSchemaPayload: Codable {
+public struct SetSchemaPayload: Codable, Sendable {
     public var schema: JSONValue
 
     public init(
@@ -6778,9 +6826,9 @@ public struct SetSchemaPayload: Codable {
     }
 }
 
-public struct SetOutputMappingPayload: Codable {
+public struct SetOutputMappingPayload: Codable, Sendable {
     public var field: String
-    public var mapping: OutputFieldMapping
+    @Indirect public var mapping: OutputFieldMapping
 
     public init(
         field: String = "",
@@ -6796,7 +6844,7 @@ public struct SetOutputMappingPayload: Codable {
     }
 }
 
-public struct RemoveOutputMappingPayload: Codable {
+public struct RemoveOutputMappingPayload: Codable, Sendable {
     public var field: String
 
     public init(
@@ -6810,7 +6858,7 @@ public struct RemoveOutputMappingPayload: Codable {
     }
 }
 
-public struct RenameOutputFieldPayload: Codable {
+public struct RenameOutputFieldPayload: Codable, Sendable {
     public var oldField: String
     public var newField: String
 
@@ -6829,7 +6877,7 @@ public struct RenameOutputFieldPayload: Codable {
 }
 
 /// GraphNodeDTO is the API representation of a graph node
-public struct GraphNodeDTO: Codable {
+public struct GraphNodeDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -6904,7 +6952,7 @@ public struct GraphNodeDTO: Codable {
 }
 
 /// GraphEdgeDTO is the API representation of a graph edge
-public struct GraphEdgeDTO: Codable {
+public struct GraphEdgeDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -6947,7 +6995,7 @@ public struct GraphEdgeDTO: Codable {
 }
 
 /// ChatTraceDTO is the trace response for chat observability
-public struct ChatTraceDTO: Codable {
+public struct ChatTraceDTO: Codable, Sendable {
     public var graphId: String
     public var nodes: [GraphNodeDTO]?
     public var edges: [GraphEdgeDTO]?
@@ -6986,16 +7034,16 @@ public struct ChatTraceDTO: Codable {
 }
 
 /// InstanceDTO is the API representation of a cloud instance.
-public struct InstanceDTO: Codable {
+public struct InstanceDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var cloud: InstanceCloudProvider
     public var name: String
@@ -7133,16 +7181,16 @@ public struct InstanceDTO: Codable {
 }
 
 /// InstanceTypeDTO is the API representation of a cloud instance type.
-public struct InstanceTypeDTO: Codable {
+public struct InstanceTypeDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var cloud: InstanceCloudProvider
     public var cloudLogoUrl: String?
@@ -7151,9 +7199,9 @@ public struct InstanceTypeDTO: Codable {
     public var cloudInstanceType: String
     public var deploymentType: InstanceTypeDeploymentType
     public var hourlyPrice: Int
-    public var configuration: InstanceTypeConfiguration?
+    @Indirect public var configuration: InstanceTypeConfiguration?
     public var availability: [InstanceTypeAvailability]?
-    public var bootTime: InstanceTypeBootTime?
+    @Indirect public var bootTime: InstanceTypeBootTime?
 
     public init(
         id: String = "",
@@ -7223,7 +7271,7 @@ public struct InstanceTypeDTO: Codable {
     }
 }
 
-public struct InstanceTypeConfiguration: Codable {
+public struct InstanceTypeConfiguration: Codable, Sendable {
     public var gpuType: String
     public var gpuManufacturer: String
     public var interconnect: String
@@ -7273,7 +7321,7 @@ public struct InstanceTypeConfiguration: Codable {
     }
 }
 
-public struct InstanceTypeAvailability: Codable {
+public struct InstanceTypeAvailability: Codable, Sendable {
     public var available: Bool
     public var region: String
 
@@ -7291,7 +7339,7 @@ public struct InstanceTypeAvailability: Codable {
     }
 }
 
-public struct InstanceTypeBootTime: Codable {
+public struct InstanceTypeBootTime: Codable, Sendable {
     public var averageSeconds: Int
     public var updatedAt: String
     public var sampleSize: Int
@@ -7313,16 +7361,16 @@ public struct InstanceTypeBootTime: Codable {
     }
 }
 
-public struct InterruptDTO: Codable {
+public struct InterruptDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var runId: String
     public var chatId: String
@@ -7412,7 +7460,7 @@ public struct InterruptDTO: Codable {
 }
 
 /// KnowledgeFile represents a file in a knowledge entry
-public struct KnowledgeFile: Codable {
+public struct KnowledgeFile: Codable, Sendable {
     public var path: String?
     public var uri: String?
     public var size: Int?
@@ -7443,23 +7491,23 @@ public struct KnowledgeFile: Codable {
 }
 
 /// SkillDTO for API responses (backward-compatible naming)
-public struct SkillDTO: Codable {
+public struct SkillDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var namespace: String
     public var name: String
     public var description: String
     public var repoUrl: String?
     public var versionId: String
-    public var version: SkillVersionDTO?
+    @Indirect public var version: SkillVersionDTO?
     public var uses: Int
     public var installs: Int
 
@@ -7525,14 +7573,14 @@ public struct SkillDTO: Codable {
     }
 }
 
-public struct SkillVersionDTO: Codable {
+public struct SkillVersionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var skillId: String
-    public var instructions: KnowledgeFile
+    @Indirect public var instructions: KnowledgeFile
     public var files: [KnowledgeFile]?
     public var contentHash: String
     public var description: String
@@ -7620,16 +7668,16 @@ public struct SkillVersionDTO: Codable {
 }
 
 /// KnowledgeDTO — generic DTO for /knowledge endpoints (all types)
-public struct KnowledgeDTO: Codable {
+public struct KnowledgeDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var namespace: String
     public var name: String
@@ -7639,7 +7687,7 @@ public struct KnowledgeDTO: Codable {
     public var type: KnowledgeType
     public var lifecycle: KnowledgeLifecycle
     public var versionId: String
-    public var version: KnowledgeVersionDTO?
+    @Indirect public var version: KnowledgeVersionDTO?
     public var uses: Int
     public var installs: Int
 
@@ -7711,14 +7759,14 @@ public struct KnowledgeDTO: Codable {
     }
 }
 
-public struct KnowledgeVersionDTO: Codable {
+public struct KnowledgeVersionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var knowledgeId: String
-    public var content: KnowledgeFile
+    @Indirect public var content: KnowledgeFile
     public var files: [KnowledgeFile]?
     public var contentHash: String
     public var description: String
@@ -7801,7 +7849,7 @@ public struct KnowledgeVersionDTO: Codable {
 }
 
 /// ResourceRef is a compact reference to any resource (knowledge, app, agent).
-public struct ResourceRef: Codable {
+public struct ResourceRef: Codable, Sendable {
     public var id: String
     public var namespace: String
     public var name: String
@@ -7838,8 +7886,8 @@ public struct ResourceRef: Codable {
 }
 
 /// ReferencesResponse is returned by the references endpoint.
-public struct ReferencesResponse: Codable {
-    public var resource: ResourceRef
+public struct ReferencesResponse: Codable, Sendable {
+    @Indirect public var resource: ResourceRef
     /// outgoing: resources this entry mentions
     public var references: [ResourceRef]?
     /// incoming: resources that mention this entry
@@ -7863,8 +7911,8 @@ public struct ReferencesResponse: Codable {
 }
 
 /// SkillLineageResponse is returned by the lineage endpoint.
-public struct SkillLineageResponse: Codable {
-    public var skill: SkillLineageSkillRef
+public struct SkillLineageResponse: Codable, Sendable {
+    @Indirect public var skill: SkillLineageSkillRef
     public var parents: [SkillLineageSkillRef]?
     public var siblings: [SkillLineageSkillRef]?
     public var forks: [SkillLineageSkillRef]?
@@ -7898,7 +7946,7 @@ public struct SkillLineageResponse: Codable {
 }
 
 /// SkillLineageSkillRef is a compact skill reference for lineage responses.
-public struct SkillLineageSkillRef: Codable {
+public struct SkillLineageSkillRef: Codable, Sendable {
     public var id: String
     public var namespace: String
     public var name: String
@@ -7933,7 +7981,7 @@ public struct SkillLineageSkillRef: Codable {
 }
 
 /// PublicSkillStoreDTO for public skill store display
-public struct PublicSkillStoreDTO: Codable {
+public struct PublicSkillStoreDTO: Codable, Sendable {
     public var id: String
     public var category: String
     public var tags: [String]?
@@ -7980,7 +8028,7 @@ public struct PublicSkillStoreDTO: Codable {
 }
 
 /// SkillStoreListingDTO for API responses
-public struct SkillStoreListingDTO: Codable {
+public struct SkillStoreListingDTO: Codable, Sendable {
     public var id: String
     public var createdAt: String
     public var updatedAt: String
@@ -8032,7 +8080,7 @@ public struct SkillStoreListingDTO: Codable {
 
 /// ElicitationCapability advertises which elicitation modes the client handles.
 /// An empty struct is equivalent to form-only for backward compatibility.
-public struct ElicitationCapability: Codable {
+public struct ElicitationCapability: Codable, Sendable {
     public var form: [String: JSONValue]?
     public var url: [String: JSONValue]?
 
@@ -8054,8 +8102,8 @@ public struct ElicitationCapability: Codable {
 /// 
 /// Extensions carries the extensions the client supports, keyed by identifier
 /// (e.g. ExtensionTasks), each with its extension-defined settings object.
-public struct ClientCapabilities: Codable {
-    public var elicitation: ElicitationCapability?
+public struct ClientCapabilities: Codable, Sendable {
+    @Indirect public var elicitation: ElicitationCapability?
     public var extensions: [String: JSONValue]?
 
     public init(
@@ -8073,7 +8121,7 @@ public struct ClientCapabilities: Codable {
 }
 
 /// InputRequest is a single server-to-client request inside an InputRequiredResult.
-public struct InputRequest: Codable {
+public struct InputRequest: Codable, Sendable {
     public var method: String
     public var params: JSONValue
 
@@ -8102,7 +8150,7 @@ public struct ElicitAction: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// ElicitResult is the client's response to an elicitation/create request.
-public struct ElicitResult: Codable {
+public struct ElicitResult: Codable, Sendable {
     public var action: ElicitAction
     public var content: [String: JSONValue]?
 
@@ -8150,7 +8198,7 @@ public struct CacheScope: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// ServerInfo represents information about the server
-public struct ServerInfo: Codable {
+public struct ServerInfo: Codable, Sendable {
     public var name: String
     public var title: String
     public var version: String
@@ -8177,8 +8225,8 @@ public struct ServerInfo: Codable {
 /// 
 /// The struct tag is the single definition of the key — Go tags cannot reference
 /// a constant, so there is deliberately no MetaServerInfo const to drift from it.
-public struct ResultMeta: Codable {
-    public var ioModelcontextprotocolServerInfo: ServerInfo?
+public struct ResultMeta: Codable, Sendable {
+    @Indirect public var ioModelcontextprotocolServerInfo: ServerInfo?
     /// TTLMs and CacheScope are read-only legacy fields: servers older than
     /// 2026-07-28 nested the caching signals here instead of on the result. They
     /// live on this type rather than a separate one so a single decode of the
@@ -8204,7 +8252,7 @@ public struct ResultMeta: Codable {
 }
 
 /// ResourceContent represents resource content
-public struct ResourceContent: Codable {
+public struct ResourceContent: Codable, Sendable {
     public var uri: String
     public var name: String
     public var title: String?
@@ -8242,7 +8290,7 @@ public struct ResourceContent: Codable {
 /// 
 /// InputResponses and RequestState are present on MRTR retries: the client is
 /// echoing back responses to the server's InputRequiredResult.
-public struct ToolCallRequest: Codable {
+public struct ToolCallRequest: Codable, Sendable {
     public var name: String
     public var arguments: [String: JSONValue]?
     public var inputResponses: [String: JSONValue]?
@@ -8274,12 +8322,12 @@ public struct ToolCallRequest: Codable {
 /// ResultTypeInputRequired is a Multi Round-Trip Request asking for more input,
 /// not tool output, and callers must not treat it as a result. Servers older than
 /// 2026-07-28 omit the field, which clients MUST read as "complete".
-public struct ToolCallResponse: Codable {
+public struct ToolCallResponse: Codable, Sendable {
     public var resultType: ResultType?
     public var content: [ToolContent]?
     public var structuredContent: JSONValue?
     public var isError: Bool
-    public var meta: ResultMeta?
+    @Indirect public var meta: ResultMeta?
     /// MRTR fields — present when ResultType == ResultTypeInputRequired.
     public var inputRequests: [String: InputRequest]?
     public var requestState: String?
@@ -8326,12 +8374,12 @@ public struct ToolContentType: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// ToolContent represents content in a tool response
-public struct ToolContent: Codable {
+public struct ToolContent: Codable, Sendable {
     public var type: ToolContentType
     public var text: String?
     public var data: String?
     public var mimeType: String?
-    public var resource: ResourceContent?
+    @Indirect public var resource: ResourceContent?
 
     public init(
         type: ToolContentType,
@@ -8360,12 +8408,12 @@ public struct ToolContent: Codable {
 public typealias StringSlice = [String]
 
 /// MCPServerDTO is the API response shape for the resource.
-public struct MCPServerDTO: Codable {
+public struct MCPServerDTO: Codable, Sendable {
     public var id: String
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var slug: String
     public var name: String
@@ -8446,16 +8494,16 @@ public struct MCPServerDTO: Codable {
 }
 
 /// NotificationDTO is the data transfer object
-public struct NotificationDTO: Codable {
+public struct NotificationDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var type: NotificationType
     public var channel: NotificationChannel
@@ -8557,16 +8605,16 @@ public struct NotificationDTO: Codable {
 }
 
 /// NotificationPreferencesDTO is the data transfer object
-public struct NotificationPreferencesDTO: Codable {
+public struct NotificationPreferencesDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var emailEnabled: Bool
     public var smsEnabled: Bool
@@ -8656,7 +8704,7 @@ public struct NotificationPreferencesDTO: Codable {
 }
 
 /// UpdateNotificationPreferencesRequest is the request to update preferences
-public struct UpdateNotificationPreferencesRequest: Codable {
+public struct UpdateNotificationPreferencesRequest: Codable, Sendable {
     public var emailEnabled: Bool?
     public var smsEnabled: Bool?
     public var pushEnabled: Bool?
@@ -8715,7 +8763,7 @@ public struct UpdateNotificationPreferencesRequest: Codable {
 }
 
 /// OrgDTO is the API response for an org (enterprise layer above teams).
-public struct OrgDTO: Codable {
+public struct OrgDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -8725,8 +8773,6 @@ public struct OrgDTO: Codable {
     public var name: String
     public var avatarUrl: String?
     public var defaultTeamId: String?
-    /// UsagePolicyID of the org's usage policy ('' = ungoverned, INF-808).
-    public var usagePolicyId: String?
     /// IsAdmin: whether the CALLER is on this org's admin grant list. Set on
     /// caller-scoped responses.
     public var isAdmin: Bool?
@@ -8741,7 +8787,6 @@ public struct OrgDTO: Codable {
         name: String = "",
         avatarUrl: String? = nil,
         defaultTeamId: String? = nil,
-        usagePolicyId: String? = nil,
         isAdmin: Bool? = nil
     ) {
         self.id = id
@@ -8753,7 +8798,6 @@ public struct OrgDTO: Codable {
         self.name = name
         self.avatarUrl = avatarUrl
         self.defaultTeamId = defaultTeamId
-        self.usagePolicyId = usagePolicyId
         self.isAdmin = isAdmin
     }
 
@@ -8767,13 +8811,12 @@ public struct OrgDTO: Codable {
         case name = "name"
         case avatarUrl = "avatar_url"
         case defaultTeamId = "default_team_id"
-        case usagePolicyId = "usage_policy_id"
         case isAdmin = "is_admin"
     }
 }
 
 /// PageMetadata holds metadata for a page
-public struct PageMetadata: Codable {
+public struct PageMetadata: Codable, Sendable {
     public var title: String
     public var description: String
     public var image: String
@@ -8835,7 +8878,7 @@ public struct PageMetadata: Codable {
 }
 
 /// MenuItem represents an item in a menu (can be nested)
-public struct MenuItem: Codable {
+public struct MenuItem: Codable, Sendable {
     public var id: String
     public var label: String
     public var slug: String?
@@ -8892,16 +8935,16 @@ public struct MenuItem: Codable {
 }
 
 /// PageDTO for API responses
-public struct PageDTO: Codable {
+public struct PageDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var isFeatured: Bool
     public var title: String
@@ -8909,7 +8952,7 @@ public struct PageDTO: Codable {
     public var excerpt: String
     public var status: PageStatus
     public var type: PageType
-    public var metadata: PageMetadata
+    @Indirect public var metadata: PageMetadata
     public var slug: String
     public var path: String
     /// PublishAt mirrors Metadata.PublishAt, which remains the field clients write.
@@ -8985,16 +9028,16 @@ public struct PageDTO: Codable {
 }
 
 /// CommentDTO for API responses
-public struct CommentDTO: Codable {
+public struct CommentDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     /// ResourceType and ResourceID address what is commented on ("artifacts",
     /// "pages"). PageID stays for the page comment API that predates them.
@@ -9090,7 +9133,7 @@ public struct CommentDTO: Codable {
 }
 
 /// ArtifactCommentCreateRequest posts a thread or a reply on an artifact.
-public struct ArtifactCommentCreateRequest: Codable {
+public struct ArtifactCommentCreateRequest: Codable, Sendable {
     public var content: String
     /// ParentCommentID replies into an existing thread; omit to start one.
     public var parentCommentId: String?
@@ -9116,16 +9159,16 @@ public struct ArtifactCommentCreateRequest: Codable {
 }
 
 /// ArtifactCommentThreadDTO is one thread: its root plus replies in order.
-public struct ArtifactCommentThreadDTO: Codable {
+public struct ArtifactCommentThreadDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     /// ResourceType and ResourceID address what is commented on ("artifacts",
     /// "pages"). PageID stays for the page comment API that predates them.
@@ -9225,16 +9268,16 @@ public struct ArtifactCommentThreadDTO: Codable {
 }
 
 /// MenuDTO for API responses
-public struct MenuDTO: Codable {
+public struct MenuDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var name: String
     public var slug: String
@@ -9292,7 +9335,7 @@ public struct MenuDTO: Codable {
 }
 
 /// PlanLimit defines a single resource limit or feature gate within a plan.
-public struct PlanLimit: Codable {
+public struct PlanLimit: Codable, Sendable {
     public var type: EntitlementType
     public var label: String?
     public var unit: String?
@@ -9334,7 +9377,7 @@ public struct PlanLimit: Codable {
 public typealias PlanLimits = [String: PlanLimit]
 
 /// PlanDTO for API responses
-public struct PlanDTO: Codable {
+public struct PlanDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -9347,7 +9390,7 @@ public struct PlanDTO: Codable {
     public var selfServe: Bool?
     public var planType: PlanType
     public var creditsMonthly: Int
-    public var activeVersion: PlanVersionDTO?
+    @Indirect public var activeVersion: PlanVersionDTO?
     public var requiredPlanIds: [String]?
     public var requiredPlanNames: [String]?
     public var stackable: Bool
@@ -9412,7 +9455,7 @@ public struct PlanDTO: Codable {
     }
 }
 
-public struct PlanVersionDTO: Codable {
+public struct PlanVersionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -9478,9 +9521,9 @@ public struct PlanVersionDTO: Codable {
 }
 
 /// ProjectModelDTO provides optional project association for DTOs
-public struct ProjectModelDTO: Codable {
+public struct ProjectModelDTO: Codable, Sendable {
     public var projectId: String?
-    public var project: ProjectDTO?
+    @Indirect public var project: ProjectDTO?
 
     public init(
         projectId: String? = nil,
@@ -9497,16 +9540,16 @@ public struct ProjectModelDTO: Codable {
 }
 
 /// ProjectDTO for API responses
-public final class ProjectDTO: Codable {
+public struct ProjectDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var name: String
     public var description: String
@@ -9514,7 +9557,7 @@ public final class ProjectDTO: Codable {
     public var color: String?
     public var icon: String?
     public var parentId: String?
-    public var parent: ProjectDTO?
+    @Indirect public var parent: ProjectDTO?
     public var children: [ProjectDTO]?
 
     public init(
@@ -9579,7 +9622,7 @@ public final class ProjectDTO: Codable {
     }
 }
 
-public struct DiagnosticsConfig: Codable {
+public struct DiagnosticsConfig: Codable, Sendable {
     public var level: Int
 
     public init(
@@ -9594,7 +9637,7 @@ public struct DiagnosticsConfig: Codable {
 }
 
 /// RefRouteDTO for API responses
-public struct RefRouteDTO: Codable {
+public struct RefRouteDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -9653,7 +9696,7 @@ public struct RefRouteDTO: Codable {
 }
 
 /// KnowledgeCreateRequest is the request body for POST /knowledge.
-public struct KnowledgeCreateRequest: Codable {
+public struct KnowledgeCreateRequest: Codable, Sendable {
     public var name: String
     public var title: String?
     public var description: String?
@@ -9661,7 +9704,7 @@ public struct KnowledgeCreateRequest: Codable {
     public var type: KnowledgeType?
     public var lifecycle: KnowledgeLifecycle?
     /// Version content (inline — creates first version)
-    public var version: KnowledgeVersionInput?
+    @Indirect public var version: KnowledgeVersionInput?
 
     public init(
         name: String = "",
@@ -9693,9 +9736,9 @@ public struct KnowledgeCreateRequest: Codable {
 }
 
 /// KnowledgeVersionInput is the input shape for creating/updating a knowledge version.
-public struct KnowledgeVersionInput: Codable {
+public struct KnowledgeVersionInput: Codable, Sendable {
     public var description: String?
-    public var content: KnowledgeFile?
+    @Indirect public var content: KnowledgeFile?
     public var files: [KnowledgeFile]?
     public var tags: [String]?
     /// environment signals for project scoping
@@ -9751,10 +9794,10 @@ public struct KnowledgeVersionInput: Codable {
 }
 
 /// KnowledgeUpdateRequest is the request body for PUT /knowledge/{id}.
-public struct KnowledgeUpdateRequest: Codable {
+public struct KnowledgeUpdateRequest: Codable, Sendable {
     public var title: String?
     public var description: String?
-    public var version: KnowledgeVersionInput?
+    @Indirect public var version: KnowledgeVersionInput?
 
     public init(
         title: String? = nil,
@@ -9774,7 +9817,7 @@ public struct KnowledgeUpdateRequest: Codable {
 }
 
 /// CreateSubscriptionRequest is the request body for POST /subscriptions.
-public struct CreateSubscriptionRequest: Codable {
+public struct CreateSubscriptionRequest: Codable, Sendable {
     public var planId: String
     /// "monthly" or "yearly", default "monthly"
     public var interval: String?
@@ -9802,7 +9845,7 @@ public struct CreateSubscriptionRequest: Codable {
 }
 
 /// ChangePlanRequest is the request body for POST /subscriptions/change.
-public struct ChangePlanRequest: Codable {
+public struct ChangePlanRequest: Codable, Sendable {
     public var planId: String
 
     public init(
@@ -9817,7 +9860,7 @@ public struct ChangePlanRequest: Codable {
 }
 
 /// CancelSubscriptionRequest is the request body for POST /subscriptions/cancel.
-public struct CancelSubscriptionRequest: Codable {
+public struct CancelSubscriptionRequest: Codable, Sendable {
     public var atPeriodEnd: Bool?
 
     public init(
@@ -9832,7 +9875,7 @@ public struct CancelSubscriptionRequest: Codable {
 }
 
 /// OAuthAuthorizeInfoResponse is returned by GET /oauth/authorize/info.
-public struct OAuthAuthorizeInfoResponse: Codable {
+public struct OAuthAuthorizeInfoResponse: Codable, Sendable {
     public var clientName: String
     public var clientType: String
     public var origin: String
@@ -9867,7 +9910,7 @@ public struct OAuthAuthorizeInfoResponse: Codable {
 }
 
 /// OAuthApproveRequest is the request body for POST /oauth/authorize/approve.
-public struct OAuthApproveRequest: Codable {
+public struct OAuthApproveRequest: Codable, Sendable {
     public var clientId: String
     public var redirectUri: String
     public var codeChallenge: String
@@ -9898,7 +9941,7 @@ public struct OAuthApproveRequest: Codable {
 }
 
 /// OAuthRedirectResponse wraps a redirect URI.
-public struct OAuthRedirectResponse: Codable {
+public struct OAuthRedirectResponse: Codable, Sendable {
     public var redirectUri: String
 
     public init(
@@ -9913,7 +9956,7 @@ public struct OAuthRedirectResponse: Codable {
 }
 
 /// OAuthConnectedApp represents an authorized OAuth client.
-public struct OAuthConnectedApp: Codable {
+public struct OAuthConnectedApp: Codable, Sendable {
     public var clientId: String
     public var clientName: String
     public var clientType: String
@@ -9952,7 +9995,7 @@ public struct OAuthConnectedApp: Codable {
 }
 
 /// SetVisibilityRequest is used by admin endpoints to set visibility.
-public struct SetVisibilityRequest: Codable {
+public struct SetVisibilityRequest: Codable, Sendable {
     public var visibility: String
 
     public init(
@@ -9967,7 +10010,7 @@ public struct SetVisibilityRequest: Codable {
 }
 
 /// ChargeAmountRequest is the request for charging a saved payment method.
-public struct ChargeAmountRequest: Codable {
+public struct ChargeAmountRequest: Codable, Sendable {
     public var amount: Int
 
     public init(
@@ -9982,7 +10025,7 @@ public struct ChargeAmountRequest: Codable {
 }
 
 /// CompletePaymentRequest finishes a checkout or payment session.
-public struct CompletePaymentRequest: Codable {
+public struct CompletePaymentRequest: Codable, Sendable {
     public var sessionId: String?
     public var paymentId: String?
 
@@ -10001,7 +10044,7 @@ public struct CompletePaymentRequest: Codable {
 }
 
 /// UpdateCredentialScopesRequest adds OAuth scopes to a connected credential.
-public struct UpdateCredentialScopesRequest: Codable {
+public struct UpdateCredentialScopesRequest: Codable, Sendable {
     public var scopes: [String]?
 
     public init(
@@ -10016,7 +10059,7 @@ public struct UpdateCredentialScopesRequest: Codable {
 }
 
 /// SuggestRequest is the input for the suggest endpoint.
-public struct SuggestRequest: Codable {
+public struct SuggestRequest: Codable, Sendable {
     public var query: String
     /// conversation context for embedding enrichment
     public var context: String?
@@ -10058,7 +10101,7 @@ public struct SuggestRequest: Codable {
 }
 
 /// SuggestResponse is the output of the suggest endpoint.
-public struct SuggestResponse: Codable {
+public struct SuggestResponse: Codable, Sendable {
     public var query: String
     public var results: [SuggestResult]?
     public var impressionId: String?
@@ -10081,7 +10124,7 @@ public struct SuggestResponse: Codable {
 }
 
 /// SuggestResult is a single result item from the suggest endpoint.
-public struct SuggestResult: Codable {
+public struct SuggestResult: Codable, Sendable {
     public var type: String
     public var tag: String?
     public var name: String
@@ -10126,14 +10169,14 @@ public struct RequirementType: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// RequirementError represents a single missing requirement with actionable info
-public struct RequirementError: Codable {
+public struct RequirementError: Codable, Sendable {
     /// "secret" | "credential" | "scope"
     public var type: RequirementType
     /// The requirement key that's missing
     public var key: String
     /// Human-readable error message
     public var message: String
-    public var action: SetupAction?
+    @Indirect public var action: SetupAction?
 
     public init(
         type: RequirementType,
@@ -10166,7 +10209,7 @@ public struct SetupActionType: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// SetupAction provides actionable info for resolving a missing requirement
-public struct SetupAction: Codable {
+public struct SetupAction: Codable, Sendable {
     /// add_secret | connect | add_scopes
     public var type: SetupActionType
     /// Provider key (e.g. "google")
@@ -10214,7 +10257,7 @@ public struct SetupAction: Codable {
 }
 
 /// CheckRequirementsRequest is the request body for checking requirements
-public struct CheckRequirementsRequest: Codable {
+public struct CheckRequirementsRequest: Codable, Sendable {
     public var secrets: [SecretRequirement]?
     public var credentials: [CredentialRequirement]?
 
@@ -10233,7 +10276,7 @@ public struct CheckRequirementsRequest: Codable {
 }
 
 /// CheckRequirementsResponse is the API response for checking requirements
-public struct CheckRequirementsResponse: Codable {
+public struct CheckRequirementsResponse: Codable, Sendable {
     public var satisfied: Bool
     public var errors: [RequirementError]?
 
@@ -10251,7 +10294,7 @@ public struct CheckRequirementsResponse: Codable {
     }
 }
 
-public struct ResourceShareDTO: Codable {
+public struct ResourceShareDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -10260,7 +10303,7 @@ public struct ResourceShareDTO: Codable {
     public var resourceId: String
     public var resourceType: String
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var permission: Permission
 
     public init(
@@ -10301,7 +10344,7 @@ public struct ResourceShareDTO: Codable {
     }
 }
 
-public struct ShareRequest: Codable {
+public struct ShareRequest: Codable, Sendable {
     public var userId: String
     public var permission: Permission
 
@@ -10324,21 +10367,21 @@ public struct ShareRequest: Codable {
 /// in the generated SDK output (TypeScript, Python, Go).
 /// 
 /// To expose a type to SDK consumers: reference it in this struct.
-public struct SDKTypes: Codable {
+public struct SDKTypes: Codable, Sendable {
     public init() {}
 }
 
 /// SecretDTO for API responses - VALUE IS NEVER EXPOSED
-public struct SecretDTO: Codable {
+public struct SecretDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var key: String
     public var maskedValue: String
@@ -10408,7 +10451,7 @@ public struct SecretDTO: Codable {
 /// Browsers cannot set headers on a WebSocket: they append
 /// `?access_token=<token>` to the URL. Everything else sends
 /// `Authorization: Bearer <token>`.
-public struct SocketAccess: Codable {
+public struct SocketAccess: Codable, Sendable {
     public var id: String
     public var url: String
     public var token: String
@@ -10436,16 +10479,16 @@ public struct SocketAccess: Codable {
 
 /// SocketDTO is a socket and what is known of its life. The traffic figures
 /// come from the relay once the socket has closed.
-public struct SocketDTO: Codable {
+public struct SocketDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var taskId: String
     public var relay: String
@@ -10535,10 +10578,10 @@ public struct SocketDTO: Codable {
 }
 
 /// MeStatsResponse is returned by GET /me/stats.
-public struct MeStatsResponse: Codable {
+public struct MeStatsResponse: Codable, Sendable {
     public var knowledgeCount: Int
     public var skillsCount: Int
-    public var extracted: StatBuckets
+    @Indirect public var extracted: StatBuckets
 
     public init(
         knowledgeCount: Int = 0,
@@ -10558,7 +10601,7 @@ public struct MeStatsResponse: Codable {
 }
 
 /// StatBuckets holds time-windowed counts.
-public struct StatBuckets: Codable {
+public struct StatBuckets: Codable, Sendable {
     public var today: Int
     public var thisWeek: Int
     public var allTime: Int
@@ -10581,7 +10624,7 @@ public struct StatBuckets: Codable {
 }
 
 /// SubscriptionDTO for API responses
-public struct SubscriptionDTO: Codable {
+public struct SubscriptionDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -10589,7 +10632,7 @@ public struct SubscriptionDTO: Codable {
     public var deletedAt: String?
     public var teamId: String
     public var planId: String
-    public var plan: PlanDTO?
+    @Indirect public var plan: PlanDTO?
     public var interval: SubscriptionInterval
     public var status: SubscriptionStatus
     public var currentPeriodStart: String
@@ -10652,16 +10695,16 @@ public struct SubscriptionDTO: Codable {
 }
 
 /// SurveyResponseDTO is the API representation of a survey response.
-public struct SurveyResponseDTO: Codable {
+public struct SurveyResponseDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var questionId: String
     public var response: String
@@ -10726,8 +10769,8 @@ public struct SurveyResponseDTO: Codable {
 /// GrantedAmount is the credit reward in microcents (0 if no reward was earned).
 /// RewardBlockedReason is set when the answer was recorded but the reward was
 /// withheld by policy (see RewardBlockedPaymentMethodRequired).
-public struct SubmitSurveyResponse: Codable {
-    public var response: SurveyResponseDTO
+public struct SubmitSurveyResponse: Codable, Sendable {
+    @Indirect public var response: SurveyResponseDTO
     public var grantedAmount: Int?
     public var rewardBlockedReason: String?
 
@@ -10749,7 +10792,7 @@ public struct SubmitSurveyResponse: Codable {
 }
 
 /// SubmitSurveyRequest is used to submit a single survey answer.
-public struct SubmitSurveyRequest: Codable {
+public struct SubmitSurveyRequest: Codable, Sendable {
     public var questionId: String
     public var response: String
     public var agent: String?
@@ -10780,19 +10823,19 @@ public struct SubmitSurveyRequest: Codable {
 }
 
 /// Hardware/System related types
-public struct SystemInfo: Codable {
+public struct SystemInfo: Codable, Sendable {
     public var hostname: String
     public var engineVersion: String
     public var ipv4: String
     public var ipv6: String
     public var macAddress: String
     public var os: String
-    public var docker: Docker
-    public var wsl2: WSL2
+    @Indirect public var docker: Docker
+    @Indirect public var wsl2: WSL2
     public var cpus: [CPU]?
-    public var ram: RAM
+    @Indirect public var ram: RAM
     public var volumes: [Volume]?
-    public var hfCache: HFCacheInfo
+    @Indirect public var hfCache: HFCacheInfo
     public var gpus: [GPU]?
 
     public init(
@@ -10842,7 +10885,7 @@ public struct SystemInfo: Codable {
     }
 }
 
-public struct Docker: Codable {
+public struct Docker: Codable, Sendable {
     public var binaryPath: String
     public var installed: Bool
     public var socketPath: String
@@ -10876,7 +10919,7 @@ public struct Docker: Codable {
     }
 }
 
-public struct WSL2: Codable {
+public struct WSL2: Codable, Sendable {
     public var installed: Bool
     public var enabled: Bool
     public var version: String
@@ -10898,7 +10941,7 @@ public struct WSL2: Codable {
     }
 }
 
-public struct CPU: Codable {
+public struct CPU: Codable, Sendable {
     public var name: String
     public var vendorId: String
     public var family: String
@@ -10940,7 +10983,7 @@ public struct CPU: Codable {
     }
 }
 
-public struct Volume: Codable {
+public struct Volume: Codable, Sendable {
     public var name: String
     public var size: Int
     public var used: Int
@@ -10970,7 +11013,7 @@ public struct Volume: Codable {
     }
 }
 
-public struct RAM: Codable {
+public struct RAM: Codable, Sendable {
     public var total: Int
     public var available: Int
     public var used: Int
@@ -11028,7 +11071,7 @@ public struct RAM: Codable {
     }
 }
 
-public struct GPU: Codable {
+public struct GPU: Codable, Sendable {
     public var id: String
     public var name: String
     public var index: Int
@@ -11071,7 +11114,7 @@ public struct GPU: Codable {
 }
 
 /// CachedRevisionInfo represents information about a cached revision
-public struct CachedRevisionInfo: Codable {
+public struct CachedRevisionInfo: Codable, Sendable {
     public var commitHash: String
     public var snapshotPath: String
     public var lastModified: String
@@ -11110,7 +11153,7 @@ public struct CachedRevisionInfo: Codable {
 }
 
 /// CachedRepoInfo represents information about a cached repository
-public struct CachedRepoInfo: Codable {
+public struct CachedRepoInfo: Codable, Sendable {
     public var repoId: String
     public var repoType: String
     public var repoPath: String
@@ -11161,7 +11204,7 @@ public struct CachedRepoInfo: Codable {
 }
 
 /// HFCacheInfo represents information about the Huggingface cache
-public struct HFCacheInfo: Codable {
+public struct HFCacheInfo: Codable, Sendable {
     public var cacheDir: String
     public var repos: [CachedRepoInfo]?
     public var sizeOnDisk: Int
@@ -11189,7 +11232,7 @@ public struct HFCacheInfo: Codable {
 
 /// TaskEvent represents a single status transition event.
 /// Duplicated here (no gorm tags) so DTOs can reference it without importing models.
-public struct TaskEvent: Codable {
+public struct TaskEvent: Codable, Sendable {
     public var id: String
     public var createdAt: String
     public var eventTime: String
@@ -11220,7 +11263,7 @@ public struct TaskEvent: Codable {
 }
 
 /// TaskLog represents a single log entry for a task.
-public struct TaskLog: Codable {
+public struct TaskLog: Codable, Sendable {
     public var id: String
     public var createdAt: String
     public var updatedAt: String
@@ -11255,16 +11298,16 @@ public struct TaskLog: Codable {
 }
 
 /// TaskDTO is the full API response for a task.
-public struct TaskDTO: Codable {
+public struct TaskDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var graphId: String?
     public var userPublicKey: String?
@@ -11272,9 +11315,9 @@ public struct TaskDTO: Codable {
     public var isFeatured: Bool
     public var status: TaskStatus
     public var appId: String
-    public var app: AppDTO?
+    @Indirect public var app: AppDTO?
     public var appVersionId: String
-    public var appVersion: AppVersionDTO?
+    @Indirect public var appVersion: AppVersionDTO?
     public var appVariant: String
     public var function: String
     public var infra: Infra
@@ -11284,11 +11327,11 @@ public struct TaskDTO: Codable {
     public var subFlowRunId: String?
     public var agentId: String?
     public var agentVersionId: String?
-    public var agent: AgentDTO?
+    @Indirect public var agent: AgentDTO?
     public var engineId: String?
-    public var engine: EngineSummary?
+    @Indirect public var engine: EngineSummary?
     public var workerId: String?
-    public var worker: WorkerSummary?
+    @Indirect public var worker: WorkerSummary?
     public var runAt: String?
     public var webhook: String?
     public var setup: JSONValue?
@@ -11446,7 +11489,7 @@ public struct TaskDTO: Codable {
 }
 
 /// TaskResultDTO is a slim response for task run/result endpoints.
-public struct TaskResultDTO: Codable {
+public struct TaskResultDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var status: TaskStatus
@@ -11459,7 +11502,7 @@ public struct TaskResultDTO: Codable {
     public var runAt: String?
     /// Socket is set when the function is a stream function: the caller dials
     /// it to talk to the app. POST /sockets/{id}/access issues a fresh one.
-    public var socket: SocketAccess?
+    @Indirect public var socket: SocketAccess?
 
     public init(
         id: String = "",
@@ -11503,7 +11546,7 @@ public struct TaskResultDTO: Codable {
 }
 
 /// TaskLogsDTO is a lightweight response for task logs endpoint.
-public struct TaskLogsDTO: Codable {
+public struct TaskLogsDTO: Codable, Sendable {
     public var taskId: String
     public var status: TaskStatus
     public var events: [TaskEvent]?
@@ -11530,7 +11573,7 @@ public struct TaskLogsDTO: Codable {
 }
 
 /// TaskTimingGroup represents a high-level phase of task execution with its duration.
-public struct TaskTimingGroup: Codable {
+public struct TaskTimingGroup: Codable, Sendable {
     public var label: String
     public var startAt: String
     public var endAt: String?
@@ -11561,7 +11604,7 @@ public struct TaskTimingGroup: Codable {
 }
 
 /// TaskTimingEvent represents a single status transition with the time spent before the next transition.
-public struct TaskTimingEvent: Codable {
+public struct TaskTimingEvent: Codable, Sendable {
     public var status: String
     public var timestamp: String
     public var duration: String?
@@ -11592,7 +11635,7 @@ public struct TaskTimingEvent: Codable {
 }
 
 /// TaskTimingsDTO is the response for the task timings endpoint.
-public struct TaskTimingsDTO: Codable {
+public struct TaskTimingsDTO: Codable, Sendable {
     public var taskId: String
     public var status: TaskStatus
     public var totalDuration: String
@@ -11627,7 +11670,7 @@ public struct TaskTimingsDTO: Codable {
 }
 
 /// TeamDTO is the API response for a full team.
-public struct TeamDTO: Codable {
+public struct TeamDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -11708,12 +11751,12 @@ public struct TeamDTO: Codable {
 }
 
 /// TeamMemberDTO is the API response for a team member.
-public struct TeamMemberDTO: Codable {
+public struct TeamMemberDTO: Codable, Sendable {
     public var id: String
     public var userId: String
     public var teamId: String
     public var role: TeamRole
-    public var user: TeamMemberUserDTO?
+    @Indirect public var user: TeamMemberUserDTO?
     /// AssignableRoles are the roles the caller may set this member to, the
     /// current one included; Removable, whether the caller may remove them.
     /// Set on GET /teams/{id}/members by the rules the member writes enforce;
@@ -11751,7 +11794,7 @@ public struct TeamMemberDTO: Codable {
 }
 
 /// TeamMemberUserDTO is a lightweight user view within team membership.
-public struct TeamMemberUserDTO: Codable {
+public struct TeamMemberUserDTO: Codable, Sendable {
     public var id: String
     public var email: String
     public var name: String
@@ -11782,7 +11825,7 @@ public struct TeamMemberUserDTO: Codable {
 }
 
 /// TeamRelationDTO is a lightweight team reference embedded in other DTOs.
-public struct TeamRelationDTO: Codable {
+public struct TeamRelationDTO: Codable, Sendable {
     public var id: String
     public var createdAt: String
     public var updatedAt: String
@@ -11821,7 +11864,7 @@ public struct TeamRelationDTO: Codable {
 }
 
 /// TeamInviteDTO is the public representation of an invite
-public struct TeamInviteDTO: Codable {
+public struct TeamInviteDTO: Codable, Sendable {
     public var id: String
     public var teamId: String
     public var email: String
@@ -11829,8 +11872,8 @@ public struct TeamInviteDTO: Codable {
     public var status: TeamInviteStatus
     public var expiresAt: String
     public var createdAt: String
-    public var invitedBy: TeamMemberUserDTO?
-    public var team: TeamRelationDTO?
+    @Indirect public var invitedBy: TeamMemberUserDTO?
+    @Indirect public var team: TeamRelationDTO?
 
     public init(
         id: String = "",
@@ -11868,7 +11911,7 @@ public struct TeamInviteDTO: Codable {
 }
 
 /// TeamInviteCreateRequest is used when creating a team invite
-public struct TeamInviteCreateRequest: Codable {
+public struct TeamInviteCreateRequest: Codable, Sendable {
     public var email: String
     public var role: TeamRole
 
@@ -11889,7 +11932,7 @@ public struct TeamInviteCreateRequest: Codable {
 /// GovernanceSource says who decides one aspect of a team. By is
 /// shared.GovernedBySelf (the team itself) or shared.GovernedByOrg; TeamID is
 /// the deciding team: the team itself, or the org's workspace.
-public struct GovernanceSource: Codable {
+public struct GovernanceSource: Codable, Sendable {
     public var by: String
     public var teamId: String
 
@@ -11908,9 +11951,9 @@ public struct GovernanceSource: Codable {
 }
 
 /// TeamGovernance is who decides a team's billing and usage policy.
-public struct TeamGovernance: Codable {
-    public var billing: GovernanceSource
-    public var policy: GovernanceSource
+public struct TeamGovernance: Codable, Sendable {
+    @Indirect public var billing: GovernanceSource
+    @Indirect public var policy: GovernanceSource
 
     public init(
         billing: GovernanceSource,
@@ -11927,7 +11970,7 @@ public struct TeamGovernance: Codable {
 }
 
 /// TeamViewOrg is the org a team belongs to, as the caller sees it.
-public struct TeamViewOrg: Codable {
+public struct TeamViewOrg: Codable, Sendable {
     public var id: String
     public var name: String
     public var slug: String
@@ -11962,11 +12005,11 @@ public struct TeamViewOrg: Codable {
 /// TeamViewDTO is a team as the caller sees it in settings: what kind of
 /// workspace it is, who governs it, and what the caller may do there. Can is computed by the same table the API's route
 /// gates evaluate, so clients read permissions instead of re-deriving them.
-public struct TeamViewDTO: Codable {
+public struct TeamViewDTO: Codable, Sendable {
     public var teamId: String
     public var kind: TeamKind
-    public var org: TeamViewOrg?
-    public var governance: TeamGovernance
+    @Indirect public var org: TeamViewOrg?
+    @Indirect public var governance: TeamGovernance
     public var can: [TeamCapability]?
 
     public init(
@@ -11992,16 +12035,16 @@ public struct TeamViewDTO: Codable {
     }
 }
 
-public struct TelemetryReportDTO: Codable {
+public struct TelemetryReportDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var ip: String
     public var level: Int
@@ -12054,7 +12097,7 @@ public struct TelemetryReportDTO: Codable {
     }
 }
 
-public struct SubmitTelemetryRequest: Codable {
+public struct SubmitTelemetryRequest: Codable, Sendable {
     public var payload: [String: JSONValue]?
 
     public init(
@@ -12069,7 +12112,7 @@ public struct SubmitTelemetryRequest: Codable {
 }
 
 /// ToolInvocationFunction contains the function details for a tool invocation
-public struct ToolInvocationFunction: Codable {
+public struct ToolInvocationFunction: Codable, Sendable {
     public var name: String
     public var arguments: StringEncodedMap?
 
@@ -12088,27 +12131,27 @@ public struct ToolInvocationFunction: Codable {
 }
 
 /// ToolInvocationDTO for API responses
-public struct ToolInvocationDTO: Codable {
+public struct ToolInvocationDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var chatMessageId: String
     public var toolInvocationId: String
     public var type: ToolType
     public var displayName: String?
     public var executionId: String?
-    public var function: ToolInvocationFunction
+    @Indirect public var function: ToolInvocationFunction
     public var status: ToolInvocationStatus
     public var result: String?
     public var data: JSONValue?
-    public var widget: Widget?
+    @Indirect public var widget: Widget?
 
     public init(
         id: String = "",
@@ -12179,7 +12222,7 @@ public struct ToolInvocationDTO: Codable {
 }
 
 /// MetaItem represents metadata about an input or output item
-public struct MetaItem: Codable {
+public struct MetaItem: Codable, Sendable {
     public var type: MetaItemType
     public var tokens: Int?
     public var width: Int?
@@ -12242,7 +12285,7 @@ public struct MetaItem: Codable {
 }
 
 /// OutputMeta contains structured metadata about task inputs and outputs for pricing calculation
-public struct OutputMeta: Codable {
+public struct OutputMeta: Codable, Sendable {
     public var inputs: [MetaItem]?
     public var outputs: [MetaItem]?
 
@@ -12261,16 +12304,16 @@ public struct OutputMeta: Codable {
 }
 
 /// UsageEventDTO is the API representation of a usage event.
-public struct UsageEventDTO: Codable {
+public struct UsageEventDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
     public var updatedAt: String
     public var deletedAt: String?
     public var userId: String
-    public var user: UserRelationDTO?
+    @Indirect public var user: UserRelationDTO?
     public var teamId: String
-    public var team: TeamRelationDTO?
+    @Indirect public var team: TeamRelationDTO?
     public var visibility: Visibility
     public var usageBillingRecordId: String
     public var referenceId: String
@@ -12344,7 +12387,7 @@ public struct UsageEventDTO: Codable {
 }
 
 /// UserDTO is the API response for a full user.
-public struct UserDTO: Codable {
+public struct UserDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
     public var createdAt: String
@@ -12362,7 +12405,7 @@ public struct UserDTO: Codable {
     public var bannedAt: String?
     public var banNote: String?
     public var totpEnabled: Bool
-    public var metadata: UserMetadataDTO?
+    @Indirect public var metadata: UserMetadataDTO?
 
     public init(
         id: String = "",
@@ -12421,7 +12464,7 @@ public struct UserDTO: Codable {
 }
 
 /// UserRelationDTO is a lightweight user reference embedded in other DTOs.
-public struct UserRelationDTO: Codable {
+public struct UserRelationDTO: Codable, Sendable {
     public var id: String
     public var createdAt: String
     public var updatedAt: String
@@ -12452,7 +12495,7 @@ public struct UserRelationDTO: Codable {
 }
 
 /// UserMetadataDTO is the API representation of user metadata.
-public struct UserMetadataDTO: Codable {
+public struct UserMetadataDTO: Codable, Sendable {
     public var userId: String
     public var completedOnboarding: Bool
     public var useCase: String
@@ -12530,7 +12573,7 @@ public struct A2UIComponentType: RawRepresentable, Codable, Hashable, Sendable {
 
 /// A2UIComponent is the universal component representation.
 /// Children are string IDs (flat adjacency list), not nested objects.
-public struct A2UIComponent: Codable {
+public struct A2UIComponent: Codable, Sendable {
     public var id: String
     public var component: A2UIComponentType
     /// Layout
@@ -12540,22 +12583,22 @@ public struct A2UIComponent: Codable {
     public var direction: String?
     public var gap: Int?
     /// Text
-    public var text: JSONValue?
+    @Indirect public var text: JSONValue?
     public var variant: String?
     /// Image
-    public var url: JSONValue?
+    @Indirect public var url: JSONValue?
     public var fit: String?
     /// Icon
-    public var name: JSONValue?
+    @Indirect public var name: JSONValue?
     /// Divider
     public var axis: String?
     /// Button / Card
     public var child: String?
     public var primary: Bool?
-    public var action: A2UIAction?
+    @Indirect public var action: A2UIAction?
     /// TextField
     public var label: String?
-    public var value: JSONValue?
+    @Indirect public var value: JSONValue?
     public var textFieldType: String?
     public var validationRegexp: String?
     public var placeholder: String?
@@ -12568,7 +12611,7 @@ public struct A2UIComponent: Codable {
     public var enableTime: Bool?
     /// ChoicePicker
     public var options: [A2UIChoiceOption]?
-    public var selections: JSONValue?
+    @Indirect public var selections: JSONValue?
     public var maxAllowedSelections: Int?
     /// Modal
     public var entryPointChild: String?
@@ -12576,7 +12619,7 @@ public struct A2UIComponent: Codable {
     /// Tabs
     public var tabItems: [A2UITabItem]?
     /// Common
-    public var accessibility: A2UIAccessibility?
+    @Indirect public var accessibility: A2UIAccessibility?
     public var weight: Double?
     public var disabled: Bool?
     public var required: Bool?
@@ -12593,7 +12636,7 @@ public struct A2UIComponent: Codable {
     public var showLegend: Bool?
     public var showTooltip: Bool?
     /// Extension: Form
-    public var onSubmitAction: A2UIAction?
+    @Indirect public var onSubmitAction: A2UIAction?
     /// Extension: Artifact
     public var artifactId: String?
     public var artifactVersionId: String?
@@ -12763,7 +12806,7 @@ public struct A2UIComponent: Codable {
 }
 
 /// A2UIBoundValue is either a literal or a data model path reference.
-public struct A2UIBoundValue: Codable {
+public struct A2UIBoundValue: Codable, Sendable {
     public var path: String?
 
     public init(
@@ -12777,7 +12820,7 @@ public struct A2UIBoundValue: Codable {
     }
 }
 
-public struct A2UIAction: Codable {
+public struct A2UIAction: Codable, Sendable {
     public var type: String
     public var payload: JSONValue?
 
@@ -12795,7 +12838,7 @@ public struct A2UIAction: Codable {
     }
 }
 
-public struct A2UIChoiceOption: Codable {
+public struct A2UIChoiceOption: Codable, Sendable {
     public var label: String
     public var value: String
 
@@ -12813,7 +12856,7 @@ public struct A2UIChoiceOption: Codable {
     }
 }
 
-public struct A2UITabItem: Codable {
+public struct A2UITabItem: Codable, Sendable {
     public var title: String
     public var child: String
 
@@ -12831,7 +12874,7 @@ public struct A2UITabItem: Codable {
     }
 }
 
-public struct A2UIAccessibility: Codable {
+public struct A2UIAccessibility: Codable, Sendable {
     public var label: String?
     public var description: String?
 
@@ -12850,7 +12893,7 @@ public struct A2UIAccessibility: Codable {
 }
 
 /// A2UISurface is the complete renderable state for a widget.
-public struct A2UISurface: Codable {
+public struct A2UISurface: Codable, Sendable {
     public var version: String
     public var surfaceId: String
     public var catalogId: String
@@ -13042,9 +13085,11 @@ public struct ChatMessageRole: RawRepresentable, Codable, Hashable, Sendable {
     public static let tool = ChatMessageRole(rawValue: "tool")
     /// Internal bookkeeping roles — never sent to the LLM provider.
     /// BuildContext folds injections into the user turn and replaces
-    /// compaction markers with their summary.
+    /// compaction markers with their summary. Event messages are display-only
+    /// system info (a hook ran, ...) and BuildContext skips them.
     public static let injection = ChatMessageRole(rawValue: "injection")
     public static let compaction = ChatMessageRole(rawValue: "compaction")
+    public static let event = ChatMessageRole(rawValue: "event")
 }
 
 public struct ChatMessageStatus: RawRepresentable, Codable, Hashable, Sendable {
@@ -13067,6 +13112,7 @@ public struct ChatMessageContentType: RawRepresentable, Codable, Hashable, Senda
     public static let image = ChatMessageContentType(rawValue: "image")
     public static let file = ChatMessageContentType(rawValue: "file")
     public static let tool = ChatMessageContentType(rawValue: "tool")
+    public static let event = ChatMessageContentType(rawValue: "event")
 }
 
 public struct ChannelType: RawRepresentable, Codable, Hashable, Sendable {
@@ -13080,7 +13126,7 @@ public struct ChannelType: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// ChatData contains agent-specific data for a chat session
-public struct ChatData: Codable {
+public struct ChatData: Codable, Sendable {
     public var planSteps: [PlanStep]?
     public var memory: StringEncodedMap?
     public var alwaysAllowedTools: [String]?
@@ -13103,7 +13149,7 @@ public struct ChatData: Codable {
 }
 
 /// PlanStep represents a step in an agent's execution plan
-public struct PlanStep: Codable {
+public struct PlanStep: Codable, Sendable {
     public var index: Int
     public var title: String
     public var description: String
@@ -13134,13 +13180,14 @@ public struct PlanStep: Codable {
 }
 
 /// ChatMessageContent represents the content of a chat message
-public struct ChatMessageContent: Codable {
+public struct ChatMessageContent: Codable, Sendable {
     public var type: ChatMessageContentType
     public var error: String?
     public var text: String?
     public var image: String?
     public var file: String?
     public var toolCalls: [ToolCall]?
+    @Indirect public var event: ChatEvent?
 
     public init(
         type: ChatMessageContentType,
@@ -13148,7 +13195,8 @@ public struct ChatMessageContent: Codable {
         text: String? = nil,
         image: String? = nil,
         file: String? = nil,
-        toolCalls: [ToolCall]? = nil
+        toolCalls: [ToolCall]? = nil,
+        event: ChatEvent? = nil
     ) {
         self.type = type
         self.error = error
@@ -13156,6 +13204,7 @@ public struct ChatMessageContent: Codable {
         self.image = image
         self.file = file
         self.toolCalls = toolCalls
+        self.event = event
     }
 
     enum CodingKeys: String, CodingKey {
@@ -13165,13 +13214,86 @@ public struct ChatMessageContent: Codable {
         case image = "image"
         case file = "file"
         case toolCalls = "tool_calls"
+        case event = "event"
+    }
+}
+
+public struct ChatEventType: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let hook = ChatEventType(rawValue: "hook")
+}
+
+/// ChatEvent is the payload of an event-role message: system info shown in the
+/// chat but never sent to the model.
+public struct ChatEvent: Codable, Sendable {
+    public var type: ChatEventType
+    @Indirect public var hook: ChatHookEvent?
+
+    public init(
+        type: ChatEventType,
+        hook: ChatHookEvent? = nil
+    ) {
+        self.type = type
+        self.hook = hook
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type = "type"
+        case hook = "hook"
+    }
+}
+
+/// ChatHookEvent records one lifecycle hook handler run.
+public struct ChatHookEvent: Codable, Sendable {
+    public var event: HookEvent
+    public var handlerType: HookHandlerType
+    /// Handler names what ran: the builtin or agent ref, or a webhook's host
+    /// (never its full URL, which can carry credentials).
+    public var handler: String
+    public var decision: HookDecision?
+    public var reason: String?
+    public var injected: Bool?
+    public var error: String?
+    public var durationMs: Int
+
+    public init(
+        event: HookEvent,
+        handlerType: HookHandlerType,
+        handler: String = "",
+        decision: HookDecision? = nil,
+        reason: String? = nil,
+        injected: Bool? = nil,
+        error: String? = nil,
+        durationMs: Int = 0
+    ) {
+        self.event = event
+        self.handlerType = handlerType
+        self.handler = handler
+        self.decision = decision
+        self.reason = reason
+        self.injected = injected
+        self.error = error
+        self.durationMs = durationMs
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case event = "event"
+        case handlerType = "handler_type"
+        case handler = "handler"
+        case decision = "decision"
+        case reason = "reason"
+        case injected = "injected"
+        case error = "error"
+        case durationMs = "duration_ms"
     }
 }
 
 /// ChannelContext records which channel a chat or message came through
 /// (slack, telegram, an OpenAI-dialect tag, ...) and the transport metadata
 /// needed to route a reply back to it.
-public struct ChannelContext: Codable {
+public struct ChannelContext: Codable, Sendable {
     public var channelType: ChannelType?
     public var channelMetadata: JSONValue?
 
@@ -13227,7 +13349,7 @@ public struct FlowRunStatus: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// FlowViewport represents the viewport state of a flow canvas
-public struct FlowViewport: Codable {
+public struct FlowViewport: Codable, Sendable {
     public var x: Double
     public var y: Double
     public var zoom: Double
@@ -13250,10 +13372,10 @@ public struct FlowViewport: Codable {
 }
 
 /// FlowNode represents a node in a flow graph
-public struct FlowNode: Codable {
+public struct FlowNode: Codable, Sendable {
     public var id: String
     public var type: String
-    public var position: FlowNodePosition
+    @Indirect public var position: FlowNodePosition
 
     public init(
         id: String = "",
@@ -13273,7 +13395,7 @@ public struct FlowNode: Codable {
 }
 
 /// FlowNodePosition represents the position of a node
-public struct FlowNodePosition: Codable {
+public struct FlowNodePosition: Codable, Sendable {
     public var x: Double
     public var y: Double
 
@@ -13292,7 +13414,7 @@ public struct FlowNodePosition: Codable {
 }
 
 /// FlowEdge represents an edge between nodes in a flow graph
-public struct FlowEdge: Codable {
+public struct FlowEdge: Codable, Sendable {
     public var id: String
     public var type: String
     public var source: String
@@ -13327,7 +13449,7 @@ public struct FlowEdge: Codable {
 }
 
 /// FlowNodeConnection represents a connection between nodes in a flow
-public struct FlowNodeConnection: Codable {
+public struct FlowNodeConnection: Codable, Sendable {
     public var nodeId: String
     public var key: String
     public var type: String
@@ -13357,8 +13479,8 @@ public struct FlowNodeConnection: Codable {
 public typealias FlowRunInputs = [String: [String: JSONValue]]
 
 /// FlowRunInput represents a single input value or connection for a flow node
-public struct FlowRunInput: Codable {
-    public var connection: FlowNodeConnection?
+public struct FlowRunInput: Codable, Sendable {
+    @Indirect public var connection: FlowNodeConnection?
     public var value: JSONValue
 
     public init(
@@ -13376,7 +13498,7 @@ public struct FlowRunInput: Codable {
 }
 
 /// OutputFieldMapping represents a mapping from a source node's field to an output field
-public struct OutputFieldMapping: Codable {
+public struct OutputFieldMapping: Codable, Sendable {
     public var sourceNodeId: String
     public var sourceFieldPath: String
     public var outputFieldName: String
@@ -13410,7 +13532,7 @@ public struct OutputFieldMapping: Codable {
 public typealias OutputMappings = [String: OutputFieldMapping]
 
 /// GateCondition defines a simple boolean condition for gate nodes.
-public struct GateCondition: Codable {
+public struct GateCondition: Codable, Sendable {
     public var field: String
     public var `operator`: String
     public var value: JSONValue
@@ -13433,7 +13555,7 @@ public struct GateCondition: Codable {
 }
 
 /// SelectorConfig defines how to pick element(s) from an array.
-public struct SelectorConfig: Codable {
+public struct SelectorConfig: Codable, Sendable {
     public var field: String
     public var mode: String
     public var index: Int?
@@ -13527,17 +13649,17 @@ public struct MergeStrategy: RawRepresentable, Codable, Hashable, Sendable {
 
 /// StreamDelta is the marker base for all streaming delta types.
 /// Types embedding StreamDelta are routed through the delta channel.
-public struct StreamDelta: Codable {
+public struct StreamDelta: Codable, Sendable {
     public init() {}
 }
 
 /// LLMOutput is the output envelope from an LLM provider task.
 /// This is the contract between chat apps (sdk-py) and the agent runtime (go/api).
-public struct LLMOutput: Codable {
+public struct LLMOutput: Codable, Sendable {
     public var response: String
     public var reasoning: String?
     public var toolCalls: [ToolCall]?
-    public var usage: LLMUsage?
+    @Indirect public var usage: LLMUsage?
 
     public init(
         response: String = "",
@@ -13560,11 +13682,11 @@ public struct LLMOutput: Codable {
 }
 
 /// LLMDelta is a streaming delta for LLMOutput.
-public struct LLMDelta: Codable {
+public struct LLMDelta: Codable, Sendable {
     public var response: String
     public var reasoning: String?
     public var toolCalls: [ToolCallDelta]?
-    public var usage: LLMUsage?
+    @Indirect public var usage: LLMUsage?
 
     public init(
         response: String = "",
@@ -13596,11 +13718,11 @@ public struct LLMDelta: Codable {
 /// ToolCallDelta is an incremental update to a tool call, identified by index.
 /// First delta for an index carries ID, Type, and Function.Name.
 /// Subsequent deltas carry only Function.Arguments fragments.
-public struct ToolCallDelta: Codable {
+public struct ToolCallDelta: Codable, Sendable {
     public var index: Int
     public var id: String?
     public var type: ToolCallType?
-    public var function: ToolCallFunctionDelta?
+    @Indirect public var function: ToolCallFunctionDelta?
 
     public init(
         index: Int = 0,
@@ -13630,7 +13752,7 @@ public struct ToolCallDelta: Codable {
 
 /// ToolCallFunctionDelta carries partial tool call function data.
 /// Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
-public struct ToolCallFunctionDelta: Codable {
+public struct ToolCallFunctionDelta: Codable, Sendable {
     public var name: String?
     public var arguments: String?
 
@@ -13667,7 +13789,7 @@ public struct ToolChoiceMode: RawRepresentable, Codable, Hashable, Sendable {
 /// ToolChoice constrains tool calling for a turn. Providers spell this
 /// differently (OpenAI tool_choice, Anthropic tool_choice.type any/tool,
 /// Gemini functionCallingConfig); apps translate at the provider boundary.
-public struct ToolChoice: Codable {
+public struct ToolChoice: Codable, Sendable {
     public var mode: ToolChoiceMode
     /// required when Mode is function
     public var name: String?
@@ -13698,7 +13820,7 @@ public struct ResponseFormatType: RawRepresentable, Codable, Hashable, Sendable 
 
 /// ResponseFormat constrains the shape of the model's response.
 /// JSONSchema is required when Type is json_schema.
-public struct ResponseFormat: Codable {
+public struct ResponseFormat: Codable, Sendable {
     public var type: ResponseFormatType
     /// schema name, where the provider wants one
     public var name: String?
@@ -13736,7 +13858,7 @@ public struct ResponseFormat: Codable {
 /// 
 /// Which model runs is not a setting: the app is the model. An app that
 /// fronts several models (a router) declares its own `model` input.
-public struct LLMSettings: Codable {
+public struct LLMSettings: Codable, Sendable {
     public var contextSize: Int
     public var temperature: Double?
     public var topP: Double?
@@ -13752,8 +13874,8 @@ public struct LLMSettings: Codable {
     public var reasoningMaxTokens: Int?
     public var systemPrompt: String
     public var tools: [Tool]?
-    public var toolChoice: ToolChoice?
-    public var responseFormat: ResponseFormat?
+    @Indirect public var toolChoice: ToolChoice?
+    @Indirect public var responseFormat: ResponseFormat?
 
     public init(
         contextSize: Int = 0,
@@ -13816,7 +13938,7 @@ public struct LLMSettings: Codable {
 
 /// LLMInput is the input envelope for an LLM provider task: the settings plus
 /// the conversation, with the current turn split out of the context.
-public struct LLMInput: Codable {
+public struct LLMInput: Codable, Sendable {
     public var contextSize: Int
     public var temperature: Double?
     public var topP: Double?
@@ -13832,8 +13954,8 @@ public struct LLMInput: Codable {
     public var reasoningMaxTokens: Int?
     public var systemPrompt: String
     public var tools: [Tool]?
-    public var toolChoice: ToolChoice?
-    public var responseFormat: ResponseFormat?
+    @Indirect public var toolChoice: ToolChoice?
+    @Indirect public var responseFormat: ResponseFormat?
     public var context: [LLMContextMessage]?
     public var role: ChatMessageRole?
     public var text: String?
@@ -13927,7 +14049,7 @@ public struct LLMInput: Codable {
 }
 
 /// LLMContextMessage represents a message in the chat context for LLM tasks
-public struct LLMContextMessage: Codable {
+public struct LLMContextMessage: Codable, Sendable {
     public var role: ChatMessageRole
     public var text: String?
     public var reasoning: String?
@@ -14488,7 +14610,7 @@ public struct SocketOutcome: RawRepresentable, Codable, Hashable, Sendable {
 /// It is deliberately not LLM-specific: agent lifecycle events and any future
 /// delta producer share this envelope, which is why the identity field below is
 /// a bare resource id rather than anything named after chat.
-public struct DeltaEvent: Codable {
+public struct DeltaEvent: Codable, Sendable {
     public var delta: JSONValue
     public var seq: Int
     /// ResourceID names what this delta belongs to — for an LLM task, the
@@ -14576,7 +14698,7 @@ public struct TaskLogType: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// TaskAction defines an action to execute when a task reaches a specific status.
-public struct TaskAction: Codable {
+public struct TaskAction: Codable, Sendable {
     public var key: String
     public var on: String
     public var params: JSONValue?
@@ -14599,8 +14721,8 @@ public struct TaskAction: Codable {
 }
 
 /// TaskMetadata holds optional metadata attached to a task.
-public struct TaskMetadata: Codable {
-    public var action: TaskAction?
+public struct TaskMetadata: Codable, Sendable {
+    @Indirect public var action: TaskAction?
 
     public init(
         action: TaskAction? = nil
@@ -14711,11 +14833,11 @@ public struct UtilityPreset: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
-public struct UtilityConfig: Codable {
+public struct UtilityConfig: Codable, Sendable {
     public var preset: UtilityPreset
     public var expression: String?
-    public var gate: GateCondition?
-    public var selector: SelectorConfig?
+    @Indirect public var gate: GateCondition?
+    @Indirect public var selector: SelectorConfig?
     public var constant: JSONValue?
     public var random: Bool?
     public var randomMin: Double?
@@ -14787,7 +14909,7 @@ public struct AgentEventType: RawRepresentable, Codable, Hashable, Sendable {
 
 /// AgentEvent is the backbone protocol event for agent runs.
 /// Published to "runs:<runID>" and "chats:<chatID>" keys on the event bus.
-public struct AgentEvent: Codable {
+public struct AgentEvent: Codable, Sendable {
     public var id: String
     public var type: AgentEventType
     public var runId: String
@@ -14825,7 +14947,7 @@ public struct AgentEvent: Codable {
     }
 }
 
-public struct RunStartedPayload: Codable {
+public struct RunStartedPayload: Codable, Sendable {
     public var agentId: String
     public var agentVersionId: String?
     public var userMessageId: String?
@@ -14847,7 +14969,7 @@ public struct RunStartedPayload: Codable {
     }
 }
 
-public struct RunStateChangedPayload: Codable {
+public struct RunStateChangedPayload: Codable, Sendable {
     public var fromState: AgentRunState
     public var toState: AgentRunState
     public var error: String?
@@ -14869,7 +14991,7 @@ public struct RunStateChangedPayload: Codable {
     }
 }
 
-public struct TurnStartedPayload: Codable {
+public struct TurnStartedPayload: Codable, Sendable {
     public var turnIndex: Int
     public var model: String?
 
@@ -14887,7 +15009,7 @@ public struct TurnStartedPayload: Codable {
     }
 }
 
-public struct TurnCompletedPayload: Codable {
+public struct TurnCompletedPayload: Codable, Sendable {
     public var turnIndex: Int
     public var toolCount: Int
     public var hasOutput: Bool
@@ -14913,7 +15035,7 @@ public struct TurnCompletedPayload: Codable {
     }
 }
 
-public struct ContentDeltaPayload: Codable {
+public struct ContentDeltaPayload: Codable, Sendable {
     public var kind: ContentDeltaKind
     public var delta: String
 
@@ -14939,7 +15061,7 @@ public struct ContentDeltaKind: RawRepresentable, Codable, Hashable, Sendable {
     public static let contentDeltaReasoning = ContentDeltaKind(rawValue: "reasoning")
 }
 
-public struct ToolStartedPayload: Codable {
+public struct ToolStartedPayload: Codable, Sendable {
     public var toolInvocationId: String
     public var toolName: String
     public var toolType: ToolType?
@@ -14969,7 +15091,7 @@ public struct ToolStartedPayload: Codable {
     }
 }
 
-public struct ToolCompletedPayload: Codable {
+public struct ToolCompletedPayload: Codable, Sendable {
     public var toolInvocationId: String
     public var toolName: String
     public var status: ToolInvocationStatus
@@ -14999,7 +15121,7 @@ public struct ToolCompletedPayload: Codable {
     }
 }
 
-public struct ApprovalRequiredPayload: Codable {
+public struct ApprovalRequiredPayload: Codable, Sendable {
     public var toolInvocationId: String
     public var toolName: String
     public var arguments: StringEncodedMap?
@@ -15025,7 +15147,7 @@ public struct ApprovalRequiredPayload: Codable {
     }
 }
 
-public struct ApprovalResolvedPayload: Codable {
+public struct ApprovalResolvedPayload: Codable, Sendable {
     public var toolInvocationId: String
     public var toolName: String
     /// "allow", "deny"
@@ -15052,7 +15174,7 @@ public struct ApprovalResolvedPayload: Codable {
     }
 }
 
-public struct HookExecutedPayload: Codable {
+public struct HookExecutedPayload: Codable, Sendable {
     public var hookEvent: HookEvent
     public var decision: HookDecision
     public var reason: String?
@@ -15078,7 +15200,7 @@ public struct HookExecutedPayload: Codable {
     }
 }
 
-public struct UsageUpdatedPayload: Codable {
+public struct UsageUpdatedPayload: Codable, Sendable {
     public var promptTokens: Int
     public var completionTokens: Int
     public var totalTokens: Int
@@ -15108,7 +15230,7 @@ public struct UsageUpdatedPayload: Codable {
     }
 }
 
-public struct ContextCompactedPayload: Codable {
+public struct ContextCompactedPayload: Codable, Sendable {
     public var beforeTokens: Int
     public var afterTokens: Int
 
@@ -15126,7 +15248,7 @@ public struct ContextCompactedPayload: Codable {
     }
 }
 
-public struct ErrorPayload: Codable {
+public struct ErrorPayload: Codable, Sendable {
     public var message: String
     public var code: String?
 
@@ -15225,7 +15347,7 @@ public struct HookEvent: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// HookEventDefinition describes a lifecycle hook event and its capabilities.
-public struct HookEventDefinition: Codable {
+public struct HookEventDefinition: Codable, Sendable {
     public var event: HookEvent
     public var description: String
     public var canGate: Bool
@@ -15286,7 +15408,7 @@ public struct BuiltinHook: RawRepresentable, Codable, Hashable, Sendable {
 }
 
 /// BuiltinHookDefinition describes a builtin hook and where it may be used.
-public struct BuiltinHookDefinition: Codable {
+public struct BuiltinHookDefinition: Codable, Sendable {
     public var name: BuiltinHook
     public var description: String
     /// Events the builtin may be attached to. A builtin that reads the turn's
@@ -15313,7 +15435,7 @@ public struct BuiltinHookDefinition: Codable {
 
 /// LifecycleHookConfig registers a handler for an agent lifecycle event.
 /// Stored on AgentVersion alongside Tools and Skills.
-public struct LifecycleHookConfig: Codable {
+public struct LifecycleHookConfig: Codable, Sendable {
     public var event: HookEvent
     public var type: HookHandlerType
     public var handler: String?
@@ -15350,7 +15472,7 @@ public struct LifecycleHookConfig: Codable {
 }
 
 /// LifecycleHookPayload is sent to hook handlers on lifecycle events.
-public struct LifecycleHookPayload: Codable {
+public struct LifecycleHookPayload: Codable, Sendable {
     public var event: HookEvent
     public var timestamp: String
     public var agentId: String
@@ -15390,8 +15512,8 @@ public struct LifecycleHookPayload: Codable {
 
 /// LifecycleHookResponse is returned by hook handlers.
 /// All fields are optional — an empty 200 response is equivalent to {decision: "allow"}.
-public struct LifecycleHookResponse: Codable {
-    public var inject: ContextInjection?
+public struct LifecycleHookResponse: Codable, Sendable {
+    @Indirect public var inject: ContextInjection?
     public var decision: HookDecision?
     public var reason: String?
     public var override: JSONValue?
@@ -15422,7 +15544,7 @@ public struct LifecycleHookResponse: Codable {
 
 /// ContextInjection adds ephemeral content to the agent's context window.
 /// Injections are stored as ChatMessages and filtered at context-build time.
-public struct ContextInjection: Codable {
+public struct ContextInjection: Codable, Sendable {
     public var content: String
     /// default "system"
     public var role: String?
@@ -15461,7 +15583,7 @@ public struct ContextInjection: Codable {
 }
 
 /// ToolCallEventData is the typed payload for agent.tool_call events.
-public struct ToolCallEventData: Codable {
+public struct ToolCallEventData: Codable, Sendable {
     public var tool: String
     public var arguments: [String: JSONValue]?
 
@@ -15480,7 +15602,7 @@ public struct ToolCallEventData: Codable {
 }
 
 /// ToolResultEventData is the typed payload for agent.tool_result events.
-public struct ToolResultEventData: Codable {
+public struct ToolResultEventData: Codable, Sendable {
     public var tool: String
     public var status: String
     public var result: String?
@@ -15503,7 +15625,7 @@ public struct ToolResultEventData: Codable {
 }
 
 /// ErrorEventData is the typed payload for agent.error events.
-public struct ErrorEventData: Codable {
+public struct ErrorEventData: Codable, Sendable {
     public var error: String
 
     public init(
@@ -15571,11 +15693,11 @@ public struct ToolParamType: RawRepresentable, Codable, Hashable, Sendable {
 
 /// ToolCall represents a tool call from an LLM response (wire format)
 /// This is a transport object for parsing LLM responses, not a database model
-public struct ToolCall: Codable {
+public struct ToolCall: Codable, Sendable {
     public var id: String
     /// "function"
     public var type: ToolCallType
-    public var function: ToolCallFunction
+    @Indirect public var function: ToolCallFunction
 
     public init(
         id: String = "",
@@ -15595,7 +15717,7 @@ public struct ToolCall: Codable {
 }
 
 /// ToolCallFunction contains the function name and arguments from an LLM tool call
-public struct ToolCallFunction: Codable {
+public struct ToolCallFunction: Codable, Sendable {
     public var name: String
     public var arguments: StringEncodedMap?
 
@@ -15614,7 +15736,7 @@ public struct ToolCallFunction: Codable {
 }
 
 /// LLMUsage contains token usage and performance metrics from an LLM response
-public struct LLMUsage: Codable {
+public struct LLMUsage: Codable, Sendable {
     public var stopReason: String
     public var timeToFirstToken: Double
     public var tokensPerSecond: Double
@@ -15658,7 +15780,7 @@ public struct LLMUsage: Codable {
 
 /// FileRef is a lightweight reference to a file with essential metadata.
 /// Used in chat inputs/context instead of full File objects.
-public struct FileRef: Codable {
+public struct FileRef: Codable, Sendable {
     public var id: String?
     public var uri: String
     public var filename: String
@@ -15689,9 +15811,9 @@ public struct FileRef: Codable {
 }
 
 /// Tool represents a tool definition for LLM function calling
-public struct Tool: Codable {
+public struct Tool: Codable, Sendable {
     public var type: ToolCallType
-    public var function: ToolFunction
+    @Indirect public var function: ToolFunction
 
     public init(
         type: ToolCallType,
@@ -15707,10 +15829,10 @@ public struct Tool: Codable {
     }
 }
 
-public struct ToolFunction: Codable {
+public struct ToolFunction: Codable, Sendable {
     public var name: String
     public var description: String
-    public var parameters: ToolParameters?
+    @Indirect public var parameters: ToolParameters?
     public var required: [String]?
 
     public init(
@@ -15733,7 +15855,7 @@ public struct ToolFunction: Codable {
     }
 }
 
-public struct ToolParameters: Codable {
+public struct ToolParameters: Codable, Sendable {
     public var type: ToolParamType
     public var title: String
     public var properties: ToolParameterProperties?
@@ -15761,7 +15883,7 @@ public struct ToolParameters: Codable {
 
 public typealias ToolParameterProperties = [String: ToolParameterProperty]
 
-public final class ToolParameterProperty: Codable {
+public struct ToolParameterProperty: Codable, Sendable {
     /// Type is the JSON Schema type of the value. Empty when AnyOf is set: the
     /// value then has one of several shapes, and naming a single type would be
     /// telling the model something untrue about what it may send.
@@ -15778,7 +15900,7 @@ public final class ToolParameterProperty: Codable {
     public var title: String
     public var description: String
     public var properties: ToolParameterProperties?
-    public var items: ToolParameterProperty?
+    @Indirect public var items: ToolParameterProperty?
     public var required: [String]?
 
     public init(

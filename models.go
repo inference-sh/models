@@ -119,8 +119,27 @@ type InternalToolsConfig struct {
 	HostContext *bool `json:"host_context,omitempty" yaml:"host_context,omitempty"`
 	Meta        *bool `json:"meta,omitempty" yaml:"meta,omitempty"`
 	Artifact    *bool `json:"artifact,omitempty" yaml:"artifact,omitempty"`
-	Spawn       *bool `json:"spawn,omitempty" yaml:"spawn,omitempty"`
+	Agent       *bool `json:"agent,omitempty" yaml:"agent,omitempty"`
 	Remote      *bool `json:"remote,omitempty" yaml:"remote,omitempty"`
+	Knowledge   *bool `json:"knowledge,omitempty" yaml:"knowledge,omitempty"`
+}
+
+// UnmarshalJSON reads the pre-rename "spawn" key as "agent", so stored agent
+// versions and older SDKs that still send it keep the tool on.
+func (c *InternalToolsConfig) UnmarshalJSON(b []byte) error {
+	type plain InternalToolsConfig
+	var aux struct {
+		plain
+		Spawn *bool `json:"spawn"`
+	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	*c = InternalToolsConfig(aux.plain)
+	if c.Agent == nil {
+		c.Agent = aux.Spawn
+	}
+	return nil
 }
 
 // AgentTool represents a unified tool that can be used by an agent
@@ -3195,8 +3214,6 @@ type OrgDTO struct {
 	Name          string `json:"name"`
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	DefaultTeamID string `json:"default_team_id,omitempty"`
-	// UsagePolicyID of the org's usage policy ('' = ungoverned, INF-808).
-	UsagePolicyID string `json:"usage_policy_id,omitempty"`
 	// IsAdmin: whether the CALLER is on this org's admin grant list. Set on
 	// caller-scoped responses.
 	IsAdmin bool `json:"is_admin,omitempty"`
@@ -6152,9 +6169,11 @@ const (
 	ChatMessageRoleTool      ChatMessageRole = "tool"
 	// Internal bookkeeping roles — never sent to the LLM provider.
 	// BuildContext folds injections into the user turn and replaces
-	// compaction markers with their summary.
+	// compaction markers with their summary. Event messages are display-only
+	// system info (a hook ran, ...) and BuildContext skips them.
 	ChatMessageRoleInjection  ChatMessageRole = "injection"
 	ChatMessageRoleCompaction ChatMessageRole = "compaction"
+	ChatMessageRoleEvent      ChatMessageRole = "event"
 )
 
 type ChatMessageStatus string
@@ -6184,6 +6203,7 @@ const (
 	ChatMessageContentTypeImage     ChatMessageContentType = "image"
 	ChatMessageContentTypeFile      ChatMessageContentType = "file"
 	ChatMessageContentTypeTool      ChatMessageContentType = "tool"
+	ChatMessageContentTypeEvent     ChatMessageContentType = "event"
 )
 
 type ChannelType string
@@ -6235,6 +6255,32 @@ type ChatMessageContent struct {
 	Image     *string                `json:"image"`
 	File      *string                `json:"file"`
 	ToolCalls *[]ToolCall            `json:"tool_calls"`
+	Event     *ChatEvent             `json:"event,omitempty"`
+}
+
+type ChatEventType string
+
+const ChatEventTypeHook ChatEventType = "hook"
+
+// ChatEvent is the payload of an event-role message: system info shown in the
+// chat but never sent to the model.
+type ChatEvent struct {
+	Type ChatEventType  `json:"type"`
+	Hook *ChatHookEvent `json:"hook,omitempty"`
+}
+
+// ChatHookEvent records one lifecycle hook handler run.
+type ChatHookEvent struct {
+	Event       HookEvent       `json:"event"`
+	HandlerType HookHandlerType `json:"handler_type"`
+	// Handler names what ran: the builtin or agent ref, or a webhook's host
+	// (never its full URL, which can carry credentials).
+	Handler    string       `json:"handler"`
+	Decision   HookDecision `json:"decision,omitempty"`
+	Reason     string       `json:"reason,omitempty"`
+	Injected   bool         `json:"injected,omitempty"`
+	Error      string       `json:"error,omitempty"`
+	DurationMs int64        `json:"duration_ms"`
 }
 
 // ChannelContext records which channel a chat or message came through
