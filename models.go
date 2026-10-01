@@ -2586,6 +2586,7 @@ type InstanceDTO struct {
 	Status              InstanceStatus        `json:"status"`
 	CostEstimate        string                `json:"cost_estimate"`
 	HourlyPrice         int                   `json:"hourly_price"`
+	RentalType          InstanceRentalType    `json:"rental_type,omitempty"`
 	TemplateID          string                `json:"template_id,omitempty"`
 	VolumeIDs           []string              `json:"volume_ids,omitempty"`
 	Tags                []string              `json:"tags,omitempty"`
@@ -2608,9 +2609,12 @@ type InstanceTypeDTO struct {
 	CloudInstanceType  string                     `json:"cloud_instance_type"`
 	DeploymentType     InstanceTypeDeploymentType `json:"deployment_type"`
 	HourlyPrice        int                        `json:"hourly_price"`
-	Configuration      *InstanceTypeConfiguration `json:"configuration"`
-	Availability       []InstanceTypeAvailability `json:"availability"`
-	BootTime           *InstanceTypeBootTime      `json:"boot_time,omitempty"`
+	// RentalType is set on engine-picker offers: Region and HourlyPrice are
+	// for this rental type. Empty on the raw catalog.
+	RentalType    InstanceRentalType         `json:"rental_type,omitempty"`
+	Configuration *InstanceTypeConfiguration `json:"configuration"`
+	Availability  []InstanceTypeAvailability `json:"availability"`
+	BootTime      *InstanceTypeBootTime      `json:"boot_time,omitempty"`
 }
 
 type InstanceTypeConfiguration struct {
@@ -2627,8 +2631,11 @@ type InstanceTypeConfiguration struct {
 }
 
 type InstanceTypeAvailability struct {
-	Available bool   `json:"available"`
-	Region    string `json:"region"`
+	Available  bool               `json:"available"`
+	Region     string             `json:"region"`
+	RentalType InstanceRentalType `json:"rental_type,omitempty"`
+	// HourlyPrice is the spot price in cents, set on spot entries only.
+	HourlyPrice int `json:"hourly_price,omitempty"`
 }
 
 type InstanceTypeBootTime struct {
@@ -6917,6 +6924,15 @@ const (
 	InstanceTypeDeploymentTypeVM        InstanceTypeDeploymentType = "vm"
 	InstanceTypeDeploymentTypeContainer InstanceTypeDeploymentType = "container"
 	InstanceTypeDeploymentTypeBaremetal InstanceTypeDeploymentType = "baremetal"
+)
+
+// InstanceRentalType is how a Shadeform instance is rented. Spot is discounted
+// but can be reclaimed at any time.
+type InstanceRentalType string
+
+const (
+	InstanceRentalTypeOnDemand InstanceRentalType = "on_demand"
+	InstanceRentalTypeSpot     InstanceRentalType = "spot"
 )
 
 type AppSessionStatus string
