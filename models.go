@@ -111,11 +111,13 @@ func (k AffinityKey) ToWarmApp() string {
 
 // InternalToolsConfig controls which built-in tools are enabled for an agent
 type InternalToolsConfig struct {
-	Plan        *bool `json:"plan,omitempty" yaml:"plan,omitempty"`
-	Memory      *bool `json:"memory,omitempty" yaml:"memory,omitempty"`
-	Widget      *bool `json:"widget,omitempty" yaml:"widget,omitempty"`
-	Finish      *bool `json:"finish,omitempty" yaml:"finish,omitempty"`
-	Skills      *bool `json:"skills,omitempty" yaml:"skills,omitempty"`
+	Plan   *bool `json:"plan,omitempty" yaml:"plan,omitempty"`
+	Memory *bool `json:"memory,omitempty" yaml:"memory,omitempty"`
+	Widget *bool `json:"widget,omitempty" yaml:"widget,omitempty"`
+	Finish *bool `json:"finish,omitempty" yaml:"finish,omitempty"`
+	Skills *bool `json:"skills,omitempty" yaml:"skills,omitempty"`
+	// Deprecated: ignored. Host context is disabled until embed context has a
+	// replacement; agents are never offered get_host_context or send_to_host.
 	HostContext *bool `json:"host_context,omitempty" yaml:"host_context,omitempty"`
 	Meta        *bool `json:"meta,omitempty" yaml:"meta,omitempty"`
 	Artifact    *bool `json:"artifact,omitempty" yaml:"artifact,omitempty"`

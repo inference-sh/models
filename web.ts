@@ -34,6 +34,10 @@ export interface InternalToolsConfig {
   widget?: boolean;
   finish?: boolean;
   skills?: boolean;
+  /**
+   * Deprecated: ignored. Host context is disabled until embed context has a
+   * replacement; agents are never offered get_host_context or send_to_host.
+   */
   host_context?: boolean;
   meta?: boolean;
   artifact?: boolean;
