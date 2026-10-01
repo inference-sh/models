@@ -401,6 +401,14 @@ class MeResponse(TypedDict, total=False):
     # governance and capabilities (GET /teams/{id}/view).
     team_view: Optional[TeamViewDTO]
     diagnostics: Optional[DiagnosticsConfig]
+    # PersonalTeamID is the caller's personal workspace, empty for a managed
+    # account, which has none.
+    personal_team_id: str
+    # NeedsUsername: the caller has not chosen a username yet (their
+    # personal workspace's setup is incomplete). Every new account picks one
+    # before landing, whichever team it lands in (an invite's included), via
+    # POST /teams/{personal_team_id}/complete-setup.
+    needs_username: bool
 
 class TeamCreateRequest(TypedDict, total=False):
     name: str
@@ -499,6 +507,9 @@ class CreateApiKeyRequest(TypedDict, total=False):
     name: str
     expires_at: Optional[str]
     scopes: List[str]
+    # Scope is who the key acts as. Empty means user (a personal key);
+    # workspace requires manage_keys.
+    scope: ApiKeyScope
 
 # EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
 class EstimateCostRequest(TypedDict, total=False):
@@ -1245,6 +1256,24 @@ class InstanceTypeAvailability(TypedDict, total=False):
     region: str
     rental_type: InstanceRentalType
     # HourlyPrice is the spot price in cents, set on spot entries only.
+    hourly_price: int
+
+# InstanceTypeOptionDTO is one launchable provider behind an engine-picker
+# offer. Launch with its cloud and shade_instance_type, one of its regions and
+# the offer's rental_type.
+class InstanceTypeOptionDTO(TypedDict, total=False):
+    cloud: InstanceCloudProvider
+    cloud_logo_url: str
+    shade_instance_type: str
+    cloud_instance_type: str
+    hourly_price: int
+    configuration: Optional[InstanceTypeConfiguration]
+    regions: List[InstanceTypeOptionRegion]
+
+# InstanceTypeOptionRegion is an in-stock region and its hourly price in
+# cents. Spot prices can differ by region.
+class InstanceTypeOptionRegion(TypedDict, total=False):
+    region: str
     hourly_price: int
 
 class InstanceTypeBootTime(TypedDict, total=False):
@@ -2823,6 +2852,10 @@ class TeamDTO(BaseModelDTO, TypedDict, total=False):
     role: TeamRole
     # OrgID of the org this team belongs to ('' = standalone team).
     org_id: str
+    # OrgName is that org's display name (its workspace's name), set on the
+    # caller's team list (/teams) so a member of one of its teams sees whose
+    # org it is without belonging to the org workspace.
+    org_name: str
     # UsagePolicyID of the team's own usage policy ('' = inherit the org's,
     # or ungoverned when standalone, INF-808).
     usage_policy_id: str
@@ -2834,6 +2867,9 @@ class UserDTO(BaseModelDTO, TypedDict, total=False):
     # ManagedByOrgID: set for enterprise-managed accounts (no personal team,
     # cannot create teams/orgs).
     managed_by_org_id: str
+    # ServiceTeamID: set on a workspace's service account, the principal its
+    # workspace API keys act as.
+    service_team_id: str
     email: str
     name: str
     full_name: str
@@ -2879,10 +2915,18 @@ class AgentRunDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
 class ApiKeyDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     name: str
     key: str
-    last_used_at: str
+    # LastUsedAt is absent for a key that has never been used.
+    last_used_at: Optional[str]
     expires_at: Optional[str]
     scopes: List[Scope]
     source: str
+    # Scope is who the key acts as: its creator (user) or the workspace.
+    scope: ApiKeyScope
+    # CreatedBy is the person who created the key; Creator is that person,
+    # set on lists. On a workspace key user_id is the workspace's service
+    # account, so these are what show who made it.
+    created_by: str
+    creator: Optional[TeamMemberUserDTO]
 
 # AppDTO is the API response for a full app.
 class AppDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -3146,6 +3190,9 @@ class InstanceTypeDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     # RentalType is set on engine-picker offers: Region and HourlyPrice are
     # for this rental type. Empty on the raw catalog.
     rental_type: InstanceRentalType
+    # Options lists every in-stock provider for an engine-picker offer,
+    # cheapest first; the offer itself is the first one. Empty on the raw catalog.
+    options: List[InstanceTypeOptionDTO]
     configuration: Optional[InstanceTypeConfiguration]
     availability: List[InstanceTypeAvailability]
     boot_time: Optional[InstanceTypeBootTime]
@@ -3559,6 +3606,19 @@ class ErrorCode(str, Enum):
     # ErrorCodeBlockedByUsagePolicy: the resource is outside the team or org
     # usage policy. The message names who to ask.
     BLOCKED_BY_USAGE_POLICY = "blocked_by_usage_policy"
+    # ErrorCodeLastOwner (400): the change would leave a team (or an org's
+    # workspace) without an owner.
+    LAST_OWNER = "last_owner"
+    # ErrorCodeAccountDeactivated (403): an org deactivated this managed
+    # account; sign-in and every request are refused until an org admin
+    # reactivates it. ErrorCodeAccountBanned (403): the platform suspended
+    # the account.
+    ACCOUNT_DEACTIVATED = "account_deactivated"
+    ACCOUNT_BANNED = "account_banned"
+    # ErrorCodePersonRequired (403): only a person may do this, and the
+    # caller is a workspace's service account (a workspace API key), or the
+    # account is one and cannot sign in.
+    PERSON_REQUIRED = "person_required"
     OTP_REQUIRED = "otp_required"
     MCP_AUTH_EXPIRED = "mcp_auth_expired"
     # Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
@@ -3666,6 +3726,16 @@ class A2UIComponentType(str, Enum):
     # Artifact embeds a published artifact (sandboxed page) with a link to
     # the viewer. Rendered from the artifact's /render endpoint.
     A2UI_ARTIFACT = "Artifact"
+
+class ApiKeyScope(str, Enum):
+    # ApiKeyScopeUser is a personal key: it acts as the person who created it,
+    # in the workspace it was created in, and ends when they can no longer
+    # act there. Device-auth, `belt auth token`, OAuth and engine keys are
+    # always personal.
+    USER = "user"
+    # ApiKeyScopeWorkspace is a workspace key: it acts as the workspace's
+    # service account, not a person, and outlives the admin who created it.
+    WORKSPACE = "workspace"
 
 class AppCategory(str, Enum):
     IMAGE = "image"
@@ -4286,8 +4356,15 @@ class TeamKind(str, Enum):
 class TeamCapability(str, Enum):
     EDIT_PROFILE = "edit_profile"
     MANAGE_MEMBERS = "manage_members"
+    # ManageAdmins: granting, changing and removing the admin and owner
+    # roles. Owners only; admins manage plain members.
+    MANAGE_ADMINS = "manage_admins"
     VIEW_MEMBERS = "view_members"
+    # ManageKeys: the workspace's keys. Creating workspace keys, and listing
+    # and revoking every key of the workspace, whoever created it.
     MANAGE_KEYS = "manage_keys"
+    # CreateKeys: creating, listing and revoking your own personal keys.
+    CREATE_KEYS = "create_keys"
     MANAGE_VAULT = "manage_vault"
     VIEW_BILLING = "view_billing"
     MANAGE_BILLING = "manage_billing"

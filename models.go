@@ -686,6 +686,14 @@ type MeResponse struct {
 	// governance and capabilities (GET /teams/{id}/view).
 	TeamView    *TeamViewDTO       `json:"team_view,omitempty"`
 	Diagnostics *DiagnosticsConfig `json:"diagnostics,omitempty"`
+	// PersonalTeamID is the caller's personal workspace, empty for a managed
+	// account, which has none.
+	PersonalTeamID string `json:"personal_team_id,omitempty"`
+	// NeedsUsername: the caller has not chosen a username yet (their
+	// personal workspace's setup is incomplete). Every new account picks one
+	// before landing, whichever team it lands in (an invite's included), via
+	// POST /teams/{personal_team_id}/complete-setup.
+	NeedsUsername bool `json:"needs_username"`
 }
 
 type TeamCreateRequest struct {
@@ -855,6 +863,9 @@ type CreateApiKeyRequest struct {
 	Name      string     `json:"name" validate:"required"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	Scopes    []string   `json:"scopes,omitempty"`
+	// Scope is who the key acts as. Empty means user (a personal key);
+	// workspace requires manage_keys.
+	Scope ApiKeyScope `json:"scope,omitempty"`
 }
 
 type MenuCreateRequest struct {
@@ -1036,12 +1047,20 @@ type ScopePreset struct {
 type ApiKeyDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Name               string     `json:"name"`
-	Key                string     `json:"key"`
-	LastUsedAt         time.Time  `json:"last_used_at"`
-	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
-	Scopes             []Scope    `json:"scopes"`
-	Source             string     `json:"source,omitempty"`
+	Name               string `json:"name"`
+	Key                string `json:"key"`
+	// LastUsedAt is absent for a key that has never been used.
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	Scopes     []Scope    `json:"scopes"`
+	Source     string     `json:"source,omitempty"`
+	// Scope is who the key acts as: its creator (user) or the workspace.
+	Scope ApiKeyScope `json:"scope"`
+	// CreatedBy is the person who created the key; Creator is that person,
+	// set on lists. On a workspace key user_id is the workspace's service
+	// account, so these are what show who made it.
+	CreatedBy string             `json:"created_by"`
+	Creator   *TeamMemberUserDTO `json:"creator,omitempty"`
 }
 
 // --------------------
@@ -2173,8 +2192,21 @@ const (
 	// ErrorCodeBlockedByUsagePolicy: the resource is outside the team or org
 	// usage policy. The message names who to ask.
 	ErrorCodeBlockedByUsagePolicy ErrorCode = "blocked_by_usage_policy"
-	ErrorCodeOTPRequired          ErrorCode = "otp_required"
-	ErrorCodeMCPAuthExpired       ErrorCode = "mcp_auth_expired"
+	// ErrorCodeLastOwner (400): the change would leave a team (or an org's
+	// workspace) without an owner.
+	ErrorCodeLastOwner ErrorCode = "last_owner"
+	// ErrorCodeAccountDeactivated (403): an org deactivated this managed
+	// account; sign-in and every request are refused until an org admin
+	// reactivates it. ErrorCodeAccountBanned (403): the platform suspended
+	// the account.
+	ErrorCodeAccountDeactivated ErrorCode = "account_deactivated"
+	ErrorCodeAccountBanned      ErrorCode = "account_banned"
+	// ErrorCodePersonRequired (403): only a person may do this, and the
+	// caller is a workspace's service account (a workspace API key), or the
+	// account is one and cannot sign in.
+	ErrorCodePersonRequired ErrorCode = "person_required"
+	ErrorCodeOTPRequired    ErrorCode = "otp_required"
+	ErrorCodeMCPAuthExpired ErrorCode = "mcp_auth_expired"
 	// Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
 	// EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
 	// not be checked and the request is retriable.
@@ -2611,7 +2643,10 @@ type InstanceTypeDTO struct {
 	HourlyPrice        int                        `json:"hourly_price"`
 	// RentalType is set on engine-picker offers: Region and HourlyPrice are
 	// for this rental type. Empty on the raw catalog.
-	RentalType    InstanceRentalType         `json:"rental_type,omitempty"`
+	RentalType InstanceRentalType `json:"rental_type,omitempty"`
+	// Options lists every in-stock provider for an engine-picker offer,
+	// cheapest first; the offer itself is the first one. Empty on the raw catalog.
+	Options       []InstanceTypeOptionDTO    `json:"options,omitempty"`
 	Configuration *InstanceTypeConfiguration `json:"configuration"`
 	Availability  []InstanceTypeAvailability `json:"availability"`
 	BootTime      *InstanceTypeBootTime      `json:"boot_time,omitempty"`
@@ -2636,6 +2671,26 @@ type InstanceTypeAvailability struct {
 	RentalType InstanceRentalType `json:"rental_type,omitempty"`
 	// HourlyPrice is the spot price in cents, set on spot entries only.
 	HourlyPrice int `json:"hourly_price,omitempty"`
+}
+
+// InstanceTypeOptionDTO is one launchable provider behind an engine-picker
+// offer. Launch with its cloud and shade_instance_type, one of its regions and
+// the offer's rental_type.
+type InstanceTypeOptionDTO struct {
+	Cloud             InstanceCloudProvider      `json:"cloud"`
+	CloudLogoURL      string                     `json:"cloud_logo_url,omitempty"`
+	ShadeInstanceType string                     `json:"shade_instance_type"`
+	CloudInstanceType string                     `json:"cloud_instance_type"`
+	HourlyPrice       int                        `json:"hourly_price"` // cents, cheapest region
+	Configuration     *InstanceTypeConfiguration `json:"configuration,omitempty"`
+	Regions           []InstanceTypeOptionRegion `json:"regions"`
+}
+
+// InstanceTypeOptionRegion is an in-stock region and its hourly price in
+// cents. Spot prices can differ by region.
+type InstanceTypeOptionRegion struct {
+	Region      string `json:"region"`
+	HourlyPrice int    `json:"hourly_price"`
 }
 
 type InstanceTypeBootTime struct {
@@ -4801,6 +4856,10 @@ type TeamDTO struct {
 	Role TeamRole `json:"role,omitempty"`
 	// OrgID of the org this team belongs to ('' = standalone team).
 	OrgID string `json:"org_id,omitempty"`
+	// OrgName is that org's display name (its workspace's name), set on the
+	// caller's team list (/teams) so a member of one of its teams sees whose
+	// org it is without belonging to the org workspace.
+	OrgName string `json:"org_name,omitempty"`
 	// UsagePolicyID of the team's own usage policy ('' = inherit the org's,
 	// or ungoverned when standalone, INF-808).
 	UsagePolicyID string `json:"usage_policy_id,omitempty"`
@@ -5067,15 +5126,18 @@ type UserDTO struct {
 	Role          Role   `json:"role"`
 	// ManagedByOrgID: set for enterprise-managed accounts (no personal team,
 	// cannot create teams/orgs).
-	ManagedByOrgID string           `json:"managed_by_org_id,omitempty"`
-	Email          string           `json:"email"`
-	Name           string           `json:"name"`
-	FullName       string           `json:"full_name"`
-	AvatarURL      string           `json:"avatar_url"`
-	BannedAt       *time.Time       `json:"banned_at,omitempty"`
-	BanNote        string           `json:"ban_note,omitempty"`
-	TOTPEnabled    bool             `json:"totp_enabled"`
-	Metadata       *UserMetadataDTO `json:"metadata"`
+	ManagedByOrgID string `json:"managed_by_org_id,omitempty"`
+	// ServiceTeamID: set on a workspace's service account, the principal its
+	// workspace API keys act as.
+	ServiceTeamID string           `json:"service_team_id,omitempty"`
+	Email         string           `json:"email"`
+	Name          string           `json:"name"`
+	FullName      string           `json:"full_name"`
+	AvatarURL     string           `json:"avatar_url"`
+	BannedAt      *time.Time       `json:"banned_at,omitempty"`
+	BanNote       string           `json:"ban_note,omitempty"`
+	TOTPEnabled   bool             `json:"totp_enabled"`
+	Metadata      *UserMetadataDTO `json:"metadata"`
 }
 
 // UserRelationDTO is a lightweight user reference embedded in other DTOs.
@@ -5749,6 +5811,30 @@ func (s *A2UISurface) RootComponent() *A2UIComponent {
 	}
 	return nil
 }
+
+// --------------------
+// source: apikey.go
+// --------------------
+
+// ApiKeyScope is who an API key acts as, chosen when it is created, the way a
+// credential's scope says who owns it.
+type ApiKeyScope string
+
+// Valid reports whether s is one of the defined scopes.
+func (s ApiKeyScope) Valid() bool {
+	return s == ApiKeyScopeUser || s == ApiKeyScopeWorkspace
+}
+
+const (
+	// ApiKeyScopeUser is a personal key: it acts as the person who created it,
+	// in the workspace it was created in, and ends when they can no longer
+	// act there. Device-auth, `belt auth token`, OAuth and engine keys are
+	// always personal.
+	ApiKeyScopeUser ApiKeyScope = "user"
+	// ApiKeyScopeWorkspace is a workspace key: it acts as the workspace's
+	// service account, not a person, and outlives the admin who created it.
+	ApiKeyScopeWorkspace ApiKeyScope = "workspace"
+)
 
 // --------------------
 // source: app.go
@@ -7773,8 +7859,15 @@ type TeamCapability string
 const (
 	TeamCapabilityEditProfile   TeamCapability = "edit_profile"
 	TeamCapabilityManageMembers TeamCapability = "manage_members"
-	TeamCapabilityViewMembers   TeamCapability = "view_members"
-	TeamCapabilityManageKeys    TeamCapability = "manage_keys"
+	// ManageAdmins: granting, changing and removing the admin and owner
+	// roles. Owners only; admins manage plain members.
+	TeamCapabilityManageAdmins TeamCapability = "manage_admins"
+	TeamCapabilityViewMembers  TeamCapability = "view_members"
+	// ManageKeys: the workspace's keys. Creating workspace keys, and listing
+	// and revoking every key of the workspace, whoever created it.
+	TeamCapabilityManageKeys TeamCapability = "manage_keys"
+	// CreateKeys: creating, listing and revoking your own personal keys.
+	TeamCapabilityCreateKeys    TeamCapability = "create_keys"
 	TeamCapabilityManageVault   TeamCapability = "manage_vault"
 	TeamCapabilityViewBilling   TeamCapability = "view_billing"
 	TeamCapabilityManageBilling TeamCapability = "manage_billing"

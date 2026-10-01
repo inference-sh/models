@@ -981,6 +981,18 @@ export interface MeResponse {
    */
   team_view?: TeamViewDTO;
   diagnostics?: DiagnosticsConfig;
+  /**
+   * PersonalTeamID is the caller's personal workspace, empty for a managed
+   * account, which has none.
+   */
+  personal_team_id?: string;
+  /**
+   * NeedsUsername: the caller has not chosen a username yet (their
+   * personal workspace's setup is incomplete). Every new account picks one
+   * before landing, whichever team it lands in (an invite's included), via
+   * POST /teams/{personal_team_id}/complete-setup.
+   */
+  needs_username: boolean;
 }
 export interface TeamCreateRequest {
   name: string;
@@ -1146,6 +1158,11 @@ export interface CreateApiKeyRequest {
   name: string;
   expires_at?: string /* RFC3339 */;
   scopes?: string[];
+  /**
+   * Scope is who the key acts as. Empty means user (a personal key);
+   * workspace requires manage_keys.
+   */
+  scope?: ApiKeyScope;
 }
 export interface SchedulerMetrics {
   tasks_queued: number /* int64 */;
@@ -1737,10 +1754,24 @@ export interface ScopePreset {
 export interface ApiKeyDTO extends BaseModelDTO, PermissionModelDTO {
   name: string;
   key: string;
-  last_used_at: string /* RFC3339 */;
+  /**
+   * LastUsedAt is absent for a key that has never been used.
+   */
+  last_used_at?: string /* RFC3339 */;
   expires_at?: string /* RFC3339 */;
   scopes: Scope[];
   source?: string;
+  /**
+   * Scope is who the key acts as: its creator (user) or the workspace.
+   */
+  scope: ApiKeyScope;
+  /**
+   * CreatedBy is the person who created the key; Creator is that person,
+   * set on lists. On a workspace key user_id is the workspace's service
+   * account, so these are what show who made it.
+   */
+  created_by: string;
+  creator?: TeamMemberUserDTO;
 }
 /**
  * AppPricing configures all pricing using CEL expressions.
@@ -2536,6 +2567,7 @@ export interface BillingSettingsDTO extends BaseModelDTO, PermissionModelDTO {
   usage_summary_interval: string;
   company_name: string;
   tax_id: string;
+  tax_id_type: string; // as picked by the customer (us_ein, de_stn, eu_vat, other, …); "" = none
   is_business_customer: boolean;
   address: Address;
   vat_number: string;
@@ -2563,6 +2595,7 @@ export interface BillingSettingsUpdateRequest {
   usage_summary_interval?: string;
   company_name?: string;
   tax_id?: string;
+  tax_id_type?: string; // lowercase Stripe-style type (us_ein, de_stn, …); "none" or "" clears it
   is_business_customer?: boolean;
   address?: Address;
   vat_number?: string;
@@ -3118,6 +3151,10 @@ export type ErrorCode =
   | "internal_error"
   | "team_role_required"
   | "blocked_by_usage_policy"
+  | "last_owner"
+  | "account_deactivated"
+  | "account_banned"
+  | "person_required"
   | "otp_required"
   | "mcp_auth_expired"
   | "limit_exceeded"
@@ -3153,6 +3190,25 @@ export const ErrorCodeTeamRoleRequired: ErrorCode = "team_role_required";
  * usage policy. The message names who to ask.
  */
 export const ErrorCodeBlockedByUsagePolicy: ErrorCode = "blocked_by_usage_policy";
+/**
+ * ErrorCodeLastOwner (400): the change would leave a team (or an org's
+ * workspace) without an owner.
+ */
+export const ErrorCodeLastOwner: ErrorCode = "last_owner";
+/**
+ * ErrorCodeAccountDeactivated (403): an org deactivated this managed
+ * account; sign-in and every request are refused until an org admin
+ * reactivates it. ErrorCodeAccountBanned (403): the platform suspended
+ * the account.
+ */
+export const ErrorCodeAccountDeactivated: ErrorCode = "account_deactivated";
+export const ErrorCodeAccountBanned: ErrorCode = "account_banned";
+/**
+ * ErrorCodePersonRequired (403): only a person may do this, and the
+ * caller is a workspace's service account (a workspace API key), or the
+ * account is one and cannot sign in.
+ */
+export const ErrorCodePersonRequired: ErrorCode = "person_required";
 export const ErrorCodeOTPRequired: ErrorCode = "otp_required";
 export const ErrorCodeMCPAuthExpired: ErrorCode = "mcp_auth_expired";
 /**
@@ -3645,6 +3701,11 @@ export interface InstanceTypeDTO extends BaseModelDTO, PermissionModelDTO {
    * for this rental type. Empty on the raw catalog.
    */
   rental_type?: InstanceRentalType;
+  /**
+   * Options lists every in-stock provider for an engine-picker offer,
+   * cheapest first; the offer itself is the first one. Empty on the raw catalog.
+   */
+  options?: InstanceTypeOptionDTO[];
   configuration?: InstanceTypeConfiguration;
   availability: InstanceTypeAvailability[];
   boot_time?: InstanceTypeBootTime;
@@ -3669,6 +3730,28 @@ export interface InstanceTypeAvailability {
    * HourlyPrice is the spot price in cents, set on spot entries only.
    */
   hourly_price?: number /* int */;
+}
+/**
+ * InstanceTypeOptionDTO is one launchable provider behind an engine-picker
+ * offer. Launch with its cloud and shade_instance_type, one of its regions and
+ * the offer's rental_type.
+ */
+export interface InstanceTypeOptionDTO {
+  cloud: InstanceCloudProvider;
+  cloud_logo_url?: string;
+  shade_instance_type: string;
+  cloud_instance_type: string;
+  hourly_price: number /* int */; // cents, cheapest region
+  configuration?: InstanceTypeConfiguration;
+  regions: InstanceTypeOptionRegion[];
+}
+/**
+ * InstanceTypeOptionRegion is an in-stock region and its hourly price in
+ * cents. Spot prices can differ by region.
+ */
+export interface InstanceTypeOptionRegion {
+  region: string;
+  hourly_price: number /* int */;
 }
 export interface InstanceTypeBootTime {
   average_seconds: number /* int */;
@@ -4461,11 +4544,15 @@ export interface OrgDTO extends BaseModelDTO {
 /**
  * OrgTeamDTO is one of an org's teams in its admins' list
  * (GET /orgs/{id}/teams): the team, its kind (the org's own workspace or a
- * member team) and its live member count.
+ * member team), its live member count, and what the caller may do on it.
+ * Can is computed by the same capability table as TeamViewDTO.Can, the
+ * caller's standing on the org's workspace included: an org owner holds
+ * manage_admins on every member team, an org admin manage_members.
  */
 export interface OrgTeamDTO extends TeamDTO {
   kind: TeamKind;
   member_count: number /* int64 */;
+  can: TeamCapability[];
 }
 /**
  * OrgAdminDTO is one entry of the org admin grant list.
@@ -5892,6 +5979,12 @@ export interface TeamDTO extends BaseModelDTO {
    */
   org_id?: string;
   /**
+   * OrgName is that org's display name (its workspace's name), set on the
+   * caller's team list (/teams) so a member of one of its teams sees whose
+   * org it is without belonging to the org workspace.
+   */
+  org_name?: string;
+  /**
    * UsagePolicyID of the team's own usage policy ('' = inherit the org's,
    * or ungoverned when standalone, INF-808).
    */
@@ -6453,6 +6546,11 @@ export interface UserDTO extends BaseModelDTO {
    * cannot create teams/orgs).
    */
   managed_by_org_id?: string;
+  /**
+   * ServiceTeamID: set on a workspace's service account, the principal its
+   * workspace API keys act as.
+   */
+  service_team_id?: string;
   email: string;
   name: string;
   full_name: string;
@@ -7429,6 +7527,23 @@ export interface A2UISurface {
   components: A2UIComponent[];
   dataModel?: any;
 }
+/**
+ * ApiKeyScope is who an API key acts as, chosen when it is created, the way a
+ * credential's scope says who owns it.
+ */
+export type ApiKeyScope = "user" | "workspace";
+/**
+ * ApiKeyScopeUser is a personal key: it acts as the person who created it,
+ * in the workspace it was created in, and ends when they can no longer
+ * act there. Device-auth, `belt auth token`, OAuth and engine keys are
+ * always personal.
+ */
+export const ApiKeyScopeUser: ApiKeyScope = "user";
+/**
+ * ApiKeyScopeWorkspace is a workspace key: it acts as the workspace's
+ * service account, not a person, and outlives the admin who created it.
+ */
+export const ApiKeyScopeWorkspace: ApiKeyScope = "workspace";
 export type AppCategory =
   | "image"
   | "video"
@@ -9453,8 +9568,10 @@ export const TeamKindOrg: TeamKind = "org";
 export type TeamCapability =
   | "edit_profile"
   | "manage_members"
+  | "manage_admins"
   | "view_members"
   | "manage_keys"
+  | "create_keys"
   | "manage_vault"
   | "view_billing"
   | "manage_billing"
@@ -9469,8 +9586,21 @@ export type TeamCapability =
   | "connect_platform_credential";
 export const TeamCapabilityEditProfile: TeamCapability = "edit_profile";
 export const TeamCapabilityManageMembers: TeamCapability = "manage_members";
+/**
+ * ManageAdmins: granting, changing and removing the admin and owner
+ * roles. Owners only; admins manage plain members.
+ */
+export const TeamCapabilityManageAdmins: TeamCapability = "manage_admins";
 export const TeamCapabilityViewMembers: TeamCapability = "view_members";
+/**
+ * ManageKeys: the workspace's keys. Creating workspace keys, and listing
+ * and revoking every key of the workspace, whoever created it.
+ */
 export const TeamCapabilityManageKeys: TeamCapability = "manage_keys";
+/**
+ * CreateKeys: creating, listing and revoking your own personal keys.
+ */
+export const TeamCapabilityCreateKeys: TeamCapability = "create_keys";
 export const TeamCapabilityManageVault: TeamCapability = "manage_vault";
 export const TeamCapabilityViewBilling: TeamCapability = "view_billing";
 export const TeamCapabilityManageBilling: TeamCapability = "manage_billing";
