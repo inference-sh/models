@@ -9151,8 +9151,11 @@ export const ReachPrivate: Reach = "private";
 /**
  * UsageCategory names a class of consumable resource governed by a usage
  * policy. Every category MUST have (a) a models.UsageGovernable implementation
- * and (b) an execute-intent choke point calling CheckPermission with PermUse —
- * the guard test in models/usage_policy_test.go asserts (a).
+ * and (b) a choke point: the execution row a run of it writes
+ * (models.UsageExecution, judged in base Create), or for knowledge, which
+ * writes none, the knowledge content read. The guard tests in
+ * models/usage_policy_test.go and common/database/execution_guard_test.go
+ * assert both.
  */
 export type UsageCategory =
   | "app"
@@ -9902,8 +9905,21 @@ export const HookHandlerBuiltin: HookHandlerType = "builtin";
  * agent config is validated against it, and clients enumerate it to show what
  * an agent can switch on without hosting anything.
  */
-export type BuiltinHook = "belt:suggest";
+export type BuiltinHook = "belt:suggest" | "belt:extract";
+/**
+ * BuiltinHookBeltSuggest searches the team's skills, knowledge and apps
+ * for what the turn is about and injects the matches, so an agent picks up
+ * procedural knowledge it was never prompted with.
+ */
 export const BuiltinHookBeltSuggest: BuiltinHook = "belt:suggest";
+/**
+ * BuiltinHookBeltExtract reviews the conversation for reusable knowledge
+ * and saves it to the team's registry, deduplicated against what is
+ * there, so belt:suggest can hand it back later. It runs in the
+ * background: on agent.complete every tenth user turn, and before
+ * compaction drops the turns it would have learned from.
+ */
+export const BuiltinHookBeltExtract: BuiltinHook = "belt:extract";
 /**
  * BuiltinHookDefinition describes a builtin hook and where it may be used.
  */
