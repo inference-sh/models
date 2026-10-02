@@ -1858,6 +1858,114 @@ type ChatMessageDTO struct {
 }
 
 // --------------------
+// source: chat_rules.go
+// --------------------
+
+// PolicyEffect is a rule's outcome: allow, ask or deny.
+type PolicyEffect string
+
+const (
+	PolicyEffectAllow PolicyEffect = "allow"
+	PolicyEffectAsk   PolicyEffect = "ask"
+	PolicyEffectDeny  PolicyEffect = "deny"
+)
+
+// PolicyRuleDTO is one rule, typed form Kind[selector](specifier).
+type PolicyRuleDTO struct {
+	ID     string       `json:"id"`
+	Effect PolicyEffect `json:"effect"`
+	// Kind: RemoteExec, Workspace, Harness, Tool (and, from phase 3, App,
+	// Agent, Knowledge, Mcp, Flow, WebFetch).
+	Kind string `json:"kind"`
+	// Selector narrows the rule to one remote (its id) or a tag (tag:<name>);
+	// empty applies everywhere.
+	Selector string `json:"selector"`
+	// Specifier is the kind's pattern: a command (`npm test`, `git push:*`),
+	// a folder (`~/proj/**`), a harness tool with its pattern
+	// (`Bash(git status:*)`, `Edit`), or a loop tool's name. Empty is the
+	// whole kind.
+	Specifier string `json:"specifier"`
+	// Label is the rule in words, e.g. "git commit commands on Laptop", the
+	// same words an approval prompt's "always allow" options use.
+	Label string `json:"label"`
+	// CreatedAt is null for a rule that is not a stored row yet: an entry of
+	// the chat's always-allow list from before rules existed, or the chat's
+	// "allow every tool" setting.
+	CreatedAt *time.Time `json:"created_at"`
+	// CreatedBy is the user who wrote the rule; empty for those above.
+	CreatedBy string `json:"created_by"`
+}
+
+// AlwaysAllowScope is how far an "always allow" option reaches, narrowest
+// first.
+type AlwaysAllowScope string
+
+const (
+	// AlwaysAllowScopeExact: this call exactly (each piece of the command,
+	// the file, the domain).
+	AlwaysAllowScopeExact AlwaysAllowScope = "exact"
+	// AlwaysAllowScopePrefix: commands that start the same way, per piece
+	// (git commit:*, npm run:*).
+	AlwaysAllowScopePrefix AlwaysAllowScope = "prefix"
+	// AlwaysAllowScopeFolder: files in the same folder.
+	AlwaysAllowScopeFolder AlwaysAllowScope = "folder"
+	// AlwaysAllowScopeRemote: every command on the machine.
+	AlwaysAllowScopeRemote AlwaysAllowScope = "remote"
+	// AlwaysAllowScopeTool: every call of the tool.
+	AlwaysAllowScopeTool AlwaysAllowScope = "tool"
+)
+
+// AlwaysAllowOptionDTO is one "always allow" choice on an approval prompt:
+// the chat rules it saves.
+type AlwaysAllowOptionDTO struct {
+	// Key names the option in POST .../always-allow. It changes when the
+	// rules it stands for change.
+	Key   string           `json:"key"`
+	Scope AlwaysAllowScope `json:"scope"`
+	// Label is the option in words, e.g. "git clone commands on Laptop".
+	Label string `json:"label"`
+	// Description adds why a broad option is the narrowest offered, e.g.
+	// the command uses shell syntax no narrower rule can match.
+	Description string `json:"description,omitempty"`
+	// Rules are the chat rules the option saves (not stored yet: no id).
+	Rules []PolicyRuleDTO `json:"rules"`
+}
+
+// AlwaysAllowOptionsDTO is GET /chats/{id}/tools/{toolId}/always-allow/options:
+// the options for a call awaiting approval, narrowest first. Each one,
+// saved, answers this call again. Computed by the api from the call; the
+// client never builds rules.
+type AlwaysAllowOptionsDTO struct {
+	Options []AlwaysAllowOptionDTO `json:"options"`
+	// Default is the key of the narrowest option, "" when there is none.
+	Default string `json:"default,omitempty"`
+	// Unavailable says why there are no options: a policy allows only its
+	// own rules, or no chat rule could allow this call.
+	Unavailable string `json:"unavailable,omitempty"`
+}
+
+// AlwaysAllowRequest is POST /chats/{id}/tools/{toolId}/always-allow. The
+// api saves the option's rules to the chat and approves the call once.
+type AlwaysAllowRequest struct {
+	// Option is an option key from the options endpoint. A key that no
+	// longer names a current option is refused (409). Without one, the
+	// call saves what "always allow" saved before options existed: the
+	// command's pieces exactly for remote_exec, the whole tool otherwise.
+	Option string `json:"option,omitempty"`
+	// ToolName is accepted from older clients and ignored: the call names
+	// its own tool.
+	ToolName string `json:"tool_name,omitempty"`
+}
+
+// AlwaysAllowResultDTO is what an always-allow saved.
+type AlwaysAllowResultDTO struct {
+	// Option is the option chosen; null for a call without one.
+	Option *AlwaysAllowOptionDTO `json:"option,omitempty"`
+	// Rules are the chat rules now in place for it.
+	Rules []PolicyRuleDTO `json:"rules"`
+}
+
+// --------------------
 // source: credential.go
 // --------------------
 
@@ -4067,6 +4175,9 @@ type SDKTypes struct {
 	_cursorResp         CursorListResponse[any]
 	_countResp          CountResponse
 	_chatTrace          ChatTraceDTO
+	_alwaysAllowOpts    AlwaysAllowOptionsDTO
+	_alwaysAllowReq     AlwaysAllowRequest
+	_alwaysAllowResult  AlwaysAllowResultDTO
 	_chatDTO            ChatDTO
 	_chatSettings       ChatSettingsRequest
 	_chatMsg            ChatMessageDTO
