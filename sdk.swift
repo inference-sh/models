@@ -5074,6 +5074,51 @@ public struct AlwaysAllowResultDTO: Codable, Sendable {
     }
 }
 
+/// ToolRiskLevel is how risky an explained call is.
+public struct ToolRiskLevel: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// ToolRiskLow: safe development workflows (reads, builds, tests).
+    public static let toolRiskLow = ToolRiskLevel(rawValue: "low")
+    /// ToolRiskMedium: changes that can be undone.
+    public static let toolRiskMedium = ToolRiskLevel(rawValue: "medium")
+    /// ToolRiskHigh: dangerous or irreversible changes.
+    public static let toolRiskHigh = ToolRiskLevel(rawValue: "high")
+}
+
+/// ToolExplanationDTO is POST /chats/{id}/tools/{toolId}/explain: a model's
+/// plain-words reading of a call awaiting approval (Claude Code's permission
+/// explainer). Generated once, when the person asks, and kept for the call.
+public struct ToolExplanationDTO: Codable, Sendable {
+    public var riskLevel: ToolRiskLevel
+    /// Explanation is what the call does, in one or two sentences.
+    public var explanation: String
+    /// Reasoning is why the agent appears to be making it.
+    public var reasoning: String
+    /// Risk is what could go wrong, in a few words.
+    public var risk: String
+
+    public init(
+        riskLevel: ToolRiskLevel,
+        explanation: String = "",
+        reasoning: String = "",
+        risk: String = ""
+    ) {
+        self.riskLevel = riskLevel
+        self.explanation = explanation
+        self.reasoning = reasoning
+        self.risk = risk
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case riskLevel = "risk_level"
+        case explanation = "explanation"
+        case reasoning = "reasoning"
+        case risk = "risk"
+    }
+}
+
 /// CredentialDTO is the API response for a credential (never exposes secrets).
 public struct CredentialDTO: Codable, Sendable {
     public var id: String

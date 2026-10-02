@@ -1012,6 +1012,18 @@ class AlwaysAllowResultDTO(TypedDict, total=False):
     # Rules are the chat rules now in place for it.
     rules: List[PolicyRuleDTO]
 
+# ToolExplanationDTO is POST /chats/{id}/tools/{toolId}/explain: a model's
+# plain-words reading of a call awaiting approval (Claude Code's permission
+# explainer). Generated once, when the person asks, and kept for the call.
+class ToolExplanationDTO(TypedDict, total=False):
+    risk_level: ToolRiskLevel
+    # Explanation is what the call does, in one or two sentences.
+    explanation: str
+    # Reasoning is why the agent appears to be making it.
+    reasoning: str
+    # Risk is what could go wrong, in a few words.
+    risk: str
+
 # CredentialConfigDTO is the merged view: provider catalog + credential state.
 class CredentialConfigDTO(TypedDict, total=False):
     slug: str
@@ -3718,6 +3730,14 @@ class AlwaysAllowScope(str, Enum):
     REMOTE = "remote"
     # AlwaysAllowScopeTool: every call of the tool.
     TOOL = "tool"
+
+class ToolRiskLevel(str, Enum):
+    # ToolRiskLow: safe development workflows (reads, builds, tests).
+    TOOL_RISK_LOW = "low"
+    # ToolRiskMedium: changes that can be undone.
+    TOOL_RISK_MEDIUM = "medium"
+    # ToolRiskHigh: dangerous or irreversible changes.
+    TOOL_RISK_HIGH = "high"
 
 class ErrorCode(str, Enum):
     INVALID_REQUEST = "invalid_request"

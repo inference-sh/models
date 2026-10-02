@@ -1965,6 +1965,31 @@ type AlwaysAllowResultDTO struct {
 	Rules []PolicyRuleDTO `json:"rules"`
 }
 
+// ToolRiskLevel is how risky an explained call is.
+type ToolRiskLevel string
+
+const (
+	// ToolRiskLow: safe development workflows (reads, builds, tests).
+	ToolRiskLow ToolRiskLevel = "low"
+	// ToolRiskMedium: changes that can be undone.
+	ToolRiskMedium ToolRiskLevel = "medium"
+	// ToolRiskHigh: dangerous or irreversible changes.
+	ToolRiskHigh ToolRiskLevel = "high"
+)
+
+// ToolExplanationDTO is POST /chats/{id}/tools/{toolId}/explain: a model's
+// plain-words reading of a call awaiting approval (Claude Code's permission
+// explainer). Generated once, when the person asks, and kept for the call.
+type ToolExplanationDTO struct {
+	RiskLevel ToolRiskLevel `json:"risk_level"`
+	// Explanation is what the call does, in one or two sentences.
+	Explanation string `json:"explanation"`
+	// Reasoning is why the agent appears to be making it.
+	Reasoning string `json:"reasoning"`
+	// Risk is what could go wrong, in a few words.
+	Risk string `json:"risk"`
+}
+
 // --------------------
 // source: credential.go
 // --------------------
@@ -4178,6 +4203,7 @@ type SDKTypes struct {
 	_alwaysAllowOpts    AlwaysAllowOptionsDTO
 	_alwaysAllowReq     AlwaysAllowRequest
 	_alwaysAllowResult  AlwaysAllowResultDTO
+	_toolExplanation    ToolExplanationDTO
 	_chatDTO            ChatDTO
 	_chatSettings       ChatSettingsRequest
 	_chatMsg            ChatMessageDTO
