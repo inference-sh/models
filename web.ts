@@ -2736,6 +2736,11 @@ export interface ChatSettingsRequest {
    * webhooks, gates) firing in this chat.
    */
   disable_hooks?: boolean;
+  /**
+   * ForgetMemory removes these keys from the chat's memory, the notes the
+   * agent keeps for this conversation. A key that is not there is ignored.
+   */
+  forget_memory?: string[];
 }
 /**
  * ChatDTO for API responses
@@ -2791,6 +2796,139 @@ export interface ChatMessageDTO extends BaseModelDTO, PermissionModelDTO {
   tools?: Tool[];
   tool_call_id?: string;
   tool_invocations?: ToolInvocationDTO[];
+}
+/**
+ * PolicyEffect is a rule's outcome: allow, ask or deny.
+ */
+export type PolicyEffect = "allow" | "ask" | "deny";
+export const PolicyEffectAllow: PolicyEffect = "allow";
+export const PolicyEffectAsk: PolicyEffect = "ask";
+export const PolicyEffectDeny: PolicyEffect = "deny";
+/**
+ * PolicyRuleDTO is one rule, typed form Kind[selector](specifier).
+ */
+export interface PolicyRuleDTO {
+  id: string;
+  effect: PolicyEffect;
+  /**
+   * Kind: RemoteExec, Workspace, Harness, Tool (and, from phase 3, App,
+   * Agent, Knowledge, Mcp, Flow, WebFetch).
+   */
+  kind: string;
+  /**
+   * Selector narrows the rule to one remote (its id) or a tag (tag:<name>);
+   * empty applies everywhere.
+   */
+  selector: string;
+  /**
+   * Specifier is the kind's pattern: a command (`npm test`, `git push:*`),
+   * a folder (`~/proj/**`), a harness tool with its pattern
+   * (`Bash(git status:*)`, `Edit`), or a loop tool's name. Empty is the
+   * whole kind.
+   */
+  specifier: string;
+  /**
+   * CreatedAt is null for a rule that is not a stored row yet: an entry of
+   * the chat's always-allow list from before rules existed, or the chat's
+   * "allow every tool" setting.
+   */
+  created_at?: string /* RFC3339 */;
+  /**
+   * CreatedBy is the user who wrote the rule; empty for those above.
+   */
+  created_by: string;
+}
+/**
+ * PolicyLayerDTO is the rules one subject contributes.
+ */
+export interface PolicyLayerDTO {
+  /**
+   * SubjectType is the ladder rung: chat, agent, user, team or org.
+   */
+  subject_type: string;
+  subject_id: string;
+  label: string;
+  /**
+   * Governance: written by an org or team admin. The most specific
+   * governance layer is in force and may be looser than the one above it;
+   * every other layer can only narrow.
+   */
+  governance: boolean;
+  /**
+   * Editable: the caller may add and revoke rules here (the chat layer).
+   */
+  editable: boolean;
+  rules: PolicyRuleDTO[];
+}
+/**
+ * ChatRulesDTO is GET /chats/{id}/rules: the effective layers, most specific
+ * first. The chat layer is always present.
+ */
+export interface ChatRulesDTO {
+  layers: PolicyLayerDTO[];
+}
+/**
+ * ChatRuleCreateRequest is POST /chats/{id}/rules. A chat rule can only
+ * narrow: an allow that a governance or agent rule asks about or denies is
+ * refused, as is any allow under a governance-only policy.
+ */
+export interface ChatRuleCreateRequest {
+  effect: PolicyEffect;
+  /**
+   * Kind: RemoteExec, Workspace, Harness or Tool.
+   */
+  kind: string;
+  selector?: string;
+  specifier: string;
+}
+/**
+ * ChatRuleExplainRequest is POST /chats/{id}/rules/explain: test a call
+ * against the chat's rules.
+ */
+export interface ChatRuleExplainRequest {
+  /**
+   * Kind: RemoteExec, Workspace, Harness or Tool.
+   */
+  kind: string;
+  /**
+   * Target is the call: a command (RemoteExec), a path (Workspace), a
+   * harness tool call (`Bash(git status)`, `Edit(/srv/app/x.go)`, `Read`)
+   * or a loop tool's name (Tool).
+   */
+  target: string;
+  /**
+   * Remote optionally names the remote the call runs on, so rules with a
+   * [selector] apply.
+   */
+  remote?: string;
+  /**
+   * Cwd optionally sets the working directory for relative paths.
+   */
+  cwd?: string;
+}
+/**
+ * PolicyRungDTO names the layer that decided.
+ */
+export interface PolicyRungDTO {
+  subject_type: string;
+  subject_id: string;
+  label: string;
+  governance: boolean;
+}
+/**
+ * ChatRuleExplainDTO is the decision for a tested call. Rung and Rule are
+ * null when no single rule decided (the kind's default, a command the
+ * engine cannot analyse, or every part of a compound command allowed).
+ */
+export interface ChatRuleExplainDTO {
+  effect: PolicyEffect;
+  rung?: PolicyRungDTO;
+  rule?: PolicyRuleDTO;
+  /**
+   * Reason is the decision as one sentence, e.g. `deny: RemoteExec(rm:*)
+   * on team t1 (governance) matched "rm -rf /"`.
+   */
+  reason: string;
 }
 export interface AcceptTermsResponse {
   accepted: boolean;
@@ -6131,32 +6269,6 @@ export interface StoreVersionManifestDTO {
   depends?: string[];
 }
 /**
- * StoreQueueRequest filters the admin review queue (oldest first).
- */
-export interface StoreQueueRequest {
-  cursor: string;
-  page?: number /* int */; // Page number for offset-based pagination (used when Cursor is empty)
-  limit: number /* int */;
-  direction: string;
-  search?: SearchRequest;
-  filters: Filter[];
-  preloads: string[];
-  sort: SortOrder[];
-  fields: string[]; // Fields to select, empty means all fields
-  permissions: string[]; // Permissions to filter by, empty means all permissions
-  include_others: boolean; // Include other users' items in the response
-  /**
-   * IncludePrivate: an owner or admin of the selected team asks for every
-   * row the team owns, private ones included. Audited; ignored for others.
-   */
-  include_private?: boolean;
-  resource_type?: StoreResourceType;
-  first_version?: boolean;
-  material?: boolean;
-  severity?: string; // block|hold|warning
-  recommendation?: string; // approve|hold|reject
-}
-/**
  * StoreQueueItemDTO is one row of the admin review queue.
  */
 export interface StoreQueueItemDTO {
@@ -6267,31 +6379,6 @@ export interface StoreAckDTO {
   text: string; // may contain {team}
 }
 /**
- * MarketplaceListRequest lists live listings for buyers.
- */
-export interface MarketplaceListRequest {
-  cursor: string;
-  page?: number /* int */; // Page number for offset-based pagination (used when Cursor is empty)
-  limit: number /* int */;
-  direction: string;
-  search?: SearchRequest;
-  filters: Filter[];
-  preloads: string[];
-  sort: SortOrder[];
-  fields: string[]; // Fields to select, empty means all fields
-  permissions: string[]; // Permissions to filter by, empty means all permissions
-  include_others: boolean; // Include other users' items in the response
-  /**
-   * IncludePrivate: an owner or admin of the selected team asks for every
-   * row the team owns, private ones included. Audited; ignored for others.
-   */
-  include_private?: boolean;
-  type?: StoreResourceType;
-  category?: string;
-  q?: string;
-  sort_by?: string; // popular|new|top|rank
-}
-/**
  * MarketplaceCardDTO is a listing as a card (spec §11).
  */
 export interface MarketplaceCardDTO {
@@ -6346,20 +6433,6 @@ export interface MarketplaceChangelogDTO {
   label: string;
   published_at?: string /* RFC3339 */;
   changelog: string;
-}
-/**
- * MarketplaceHomeDTO is the /marketplace landing page.
- */
-export interface MarketplaceHomeDTO {
-  featured: MarketplaceCardDTO[];
-  sections: MarketplaceSectionDTO[];
-  categories: StoreCategoryDTO[];
-  type_counts: { [key: string]: number /* int64 */};
-}
-export interface MarketplaceSectionDTO {
-  key: string; // popular|new|top|category:<slug>
-  title: string;
-  items: MarketplaceCardDTO[];
 }
 /**
  * MarketplaceReportRequest reports a listing to admins.

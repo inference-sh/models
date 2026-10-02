@@ -1803,6 +1803,9 @@ type ChatSettingsRequest struct {
 	// DisableHooks stops the agent's lifecycle hooks (suggest, learn,
 	// webhooks, gates) firing in this chat.
 	DisableHooks *bool `json:"disable_hooks,omitempty"`
+	// ForgetMemory removes these keys from the chat's memory, the notes the
+	// agent keeps for this conversation. A key that is not there is ignored.
+	ForgetMemory []string `json:"forget_memory,omitempty"`
 }
 
 // ChatDTO for API responses
