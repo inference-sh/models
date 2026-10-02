@@ -4641,6 +4641,78 @@ public struct ChatSettingsRequest: Codable, Sendable {
     }
 }
 
+/// ChatSettingsDTO is what POST /chats/{id}/settings answers with: the chat's
+/// settings after the change, every field the endpoint writes and nothing
+/// else. A client merges it into the chat it holds.
+public struct ChatSettingsDTO: Codable, Sendable {
+    public var chatId: String
+    public var name: String
+    public var visibility: Visibility
+    /// AllowAllTools and DisableHooks are agent_data.allow_all_tools and
+    /// agent_data.disable_hooks on the chat.
+    public var allowAllTools: Bool
+    public var disableHooks: Bool
+    /// Memory is agent_data.memory after forget_memory removed its keys.
+    public var memory: StringEncodedMap?
+
+    public init(
+        chatId: String = "",
+        name: String = "",
+        visibility: Visibility,
+        allowAllTools: Bool = false,
+        disableHooks: Bool = false,
+        memory: StringEncodedMap? = nil
+    ) {
+        self.chatId = chatId
+        self.name = name
+        self.visibility = visibility
+        self.allowAllTools = allowAllTools
+        self.disableHooks = disableHooks
+        self.memory = memory
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case chatId = "chat_id"
+        case name = "name"
+        case visibility = "visibility"
+        case allowAllTools = "allow_all_tools"
+        case disableHooks = "disable_hooks"
+        case memory = "memory"
+    }
+}
+
+/// ChatAgentDTO is what POST /chats/{id}/agent answers with: the agent the
+/// chat now runs on. A client merges it into the chat it holds.
+public struct ChatAgentDTO: Codable, Sendable {
+    public var chatId: String
+    public var agentId: String
+    @Indirect public var agent: AgentDTO?
+    public var agentVersionId: String
+    @Indirect public var agentVersion: AgentVersionDTO?
+
+    public init(
+        chatId: String = "",
+        agentId: String = "",
+        agent: AgentDTO? = nil,
+        agentVersionId: String = "",
+        agentVersion: AgentVersionDTO? = nil
+    ) {
+        self.chatId = chatId
+        self.agentId = agentId
+        self.agent = agent
+        self.agentVersionId = agentVersionId
+        self.agentVersion = agentVersion
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case chatId = "chat_id"
+        case agentId = "agent_id"
+        case agent = "agent"
+        case agentVersionId = "agent_version_id"
+        case agentVersion = "agent_version"
+    }
+}
+
 /// ChatDTO for API responses
 public struct ChatDTO: Codable, Sendable {
     public var id: String
@@ -4668,6 +4740,9 @@ public struct ChatDTO: Codable, Sendable {
     @Indirect public var agentVersion: AgentVersionDTO?
     public var name: String
     public var description: String
+    /// ChatMessages is left out when the messages were not loaded. The chat
+    /// endpoints do not load them; read them from GET /chats/{id}/messages.
+    /// An absent field says nothing about whether the chat has messages.
     public var chatMessages: [ChatMessageDTO]?
     @Indirect public var agentData: ChatData
     @Indirect public var activeRun: AgentRunDTO?

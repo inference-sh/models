@@ -1802,6 +1802,22 @@ export interface AppPricing {
   description_rendered?: string;
 }
 /**
+ * AppPricingPatch is the input type for UpdateDraftPricing. Pointer fields
+ * distinguish "omitted" (nil) from "explicitly set" (including to empty string
+ * to clear). This prevents a description-only update from wiping expressions.
+ */
+export interface AppPricingPatch {
+  prices?: { [key: string]: number /* int64 */};
+  upstream_pricing?: string;
+  resource_expression?: string;
+  inference_expression?: string;
+  royalty_expression?: string;
+  partner_expression?: string;
+  total_expression?: string;
+  estimate?: string;
+  description?: string;
+}
+/**
  * AppFunction represents a callable entry point within an app version.
  */
 export interface AppFunction {
@@ -1980,25 +1996,6 @@ export interface AppStoreListingDTO {
   tags?: string[];
 }
 /**
- * AppStoreVersionDTO for API responses
- */
-export interface AppStoreVersionDTO {
-  id: string;
-  listing_id: string;
-  created_at: string /* RFC3339 */;
-  updated_at: string /* RFC3339 */;
-  deleted_at?: string /* RFC3339 */;
-  license: string;
-  license_mandatory: boolean;
-  allows_commercial: boolean;
-  pricing?: AppPricing;
-  draft_pricing?: AppPricing;
-  status: StoreVersionStatus;
-  reviewed_at?: string /* RFC3339 */;
-  reviewed_by?: string;
-  rejection_reason?: string;
-}
-/**
  * PublicAppStoreDTO is a lean DTO for public app store display.
  */
 export interface PublicAppStoreDTO {
@@ -2046,15 +2043,6 @@ export interface EvaluateDraftPricingRequest {
 export interface PublishDraftPricingResponse {
   pricing?: AppPricing;
   previous_pricing?: AppPricing;
-}
-/**
- * AppStoreVersionSubmitRequest is the request body for submitting an app version to the store.
- */
-export interface AppStoreVersionSubmitRequest {
-  license?: string;
-  license_mandatory?: boolean;
-  allows_commercial?: boolean;
-  pricing?: AppPricing;
 }
 /**
  * ResourceImages is the display-image set every listable resource carries:
@@ -2743,6 +2731,37 @@ export interface ChatSettingsRequest {
   forget_memory?: string[];
 }
 /**
+ * ChatSettingsDTO is what POST /chats/{id}/settings answers with: the chat's
+ * settings after the change, every field the endpoint writes and nothing
+ * else. A client merges it into the chat it holds.
+ */
+export interface ChatSettingsDTO {
+  chat_id: string;
+  name: string;
+  visibility: Visibility;
+  /**
+   * AllowAllTools and DisableHooks are agent_data.allow_all_tools and
+   * agent_data.disable_hooks on the chat.
+   */
+  allow_all_tools: boolean;
+  disable_hooks: boolean;
+  /**
+   * Memory is agent_data.memory after forget_memory removed its keys.
+   */
+  memory: StringEncodedMap;
+}
+/**
+ * ChatAgentDTO is what POST /chats/{id}/agent answers with: the agent the
+ * chat now runs on. A client merges it into the chat it holds.
+ */
+export interface ChatAgentDTO {
+  chat_id: string;
+  agent_id: string;
+  agent?: AgentDTO;
+  agent_version_id: string;
+  agent_version?: AgentVersionDTO;
+}
+/**
  * ChatDTO for API responses
  */
 export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
@@ -2763,7 +2782,12 @@ export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
   agent_version?: AgentVersionDTO;
   name: string;
   description: string;
-  chat_messages: ChatMessageDTO[];
+  /**
+   * ChatMessages is left out when the messages were not loaded. The chat
+   * endpoints do not load them; read them from GET /chats/{id}/messages.
+   * An absent field says nothing about whether the chat has messages.
+   */
+  chat_messages?: ChatMessageDTO[];
   agent_data: ChatData;
   active_run?: AgentRunDTO;
   pending_interrupts?: InterruptDTO[];
@@ -4467,30 +4491,6 @@ export interface SkillStoreListingDTO {
   tags?: string[];
 }
 /**
- * SkillStoreVersionDTO for API responses
- */
-export interface SkillStoreVersionDTO {
-  id: string;
-  listing_id: string;
-  created_at: string /* RFC3339 */;
-  updated_at: string /* RFC3339 */;
-  deleted_at?: string /* RFC3339 */;
-  license: string;
-  status: StoreVersionStatus;
-  reviewed_at?: string /* RFC3339 */;
-  reviewed_by?: string;
-  rejection_reason?: string;
-  scan_severity?: string;
-  scan_results?: string;
-  scanned_at?: string /* RFC3339 */;
-}
-/**
- * SkillStoreVersionSubmitRequest is the request body for submitting a skill version to the store
- */
-export interface SkillStoreVersionSubmitRequest {
-  license?: string;
-}
-/**
  * LinearWorkflowState represents a workflow state from Linear
  */
 export interface LinearWorkflowState {
@@ -6147,6 +6147,7 @@ export interface StoreListingDTO {
   is_featured: boolean;
   rank: number /* int */;
   community: boolean;
+  page_id?: string; // the listing's own page
   stats: StoreListingStats;
   use_cases: StoreUseCaseDTO[];
   /**
@@ -6154,6 +6155,10 @@ export interface StoreListingDTO {
    * lists can show "blocked" or "changes requested" without another call.
    */
   latest_version?: StoreVersionDTO;
+  /**
+   * LiveVersion is the version buyers get, when the listing is live.
+   */
+  live_version?: StoreVersionDTO;
 }
 /**
  * StoreDataHandling is the publisher's data-handling answers (spec §7.3).
@@ -6393,6 +6398,11 @@ export interface StoreVersionDetailDTO {
    */
   manifest?: StoreVersionManifestDTO;
   /**
+   * Terms are the version's license terms and pricing. The publisher sees
+   * the published pricing; the draft is the marketplace's.
+   */
+  terms?: StoreVersionTermsDTO;
+  /**
    * Events are this version's events; for admins also the listing's own
    * (suspensions, level changes, test-access reveals).
    */
@@ -6442,7 +6452,7 @@ export interface StoreReviewRequest {
  * fields or state. Reason is required and recorded.
  */
 export interface StoreListingAdminRequest {
-  action: string; // suspend|reinstate|delist|relist|set_level|set_fee|feature|rank|community
+  action: string; // suspend|reinstate|delist|relist|set_level|set_fee|feature|rank|community|page|categories
   reason: string;
   rule?: string;
   level?: string;
@@ -6450,6 +6460,91 @@ export interface StoreListingAdminRequest {
   is_featured?: boolean;
   rank?: number /* int */;
   community?: boolean;
+  /**
+   * PageID is the listing's own page (action page); empty clears it.
+   */
+  page_id?: string;
+  /**
+   * Categories replace the listing's categories (action categories).
+   */
+  categories?: string[];
+}
+/**
+ * StoreAdminSubmitRequest submits a resource version on its publisher's
+ * behalf, without their attestation. The version is checked and routed like
+ * any other. ResourceVersionID defaults to the resource's current version.
+ */
+export interface StoreAdminSubmitRequest {
+  resource_type: StoreResourceType;
+  resource_id: string;
+  resource_version_id?: string;
+  changelog?: string;
+}
+/**
+ * StoreVersionTermsDTO is what a store version is offered under: its license
+ * terms and pricing, for any resource type.
+ */
+export interface StoreVersionTermsDTO {
+  license_mandatory: boolean;
+  allows_commercial: boolean;
+  pricing?: AppPricing;
+  draft_pricing?: AppPricing;
+}
+/**
+ * StoreApplyPricingResponse says how many other versions of the listing took
+ * a version's published pricing.
+ */
+export interface StoreApplyPricingResponse {
+  versions: number /* int */;
+}
+/**
+ * StoreVersionTermsRequest is an admin edit of a version's license terms.
+ * Pricing has its own draft and publish workflow.
+ */
+export interface StoreVersionTermsRequest {
+  license?: string;
+  license_mandatory?: boolean;
+  allows_commercial?: boolean;
+}
+/**
+ * RuntimePolicyDTO is how the platform runs a resource: the entitlement
+ * gate, concurrency limits, and for resources that run on workers which
+ * workers may run them.
+ */
+export interface RuntimePolicyDTO {
+  resource_type: StoreResourceType;
+  resource_id: string;
+  /**
+   * RequiredFeature is an entitlement teams need to run the resource
+   * ("feature:video_gen"); empty is open access.
+   */
+  required_feature: string;
+  /**
+   * 0 is unlimited.
+   */
+  max_concurrency: number /* int */;
+  max_concurrency_per_team: number /* int */;
+  /**
+   * Worker placement: apps only.
+   */
+  allows_private_workers: boolean;
+  allows_cloud_workers: boolean;
+  /**
+   * MinConcurrency keeps at least this many cloud workers loaded.
+   */
+  min_concurrency: number /* int */;
+}
+/**
+ * RuntimePolicyRequest changes a resource's runtime policy; fields left out
+ * stay as they are.
+ */
+export interface RuntimePolicyRequest {
+  required_feature?: string;
+  max_concurrency?: number /* int */;
+  max_concurrency_per_team?: number /* int */;
+  allows_private_workers?: boolean;
+  allows_cloud_workers?: boolean;
+  min_concurrency?: number /* int */;
 }
 /**
  * PublisherDTO is a team's publisher profile as the team sees it.

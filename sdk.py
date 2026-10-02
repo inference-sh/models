@@ -941,6 +941,29 @@ class ChatSettingsRequest(TypedDict, total=False):
     # agent keeps for this conversation. A key that is not there is ignored.
     forget_memory: List[str]
 
+# ChatSettingsDTO is what POST /chats/{id}/settings answers with: the chat's
+# settings after the change, every field the endpoint writes and nothing
+# else. A client merges it into the chat it holds.
+class ChatSettingsDTO(TypedDict, total=False):
+    chat_id: str
+    name: str
+    visibility: Visibility
+    # AllowAllTools and DisableHooks are agent_data.allow_all_tools and
+    # agent_data.disable_hooks on the chat.
+    allow_all_tools: bool
+    disable_hooks: bool
+    # Memory is agent_data.memory after forget_memory removed its keys.
+    memory: StringEncodedMap
+
+# ChatAgentDTO is what POST /chats/{id}/agent answers with: the agent the
+# chat now runs on. A client merges it into the chat it holds.
+class ChatAgentDTO(TypedDict, total=False):
+    chat_id: str
+    agent_id: str
+    agent: Optional[AgentDTO]
+    agent_version_id: str
+    agent_version: Optional[AgentVersionDTO]
+
 # PolicyRuleDTO is one rule, typed form Kind[selector](specifier).
 class PolicyRuleDTO(TypedDict, total=False):
     id: str
@@ -3159,6 +3182,9 @@ class ChatDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     agent_version: Optional[AgentVersionDTO]
     name: str
     description: str
+    # ChatMessages is left out when the messages were not loaded. The chat
+    # endpoints do not load them; read them from GET /chats/{id}/messages.
+    # An absent field says nothing about whether the chat has messages.
     chat_messages: List[ChatMessageDTO]
     agent_data: ChatData
     active_run: Optional[AgentRunDTO]

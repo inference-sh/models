@@ -1808,6 +1808,31 @@ type ChatSettingsRequest struct {
 	ForgetMemory []string `json:"forget_memory,omitempty"`
 }
 
+// ChatSettingsDTO is what POST /chats/{id}/settings answers with: the chat's
+// settings after the change, every field the endpoint writes and nothing
+// else. A client merges it into the chat it holds.
+type ChatSettingsDTO struct {
+	ChatID     string     `json:"chat_id"`
+	Name       string     `json:"name"`
+	Visibility Visibility `json:"visibility"`
+	// AllowAllTools and DisableHooks are agent_data.allow_all_tools and
+	// agent_data.disable_hooks on the chat.
+	AllowAllTools bool `json:"allow_all_tools"`
+	DisableHooks  bool `json:"disable_hooks"`
+	// Memory is agent_data.memory after forget_memory removed its keys.
+	Memory StringEncodedMap `json:"memory"`
+}
+
+// ChatAgentDTO is what POST /chats/{id}/agent answers with: the agent the
+// chat now runs on. A client merges it into the chat it holds.
+type ChatAgentDTO struct {
+	ChatID         string           `json:"chat_id"`
+	AgentID        string           `json:"agent_id"`
+	Agent          *AgentDTO        `json:"agent,omitempty"`
+	AgentVersionID string           `json:"agent_version_id"`
+	AgentVersion   *AgentVersionDTO `json:"agent_version,omitempty"`
+}
+
 // ChatDTO for API responses
 type ChatDTO struct {
 	BaseModelDTO       `tstype:",extends"`
@@ -1820,14 +1845,17 @@ type ChatDTO struct {
 	Context            map[string]string `json:"context,omitempty"`
 	// ChannelContext names the channel this chat came through (slack, a
 	// wearable's tag, ...). Unset for chats started in the app or the SDK.
-	ChannelContext    *ChannelContext  `json:"channel_context,omitempty"`
-	AgentID           *string          `json:"agent_id,omitempty"`
-	Agent             *AgentDTO        `json:"agent,omitempty"`
-	AgentVersionID    *string          `json:"agent_version_id,omitempty"`
-	AgentVersion      *AgentVersionDTO `json:"agent_version,omitempty"`
-	Name              string           `json:"name"`
-	Description       string           `json:"description"`
-	ChatMessages      []ChatMessageDTO `json:"chat_messages"`
+	ChannelContext *ChannelContext  `json:"channel_context,omitempty"`
+	AgentID        *string          `json:"agent_id,omitempty"`
+	Agent          *AgentDTO        `json:"agent,omitempty"`
+	AgentVersionID *string          `json:"agent_version_id,omitempty"`
+	AgentVersion   *AgentVersionDTO `json:"agent_version,omitempty"`
+	Name           string           `json:"name"`
+	Description    string           `json:"description"`
+	// ChatMessages is left out when the messages were not loaded. The chat
+	// endpoints do not load them; read them from GET /chats/{id}/messages.
+	// An absent field says nothing about whether the chat has messages.
+	ChatMessages      []ChatMessageDTO `json:"chat_messages,omitempty"`
 	AgentData         ChatData         `json:"agent_data"`
 	ActiveRun         *AgentRunDTO     `json:"active_run,omitempty"`
 	PendingInterrupts []InterruptDTO   `json:"pending_interrupts,omitempty"`
@@ -4206,6 +4234,8 @@ type SDKTypes struct {
 	_toolExplanation    ToolExplanationDTO
 	_chatDTO            ChatDTO
 	_chatSettings       ChatSettingsRequest
+	_chatSettingsDTO    ChatSettingsDTO
+	_chatAgentDTO       ChatAgentDTO
 	_chatMsg            ChatMessageDTO
 	_graphNode          GraphNodeDTO
 	_createAgent        CreateAgentRequest
