@@ -1634,6 +1634,9 @@ type AuthSchemeHooksDTO struct {
 	TokenResponse []string `json:"token_response"`
 	Identity      []string `json:"identity"`
 	Vars          []string `json:"vars"`
+	// AuthServerProfiles are the authorization server profiles flows without
+	// a scheme row (outbound MCP) pick from discovered metadata.
+	AuthServerProfiles []string `json:"auth_server_profiles"`
 }
 
 // AuthSchemeSeedResult is what POST /admin/auth-schemes/seed did: the
@@ -1785,6 +1788,22 @@ type SubmitBountyResponse struct {
 // --------------------
 // source: chat.go
 // --------------------
+
+// ChatSettingsRequest changes a chat's settings. A field left out is left as
+// it is.
+type ChatSettingsRequest struct {
+	// Name renames the chat. It cannot be empty.
+	Name *string `json:"name,omitempty"`
+	// Visibility is who can open the chat: private (only you), team (your
+	// workspace) or public (anyone with the link).
+	Visibility *Visibility `json:"visibility,omitempty"`
+	// AllowAllTools runs every tool call without asking. Switching it on also
+	// approves the calls already waiting.
+	AllowAllTools *bool `json:"allow_all_tools,omitempty"`
+	// DisableHooks stops the agent's lifecycle hooks (suggest, learn,
+	// webhooks, gates) firing in this chat.
+	DisableHooks *bool `json:"disable_hooks,omitempty"`
+}
 
 // ChatDTO for API responses
 type ChatDTO struct {
@@ -3171,16 +3190,21 @@ type MCPServerDTO struct {
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 	// Title is the human-readable name; empty falls back to Name.
-	Title            string            `json:"title"`
-	Description      string            `json:"description"`
-	IconURL          string            `json:"icon_url"`
-	ServerURL        string            `json:"server_url"`
-	AuthType         MCPServerAuthType `json:"auth_type"`
-	OAuthClientID    string            `json:"oauth_client_id,omitempty"`
-	OAuthSecretKey   string            `json:"-"`
-	DefaultScopes    StringSlice       `json:"default_scopes"`
-	DocumentationURL string            `json:"documentation_url"`
-	ConnectionStatus string            `json:"connection_status,omitempty"`
+	Title          string            `json:"title"`
+	Description    string            `json:"description"`
+	IconURL        string            `json:"icon_url"`
+	ServerURL      string            `json:"server_url"`
+	AuthType       MCPServerAuthType `json:"auth_type"`
+	OAuthClientID  string            `json:"oauth_client_id,omitempty"`
+	OAuthSecretKey string            `json:"-"`
+	DefaultScopes  StringSlice       `json:"default_scopes"`
+	// Headers are static HTTP headers sent on every request to the server,
+	// set by the team's admins (e.g. X-MCP-Toolsets, X-MCP-Readonly).
+	Headers map[string]string `json:"headers,omitempty"`
+	// Setup is what the server's directory entry knows about setting it up.
+	Setup            *MCPServerSetup `json:"setup,omitempty"`
+	DocumentationURL string          `json:"documentation_url"`
+	ConnectionStatus string          `json:"connection_status,omitempty"`
 	// ConnectionScope is who the caller's connection to this server belongs
 	// to (user, team, org, platform); empty when not connected.
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
@@ -3206,6 +3230,20 @@ type PublicMCPServerDTO struct {
 	Installs         int64             `json:"installs"`
 	Uses             int64             `json:"uses"`
 	ConnectionStatus string            `json:"connection_status,omitempty"`
+}
+
+// MCPServerSetup is what a server's directory entry knows about setting the
+// server up, as data: shown to whoever connects a server on the same host,
+// so no server's specifics live in code.
+type MCPServerSetup struct {
+	// ResourceAppID is the id the server's API has at its authorization
+	// server, which an organization must know before it can approve access
+	// (for a Microsoft Entra resource: the application id a tenant needs a
+	// service principal for).
+	ResourceAppID string `json:"resource_app_id,omitempty"`
+	// RecommendedHeaders are the least-privilege static headers the server
+	// documents (e.g. X-MCP-Toolsets), offered by the headers editor.
+	RecommendedHeaders map[string]string `json:"recommended_headers,omitempty"`
 }
 
 // --------------------
@@ -4027,6 +4065,7 @@ type SDKTypes struct {
 	_countResp          CountResponse
 	_chatTrace          ChatTraceDTO
 	_chatDTO            ChatDTO
+	_chatSettings       ChatSettingsRequest
 	_chatMsg            ChatMessageDTO
 	_graphNode          GraphNodeDTO
 	_createAgent        CreateAgentRequest
@@ -6331,6 +6370,13 @@ type ChatData struct {
 	PlanSteps          []PlanStep       `json:"plan_steps"`
 	Memory             StringEncodedMap `json:"memory"`
 	AlwaysAllowedTools []string         `json:"always_allowed_tools"`
+	// AllowAllTools runs every tool call in this chat without asking. The
+	// person switches it in the chat's settings, and off again at any time.
+	AllowAllTools bool `json:"allow_all_tools"`
+	// DisableHooks stops the agent's lifecycle hooks firing in this chat. A
+	// review branch is opened with it set, so a review cannot fire the hook
+	// that reviews it.
+	DisableHooks bool `json:"disable_hooks,omitempty"`
 }
 
 // PlanStep represents a step in an agent's execution plan

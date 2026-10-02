@@ -2425,6 +2425,11 @@ export interface AuthSchemeHooksDTO {
   token_response: string[];
   identity: string[];
   vars: string[];
+  /**
+   * AuthServerProfiles are the authorization server profiles flows without
+   * a scheme row (outbound MCP) pick from discovered metadata.
+   */
+  auth_server_profiles: string[];
 }
 /**
  * AuthSchemeSeedResult is what POST /admin/auth-schemes/seed did: the
@@ -2708,6 +2713,31 @@ export interface SubmitBountyResponse {
   granted_amount?: number /* int64 */;
 }
 /**
+ * ChatSettingsRequest changes a chat's settings. A field left out is left as
+ * it is.
+ */
+export interface ChatSettingsRequest {
+  /**
+   * Name renames the chat. It cannot be empty.
+   */
+  name?: string;
+  /**
+   * Visibility is who can open the chat: private (only you), team (your
+   * workspace) or public (anyone with the link).
+   */
+  visibility?: Visibility;
+  /**
+   * AllowAllTools runs every tool call without asking. Switching it on also
+   * approves the calls already waiting.
+   */
+  allow_all_tools?: boolean;
+  /**
+   * DisableHooks stops the agent's lifecycle hooks (suggest, learn,
+   * webhooks, gates) firing in this chat.
+   */
+  disable_hooks?: boolean;
+}
+/**
  * ChatDTO for API responses
  */
 export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
@@ -2810,6 +2840,147 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
  */
 export interface CredentialAppRequest {
   values: { [key: string]: string};
+}
+/**
+ * AuthAppField is an extra, non-secret key an OAuth app carries beside its
+ * client id and secret, declared by the authorization server's profile (a
+ * directory tenant, say) so the app form asks for it.
+ */
+export interface AuthAppField {
+  key: string;
+  label: string;
+  /**
+   * Help says when and how to fill it.
+   */
+  help?: string;
+  optional?: boolean;
+}
+/**
+ * MCPOAuthAppDTO is one OAuth app for an MCP server's host, owned by a team,
+ * an org or the platform. The client secret is never returned.
+ */
+export interface MCPOAuthAppDTO {
+  id: string;
+  scope: CredentialScope;
+  status: CredentialStatus;
+  client_id: string;
+  has_secret: boolean;
+  /**
+   * Fields are the app's values for the profile's AppFields.
+   */
+  fields?: { [key: string]: string};
+}
+/**
+ * MCPOAuthAppStatus answers GET /credentials/mcp/app?server_url=: how a
+ * connection to an MCP server signs in, for the connect dialog.
+ */
+export interface MCPOAuthAppStatus {
+  server_url: string;
+  /**
+   * Account is the server's host: OAuth apps are set per host.
+   */
+  account: string;
+  /**
+   * App is the app a new connection would go through: the caller's team's,
+   * else its org's, else the platform's. Nil when there is none.
+   */
+  app?: MCPOAuthAppDTO;
+  /**
+   * Apps are every app for this host the caller's connections could use.
+   */
+  apps: MCPOAuthAppDTO[];
+  /**
+   * ManageScopes are the owners whose app the caller may set (team, org,
+   * platform), decided by capabilities. Empty: ask an admin.
+   */
+  manage_scopes: CredentialScope[];
+  /**
+   * RedirectURL is the callback the OAuth app must register.
+   */
+  redirect_url: string;
+  /**
+   * AuthorizationServer is the issuer the server's metadata names; empty
+   * when discovery failed.
+   */
+  authorization_server?: string;
+  /**
+   * NeedsApp: the authorization server offers no dynamic registration, so
+   * connections need an OAuth app someone sets up.
+   */
+  needs_app: boolean;
+  /**
+   * AppFields are the extra keys an app for this authorization server
+   * carries, from its profile. Empty for most servers.
+   */
+  app_fields: AuthAppField[];
+  /**
+   * AdminConsentURL is the link an admin of the signing-in organization
+   * opens once to approve the app, when the authorization server has that
+   * step and an app exists.
+   */
+  admin_consent_url?: string;
+  /**
+   * Scopes are what a connection requests.
+   */
+  scopes?: string[];
+  /**
+   * RecommendedHeaders are the static headers the server's directory entry
+   * recommends (MCPServerSetup), for the headers editor to offer.
+   */
+  recommended_headers?: { [key: string]: string};
+}
+/**
+ * MCPOAuthAppRequest is the body of PUT /credentials/mcp/app: the OAuth app
+ * for the server's host, owned at Scope (team, org or platform; empty = the
+ * caller's workspace). A blank secret keeps the stored one. Fields are the
+ * values for the authorization server's AppFields; blanks keep what is stored.
+ */
+export interface MCPOAuthAppRequest {
+  server_url: string;
+  scope?: CredentialScope;
+  client_id?: string;
+  client_secret?: string;
+  fields?: { [key: string]: string};
+}
+/**
+ * OAuthNoticeOutcome is what an authorization server's redirect amounted to.
+ */
+export type OAuthNoticeOutcome = "error" | "approved";
+/**
+ * OAuthNoticeError: the sign-in failed.
+ */
+export const OAuthNoticeError: OAuthNoticeOutcome = "error";
+/**
+ * OAuthNoticeApproved: an admin approved the app for their organization
+ * (an admin consent landing); nothing was connected.
+ */
+export const OAuthNoticeApproved: OAuthNoticeOutcome = "approved";
+/**
+ * OAuthCallbackNotice is what an OAuth redirect without a code means for the
+ * person who landed on it, and what to do next. The callback page shows it
+ * as given.
+ */
+export interface OAuthCallbackNotice {
+  outcome: OAuthNoticeOutcome;
+  message: string;
+  /**
+   * AdminConsentURL is a link to pass to an admin, when one would help.
+   */
+  admin_consent_url?: string;
+  /**
+   * Command is a command an admin runs once, when one would help.
+   */
+  command?: string;
+}
+/**
+ * OAuthCallbackNoticeRequest is the body of POST /oauth-callback/notice:
+ * the query of a redirect that carried no code (an error, or an admin
+ * consent landing).
+ */
+export interface OAuthCallbackNoticeRequest {
+  provider: string;
+  state?: string;
+  params?: { [key: string]: string};
 }
 /**
  * CredentialScopeRequest is the body of PUT /credentials/{provider}/scope:
@@ -4384,6 +4555,15 @@ export interface MCPServerDTO {
   auth_type: MCPServerAuthType;
   oauth_client_id?: string;
   default_scopes: StringSlice;
+  /**
+   * Headers are static HTTP headers sent on every request to the server,
+   * set by the team's admins (e.g. X-MCP-Toolsets, X-MCP-Readonly).
+   */
+  headers?: { [key: string]: string};
+  /**
+   * Setup is what the server's directory entry knows about setting it up.
+   */
+  setup?: MCPServerSetup;
   documentation_url: string;
   connection_status?: string;
   /**
@@ -4446,6 +4626,25 @@ export interface AdminMCPServerDTO {
   uses: number /* int64 */;
   created_at: string /* RFC3339 */;
   updated_at: string /* RFC3339 */;
+}
+/**
+ * MCPServerSetup is what a server's directory entry knows about setting the
+ * server up, as data: shown to whoever connects a server on the same host,
+ * so no server's specifics live in code.
+ */
+export interface MCPServerSetup {
+  /**
+   * ResourceAppID is the id the server's API has at its authorization
+   * server, which an organization must know before it can approve access
+   * (for a Microsoft Entra resource: the application id a tenant needs a
+   * service principal for).
+   */
+  resource_app_id?: string;
+  /**
+   * RecommendedHeaders are the least-privilege static headers the server
+   * documents (e.g. X-MCP-Toolsets), offered by the headers editor.
+   */
+  recommended_headers?: { [key: string]: string};
 }
 /**
  * MCPToolCallDTO tracks an MCP tool invocation — inputs, outputs, status, timing.
@@ -5594,6 +5793,580 @@ export interface StatBuckets {
   today: number /* int64 */;
   this_week: number /* int64 */;
   all_time: number /* int64 */;
+}
+/**
+ * StoreResourceSummaryDTO is what a listing shows of its resource: the
+ * fields derived from it and edited at the source (spec §7.1).
+ */
+export interface StoreResourceSummaryDTO {
+  namespace: string;
+  name: string;
+  title: string;
+  description: string;
+  image?: string;
+  visibility: Visibility;
+  current_version_id: string;
+}
+/**
+ * PublisherPublicDTO is the publisher as buyers see it.
+ */
+export interface PublisherPublicDTO {
+  team_id: string;
+  username: string;
+  display_name: string;
+  website?: string;
+  verified: boolean;
+}
+/**
+ * StoreListingDTO is a listing as its publisher (and admins) see it.
+ */
+export interface StoreListingDTO {
+  id: string;
+  created_at: string /* RFC3339 */;
+  updated_at: string /* RFC3339 */;
+  resource_type: StoreResourceType;
+  resource_id: string;
+  slug: string;
+  status: StoreListingStatus;
+  live_version_id?: string;
+  first_live_at?: string /* RFC3339 */;
+  resource: StoreResourceSummaryDTO;
+  publisher: PublisherPublicDTO;
+  /**
+   * Listing-owned fields (spec §7.2)
+   */
+  tagline: string;
+  categories: string[];
+  tags: string[];
+  docs_url: string;
+  support: string;
+  privacy_url: string;
+  terms_url: string;
+  homepage_url: string;
+  source_url: string;
+  /**
+   * Data handling (spec §7.3)
+   */
+  data_handling: StoreDataHandling;
+  /**
+   * Owner and admin only
+   */
+  reviewer_notes?: string;
+  has_test_access: boolean;
+  auto_publish: boolean;
+  /**
+   * Marketplace-owned
+   */
+  level: string;
+  fee_micros?: number /* int64 */;
+  is_featured: boolean;
+  rank: number /* int */;
+  community: boolean;
+  stats: StoreListingStats;
+  use_cases: StoreUseCaseDTO[];
+  /**
+   * LatestVersion is the newest submitted version, whatever its state, so
+   * lists can show "blocked" or "changes requested" without another call.
+   */
+  latest_version?: StoreVersionDTO;
+}
+/**
+ * StoreDataHandling is the publisher's data-handling answers (spec §7.3).
+ */
+export interface StoreDataHandling {
+  personal_data: string; // none|reads|reads_and_stores
+  retention: string; // not_retained|under_30_days|longer
+  writes: string; // read_only|writes
+  external_hosts: string[];
+  upstream: string[];
+}
+export interface StoreListingStats {
+  installs: number /* int64 */;
+  uses: number /* int64 */;
+  distinct_orgs_30d: number /* int64 */;
+  calls_30d: number /* int64 */;
+  success_rate_30d: number /* float64 */;
+}
+/**
+ * StoreUseCaseDTO is a public example that doubles as a dynamic test.
+ */
+export interface StoreUseCaseDTO {
+  id?: string;
+  position: number /* int */;
+  title: string; // ≤60
+  prompt: string; // ≤500
+  input: string; // apps/flows: example input JSON
+  expect: string; // ≤300
+}
+/**
+ * StoreDraftRequest starts (or returns) the draft listing for a resource.
+ */
+export interface StoreDraftRequest {
+  resource_type: StoreResourceType;
+  resource_id: string;
+}
+/**
+ * StoreListingUpdateRequest edits listing-owned fields; nil leaves a field
+ * unchanged. Arrays replace the whole list.
+ */
+export interface StoreListingUpdateRequest {
+  tagline?: string;
+  categories?: string[]; // 1–3 category slugs
+  tags?: string[]; // ≤10
+  docs_url?: string;
+  support?: string;
+  privacy_url?: string;
+  terms_url?: string;
+  homepage_url?: string;
+  source_url?: string;
+  reviewer_notes?: string; // ≤4000
+  auto_publish?: boolean;
+  data_handling?: StoreDataHandling;
+  use_cases?: StoreUseCaseDTO[];
+  /**
+   * TestAccess is stored in the vault and only shown to reviewers and the
+   * dynamic check; a nil value keeps what is there.
+   */
+  test_access?: StoreTestAccess;
+}
+/**
+ * StoreTestAccess is reviewer test access (policy P4). Write-only.
+ */
+export interface StoreTestAccess {
+  username?: string;
+  password?: string;
+  token?: string;
+  steps?: string;
+}
+/**
+ * StoreAttestationInput is what the publisher confirms when submitting a
+ * version (spec §7.4). Acks are the ids of the ticked acknowledgements from
+ * StoreTermsDTO.
+ */
+export interface StoreAttestationInput {
+  terms_version: string;
+  policy_version: string;
+  data_handling: StoreDataHandling;
+  acks: string[];
+}
+/**
+ * StoreSubmitRequest submits a resource version: the listing's first
+ * version or an update. ResourceVersionID empty means the resource's
+ * current version.
+ */
+export interface StoreSubmitRequest {
+  listing_id: string;
+  resource_version_id?: string;
+  changelog: string; // required for updates, public
+  license?: string;
+  attestation: StoreAttestationInput;
+}
+/**
+ * StoreCheckRequest runs the synchronous checks (validation, scan, policy)
+ * on a resource version without submitting it: the wizard's Source step.
+ */
+export interface StoreCheckRequest {
+  resource_type: StoreResourceType;
+  resource_id: string;
+  resource_version_id?: string;
+}
+/**
+ * StoreCheckResultDTO is the outcome of StoreCheckRequest.
+ */
+export interface StoreCheckResultDTO {
+  runs: StoreCheckRunDTO[];
+  /**
+   * Blocked is true when any finding blocks: the wizard disables Next.
+   */
+  blocked: boolean;
+}
+/**
+ * StoreVersionDTO is one submitted resource version.
+ */
+export interface StoreVersionDTO {
+  id: string;
+  created_at: string /* RFC3339 */;
+  updated_at: string /* RFC3339 */;
+  listing_id: string;
+  resource_type: StoreResourceType;
+  resource_version_id: string;
+  status: StoreVersionState;
+  label: string;
+  origin: StoreVersionOrigin;
+  changelog: string;
+  material: boolean;
+  license: string;
+  block_count: number /* int */;
+  hold_count: number /* int */;
+  warning_count: number /* int */;
+  recommendation?: string;
+  reviewed_at?: string /* RFC3339 */;
+  reviewed_by?: string;
+  review_reason?: string;
+  review_rule?: string;
+  published_at?: string /* RFC3339 */;
+  is_current: boolean; // the resource's current version
+  diff?: StoreVersionDiffDTO;
+}
+export interface StoreVersionDiffDTO {
+  against_version_id?: string;
+  changed?: string[];
+  material?: string[];
+}
+/**
+ * StoreCheckRunDTO is one execution of one automated check.
+ */
+export interface StoreCheckRunDTO {
+  id: string;
+  created_at: string /* RFC3339 */;
+  version_id?: string;
+  check: StoreCheck;
+  ruleset_ver: string;
+  trigger: string;
+  status: StoreCheckStatus;
+  severity?: string;
+  started_at?: string /* RFC3339 */;
+  finished_at?: string /* RFC3339 */;
+  summary: string;
+  findings: StoreFindingDTO[];
+  use_cases?: StoreUseCaseResultDTO[]; // dynamic
+  verdicts?: StoreRuleVerdictDTO[]; // ai_review
+  feedback?: string; // ai_review draft for the publisher
+}
+/**
+ * StoreFindingDTO is one problem a check found. Rule links to the policy
+ * (inference.sh/marketplace/policy#<rule>).
+ */
+export interface StoreFindingDTO {
+  code: string;
+  rule?: string;
+  severity: StoreFindingSeverity;
+  title: string;
+  message?: string;
+  fix?: string;
+  path?: string;
+  key?: string;
+  line?: number /* int */;
+  excerpt?: string;
+  docs_url?: string;
+}
+export interface StoreUseCaseResultDTO {
+  use_case_id: string;
+  task_id?: string;
+  passed: boolean;
+  output?: string;
+  error?: string;
+  latency_ms?: number /* int64 */;
+  cost_micros?: number /* int64 */;
+  hosts?: string[];
+}
+export interface StoreRuleVerdictDTO {
+  rule: string;
+  verdict: string; // pass|concern|violation
+  evidence?: string;
+}
+/**
+ * StoreEventDTO is one entry of a listing's activity feed and review thread.
+ */
+export interface StoreEventDTO {
+  id: string;
+  created_at: string /* RFC3339 */;
+  listing_id: string;
+  version_id?: string;
+  actor: string;
+  actor_name?: string;
+  kind: StoreEventKind;
+  visibility: StoreEventVisibility;
+  rule?: string;
+  body?: string;
+}
+/**
+ * StoreMessageRequest posts to a listing's review thread. Internal is for
+ * admins only (a note the publisher does not see).
+ */
+export interface StoreMessageRequest {
+  version_id?: string;
+  body: string;
+  internal?: boolean;
+}
+/**
+ * StoreVersionDetailDTO is a version with everything a manage or review page
+ * shows about it.
+ */
+export interface StoreVersionDetailDTO {
+  version: StoreVersionDTO;
+  listing: StoreListingDTO;
+  checks: StoreCheckRunDTO[]; // newest run of each check
+  attestation?: StoreAttestationInput;
+  /**
+   * AttestedBy and AttestedAt say who submitted the attestation (admins only).
+   */
+  attested_by?: string;
+  attested_at?: string /* RFC3339 */;
+  /**
+   * Manifest is what was frozen from the resource when the version was checked.
+   */
+  manifest?: StoreVersionManifestDTO;
+  /**
+   * Events are this version's events; for admins also the listing's own
+   * (suspensions, level changes, test-access reveals).
+   */
+  events: StoreEventDTO[];
+}
+/**
+ * StoreVersionManifestDTO is a version's frozen manifest (spec §7.1).
+ */
+export interface StoreVersionManifestDTO {
+  namespace?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  visibility?: string;
+  content_hash?: string;
+  fields?: { [key: string]: string};
+  hosts?: string[];
+  secrets?: string[];
+  tools?: string[];
+  depends?: string[];
+}
+/**
+ * StoreQueueRequest filters the admin review queue (oldest first).
+ */
+export interface StoreQueueRequest {
+  cursor: string;
+  page?: number /* int */; // Page number for offset-based pagination (used when Cursor is empty)
+  limit: number /* int */;
+  direction: string;
+  search?: SearchRequest;
+  filters: Filter[];
+  preloads: string[];
+  sort: SortOrder[];
+  fields: string[]; // Fields to select, empty means all fields
+  permissions: string[]; // Permissions to filter by, empty means all permissions
+  include_others: boolean; // Include other users' items in the response
+  /**
+   * IncludePrivate: an owner or admin of the selected team asks for every
+   * row the team owns, private ones included. Audited; ignored for others.
+   */
+  include_private?: boolean;
+  resource_type?: StoreResourceType;
+  first_version?: boolean;
+  material?: boolean;
+  severity?: string; // block|hold|warning
+  recommendation?: string; // approve|hold|reject
+}
+/**
+ * StoreQueueItemDTO is one row of the admin review queue.
+ */
+export interface StoreQueueItemDTO {
+  version: StoreVersionDTO;
+  listing_id: string;
+  slug: string;
+  resource: StoreResourceSummaryDTO;
+  publisher: PublisherPublicDTO;
+  first_version: boolean;
+  waiting_seconds: number /* int64 */;
+}
+/**
+ * StoreReviewRequest is a reviewer decision on a version. Reject and
+ * request_changes need a rule and a message; approve publishes the version
+ * when it is the resource's current one.
+ */
+export interface StoreReviewRequest {
+  decision: string; // approve|reject|request_changes
+  rule?: string;
+  message?: string;
+}
+/**
+ * StoreListingAdminRequest is an admin change to a listing's marketplace-owned
+ * fields or state. Reason is required and recorded.
+ */
+export interface StoreListingAdminRequest {
+  action: string; // suspend|reinstate|delist|relist|set_level|set_fee|feature|rank|community
+  reason: string;
+  rule?: string;
+  level?: string;
+  fee_micros?: number /* int64 */;
+  is_featured?: boolean;
+  rank?: number /* int */;
+  community?: boolean;
+}
+/**
+ * PublisherDTO is a team's publisher profile as the team sees it.
+ */
+export interface PublisherDTO {
+  team_id: string;
+  username: string;
+  display_name: string;
+  website?: string;
+  verified: boolean;
+  legal_name: string;
+  country: string;
+  support: string;
+  privacy_url: string;
+  terms_url: string;
+  contact_email: string;
+  contact_verified: boolean;
+  security_email: string;
+  verified_at?: string /* RFC3339 */;
+  /**
+   * Missing lists the fields a first submission still needs.
+   */
+  missing: string[];
+}
+export interface PublisherUpdateRequest {
+  display_name?: string;
+  legal_name?: string;
+  country?: string;
+  website?: string;
+  support?: string;
+  privacy_url?: string;
+  terms_url?: string;
+  contact_email?: string; // changing it requires re-verification
+  security_email?: string;
+}
+/**
+ * PublisherVerifyEmailRequest confirms the contact email with the emailed code.
+ */
+export interface PublisherVerifyEmailRequest {
+  code: string;
+}
+export interface StoreCategoryDTO {
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  rank: number /* int */;
+  count: number /* int64 */; // live listings
+}
+/**
+ * StoreTermsDTO is what the terms step shows and the attestation must quote.
+ */
+export interface StoreTermsDTO {
+  terms_version: string;
+  terms_url: string;
+  policy_version: string;
+  policy_url: string;
+  acks: StoreAckDTO[];
+  /**
+   * AcceptedTerms is the terms version this team last accepted, if any.
+   */
+  accepted_terms?: string;
+  /**
+   * Rules are the policy rule IDs that findings, reviews and reports cite.
+   */
+  rules: StorePolicyRuleDTO[];
+}
+export interface StorePolicyRuleDTO {
+  id: string;
+  text: string;
+}
+export interface StoreAckDTO {
+  id: string;
+  text: string; // may contain {team}
+}
+/**
+ * MarketplaceListRequest lists live listings for buyers.
+ */
+export interface MarketplaceListRequest {
+  cursor: string;
+  page?: number /* int */; // Page number for offset-based pagination (used when Cursor is empty)
+  limit: number /* int */;
+  direction: string;
+  search?: SearchRequest;
+  filters: Filter[];
+  preloads: string[];
+  sort: SortOrder[];
+  fields: string[]; // Fields to select, empty means all fields
+  permissions: string[]; // Permissions to filter by, empty means all permissions
+  include_others: boolean; // Include other users' items in the response
+  /**
+   * IncludePrivate: an owner or admin of the selected team asks for every
+   * row the team owns, private ones included. Audited; ignored for others.
+   */
+  include_private?: boolean;
+  type?: StoreResourceType;
+  category?: string;
+  q?: string;
+  sort_by?: string; // popular|new|top|rank
+}
+/**
+ * MarketplaceCardDTO is a listing as a card (spec §11).
+ */
+export interface MarketplaceCardDTO {
+  listing_id: string;
+  resource_type: StoreResourceType;
+  resource_id: string; // flows open by ID
+  slug: string; // namespace/name; the server slug for mcp
+  title: string;
+  tagline: string;
+  image?: string;
+  publisher: PublisherPublicDTO;
+  community: boolean;
+  is_new: boolean; // first live within 30 days
+  is_featured: boolean;
+  level: string;
+  fee_label: string; // "Free", "$0.01/call", pricing description
+  categories: string[];
+  stats: StoreListingStats;
+}
+/**
+ * MarketplaceDetailDTO is the public detail page of a listing.
+ */
+export interface MarketplaceDetailDTO {
+  card: MarketplaceCardDTO;
+  description: string;
+  readme?: string;
+  use_cases: MarketplaceUseCaseDTO[];
+  data_handling: StoreDataHandling;
+  secrets?: string[];
+  depends?: string[];
+  links: MarketplaceLinksDTO;
+  versions: MarketplaceChangelogDTO[];
+  live_version: string; // label
+  snippets: { [key: string]: string}; // belt|sdk_py|sdk_js|mcp
+  tags: string[];
+}
+export interface MarketplaceUseCaseDTO {
+  title: string;
+  prompt: string;
+  input?: string;
+  output?: string; // recorded by the dynamic check
+}
+export interface MarketplaceLinksDTO {
+  docs?: string;
+  support?: string;
+  privacy?: string;
+  terms?: string;
+  homepage?: string;
+  source?: string;
+}
+export interface MarketplaceChangelogDTO {
+  label: string;
+  published_at?: string /* RFC3339 */;
+  changelog: string;
+}
+/**
+ * MarketplaceHomeDTO is the /marketplace landing page.
+ */
+export interface MarketplaceHomeDTO {
+  featured: MarketplaceCardDTO[];
+  sections: MarketplaceSectionDTO[];
+  categories: StoreCategoryDTO[];
+  type_counts: { [key: string]: number /* int64 */};
+}
+export interface MarketplaceSectionDTO {
+  key: string; // popular|new|top|category:<slug>
+  title: string;
+  items: MarketplaceCardDTO[];
+}
+/**
+ * MarketplaceReportRequest reports a listing to admins.
+ */
+export interface MarketplaceReportRequest {
+  reason: string;
+  rule?: string;
 }
 /**
  * SubscriptionDTO for API responses
@@ -8065,6 +8838,17 @@ export interface ChatData {
   plan_steps: PlanStep[];
   memory: StringEncodedMap;
   always_allowed_tools: string[];
+  /**
+   * AllowAllTools runs every tool call in this chat without asking. The
+   * person switches it in the chat's settings, and off again at any time.
+   */
+  allow_all_tools: boolean;
+  /**
+   * DisableHooks stops the agent's lifecycle hooks firing in this chat. A
+   * review branch is opened with it set, so a review cannot fire the hook
+   * that reviews it.
+   */
+  disable_hooks?: boolean;
 }
 /**
  * PlanStep represents a step in an agent's execution plan
@@ -9436,6 +10220,165 @@ export const SocketOutcomeNeverPaired: SocketOutcome = "never_paired";
  * the socket has not arrived (yet).
  */
 export const SocketOutcomeTaskEnded: SocketOutcome = "task_ended";
+/**
+ * StoreResourceType is the kind of resource a store listing points at.
+ */
+export type StoreResourceType =
+  | "app"
+  | "agent"
+  | "flow"
+  | "skill"
+  | "knowledge"
+  | "mcp";
+export const StoreResourceApp: StoreResourceType = "app";
+export const StoreResourceAgent: StoreResourceType = "agent";
+export const StoreResourceFlow: StoreResourceType = "flow";
+export const StoreResourceSkill: StoreResourceType = "skill";
+export const StoreResourceKnowledge: StoreResourceType = "knowledge";
+export const StoreResourceMCP: StoreResourceType = "mcp";
+/**
+ * StoreListingStatus is the lifecycle of a listing.
+ */
+export type StoreListingStatus =
+  | "draft"
+  | "in_review"
+  | "approved"
+  | "live"
+  | "delisted"
+  | "suspended"
+  | "withdrawn";
+export const StoreListingDraft: StoreListingStatus = "draft";
+export const StoreListingInReview: StoreListingStatus = "in_review";
+export const StoreListingApproved: StoreListingStatus = "approved";
+export const StoreListingLive: StoreListingStatus = "live";
+export const StoreListingDelisted: StoreListingStatus = "delisted";
+export const StoreListingSuspended: StoreListingStatus = "suspended";
+export const StoreListingWithdrawn: StoreListingStatus = "withdrawn";
+/**
+ * StoreVersionState is the lifecycle of one submitted resource version.
+ */
+export type StoreVersionState =
+  | "submitted"
+  | "checking"
+  | "in_review"
+  | "changes_requested"
+  | "approved"
+  | "live"
+  | "superseded"
+  | "rejected"
+  | "blocked"
+  | "withdrawn";
+export const StoreVersionSubmitted: StoreVersionState = "submitted";
+export const StoreVersionChecking: StoreVersionState = "checking";
+export const StoreVersionInReview: StoreVersionState = "in_review";
+export const StoreVersionChangesRequested: StoreVersionState = "changes_requested";
+export const StoreVersionApproved: StoreVersionState = "approved";
+export const StoreVersionLive: StoreVersionState = "live";
+export const StoreVersionSuperseded: StoreVersionState = "superseded";
+export const StoreVersionRejected: StoreVersionState = "rejected";
+export const StoreVersionBlocked: StoreVersionState = "blocked";
+export const StoreVersionWithdrawn: StoreVersionState = "withdrawn";
+/**
+ * StoreVersionOrigin records how a version entered the store.
+ */
+export type StoreVersionOrigin =
+  | "first_submit"
+  | "submit"
+  | "detected"
+  | "admin"
+  | "migrated";
+export const StoreOriginFirstSubmit: StoreVersionOrigin = "first_submit";
+export const StoreOriginSubmit: StoreVersionOrigin = "submit";
+export const StoreOriginDetected: StoreVersionOrigin = "detected";
+export const StoreOriginAdmin: StoreVersionOrigin = "admin";
+export const StoreOriginMigrated: StoreVersionOrigin = "migrated";
+/**
+ * StoreCheck names one automated check in the review pipeline (spec §8).
+ */
+export type StoreCheck =
+  | "validation"
+  | "scan"
+  | "policy"
+  | "dynamic"
+  | "ai_review";
+export const StoreCheckValidation: StoreCheck = "validation";
+export const StoreCheckScan: StoreCheck = "scan";
+export const StoreCheckPolicy: StoreCheck = "policy";
+export const StoreCheckDynamic: StoreCheck = "dynamic";
+export const StoreCheckAIReview: StoreCheck = "ai_review";
+/**
+ * StoreCheckStatus is the outcome of one check run.
+ */
+export type StoreCheckStatus =
+  | "queued"
+  | "running"
+  | "passed"
+  | "warned"
+  | "failed"
+  | "errored";
+export const StoreCheckQueued: StoreCheckStatus = "queued";
+export const StoreCheckRunning: StoreCheckStatus = "running";
+export const StoreCheckPassed: StoreCheckStatus = "passed";
+export const StoreCheckWarned: StoreCheckStatus = "warned";
+export const StoreCheckFailed: StoreCheckStatus = "failed";
+export const StoreCheckErrored: StoreCheckStatus = "errored";
+/**
+ * StoreFindingSeverity grades a check finding by what it does to the version.
+ */
+export type StoreFindingSeverity = "info" | "warning" | "hold" | "block";
+export const StoreFindingInfo: StoreFindingSeverity = "info";
+export const StoreFindingWarning: StoreFindingSeverity = "warning";
+export const StoreFindingHold: StoreFindingSeverity = "hold";
+export const StoreFindingBlock: StoreFindingSeverity = "block";
+/**
+ * StoreEventKind is the type of a store_events row.
+ */
+export type StoreEventKind =
+  | "submitted"
+  | "check_finished"
+  | "held"
+  | "blocked"
+  | "approved"
+  | "rejected"
+  | "changes_requested"
+  | "published"
+  | "rolled_back"
+  | "superseded"
+  | "withdrawn"
+  | "listing_edited"
+  | "level_changed"
+  | "delisted"
+  | "relisted"
+  | "suspended"
+  | "reinstated"
+  | "message"
+  | "note";
+export const StoreEventSubmitted: StoreEventKind = "submitted";
+export const StoreEventCheckFinished: StoreEventKind = "check_finished";
+export const StoreEventHeld: StoreEventKind = "held";
+export const StoreEventBlocked: StoreEventKind = "blocked";
+export const StoreEventApproved: StoreEventKind = "approved";
+export const StoreEventRejected: StoreEventKind = "rejected";
+export const StoreEventChangesRequested: StoreEventKind = "changes_requested";
+export const StoreEventPublished: StoreEventKind = "published";
+export const StoreEventRolledBack: StoreEventKind = "rolled_back";
+export const StoreEventSuperseded: StoreEventKind = "superseded";
+export const StoreEventWithdrawn: StoreEventKind = "withdrawn";
+export const StoreEventListingEdited: StoreEventKind = "listing_edited";
+export const StoreEventLevelChanged: StoreEventKind = "level_changed";
+export const StoreEventDelisted: StoreEventKind = "delisted";
+export const StoreEventRelisted: StoreEventKind = "relisted";
+export const StoreEventSuspended: StoreEventKind = "suspended";
+export const StoreEventReinstated: StoreEventKind = "reinstated";
+export const StoreEventMessage: StoreEventKind = "message";
+export const StoreEventNote: StoreEventKind = "note";
+/**
+ * StoreEventVisibility says who sees an event: the publisher and admins, or
+ * admins only.
+ */
+export type StoreEventVisibility = "publisher" | "internal";
+export const StoreEventPublisher: StoreEventVisibility = "publisher";
+export const StoreEventInternal: StoreEventVisibility = "internal";
 /**
  * DeltaEvent is the generic streaming envelope on the NDJSON wire.
  * Delta is raw bytes — consumers parse based on context.
