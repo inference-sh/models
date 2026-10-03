@@ -144,9 +144,11 @@ func (c *InternalToolsConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// AgentPermissions is what an agent's new chats may do without asking
-// (INF-906). Each is copied into a chat when it is created; the chat owns
-// it from then on. A team or org policy still asks or denies over it.
+// AgentPermissions is what an agent's new chats in its own workspace may do
+// without asking (INF-906). Each is copied into such a chat when it is
+// created; the chat owns it from then on. Chats other workspaces start with
+// the agent get none of it: they run on their own remotes and tools. A team
+// or org policy still asks or denies over it.
 type AgentPermissions struct {
 	// AllowAllTools starts each new chat with "allow every tool" on: loop
 	// tools, harness tools and remote_exec commands run without asking. For
@@ -1902,22 +1904,13 @@ type ChatMessageDTO struct {
 // source: chat_rules.go
 // --------------------
 
-// PolicyEffect is a rule's outcome: allow, ask or deny.
-type PolicyEffect string
-
-const (
-	PolicyEffectAllow PolicyEffect = "allow"
-	PolicyEffectAsk   PolicyEffect = "ask"
-	PolicyEffectDeny  PolicyEffect = "deny"
-)
-
 // PolicyRuleDTO is one rule, typed form Kind[selector](specifier).
 type PolicyRuleDTO struct {
 	ID     string       `json:"id"`
 	Effect PolicyEffect `json:"effect"`
-	// Kind: RemoteExec, Workspace, Harness, Tool (and, from phase 3, App,
-	// Agent, Knowledge, Mcp, Flow, WebFetch).
-	Kind string `json:"kind"`
+	// Kind: what the rule governs (RemoteExec, Workspace, Harness, Tool,
+	// and the usage kinds App, Agent, Knowledge, Mcp, Flow).
+	Kind PolicyKind `json:"kind"`
 	// Selector narrows the rule to one remote (its id) or a tag (tag:<name>);
 	// empty applies everywhere.
 	Selector string `json:"selector"`
@@ -5082,9 +5075,6 @@ type TeamDTO struct {
 	// caller's team list (/teams) so a member of one of its teams sees whose
 	// org it is without belonging to the org workspace.
 	OrgName string `json:"org_name,omitempty"`
-	// UsagePolicyID of the team's own usage policy ('' = inherit the org's,
-	// or ungoverned when standalone, INF-808).
-	UsagePolicyID string `json:"usage_policy_id,omitempty"`
 }
 
 // TeamMemberDTO is the API response for a team member.
@@ -6550,9 +6540,8 @@ const (
 
 // ChatData contains agent-specific data for a chat session
 type ChatData struct {
-	PlanSteps          []PlanStep       `json:"plan_steps"`
-	Memory             StringEncodedMap `json:"memory"`
-	AlwaysAllowedTools []string         `json:"always_allowed_tools"`
+	PlanSteps []PlanStep       `json:"plan_steps"`
+	Memory    StringEncodedMap `json:"memory"`
 	// AllowAllTools runs every tool call in this chat without asking. The
 	// person switches it in the chat's settings, and off again at any time.
 	AllowAllTools bool `json:"allow_all_tools"`
@@ -7737,6 +7726,56 @@ const (
 	NotificationStatusFailed     NotificationStatus = "failed"
 	NotificationStatusBounced    NotificationStatus = "bounced"
 	NotificationStatusCancelled  NotificationStatus = "cancelled"
+)
+
+// --------------------
+// source: policy.go
+// --------------------
+
+// PolicyEffect is a rule's outcome and a decision's verdict.
+type PolicyEffect string
+
+// Valid reports whether e is a known effect.
+func (e PolicyEffect) Valid() bool {
+	return e == PolicyEffectAllow || e == PolicyEffectAsk || e == PolicyEffectDeny
+}
+
+const (
+	PolicyEffectAllow PolicyEffect = "allow"
+	PolicyEffectAsk   PolicyEffect = "ask"
+	PolicyEffectDeny  PolicyEffect = "deny"
+)
+
+// PolicyKind names what a rule governs; each kind has one matcher.
+type PolicyKind string
+
+// Valid reports whether k is a known kind.
+func (k PolicyKind) Valid() bool {
+	switch k {
+	case PolicyKindRemoteExec, PolicyKindWorkspace, PolicyKindHarness, PolicyKindTool, PolicyKindApp, PolicyKindAgent, PolicyKindKnowledge, PolicyKindMcp, PolicyKindFlow, PolicyKindWebFetch:
+		return true
+	}
+	return false
+}
+
+const (
+	// PolicyKindRemoteExec: shell commands run on a remote.
+	PolicyKindRemoteExec PolicyKind = "RemoteExec"
+	// PolicyKindWorkspace: folders on a remote.
+	PolicyKindWorkspace PolicyKind = "Workspace"
+	// PolicyKindHarness: a harness's own tool approvals, e.g.
+	// Harness(Bash(git status:*)).
+	PolicyKindHarness PolicyKind = "Harness"
+	// PolicyKindTool: a tool call our own agent loop makes, by tool name.
+	PolicyKindTool PolicyKind = "Tool"
+	// Usage kinds (UsageCategory.PolicyKind): rules name resolved ids.
+	PolicyKindApp       PolicyKind = "App"
+	PolicyKindAgent     PolicyKind = "Agent"
+	PolicyKindKnowledge PolicyKind = "Knowledge"
+	PolicyKindMcp       PolicyKind = "Mcp"
+	PolicyKindFlow      PolicyKind = "Flow"
+	// PolicyKindWebFetch: fetched domains.
+	PolicyKindWebFetch PolicyKind = "WebFetch"
 )
 
 // --------------------
