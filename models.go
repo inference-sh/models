@@ -144,6 +144,17 @@ func (c *InternalToolsConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// AgentPermissions is what an agent's new chats may do without asking
+// (INF-906). Each is copied into a chat when it is created; the chat owns
+// it from then on. A team or org policy still asks or denies over it.
+type AgentPermissions struct {
+	// AllowAllTools starts each new chat with "allow every tool" on: loop
+	// tools, harness tools and remote_exec commands run without asking. For
+	// agents nobody watches (webhook and cron runs), where an approval would
+	// stall the run.
+	AllowAllTools bool `json:"allow_all_tools,omitempty" yaml:"allow_all_tools,omitempty"`
+}
+
 // AgentTool represents a unified tool that can be used by an agent
 type AgentTool struct {
 	Name            string              `json:"name" yaml:"name"`
@@ -385,6 +396,7 @@ type AgentVersionDTO struct {
 	Skills             []SkillConfig         `json:"skills"`
 	Context            []ContextField        `json:"context,omitempty"`
 	InternalTools      *InternalToolsConfig  `json:"internal_tools"`
+	Permissions        *AgentPermissions     `json:"permissions,omitempty"`
 	Hooks              []LifecycleHookConfig `json:"hooks,omitempty"`
 	OutputSchema       *json.RawMessage      `json:"output_schema"`
 }
@@ -414,6 +426,7 @@ type AgentConfigInput struct {
 	Skills         []SkillConfig         `json:"skills,omitempty" yaml:"skills,omitempty"`
 	Context        []ContextField        `json:"context,omitempty" yaml:"context,omitempty"`
 	InternalTools  *InternalToolsConfig  `json:"internal_tools,omitempty" yaml:"internal_tools,omitempty"`
+	Permissions    *AgentPermissions     `json:"permissions,omitempty" yaml:"permissions,omitempty"`
 	Hooks          []LifecycleHookConfig `json:"hooks,omitempty" yaml:"hooks,omitempty"`
 	OutputSchema   *json.RawMessage      `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
@@ -7082,6 +7095,17 @@ type LLMInput struct {
 	Images      *[]string           `json:"images,omitempty"`
 	Files       *[]string           `json:"files,omitempty"`
 	ToolCallID  *string             `json:"tool_call_id,omitempty"`
+}
+
+// TaskInput is the input as an LLM app's task takes it. The app's input
+// schema types context as an array, so a nil Context goes as [] (null is
+// refused before the task runs). Not MarshalJSON: openai.llmInput embeds
+// LLMInput, and a promoted marshaller would drop its own fields.
+func (in LLMInput) TaskInput() (json.RawMessage, error) {
+	if in.Context == nil {
+		in.Context = []LLMContextMessage{}
+	}
+	return json.Marshal(in)
 }
 
 // LLMContextMessage represents a message in the chat context for LLM tasks

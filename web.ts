@@ -46,6 +46,20 @@ export interface InternalToolsConfig {
   knowledge?: boolean;
 }
 /**
+ * AgentPermissions is what an agent's new chats may do without asking
+ * (INF-906). Each is copied into a chat when it is created; the chat owns
+ * it from then on. A team or org policy still asks or denies over it.
+ */
+export interface AgentPermissions {
+  /**
+   * AllowAllTools starts each new chat with "allow every tool" on: loop
+   * tools, harness tools and remote_exec commands run without asking. For
+   * agents nobody watches (webhook and cron runs), where an approval would
+   * stall the run.
+   */
+  allow_all_tools?: boolean;
+}
+/**
  * InternalToolDefinition describes a built-in tool category available to agents
  */
 export interface InternalToolDefinition {
@@ -294,6 +308,7 @@ export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
   skills: SkillConfig[];
   context?: ContextField[];
   internal_tools?: InternalToolsConfig;
+  permissions?: AgentPermissions;
   hooks?: LifecycleHookConfig[];
   output_schema?: any;
 }
@@ -327,6 +342,7 @@ export interface AgentConfigInput {
   skills?: SkillConfig[];
   context?: ContextField[];
   internal_tools?: InternalToolsConfig;
+  permissions?: AgentPermissions;
   hooks?: LifecycleHookConfig[];
   output_schema?: any;
 }
@@ -5714,40 +5730,10 @@ export interface OAuthConnectedApp {
   authorized_at: string /* RFC3339 */;
 }
 /**
- * SetFeaturedRequest is used by admin endpoints to feature/unfeature items.
- */
-export interface SetFeaturedRequest {
-  featured: boolean;
-}
-/**
- * SetRankRequest is used by admin endpoints to set display rank.
- */
-export interface SetRankRequest {
-  rank: number /* int */;
-}
-/**
- * SetTagsRequest is used by admin endpoints to set tags.
- */
-export interface SetTagsRequest {
-  tags: string[];
-}
-/**
- * SetCategoryRequest is used by admin endpoints to set category.
- */
-export interface SetCategoryRequest {
-  category: string;
-}
-/**
  * SetVisibilityRequest is used by admin endpoints to set visibility.
  */
 export interface SetVisibilityRequest {
   visibility: string;
-}
-/**
- * RejectWithReasonRequest is used by store admin to reject submissions.
- */
-export interface RejectWithReasonRequest {
-  reason: string;
 }
 /**
  * ChargeAmountRequest is the request for charging a saved payment method.
@@ -9712,13 +9698,6 @@ export type AppSessionStatus = "active" | "ended" | "expired";
 export const AppSessionStatusActive: AppSessionStatus = "active";
 export const AppSessionStatusEnded: AppSessionStatus = "ended";
 export const AppSessionStatusExpired: AppSessionStatus = "expired";
-/**
- * StoreVersionStatus represents the approval status of a store version
- */
-export type StoreVersionStatus = "pending" | "approved" | "rejected";
-export const StoreVersionStatusPending: StoreVersionStatus = "pending";
-export const StoreVersionStatusApproved: StoreVersionStatus = "approved";
-export const StoreVersionStatusRejected: StoreVersionStatus = "rejected";
 /**
  * ProjectType represents different types of projects
  */

@@ -163,6 +163,27 @@ public struct InternalToolsConfig: Codable, Sendable {
     }
 }
 
+/// AgentPermissions is what an agent's new chats may do without asking
+/// (INF-906). Each is copied into a chat when it is created; the chat owns
+/// it from then on. A team or org policy still asks or denies over it.
+public struct AgentPermissions: Codable, Sendable {
+    /// AllowAllTools starts each new chat with "allow every tool" on: loop
+    /// tools, harness tools and remote_exec commands run without asking. For
+    /// agents nobody watches (webhook and cron runs), where an approval would
+    /// stall the run.
+    public var allowAllTools: Bool?
+
+    public init(
+        allowAllTools: Bool? = nil
+    ) {
+        self.allowAllTools = allowAllTools
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case allowAllTools = "allow_all_tools"
+    }
+}
+
 /// AgentTool represents a unified tool that can be used by an agent
 public struct AgentTool: Codable, Sendable {
     public var name: String
@@ -927,6 +948,7 @@ public struct AgentVersionDTO: Codable, Sendable {
     public var skills: [SkillConfig]?
     public var context: [ContextField]?
     @Indirect public var internalTools: InternalToolsConfig?
+    @Indirect public var permissions: AgentPermissions?
     public var hooks: [LifecycleHookConfig]?
     public var outputSchema: JSONValue?
 
@@ -949,6 +971,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         skills: [SkillConfig]? = nil,
         context: [ContextField]? = nil,
         internalTools: InternalToolsConfig? = nil,
+        permissions: AgentPermissions? = nil,
         hooks: [LifecycleHookConfig]? = nil,
         outputSchema: JSONValue? = nil
     ) {
@@ -970,6 +993,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         self.skills = skills
         self.context = context
         self.internalTools = internalTools
+        self.permissions = permissions
         self.hooks = hooks
         self.outputSchema = outputSchema
     }
@@ -993,6 +1017,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         case skills = "skills"
         case context = "context"
         case internalTools = "internal_tools"
+        case permissions = "permissions"
         case hooks = "hooks"
         case outputSchema = "output_schema"
     }
@@ -1048,6 +1073,7 @@ public struct AgentConfigInput: Codable, Sendable {
     public var skills: [SkillConfig]?
     public var context: [ContextField]?
     @Indirect public var internalTools: InternalToolsConfig?
+    @Indirect public var permissions: AgentPermissions?
     public var hooks: [LifecycleHookConfig]?
     public var outputSchema: JSONValue?
 
@@ -1061,6 +1087,7 @@ public struct AgentConfigInput: Codable, Sendable {
         skills: [SkillConfig]? = nil,
         context: [ContextField]? = nil,
         internalTools: InternalToolsConfig? = nil,
+        permissions: AgentPermissions? = nil,
         hooks: [LifecycleHookConfig]? = nil,
         outputSchema: JSONValue? = nil
     ) {
@@ -1073,6 +1100,7 @@ public struct AgentConfigInput: Codable, Sendable {
         self.skills = skills
         self.context = context
         self.internalTools = internalTools
+        self.permissions = permissions
         self.hooks = hooks
         self.outputSchema = outputSchema
     }
@@ -1087,6 +1115,7 @@ public struct AgentConfigInput: Codable, Sendable {
         case skills = "skills"
         case context = "context"
         case internalTools = "internal_tools"
+        case permissions = "permissions"
         case hooks = "hooks"
         case outputSchema = "output_schema"
     }
