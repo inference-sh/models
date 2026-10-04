@@ -576,7 +576,6 @@ type AppVersionInput struct {
 	OutputSchema        json.RawMessage         `json:"output_schema,omitempty"`
 	Functions           map[string]AppFunction  `json:"functions,omitempty"`
 	DefaultFunction     string                  `json:"default_function,omitempty"`
-	Variants            map[string]AppVariant   `json:"variants,omitempty"`
 	Env                 map[string]string       `json:"env,omitempty"`
 	Kernel              string                  `json:"kernel,omitempty"`
 	RequiredSecrets     []SecretRequirement     `json:"required_secrets,omitempty"`
@@ -848,7 +847,6 @@ type RequestMetadata struct {
 	WorkerID     string   `json:"worker_id"`
 	AppID        string   `json:"app_id"`
 	AppVersionID string   `json:"app_version_id"`
-	AppVariant   string   `json:"app_variant"`
 	GPUIDs       []string `json:"gpu_ids"`
 	TaskID       string   `json:"task_id"`
 	TeamID       string   `json:"team_id"`
@@ -1160,15 +1158,6 @@ type AppResources struct {
 	RAM int            `json:"ram" yaml:"ram"`
 }
 
-// AppVariant is a named resource/env configuration variant.
-type AppVariant struct {
-	Name      string            `json:"name" yaml:"name"`
-	Order     int               `json:"order" yaml:"order"`
-	Resources AppResources      `json:"resources" yaml:"resources"`
-	Env       map[string]string `json:"env" yaml:"env"`
-	Python    string            `json:"python" yaml:"python"`
-}
-
 // SecretRequirement defines a secret that an app requires to run.
 type SecretRequirement struct {
 	Key         string `json:"key" yaml:"key"`
@@ -1261,7 +1250,6 @@ type AppVersionDTO struct {
 	OutputSchema        json.RawMessage         `json:"output_schema"`
 	Functions           map[string]AppFunction  `json:"functions,omitempty"`
 	DefaultFunction     string                  `json:"default_function,omitempty"`
-	Variants            map[string]AppVariant   `json:"variants"`
 	Env                 map[string]string       `json:"env"`
 	Kernel              string                  `json:"kernel"`
 	RequiredSecrets     []SecretRequirement     `json:"required_secrets,omitempty"`
@@ -4935,7 +4923,6 @@ type TaskDTO struct {
 	App                *AppDTO          `json:"app"`
 	AppVersionID       string           `json:"app_version_id"`
 	AppVersion         *AppVersionDTO   `json:"app_version"`
-	AppVariant         string           `json:"app_variant"`
 	Function           string           `json:"function"`
 	Infra              Infra            `json:"infra"`
 	Workers            []string         `json:"workers"`
@@ -4975,7 +4962,6 @@ type TaskDispatchPayload struct {
 	TeamID         string           `json:"team_id"`
 	AppID          string           `json:"app_id"`
 	AppVersionID   string           `json:"app_version_id"`
-	AppVariant     string           `json:"app_variant"`
 	Function       string           `json:"function"`
 	Input          json.RawMessage  `json:"input"`
 	Setup          *json.RawMessage `json:"setup,omitempty"`
@@ -4994,7 +4980,7 @@ type TaskDispatchPayload struct {
 // dispatch fields into the nested App/AppVersion pointers that the engine's
 // internal pipeline expects.
 func (d TaskDispatchPayload) ToDTO() TaskDTO {
-	return TaskDTO{BaseModelDTO: BaseModelDTO{ID: d.ID, ShortID: d.ShortID}, PermissionModelDTO: PermissionModelDTO{UserID: d.UserID, TeamID: d.TeamID}, Status: d.Status, AppID: d.AppID, AppVersionID: d.AppVersionID, AppVariant: d.AppVariant, Function: d.Function, Input: d.Input, Setup: d.Setup, WorkerID: d.WorkerID, SessionID: d.SessionID, SessionTimeout: d.SessionTimeout, App: &AppDTO{Name: d.AppName}, AppVersion: &AppVersionDTO{Repository: d.Repository, Kernel: d.Kernel, Env: d.AppEnv, RequiredResources: AppResources{GPU: AppGPUResource{Count: d.GPUCount}}}}
+	return TaskDTO{BaseModelDTO: BaseModelDTO{ID: d.ID, ShortID: d.ShortID}, PermissionModelDTO: PermissionModelDTO{UserID: d.UserID, TeamID: d.TeamID}, Status: d.Status, AppID: d.AppID, AppVersionID: d.AppVersionID, Function: d.Function, Input: d.Input, Setup: d.Setup, WorkerID: d.WorkerID, SessionID: d.SessionID, SessionTimeout: d.SessionTimeout, App: &AppDTO{Name: d.AppName}, AppVersion: &AppVersionDTO{Repository: d.Repository, Kernel: d.Kernel, Env: d.AppEnv, RequiredResources: AppResources{GPU: AppGPUResource{Count: d.GPUCount}}}}
 }
 
 // TaskResultDTO is a slim response for task run/result endpoints.
@@ -7492,6 +7478,8 @@ const (
 	// Feature gates — only what has real cost/complexity
 	ResourceFeatureBYOK     EntitlementResource = "feature:byok"
 	ResourceFeatureSeedance EntitlementResource = "feature:seedance"
+	// Granted per team: the marketplace takes submissions by invitation.
+	ResourceFeatureMarketplacePublish EntitlementResource = "feature:marketplace_publish"
 	// Legacy feature gates — kept for DB compatibility, no longer gated
 	ResourceFeatureScopes       EntitlementResource = "feature:scopes"
 	ResourceFeatureWebhooks     EntitlementResource = "feature:webhooks"
