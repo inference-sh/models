@@ -2846,12 +2846,15 @@ export interface PolicyRuleDTO {
    * Specifier is the kind's pattern: a command (`npm test`, `git push:*`),
    * a folder (`~/proj/**`), a harness tool with its pattern
    * (`Bash(git status:*)`, `Edit`), or a loop tool's name. Empty is the
-   * whole kind.
+   * whole kind. A usage kind's names a resource by id, or everything a
+   * publisher owns as publisher:<team id>.
    */
   specifier: string;
   /**
    * Label is the rule in words, e.g. "git commit commands on Laptop", the
-   * same words an approval prompt's "always allow" options use.
+   * same words an approval prompt's "always allow" options use. A usage
+   * rule's is the name it was written with ("bytedance/seedance",
+   * "bytedance/*").
    */
   label: string;
   /**
@@ -2888,6 +2891,11 @@ export interface PolicyLayerDTO {
   editable: boolean;
   rules: PolicyRuleDTO[];
   /**
+   * Reach is a governance layer's usage default: per usage kind, whose
+   * resources are usable without an allow rule. An absent kind is public.
+   */
+  reach?: PolicyReach;
+  /**
    * RuleKinds are the kinds a rule added here may have, set on an
    * editable layer.
    */
@@ -2914,17 +2922,41 @@ export interface ChatRulesDTO {
  * PolicyRuleCreateRequest is POST /chats/{id}/rules, /agents/{id}/rules
  * and /remotes/{id}/rules. Such a rule can only narrow: an allow that a
  * layer above asks about or denies by a rule is refused, as is any allow
- * under a governance-only policy.
+ * under a governance-only policy. It is also one rule of a governance
+ * layer's PUT (PolicyLayerSetRequest).
  */
 export interface PolicyRuleCreateRequest {
   effect: PolicyEffect;
   /**
    * Kind: RemoteExec, Workspace, Harness or Tool (a remote's rules:
-   * RemoteExec, Workspace or Harness).
+   * RemoteExec, Workspace or Harness); on a governance layer, a usage
+   * kind: App, Agent, Knowledge, Mcp or Flow.
    */
   kind: PolicyKind;
   selector?: string;
   specifier: string;
+  /**
+   * Ref names a usage rule's target the way people write it
+   * ("publisher/name", "publisher/*", an MCP server's slug), in place of
+   * a Specifier. The server resolves it to the specifier once, at write
+   * time, and refuses one it cannot resolve, so no rule names nothing.
+   */
+  ref?: string;
+  /**
+   * Label is how a usage rule written by Specifier is shown (the
+   * specifier when empty); one written by Ref is named by the server.
+   */
+  label?: string;
+}
+/**
+ * PolicyLayerSetRequest is PUT /teams/{id}/rules and /orgs/{id}/rules: the
+ * governance layer's reach and its rules of the usage kinds, replaced in
+ * full in one transaction. Usage rules allow or deny; the layer's rules of
+ * other kinds are kept.
+ */
+export interface PolicyLayerSetRequest {
+  reach: PolicyReach;
+  rules: PolicyRuleCreateRequest[];
 }
 /**
  * ChatRuleExplainRequest is POST /chats/{id}/rules/explain: test a call
@@ -7459,108 +7491,37 @@ export interface TeamUsageBreakdown {
   per_team: UsagePerTeam[];
 }
 /**
- * UsageEventDTO is the API representation of a usage event.
+ * PolicyDenialDTO is one aggregated row of a governance layer's
+ * blocked-attempts feed (GET /teams/{id}/rules/denials and
+ * /orgs/{id}/rules/denials): who keeps hitting the wall, on what, how often.
+ * Kind and Specifier are what a rule allowing it names.
  */
-export interface UsageEventDTO extends BaseModelDTO, PermissionModelDTO {
-  usage_billing_record_id: string;
-  reference_id: string;
-  resource_id: string;
-  tier: UsageEventResourceTier;
-  type: string;
-  model: string;
-  quantity: number /* int64 */;
-  unit: string;
-}
-/**
- * UsagePolicyDTO is the API response for a usage policy (INF-808): per
- * category, how far outside its own boundary the governed team/org may reach,
- * plus allow/block exception rules.
- */
-export interface UsagePolicyDTO extends BaseModelDTO {
-  name: string;
-  /**
-   * Owner — exactly one is set. Org-owned policies govern all attached
-   * teams by default; team-owned policies belong to standalone teams.
-   */
-  org_id?: string;
-  team_id?: string;
-  /**
-   * Entries: category → reach. Absent category = public reach (ungoverned).
-   */
-  entries: UsagePolicyEntries;
-  rules: UsagePolicyRuleDTO[];
-}
-/**
- * UsagePolicyRuleDTO is one exception rule on a usage policy. Targets are
- * stable identities — resource id or publisher team id — with label as the
- * human-readable snapshot.
- */
-export interface UsagePolicyRuleDTO {
-  category: UsageCategory;
-  effect: UsagePolicyRuleEffect;
-  resource_id?: string;
-  publisher_team_id?: string;
-  label?: string;
-}
-/**
- * UsagePolicyRuleRequest is one rule as written by a client. Either give a
- * human ref — "publisher/name", "publisher/*", or an MCP slug — and the
- * server resolves it to a stable id once at write time (unresolvable refs are
- * a validation error, so dead rules cannot exist), or pass an explicit id
- * (e.g. one-click allow from the denial feed, which already carries it).
- */
-export interface UsagePolicyRuleRequest {
-  category: UsageCategory;
-  effect: UsagePolicyRuleEffect;
-  ref?: string;
-  resource_id?: string;
-  publisher_team_id?: string;
-  /**
-   * Label overrides the display snapshot when an explicit id is given.
-   */
-  label?: string;
-}
-/**
- * UsagePolicyDenialSummaryDTO is one aggregated row of the blocked-attempts
- * feed: who keeps hitting the wall, on what, how often. Carries the stable
- * ids a one-click allow rule needs.
- */
-export interface UsagePolicyDenialSummaryDTO {
-  category: UsageCategory;
-  resource_id: string;
+export interface PolicyDenialDTO {
+  kind: PolicyKind;
+  specifier: string;
   owner_team_id?: string;
   label: string;
   count: number /* int64 */;
   last_at: string /* RFC3339 */;
 }
 /**
- * UsagePolicySetRequest replaces the subject's usage-policy document in full
- * (entries + rules). Idempotent; an empty document is valid and equivalent to
- * "governed but everything open".
+ * UsageAccessDraft is one usage kind of a governance layer that is not saved
+ * yet: the effective-access list evaluates it in place of the layer in
+ * force, so an editor sees the outcome before saving.
  */
-export interface UsagePolicySetRequest {
-  name?: string;
-  entries: UsagePolicyEntries;
-  rules?: UsagePolicyRuleRequest[];
-}
-/**
- * UsagePolicyDraftEntry is one category of a policy that is not saved yet:
- * the effective-access list evaluates it in place of the policy in force, so
- * an editor sees the outcome before saving.
- */
-export interface UsagePolicyDraftEntry {
+export interface UsageAccessDraft {
   reach: Reach;
-  rules?: UsagePolicyRuleRequest[];
+  rules?: PolicyRuleCreateRequest[];
 }
 /**
- * UsageAccessRequest asks for one page of the resources a team's members can
- * see in one category, each with the usage policy's verdict. GET takes the
- * fields as query parameters (category, query, outcome, cursor, limit) and
- * evaluates the policy in force; POST takes them as a body and may carry a
- * draft to evaluate instead.
+ * UsageAccessRequest asks for one page of the resources of one usage kind
+ * a team's members can see, each with the governance layer's verdict
+ * (/teams/{id}/rules/access). GET takes the fields as query parameters
+ * (kind, query, outcome, cursor, limit) and evaluates the layers in force;
+ * POST takes them as a body and may carry a draft to evaluate instead.
  */
 export interface UsageAccessRequest {
-  category: UsageCategory;
+  kind: PolicyKind;
   /**
    * Query searches names and publishers.
    */
@@ -7572,15 +7533,22 @@ export interface UsageAccessRequest {
   cursor?: string;
   limit?: number /* int */;
   /**
-   * Draft replaces the policy in force for this category. nil = in force.
+   * Draft replaces the layers in force for this kind. nil = in force.
    */
-  draft?: UsagePolicyDraftEntry;
+  draft?: UsageAccessDraft;
 }
 /**
- * UsageAccessItemDTO is one resource and the usage policy's verdict on it.
+ * UsageAccessItemDTO is one resource and the governance layer's verdict on
+ * it.
  */
 export interface UsageAccessItemDTO {
   resource_id: string;
+  /**
+   * Specifier and PublisherSpecifier are what a rule naming the resource,
+   * or everything its publisher owns, carries.
+   */
+  specifier: string;
+  publisher_specifier?: string;
   /**
    * Ref is how the resource is addressed ("bytedance/seedance", an MCP slug).
    */
@@ -7606,6 +7574,19 @@ export interface UsageAccessItemDTO {
 export interface UsageAccessPageDTO {
   items: UsageAccessItemDTO[];
   next_cursor?: string;
+}
+/**
+ * UsageEventDTO is the API representation of a usage event.
+ */
+export interface UsageEventDTO extends BaseModelDTO, PermissionModelDTO {
+  usage_billing_record_id: string;
+  reference_id: string;
+  resource_id: string;
+  tier: UsageEventResourceTier;
+  type: string;
+  model: string;
+  quantity: number /* int64 */;
+  unit: string;
 }
 /**
  * UserDTO is the API response for a full user.
@@ -10436,50 +10417,11 @@ export const ReachTeam: Reach = "team";
  */
 export const ReachPrivate: Reach = "private";
 /**
- * UsageCategory names a class of consumable resource governed by a usage
- * policy. Every category MUST have (a) a models.UsageGovernable implementation
- * and (b) a choke point: the execution row a run of it writes
- * (models.UsageExecution, judged in base Create), or for knowledge, which
- * writes none, the knowledge content read. The guard tests in
- * models/usage_policy_test.go and common/database/execution_guard_test.go
- * assert both.
+ * PolicyReach is a governance layer's usage default as the API carries it:
+ * usage kind (App, Agent, Knowledge, Mcp, Flow) → reach. An absent kind is
+ * public.
  */
-export type UsageCategory =
-  | "app"
-  | "knowledge"
-  | "mcp"
-  | "agent"
-  | "flow";
-export const UsageCategoryApp: UsageCategory = "app";
-/**
- * UsageCategoryKnowledge covers skills too — skills are Knowledge rows
- * and govern as one class.
- */
-export const UsageCategoryKnowledge: UsageCategory = "knowledge";
-export const UsageCategoryMCP: UsageCategory = "mcp";
-export const UsageCategoryAgent: UsageCategory = "agent";
-export const UsageCategoryFlow: UsageCategory = "flow";
-/**
- * UsagePolicyRuleEffect names which list a usage-policy rule belongs to. The
- * two lists are independent of the reach and of each other: a rule means the
- * same thing whatever the reach is set to.
- */
-export type UsagePolicyRuleEffect = "allow" | "block";
-/**
- * RuleEffectAllow: the named resource or publisher is usable even though
- * it is outside the reach.
- */
-export const RuleEffectAllow: UsagePolicyRuleEffect = "allow";
-/**
- * RuleEffectBlock: the named resource or publisher is not usable even
- * though it is inside the reach.
- */
-export const RuleEffectBlock: UsagePolicyRuleEffect = "block";
-/**
- * UsagePolicyEntries maps category → reach. An absent category means public
- * reach (ungoverned) — the zero state is exactly today's behavior.
- */
-export type UsagePolicyEntries = { [key in UsageCategory]?: Reach};
+export type PolicyReach = { [key in PolicyKind]?: Reach};
 /**
  * UsageAccessOutcome is the verdict of a usage policy on one resource.
  */
