@@ -1228,6 +1228,12 @@ type AppDTO struct {
 	Status           AppStatus      `json:"status"`
 	StatusMessage    string         `json:"status_message,omitempty"`
 	StatusChangedAt  *time.Time     `json:"status_changed_at,omitempty"`
+	// ResolvedFunction is the function the requested ref named, when it named
+	// one: "ns/app:fn" in the ref itself, or a route on the name that pins a
+	// function (a retired dialogue app routed to "ns/new-app:dialogue"). Only
+	// set on a lookup by ref; empty means the caller picks, starting from the
+	// version's default.
+	ResolvedFunction string `json:"resolved_function,omitempty"`
 }
 
 // FullName returns the full name in the format "namespace/name".
@@ -1896,6 +1902,11 @@ type ChatMessageDTO struct {
 type PolicyRuleDTO struct {
 	ID     string       `json:"id"`
 	Effect PolicyEffect `json:"effect"`
+	// Enforcement: default (decides unless a more specific admin layer has
+	// a rule matching the call), enforced (an admin rule that is final),
+	// evaluate (never decides; the decision feed shows what it would have
+	// done) or disabled (kept, ignored).
+	Enforcement PolicyEnforcement `json:"enforcement"`
 	// Kind: what the rule governs (RemoteExec, Workspace, Harness, Tool,
 	// and the usage kinds App, Agent, Knowledge, Mcp, Flow).
 	Kind PolicyKind `json:"kind"`
@@ -3818,14 +3829,17 @@ type RefRouteDTO struct {
 type RemoteDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Name               string        `json:"name"`
-	Status             RemoteStatus  `json:"status"`
-	HeartbeatAt        *time.Time    `json:"heartbeat_at"`
-	SystemInfo         *SystemInfo   `json:"system_info"`
-	RemoteVersion      string        `json:"remote_version"`
-	ExecEnabled        bool          `json:"exec_enabled"`
-	AgentsEnabled      bool          `json:"agents_enabled"`
-	Profiles           []*ProfileDTO `json:"profiles"`
+	Name               string       `json:"name"`
+	Status             RemoteStatus `json:"status"`
+	HeartbeatAt        *time.Time   `json:"heartbeat_at"`
+	SystemInfo         *SystemInfo  `json:"system_info"`
+	RemoteVersion      string       `json:"remote_version"`
+	ExecEnabled        bool         `json:"exec_enabled"`
+	AgentsEnabled      bool         `json:"agents_enabled"`
+	// Tags group remotes for policy rules: a [tag:<name>] selector applies
+	// to every remote carrying the tag.
+	Tags     []string      `json:"tags"`
+	Profiles []*ProfileDTO `json:"profiles"`
 }
 
 // ProfileDTO is the API response for one harness-plus-account slot on a remote.
@@ -4635,6 +4649,8 @@ type RemoteTypes struct {
 	_sessEvent     WsRemoteSessionEvent
 	_sessClosed    WsRemoteSessionClosed
 	_sessListed    WsRemoteSessionsListed
+	_pathsResolve  WsRemotePathsResolve
+	_pathsResolved WsRemotePathsResolved
 }
 
 // --------------------
@@ -5682,6 +5698,36 @@ func (WsRemoteLane) OrderingKey(data json.RawMessage) string {
 		return "terminal:" + ids.SessionID
 	}
 	return ""
+}
+
+// --------------------
+// source: ws_remote_paths.go
+// --------------------
+
+// Path resolution (INF-906). Workspace rules must match a path both as
+// written and with its symlinks resolved, and only the machine knows where
+// a link points. Before deciding a remote command or a harness approval
+// that names paths, the api asks the daemon for their resolved forms.
+const (
+	// Server -> remote.
+	WSEventRemotePathsResolve WSEventType = "remote_paths_resolve"
+	// Remote -> server.
+	WSEventRemotePathsResolved WSEventType = "remote_paths_resolved"
+)
+
+// WsRemotePathsResolve asks the daemon where absolute paths really lead.
+type WsRemotePathsResolve struct {
+	RequestID string   `json:"request_id"`
+	Paths     []string `json:"paths"`
+}
+
+// WsRemotePathsResolved answers a WsRemotePathsResolve: each asked path
+// with every symlink in it resolved. A path that does not exist yet (a file
+// a command will create) resolves through its deepest existing parent. A
+// path the daemon could not resolve is absent.
+type WsRemotePathsResolved struct {
+	RequestID string            `json:"request_id"`
+	Resolved  map[string]string `json:"resolved"`
 }
 
 // --------------------
@@ -7757,6 +7803,44 @@ const (
 	PolicyEffectAllow PolicyEffect = "allow"
 	PolicyEffectAsk   PolicyEffect = "ask"
 	PolicyEffectDeny  PolicyEffect = "deny"
+)
+
+// PolicyEnforcement is how a rule takes part in decisions.
+type PolicyEnforcement string
+
+// Valid reports whether e is a known enforcement.
+func (e PolicyEnforcement) Valid() bool {
+	switch e {
+	case PolicyEnforcementDefault, PolicyEnforcementEnforced, PolicyEnforcementEvaluate, PolicyEnforcementDisabled:
+		return true
+	}
+	return false
+}
+
+// OrDefault is e, or default when e is empty (a rule stored before enforcement
+// existed, a request that leaves it out).
+func (e PolicyEnforcement) OrDefault() PolicyEnforcement {
+	if e == "" {
+		return PolicyEnforcementDefault
+	}
+	return e
+}
+
+const (
+	// PolicyEnforcementDefault: the rule decides in its layer, and a more
+	// specific admin layer with a rule matching the same call overrides it.
+	PolicyEnforcementDefault PolicyEnforcement = "default"
+	// PolicyEnforcementEnforced: an admin (governance) rule that is final.
+	// It is checked before every other layer, and no lower admin layer can
+	// override it; narrow-only layers can still only narrow. Only admin
+	// layers may hold one.
+	PolicyEnforcementEnforced PolicyEnforcement = "enforced"
+	// PolicyEnforcementEvaluate: the rule never decides. When it would have
+	// changed a decision, the decision feed records what it would have done,
+	// so a rule can be tried before it is switched on.
+	PolicyEnforcementEvaluate PolicyEnforcement = "evaluate"
+	// PolicyEnforcementDisabled: the rule is kept and ignored.
+	PolicyEnforcementDisabled PolicyEnforcement = "disabled"
 )
 
 // PolicyKind names what a rule governs; each kind has one matcher.

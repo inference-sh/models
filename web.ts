@@ -1935,6 +1935,14 @@ export interface AppDTO extends BaseModelDTO, PermissionModelDTO {
   status: AppStatus;
   status_message?: string;
   status_changed_at?: string /* RFC3339 */;
+  /**
+   * ResolvedFunction is the function the requested ref named, when it named
+   * one: "ns/app:fn" in the ref itself, or a route on the name that pins a
+   * function (a retired dialogue app routed to "ns/new-app:dialogue"). Only
+   * set on a lookup by ref; empty means the caller picks, starting from the
+   * version's default.
+   */
+  resolved_function?: string;
 }
 /**
  * AppVersionDTO is the API response for an app version.
@@ -2833,6 +2841,13 @@ export interface PolicyRuleDTO {
   id: string;
   effect: PolicyEffect;
   /**
+   * Enforcement: default (decides unless a more specific admin layer has
+   * a rule matching the call), enforced (an admin rule that is final),
+   * evaluate (never decides; the decision feed shows what it would have
+   * done) or disabled (kept, ignored).
+   */
+  enforcement: PolicyEnforcement;
+  /**
    * Kind: what the rule governs (RemoteExec, Workspace, Harness, Tool,
    * and the usage kinds App, Agent, Knowledge, Mcp, Flow).
    */
@@ -2900,6 +2915,12 @@ export interface PolicyLayerDTO {
    * editable layer.
    */
   rule_kinds?: PolicyRuleKindDTO[];
+  /**
+   * Lint is what is wrong with the layer's rules (rules that cancel each
+   * other, can never match, allow too much, or never take effect), set on
+   * an editable layer.
+   */
+  lint?: PolicyLintDTO[];
 }
 /**
  * PolicyRuleKindDTO is a kind a rule may have on a layer.
@@ -2947,6 +2968,20 @@ export interface PolicyRuleCreateRequest {
    * specifier when empty); one written by Ref is named by the server.
    */
   label?: string;
+  /**
+   * Enforcement is how the rule takes part; empty is default. Only an
+   * admin's policy (org, workspace or member) may set enforced.
+   */
+  enforcement?: PolicyEnforcement;
+}
+/**
+ * PolicyRuleUpdateRequest is PUT .../rules/{ruleId} on every rules route:
+ * sets what can change on a rule, its enforcement (default, enforced on an
+ * admin's policy, evaluate, disabled). Its target and effect are changed by
+ * removing it and adding another.
+ */
+export interface PolicyRuleUpdateRequest {
+  enforcement: PolicyEnforcement;
 }
 /**
  * PolicyLayerSetRequest is PUT /teams/{id}/rules and /orgs/{id}/rules: the
@@ -2960,19 +2995,30 @@ export interface PolicyLayerSetRequest {
 }
 /**
  * ChatRuleExplainRequest is POST /chats/{id}/rules/explain: test a call
- * against the chat's rules.
+ * against the chat's rules. The same request tests a call on a policy
+ * page: POST /teams/{id}/rules/explain and /orgs/{id}/rules/explain (the
+ * workspace's governance layers), /agents/{id}/rules/explain and
+ * /remotes/{id}/rules/explain (the subject's rules with the caller's).
  */
 export interface ChatRuleExplainRequest {
   /**
-   * Kind: RemoteExec, Workspace, Harness or Tool.
+   * Kind: RemoteExec, Workspace, Harness or Tool; on a workspace, org or
+   * agent page also a usage kind (App, Agent, Knowledge, Mcp, Flow); on a
+   * remote's page RemoteExec, Workspace or Harness.
    */
   kind: PolicyKind;
   /**
    * Target is the call: a command (RemoteExec), a path (Workspace), a
-   * harness tool call (`Bash(git status)`, `Edit(/srv/app/x.go)`, `Read`)
-   * or a loop tool's name (Tool).
+   * harness tool call (`Bash(git status)`, `Edit(/srv/app/x.go)`, `Read`),
+   * a loop tool's name (Tool), or a resource's id (a usage kind).
    */
   target: string;
+  /**
+   * OwnerTeamID is the team that owns a usage kind's resource (as the
+   * effective-access list gives it), so publisher rules, org reach and
+   * the workspace's own resources apply.
+   */
+  owner_team_id?: string;
   /**
    * Remote optionally names the remote the call runs on, so rules with a
    * [selector] apply.
@@ -3006,6 +3052,11 @@ export interface ChatRuleExplainDTO {
    * on team t1 (governance) matched "rm -rf /"`.
    */
   reason: string;
+  /**
+   * WouldHave is set when rules set to evaluate would have decided
+   * otherwise: that decision, explained the same way.
+   */
+  would_have?: ChatRuleExplainDTO;
 }
 /**
  * AlwaysAllowScope is how far an "always allow" option reaches, narrowest
@@ -5376,6 +5427,130 @@ export interface MigrateSubscribersResponse {
   errors?: string[];
 }
 /**
+ * PolicyLintDTO is one problem with one rule of a layer: it cancels another,
+ * is written twice, can never match, allows too much, or never takes effect
+ * because another layer decides its calls first.
+ */
+export interface PolicyLintDTO {
+  /**
+   * RuleID is the stored rule's id; empty for a rule not saved yet.
+   */
+  rule_id?: string;
+  code: PolicyLintCode;
+  /**
+   * Message is the problem in words, e.g. "the team's policy denies these
+   * calls anyway (deny: git push commands)".
+   */
+  message: string;
+}
+/**
+ * PolicyRulePreviewDTO is POST .../rules/preview: what saving the rule (a
+ * PolicyRuleCreateRequest) would change. Lint is about that rule. Changes
+ * re-run the recent calls this layer saw asked or denied (the decision feed
+ * keeps no allowed calls) with the rule added, and list the ones whose
+ * outcome moves.
+ */
+export interface PolicyRulePreviewDTO {
+  lint: PolicyLintDTO[];
+  changes: PolicyPreviewChangeDTO[];
+  /**
+   * Checked is how many recent calls were re-run.
+   */
+  checked: number /* int */;
+}
+/**
+ * PolicyPreviewChangeDTO is one recent call whose outcome the rule changes.
+ */
+export interface PolicyPreviewChangeDTO {
+  kind: PolicyKind;
+  /**
+   * Target is the call as decided: the command, the path, the tool.
+   */
+  target: string;
+  /**
+   * Remote is the machine it was for, and RemoteName its name.
+   */
+  remote?: string;
+  remote_name?: string;
+  before: PolicyEffect;
+  after: PolicyEffect;
+  count: number /* int */;
+  last_at: string /* RFC3339 */;
+}
+/**
+ * PolicyRecentCallDTO is one call this layer recently asked about or denied
+ * (GET .../rules/recent), most recent first, with the rules that would
+ * answer it.
+ */
+export interface PolicyRecentCallDTO {
+  kind: PolicyKind;
+  target: string;
+  remote?: string;
+  remote_name?: string;
+  effect: PolicyEffect;
+  /**
+   * WouldHave: the calls were decided otherwise; Effect is what rules set
+   * to evaluate would have done ("would have denied").
+   */
+  would_have: boolean;
+  count: number /* int */;
+  last_at: string /* RFC3339 */;
+  /**
+   * Options are allow rules that answer the call next time, narrowest
+   * first, as "always allow" on an approval offers them: never a prefix
+   * on an interpreter, a shell or a wrapper. Empty when no rule here can
+   * allow it (another layer denies it).
+   */
+  options: PolicyRuleOptionDTO[];
+}
+/**
+ * PolicyRuleOptionDTO is a set of rules offered as one choice.
+ */
+export interface PolicyRuleOptionDTO {
+  scope: AlwaysAllowScope;
+  /**
+   * Label is the choice in words, e.g. "git commit commands on Laptop".
+   */
+  label: string;
+  /**
+   * Rules are what to POST to the layer's rules, one by one.
+   */
+  rules: PolicyRuleCreateRequest[];
+}
+/**
+ * PolicySuggestionDTO is one value to complete a rule with.
+ */
+export interface PolicySuggestionDTO {
+  /**
+   * Value is what goes in the rule: a remote's id for a selector, a
+   * folder pattern, a command prefix, a tool name.
+   */
+  value: string;
+  /**
+   * Label is how people know it: the remote's name, the folder.
+   */
+  label: string;
+  /**
+   * Detail says where it came from, e.g. "asked 3 times".
+   */
+  detail?: string;
+}
+/**
+ * PolicySuggestionsKind names what GET /rules/suggestions completes: a
+ * rule kind's specifier, or the machine selector.
+ */
+export type PolicySuggestionsKind =
+  | "selector"
+  | "RemoteExec"
+  | "Workspace"
+  | "Harness"
+  | "Tool";
+export const PolicySuggestionsSelector: PolicySuggestionsKind = "selector";
+export const PolicySuggestionsRemoteExec: PolicySuggestionsKind = "RemoteExec";
+export const PolicySuggestionsWorkspace: PolicySuggestionsKind = "Workspace";
+export const PolicySuggestionsHarness: PolicySuggestionsKind = "Harness";
+export const PolicySuggestionsTool: PolicySuggestionsKind = "Tool";
+/**
  * ProjectModelDTO provides optional project association for DTOs
  */
 export interface ProjectModelDTO {
@@ -5501,6 +5676,11 @@ export interface RemoteDTO extends BaseModelDTO, PermissionModelDTO {
   remote_version: string;
   exec_enabled: boolean;
   agents_enabled: boolean;
+  /**
+   * Tags group remotes for policy rules: a [tag:<name>] selector applies
+   * to every remote carrying the tag.
+   */
+  tags: string[];
   profiles: (ProfileDTO | undefined)[];
 }
 /**
@@ -7787,6 +7967,8 @@ export type WSEventType =
   | "remote_terminal_close"
   | "remote_terminal_output"
   | "remote_terminal_exit"
+  | "remote_paths_resolve"
+  | "remote_paths_resolved"
   | "remote_session_open"
   | "remote_session_prompt"
   | "remote_session_interrupt"
@@ -8142,6 +8324,31 @@ export interface WsRemoteLane {
   chat_id?: string;
   exec_run_id?: string;
   session_id?: string;
+}
+/**
+ * Server -> remote.
+ */
+export const WSEventRemotePathsResolve: WSEventType = "remote_paths_resolve";
+/**
+ * Remote -> server.
+ */
+export const WSEventRemotePathsResolved: WSEventType = "remote_paths_resolved";
+/**
+ * WsRemotePathsResolve asks the daemon where absolute paths really lead.
+ */
+export interface WsRemotePathsResolve {
+  request_id: string;
+  paths: string[];
+}
+/**
+ * WsRemotePathsResolved answers a WsRemotePathsResolve: each asked path
+ * with every symlink in it resolved. A path that does not exist yet (a file
+ * a command will create) resolves through its deepest existing parent. A
+ * path the daemon could not resolve is absent.
+ */
+export interface WsRemotePathsResolved {
+  request_id: string;
+  resolved: { [key: string]: string};
 }
 /**
  * Server -> remote.
@@ -10323,6 +10530,32 @@ export const PolicyEffectAllow: PolicyEffect = "allow";
 export const PolicyEffectAsk: PolicyEffect = "ask";
 export const PolicyEffectDeny: PolicyEffect = "deny";
 /**
+ * PolicyEnforcement is how a rule takes part in decisions.
+ */
+export type PolicyEnforcement = "default" | "enforced" | "evaluate" | "disabled";
+/**
+ * PolicyEnforcementDefault: the rule decides in its layer, and a more
+ * specific admin layer with a rule matching the same call overrides it.
+ */
+export const PolicyEnforcementDefault: PolicyEnforcement = "default";
+/**
+ * PolicyEnforcementEnforced: an admin (governance) rule that is final.
+ * It is checked before every other layer, and no lower admin layer can
+ * override it; narrow-only layers can still only narrow. Only admin
+ * layers may hold one.
+ */
+export const PolicyEnforcementEnforced: PolicyEnforcement = "enforced";
+/**
+ * PolicyEnforcementEvaluate: the rule never decides. When it would have
+ * changed a decision, the decision feed records what it would have done,
+ * so a rule can be tried before it is switched on.
+ */
+export const PolicyEnforcementEvaluate: PolicyEnforcement = "evaluate";
+/**
+ * PolicyEnforcementDisabled: the rule is kept and ignored.
+ */
+export const PolicyEnforcementDisabled: PolicyEnforcement = "disabled";
+/**
  * PolicyKind names what a rule governs; each kind has one matcher.
  */
 export type PolicyKind =
@@ -10390,6 +10623,38 @@ export const PolicySubjectUser: PolicySubject = "user";
 export const PolicySubjectTeam: PolicySubject = "team";
 export const PolicySubjectOrg: PolicySubject = "org";
 export const PolicySubjectPlatform: PolicySubject = "platform";
+/**
+ * PolicyLintCode names what is wrong with a rule (INF-906 rule builder):
+ * the API returns it with each finding, next to a message in words.
+ */
+export type PolicyLintCode =
+  | "conflict"
+  | "duplicate"
+  | "never_matches"
+  | "broad"
+  | "overridden";
+/**
+ * PolicyLintConflict: another rule in the layer names the same target
+ * with another effect; the stricter one always wins.
+ */
+export const PolicyLintConflict: PolicyLintCode = "conflict";
+/**
+ * PolicyLintDuplicate: the same rule is in the layer twice.
+ */
+export const PolicyLintDuplicate: PolicyLintCode = "duplicate";
+/**
+ * PolicyLintNeverMatches: no single call can match the rule.
+ */
+export const PolicyLintNeverMatches: PolicyLintCode = "never_matches";
+/**
+ * PolicyLintBroad: an allow that lets anything run.
+ */
+export const PolicyLintBroad: PolicyLintCode = "broad";
+/**
+ * PolicyLintOverridden: another layer, or a stricter rule beside it,
+ * always decides the rule's calls, so it never takes effect.
+ */
+export const PolicyLintOverridden: PolicyLintCode = "overridden";
 /**
  * Reach is the mirror of Visibility (INF-808). Visibility says how far a
  * resource's owner opens it outward; reach says how far a consumer's usage

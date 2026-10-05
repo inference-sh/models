@@ -3024,6 +3024,12 @@ public struct AppDTO: Codable, Sendable {
     public var status: AppStatus
     public var statusMessage: String?
     public var statusChangedAt: String?
+    /// ResolvedFunction is the function the requested ref named, when it named
+    /// one: "ns/app:fn" in the ref itself, or a route on the name that pins a
+    /// function (a retired dialogue app routed to "ns/new-app:dialogue"). Only
+    /// set on a lookup by ref; empty means the caller picks, starting from the
+    /// version's default.
+    public var resolvedFunction: String?
 
     public init(
         id: String = "",
@@ -3047,7 +3053,8 @@ public struct AppDTO: Codable, Sendable {
         version: AppVersionDTO? = nil,
         status: AppStatus,
         statusMessage: String? = nil,
-        statusChangedAt: String? = nil
+        statusChangedAt: String? = nil,
+        resolvedFunction: String? = nil
     ) {
         self.id = id
         self.shortId = shortId
@@ -3071,6 +3078,7 @@ public struct AppDTO: Codable, Sendable {
         self.status = status
         self.statusMessage = statusMessage
         self.statusChangedAt = statusChangedAt
+        self.resolvedFunction = resolvedFunction
     }
 
     enum CodingKeys: String, CodingKey {
@@ -3096,6 +3104,7 @@ public struct AppDTO: Codable, Sendable {
         case status = "status"
         case statusMessage = "status_message"
         case statusChangedAt = "status_changed_at"
+        case resolvedFunction = "resolved_function"
     }
 }
 
@@ -4944,6 +4953,11 @@ public struct ChatMessageDTO: Codable, Sendable {
 public struct PolicyRuleDTO: Codable, Sendable {
     public var id: String
     public var effect: PolicyEffect
+    /// Enforcement: default (decides unless a more specific admin layer has
+    /// a rule matching the call), enforced (an admin rule that is final),
+    /// evaluate (never decides; the decision feed shows what it would have
+    /// done) or disabled (kept, ignored).
+    public var enforcement: PolicyEnforcement
     /// Kind: what the rule governs (RemoteExec, Workspace, Harness, Tool,
     /// and the usage kinds App, Agent, Knowledge, Mcp, Flow).
     public var kind: PolicyKind
@@ -4971,6 +4985,7 @@ public struct PolicyRuleDTO: Codable, Sendable {
     public init(
         id: String = "",
         effect: PolicyEffect,
+        enforcement: PolicyEnforcement,
         kind: PolicyKind,
         selector: String = "",
         specifier: String = "",
@@ -4980,6 +4995,7 @@ public struct PolicyRuleDTO: Codable, Sendable {
     ) {
         self.id = id
         self.effect = effect
+        self.enforcement = enforcement
         self.kind = kind
         self.selector = selector
         self.specifier = specifier
@@ -4991,6 +5007,7 @@ public struct PolicyRuleDTO: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id = "id"
         case effect = "effect"
+        case enforcement = "enforcement"
         case kind = "kind"
         case selector = "selector"
         case specifier = "specifier"
@@ -15149,6 +15166,27 @@ public struct PolicyEffect: RawRepresentable, Codable, Hashable, Sendable {
     public static let allow = PolicyEffect(rawValue: "allow")
     public static let ask = PolicyEffect(rawValue: "ask")
     public static let deny = PolicyEffect(rawValue: "deny")
+}
+
+/// PolicyEnforcement is how a rule takes part in decisions.
+public struct PolicyEnforcement: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// PolicyEnforcementDefault: the rule decides in its layer, and a more
+    /// specific admin layer with a rule matching the same call overrides it.
+    public static let `default` = PolicyEnforcement(rawValue: "default")
+    /// PolicyEnforcementEnforced: an admin (governance) rule that is final.
+    /// It is checked before every other layer, and no lower admin layer can
+    /// override it; narrow-only layers can still only narrow. Only admin
+    /// layers may hold one.
+    public static let enforced = PolicyEnforcement(rawValue: "enforced")
+    /// PolicyEnforcementEvaluate: the rule never decides. When it would have
+    /// changed a decision, the decision feed records what it would have done,
+    /// so a rule can be tried before it is switched on.
+    public static let evaluate = PolicyEnforcement(rawValue: "evaluate")
+    /// PolicyEnforcementDisabled: the rule is kept and ignored.
+    public static let disabled = PolicyEnforcement(rawValue: "disabled")
 }
 
 /// PolicyKind names what a rule governs; each kind has one matcher.

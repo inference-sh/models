@@ -1273,6 +1273,14 @@ export interface AppDTO extends BaseModelDTO, PermissionModelDTO {
   status: AppStatus;
   status_message?: string;
   status_changed_at?: string /* RFC3339 */;
+  /**
+   * ResolvedFunction is the function the requested ref named, when it named
+   * one: "ns/app:fn" in the ref itself, or a route on the name that pins a
+   * function (a retired dialogue app routed to "ns/new-app:dialogue"). Only
+   * set on a lookup by ref; empty means the caller picks, starting from the
+   * version's default.
+   */
+  resolved_function?: string;
 }
 /**
  * AppVersionDTO is the API response for an app version.
@@ -1904,6 +1912,13 @@ export interface ChatMessageDTO extends BaseModelDTO, PermissionModelDTO {
 export interface PolicyRuleDTO {
   id: string;
   effect: PolicyEffect;
+  /**
+   * Enforcement: default (decides unless a more specific admin layer has
+   * a rule matching the call), enforced (an admin rule that is final),
+   * evaluate (never decides; the decision feed shows what it would have
+   * done) or disabled (kept, ignored).
+   */
+  enforcement: PolicyEnforcement;
   /**
    * Kind: what the rule governs (RemoteExec, Workspace, Harness, Tool,
    * and the usage kinds App, Agent, Knowledge, Mcp, Flow).
@@ -5860,6 +5875,32 @@ export type PolicyEffect = "allow" | "ask" | "deny";
 export const PolicyEffectAllow: PolicyEffect = "allow";
 export const PolicyEffectAsk: PolicyEffect = "ask";
 export const PolicyEffectDeny: PolicyEffect = "deny";
+/**
+ * PolicyEnforcement is how a rule takes part in decisions.
+ */
+export type PolicyEnforcement = "default" | "enforced" | "evaluate" | "disabled";
+/**
+ * PolicyEnforcementDefault: the rule decides in its layer, and a more
+ * specific admin layer with a rule matching the same call overrides it.
+ */
+export const PolicyEnforcementDefault: PolicyEnforcement = "default";
+/**
+ * PolicyEnforcementEnforced: an admin (governance) rule that is final.
+ * It is checked before every other layer, and no lower admin layer can
+ * override it; narrow-only layers can still only narrow. Only admin
+ * layers may hold one.
+ */
+export const PolicyEnforcementEnforced: PolicyEnforcement = "enforced";
+/**
+ * PolicyEnforcementEvaluate: the rule never decides. When it would have
+ * changed a decision, the decision feed records what it would have done,
+ * so a rule can be tried before it is switched on.
+ */
+export const PolicyEnforcementEvaluate: PolicyEnforcement = "evaluate";
+/**
+ * PolicyEnforcementDisabled: the rule is kept and ignored.
+ */
+export const PolicyEnforcementDisabled: PolicyEnforcement = "disabled";
 /**
  * PolicyKind names what a rule governs; each kind has one matcher.
  */
