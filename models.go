@@ -4067,7 +4067,7 @@ type SuggestRequest struct {
 	Context  string   `json:"context,omitempty"` // conversation context for embedding enrichment
 	Limit    int      `json:"limit,omitempty"`
 	Category string   `json:"category,omitempty"`
-	Agent    bool     `json:"agent,omitempty"`
+	Agent    bool     `json:"agent,omitempty"`  // Deprecated: accepted and ignored. Descriptions are always clipped to shared.DescriptionLimitListing.
 	Scope    []string `json:"scope,omitempty"`  // environment signals for overlap ranking (e.g. "git:user/repo", "lang:go")
 	Origin   string   `json:"origin,omitempty"` // caller's origin (e.g. "claude:853f9a75-..."); results from this origin are excluded
 }
@@ -4192,6 +4192,9 @@ type ShareRequest struct {
 //
 // To expose a type to SDK consumers: reference it in this struct.
 type SDKTypes struct {
+	// Description fields are plain strings, so their limits are rooted here
+	// for clients to check against before a write.
+	_descriptionLimit DescriptionLimit
 	// CredentialDTO.Provider is a plain string, so the provider enum is rooted
 	// here or its constants never reach the SDKs.
 	_credentialProvider CredentialProvider
@@ -6589,6 +6592,25 @@ type ChannelContext struct {
 	ChannelType     *ChannelType    `json:"channel_type,omitempty"`
 	ChannelMetadata json.RawMessage `json:"channel_metadata,omitempty"`
 }
+
+// --------------------
+// source: description.go
+// --------------------
+
+// DescriptionLimit is the most characters a resource's description may have.
+type DescriptionLimit int
+
+const (
+	// DescriptionLimitListing bounds the description of an app, agent, flow,
+	// MCP server or knowledge entry. A description is shown in listings and
+	// handed to agents as a suggestion, so it is a sentence or two; anything
+	// longer belongs in the resource itself.
+	DescriptionLimitListing DescriptionLimit = 200
+	// DescriptionLimitSkill bounds a skill's description. It is the skill's
+	// SKILL.md frontmatter, so it follows the Agent Skills specification
+	// (https://agentskills.io/specification) rather than the listing limit.
+	DescriptionLimitSkill DescriptionLimit = 1024
+)
 
 // --------------------
 // source: engine.go
