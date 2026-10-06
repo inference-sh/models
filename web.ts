@@ -1945,10 +1945,23 @@ export interface AppDTO extends BaseModelDTO, PermissionModelDTO {
   resolved_function?: string;
 }
 /**
+ * AppUIRef names the artifact an app version renders as its UI: a page a
+ * host shows beside the task in place of the generic output view. Artifact
+ * is a ref ("ns/name", or "ns/name@version" to pin one) or an artifact id;
+ * an unpinned ref follows the artifact's current version.
+ */
+export interface AppUIRef {
+  artifact: string;
+}
+/**
  * AppVersionDTO is the API response for an app version.
  */
 export interface AppVersionDTO extends BaseModelDTO {
   metadata: { [key: string]: any};
+  /**
+   * UI mirrors metadata.ui so clients need not dig through the map.
+   */
+  ui?: AppUIRef;
   repository: string;
   flow_version_id?: string;
   flow_version?: FlowVersionDTO;
@@ -4827,6 +4840,7 @@ export interface ResourceContent {
   mimeType?: string;
   text?: string;
   blob?: string;
+  _meta?: { [key: string]: any};
 }
 /**
  * ToolAnnotations describes tool behavior so clients can make trust and UX
@@ -4853,6 +4867,12 @@ export interface MCPTool {
   inputSchema: any;
   outputSchema?: any;
   annotations?: ToolAnnotations;
+  /**
+   * Meta is the tool descriptor's _meta: extension keys such as
+   * "ui" (MCP Apps: resourceUri, visibility) and "openai/ui" (entrypoints).
+   * Free-form so outbound servers' keys survive a round trip unchanged.
+   */
+  _meta?: { [key: string]: any};
 }
 /**
  * ToolCallRequest represents a request to call a tool.
@@ -4895,6 +4915,8 @@ export interface ToolCallResult {
   blocks?: ToolContent[];
   is_error: boolean;
   run_id?: string;
+  _meta?: { [key: string]: any};
+  ui?: MCPToolUI;
   input_required?: boolean;
   input_requests?: { [key: string]: InputRequest};
   request_state?: string;
@@ -5061,10 +5083,33 @@ export interface MCPToolCallDTO extends BaseModelDTO, PermissionModelDTO {
    * links — for rendering.
    */
   blocks?: ToolContent[];
+  /**
+   * UI is the MCP Apps page the tool declared, fetched at call time so a
+   * client renders the run without a second round trip to the server.
+   */
+  ui?: MCPToolUI;
   status: MCPToolCallStatus;
   error?: string;
   duration?: any /* time.Duration */;
   source: MCPToolCallSource;
+}
+/**
+ * MCPToolUI is a tool's MCP Apps page (SEP-1865): the resource named by the
+ * tool's _meta.ui.resourceUri, read once at call time. Hosts render the HTML
+ * in a sandboxed iframe under the CSP and talk to it over postMessage.
+ */
+export interface MCPToolUI {
+  resource_uri: string;
+  /**
+   * HTML is the resource text, a full document (text/html;profile=mcp-app).
+   */
+  html?: string;
+  /**
+   * CSP, PrefersBorder and Domain come from the resource's _meta.ui.
+   */
+  csp?: MCPUICSP;
+  prefers_border?: boolean;
+  domain?: string;
 }
 /**
  * NotificationDTO is the data transfer object
@@ -8629,7 +8674,8 @@ export type A2UIComponentType =
   | "Spacer"
   | "Chart"
   | "Form"
-  | "Artifact";
+  | "Artifact"
+  | "McpApp";
 export const A2UIRow: A2UIComponentType = "Row";
 export const A2UIColumn: A2UIComponentType = "Column";
 export const A2UIList: A2UIComponentType = "List";
@@ -8658,6 +8704,12 @@ export const A2UIForm: A2UIComponentType = "Form";
  * the viewer. Rendered from the artifact's /render endpoint.
  */
 export const A2UIArtifact: A2UIComponentType = "Artifact";
+/**
+ * McpApp embeds a remote MCP server's tool page (MCP Apps, SEP-1865): a
+ * sandboxed HTML document the host feeds the tool's input and result over
+ * postMessage, and whose tools/call requests it proxies to the server.
+ */
+export const A2UIMcpApp: A2UIComponentType = "McpApp";
 /**
  * A2UIComponent is the universal component representation.
  * Children are string IDs (flat adjacency list), not nested objects.
@@ -8768,6 +8820,48 @@ export interface A2UIComponent {
   artifactTitle?: string;
   artifactUrl?: string;
   artifactFavicon?: string;
+  /**
+   * Extension: McpApp. The page is stored on the component so the chat
+   * renders it from the message alone; the server, credential and tool name
+   * let the host route the page's tools/call requests.
+   */
+  mcpHtml?: string;
+  mcpCsp?: MCPUICSP;
+  mcpResourceUri?: string;
+  mcpServerSlug?: string;
+  mcpCredentialId?: string;
+  mcpToolName?: string;
+  mcpToolInput?: { [key: string]: any};
+  mcpToolResult?: A2UIMcpToolResult;
+  mcpPrefersBorder?: boolean;
+  /**
+   * McpArtifactId is set when the page is one of our artifacts (an app's
+   * own UI) rather than a remote server's: the host then serves the page's
+   * runtime calls through the artifact's data endpoints, not /mcps.
+   */
+  mcpArtifactId?: string;
+}
+/**
+ * MCPUICSP is an MCP Apps resource's _meta.ui.csp: the origins the host must
+ * let the page reach, by directive. Lives here rather than in apitypes
+ * because A2UI components carry it and apitypes imports this package.
+ */
+export interface MCPUICSP {
+  connectDomains?: string[];
+  resourceDomains?: string[];
+  frameDomains?: string[];
+  baseUriDomains?: string[];
+}
+/**
+ * A2UIMcpToolResult is the tool result in the shape the page expects
+ * (ui/notifications/tool-result carries a CallToolResult): the content blocks
+ * as the server sent them, not the platform's mapped output.
+ */
+export interface A2UIMcpToolResult {
+  content: { [key: string]: any}[];
+  structuredContent?: any;
+  isError?: boolean;
+  _meta?: { [key: string]: any};
 }
 export type A2UIBound = string | number | boolean | A2UIBoundValue;
 /**

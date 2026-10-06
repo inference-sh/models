@@ -659,6 +659,13 @@ class CredentialRequirement(TypedDict, total=False):
     secrets: List[str]
     scopes: List[str]
 
+# AppUIRef names the artifact an app version renders as its UI: a page a
+# host shows beside the task in place of the generic output view. Artifact
+# is a ref ("ns/name", or "ns/name@version" to pin one) or an artifact id;
+# an unpinned ref follows the artifact's current version.
+class AppUIRef(TypedDict, total=False):
+    artifact: str
+
 # AppStoreListingDTO for API responses
 class AppStoreListingDTO(TypedDict, total=False):
     id: str
@@ -1536,6 +1543,7 @@ class ResourceContent(TypedDict, total=False):
     mimeType: str
     text: str
     blob: str
+    _meta: Dict[str, Any]
 
 # ToolCallRequest represents a request to call a tool.
 # 
@@ -2265,6 +2273,40 @@ class A2UIComponent(TypedDict, total=False):
     artifactTitle: str
     artifactUrl: str
     artifactFavicon: str
+    # Extension: McpApp. The page is stored on the component so the chat
+    # renders it from the message alone; the server, credential and tool name
+    # let the host route the page's tools/call requests.
+    mcpHtml: str
+    mcpCsp: Optional[MCPUICSP]
+    mcpResourceUri: str
+    mcpServerSlug: str
+    mcpCredentialId: str
+    mcpToolName: str
+    mcpToolInput: Dict[str, Any]
+    mcpToolResult: Optional[A2UIMcpToolResult]
+    mcpPrefersBorder: bool
+    # McpArtifactId is set when the page is one of our artifacts (an app's
+    # own UI) rather than a remote server's: the host then serves the page's
+    # runtime calls through the artifact's data endpoints, not /mcps.
+    mcpArtifactId: str
+
+# MCPUICSP is an MCP Apps resource's _meta.ui.csp: the origins the host must
+# let the page reach, by directive. Lives here rather than in apitypes
+# because A2UI components carry it and apitypes imports this package.
+class MCPUICSP(TypedDict, total=False):
+    connectDomains: List[str]
+    resourceDomains: List[str]
+    frameDomains: List[str]
+    baseUriDomains: List[str]
+
+# A2UIMcpToolResult is the tool result in the shape the page expects
+# (ui/notifications/tool-result carries a CallToolResult): the content blocks
+# as the server sent them, not the platform's mapped output.
+class A2UIMcpToolResult(TypedDict, total=False):
+    content: List[Dict[str, Any]]
+    structuredContent: Any
+    isError: bool
+    _meta: Dict[str, Any]
 
 # A2UIBoundValue is either a literal or a data model path reference.
 class A2UIBoundValue(TypedDict, total=False):
@@ -2788,6 +2830,8 @@ class ToolParameterProperty(TypedDict, total=False):
 # AppVersionDTO is the API response for an app version.
 class AppVersionDTO(BaseModelDTO, TypedDict, total=False):
     metadata: Dict[str, Any]
+    # UI mirrors metadata.ui so clients need not dig through the map.
+    ui: Optional[AppUIRef]
     repository: str
     flow_version_id: Optional[str]
     flow_version: Optional[FlowVersionDTO]
@@ -3913,6 +3957,10 @@ class A2UIComponentType(str, Enum):
     # Artifact embeds a published artifact (sandboxed page) with a link to
     # the viewer. Rendered from the artifact's /render endpoint.
     A2UI_ARTIFACT = "Artifact"
+    # McpApp embeds a remote MCP server's tool page (MCP Apps, SEP-1865): a
+    # sandboxed HTML document the host feeds the tool's input and result over
+    # postMessage, and whose tools/call requests it proxies to the server.
+    A2UI_MCP_APP = "McpApp"
 
 class ApiKeyScope(str, Enum):
     # ApiKeyScopeUser is a personal key: it acts as the person who created it,

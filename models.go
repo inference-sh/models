@@ -1244,10 +1244,20 @@ func (a *AppDTO) FullName() string {
 	return a.Namespace + "/" + a.Name
 }
 
+// AppUIRef names the artifact an app version renders as its UI: a page a
+// host shows beside the task in place of the generic output view. Artifact
+// is a ref ("ns/name", or "ns/name@version" to pin one) or an artifact id;
+// an unpinned ref follows the artifact's current version.
+type AppUIRef struct {
+	Artifact string `json:"artifact"`
+}
+
 // AppVersionDTO is the API response for an app version.
 type AppVersionDTO struct {
-	BaseModelDTO        `tstype:",extends"`
-	Metadata            map[string]any          `json:"metadata"`
+	BaseModelDTO `tstype:",extends"`
+	Metadata     map[string]any `json:"metadata"`
+	// UI mirrors metadata.ui so clients need not dig through the map.
+	UI                  *AppUIRef               `json:"ui,omitempty"`
 	Repository          string                  `json:"repository"`
 	FlowVersionID       *string                 `json:"flow_version_id"`
 	FlowVersion         *FlowVersionDTO         `json:"flow_version"`
@@ -3214,16 +3224,54 @@ type ResultMeta struct {
 	// _meta object yields both them and serverInfo.
 	TTLMs      *int64     `json:"ttlMs,omitempty"`
 	CacheScope CacheScope `json:"cacheScope,omitempty"`
+	// Extra is every _meta key that is not one of the typed fields above. MCP
+	// Apps and other extensions put their own keys there, and a host that drops
+	// them cannot pass a tool's result to its page unchanged.
+	Extra map[string]any `json:"-"`
+}
+
+func (m ResultMeta) MarshalJSON() ([]byte, error) {
+	type typed ResultMeta
+	if len(m.Extra) == 0 {
+		return json.Marshal(typed(m))
+	}
+	return json.Marshal(m.Map())
+}
+
+// Map is the whole _meta object as decoded JSON: the typed fields and Extra
+// together. Nil when there is nothing in it, and safe on a nil receiver.
+func (m *ResultMeta) Map() map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]any, len(m.Extra)+3)
+	for k, v := range m.Extra {
+		out[k] = v
+	}
+	if m.ServerInfo != nil {
+		out["io.modelcontextprotocol/serverInfo"] = *m.ServerInfo
+	}
+	if m.TTLMs != nil {
+		out["ttlMs"] = *m.TTLMs
+	}
+	if m.CacheScope != "" {
+		out["cacheScope"] = m.CacheScope
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // ResourceContent represents resource content
 type ResourceContent struct {
-	URI      string `json:"uri"`
-	Name     string `json:"name"`
-	Title    string `json:"title,omitempty"`
-	MimeType string `json:"mimeType,omitempty"`
-	Text     string `json:"text,omitempty"`
-	Blob     string `json:"blob,omitempty"`
+	URI      string         `json:"uri"`
+	Name     string         `json:"name"`
+	Title    string         `json:"title,omitempty"`
+	MimeType string         `json:"mimeType,omitempty"`
+	Text     string         `json:"text,omitempty"`
+	Blob     string         `json:"blob,omitempty"`
+	Meta     map[string]any `json:"_meta,omitempty"`
 }
 
 // ToolAnnotations describes tool behavior so clients can make trust and UX
@@ -3246,6 +3294,10 @@ type MCPTool struct {
 	InputSchema  any              `json:"inputSchema"`
 	OutputSchema any              `json:"outputSchema,omitempty"`
 	Annotations  *ToolAnnotations `json:"annotations,omitempty"`
+	// Meta is the tool descriptor's _meta: extension keys such as
+	// "ui" (MCP Apps: resourceUri, visibility) and "openai/ui" (entrypoints).
+	// Free-form so outbound servers' keys survive a round trip unchanged.
+	Meta map[string]any `json:"_meta,omitempty"`
 	// RequiredScope is the API-key scope a caller must hold to invoke this
 	// tool. Empty means any authenticated caller. Not serialized: it is an
 	// authorization rule, not part of the MCP wire contract.
@@ -3295,6 +3347,8 @@ type ToolCallResult struct {
 	Blocks        []ToolContent           `json:"blocks,omitempty"`
 	IsError       bool                    `json:"is_error"`
 	RunID         string                  `json:"run_id,omitempty"`
+	Meta          map[string]any          `json:"_meta,omitempty"`
+	UI            *MCPToolUI              `json:"ui,omitempty"`
 	InputRequired bool                    `json:"input_required,omitempty"`
 	InputRequests map[string]InputRequest `json:"input_requests,omitempty"`
 	RequestState  string                  `json:"request_state,omitempty"`
@@ -3416,6 +3470,23 @@ type MCPServerSetup struct {
 	// RecommendedHeaders are the least-privilege static headers the server
 	// documents (e.g. X-MCP-Toolsets), offered by the headers editor.
 	RecommendedHeaders map[string]string `json:"recommended_headers,omitempty"`
+}
+
+// --------------------
+// source: mcp_tool_call.go
+// --------------------
+
+// MCPToolUI is a tool's MCP Apps page (SEP-1865): the resource named by the
+// tool's _meta.ui.resourceUri, read once at call time. Hosts render the HTML
+// in a sandboxed iframe under the CSP and talk to it over postMessage.
+type MCPToolUI struct {
+	ResourceURI string `json:"resource_uri"`
+	// HTML is the resource text, a full document (text/html;profile=mcp-app).
+	HTML string `json:"html,omitempty"`
+	// CSP, PrefersBorder and Domain come from the resource's _meta.ui.
+	CSP           *MCPUICSP `json:"csp,omitempty"`
+	PrefersBorder bool      `json:"prefers_border,omitempty"`
+	Domain        string    `json:"domain,omitempty"`
 }
 
 // --------------------
@@ -5912,6 +5983,10 @@ const (
 	// Artifact embeds a published artifact (sandboxed page) with a link to
 	// the viewer. Rendered from the artifact's /render endpoint.
 	A2UIArtifact A2UIComponentType = "Artifact"
+	// McpApp embeds a remote MCP server's tool page (MCP Apps, SEP-1865): a
+	// sandboxed HTML document the host feeds the tool's input and result over
+	// postMessage, and whose tools/call requests it proxies to the server.
+	A2UIMcpApp A2UIComponentType = "McpApp"
 )
 
 // A2UIComponent is the universal component representation.
@@ -5986,6 +6061,42 @@ type A2UIComponent struct {
 	ArtifactTitle     string `json:"artifactTitle,omitempty"`
 	ArtifactURL       string `json:"artifactUrl,omitempty"`
 	ArtifactFavicon   string `json:"artifactFavicon,omitempty"`
+	// Extension: McpApp. The page is stored on the component so the chat
+	// renders it from the message alone; the server, credential and tool name
+	// let the host route the page's tools/call requests.
+	McpHtml          string             `json:"mcpHtml,omitempty"`
+	McpCsp           *MCPUICSP          `json:"mcpCsp,omitempty"`
+	McpResourceUri   string             `json:"mcpResourceUri,omitempty"`
+	McpServerSlug    string             `json:"mcpServerSlug,omitempty"`
+	McpCredentialId  string             `json:"mcpCredentialId,omitempty"`
+	McpToolName      string             `json:"mcpToolName,omitempty"`
+	McpToolInput     map[string]any     `json:"mcpToolInput,omitempty"`
+	McpToolResult    *A2UIMcpToolResult `json:"mcpToolResult,omitempty"`
+	McpPrefersBorder bool               `json:"mcpPrefersBorder,omitempty"`
+	// McpArtifactId is set when the page is one of our artifacts (an app's
+	// own UI) rather than a remote server's: the host then serves the page's
+	// runtime calls through the artifact's data endpoints, not /mcps.
+	McpArtifactId string `json:"mcpArtifactId,omitempty"`
+}
+
+// MCPUICSP is an MCP Apps resource's _meta.ui.csp: the origins the host must
+// let the page reach, by directive. Lives here rather than in apitypes
+// because A2UI components carry it and apitypes imports this package.
+type MCPUICSP struct {
+	ConnectDomains  []string `json:"connectDomains,omitempty"`
+	ResourceDomains []string `json:"resourceDomains,omitempty"`
+	FrameDomains    []string `json:"frameDomains,omitempty"`
+	BaseUriDomains  []string `json:"baseUriDomains,omitempty"`
+}
+
+// A2UIMcpToolResult is the tool result in the shape the page expects
+// (ui/notifications/tool-result carries a CallToolResult): the content blocks
+// as the server sent them, not the platform's mapped output.
+type A2UIMcpToolResult struct {
+	Content           []map[string]any `json:"content"`
+	StructuredContent any              `json:"structuredContent,omitempty"`
+	IsError           bool             `json:"isError,omitempty"`
+	Meta              map[string]any   `json:"_meta,omitempty"`
 }
 
 //gotypegen:emit

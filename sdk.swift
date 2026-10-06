@@ -3108,6 +3108,24 @@ public struct AppDTO: Codable, Sendable {
     }
 }
 
+/// AppUIRef names the artifact an app version renders as its UI: a page a
+/// host shows beside the task in place of the generic output view. Artifact
+/// is a ref ("ns/name", or "ns/name@version" to pin one) or an artifact id;
+/// an unpinned ref follows the artifact's current version.
+public struct AppUIRef: Codable, Sendable {
+    public var artifact: String
+
+    public init(
+        artifact: String = ""
+    ) {
+        self.artifact = artifact
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case artifact = "artifact"
+    }
+}
+
 /// AppVersionDTO is the API response for an app version.
 public struct AppVersionDTO: Codable, Sendable {
     public var id: String
@@ -3116,6 +3134,8 @@ public struct AppVersionDTO: Codable, Sendable {
     public var updatedAt: String
     public var deletedAt: String?
     public var metadata: [String: JSONValue]?
+    /// UI mirrors metadata.ui so clients need not dig through the map.
+    @Indirect public var ui: AppUIRef?
     public var repository: String
     public var flowVersionId: String?
     @Indirect public var flowVersion: FlowVersionDTO?
@@ -3138,6 +3158,7 @@ public struct AppVersionDTO: Codable, Sendable {
         updatedAt: String = "",
         deletedAt: String? = nil,
         metadata: [String: JSONValue]? = nil,
+        ui: AppUIRef? = nil,
         repository: String = "",
         flowVersionId: String? = nil,
         flowVersion: FlowVersionDTO? = nil,
@@ -3159,6 +3180,7 @@ public struct AppVersionDTO: Codable, Sendable {
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
         self.metadata = metadata
+        self.ui = ui
         self.repository = repository
         self.flowVersionId = flowVersionId
         self.flowVersion = flowVersion
@@ -3182,6 +3204,7 @@ public struct AppVersionDTO: Codable, Sendable {
         case updatedAt = "updated_at"
         case deletedAt = "deleted_at"
         case metadata = "metadata"
+        case ui = "ui"
         case repository = "repository"
         case flowVersionId = "flow_version_id"
         case flowVersion = "flow_version"
@@ -8762,6 +8785,7 @@ public struct ResourceContent: Codable, Sendable {
     public var mimeType: String?
     public var text: String?
     public var blob: String?
+    public var meta: [String: JSONValue]?
 
     public init(
         uri: String = "",
@@ -8769,7 +8793,8 @@ public struct ResourceContent: Codable, Sendable {
         title: String? = nil,
         mimeType: String? = nil,
         text: String? = nil,
-        blob: String? = nil
+        blob: String? = nil,
+        meta: [String: JSONValue]? = nil
     ) {
         self.uri = uri
         self.name = name
@@ -8777,6 +8802,7 @@ public struct ResourceContent: Codable, Sendable {
         self.mimeType = mimeType
         self.text = text
         self.blob = blob
+        self.meta = meta
     }
 
     enum CodingKeys: String, CodingKey {
@@ -8786,6 +8812,7 @@ public struct ResourceContent: Codable, Sendable {
         case mimeType = "mimeType"
         case text = "text"
         case blob = "blob"
+        case meta = "_meta"
     }
 }
 
@@ -8830,7 +8857,7 @@ public struct ToolCallResponse: Codable, Sendable {
     public var content: [ToolContent]?
     public var structuredContent: JSONValue?
     public var isError: Bool
-    @Indirect public var meta: ResultMeta?
+    @Indirect public var meta: JSONValue?
     /// MRTR fields — present when ResultType == ResultTypeInputRequired.
     public var inputRequests: [String: InputRequest]?
     public var requestState: String?
@@ -8840,7 +8867,7 @@ public struct ToolCallResponse: Codable, Sendable {
         content: [ToolContent]? = nil,
         structuredContent: JSONValue? = nil,
         isError: Bool = false,
-        meta: ResultMeta? = nil,
+        meta: JSONValue? = nil,
         inputRequests: [String: InputRequest]? = nil,
         requestState: String? = nil
     ) {
@@ -13114,6 +13141,10 @@ public struct A2UIComponentType: RawRepresentable, Codable, Hashable, Sendable {
     /// Artifact embeds a published artifact (sandboxed page) with a link to
     /// the viewer. Rendered from the artifact's /render endpoint.
     public static let a2UIArtifact = A2UIComponentType(rawValue: "Artifact")
+    /// McpApp embeds a remote MCP server's tool page (MCP Apps, SEP-1865): a
+    /// sandboxed HTML document the host feeds the tool's input and result over
+    /// postMessage, and whose tools/call requests it proxies to the server.
+    public static let a2UIMcpApp = A2UIComponentType(rawValue: "McpApp")
 }
 
 /// A2UIComponent is the universal component representation.
@@ -13188,6 +13219,22 @@ public struct A2UIComponent: Codable, Sendable {
     public var artifactTitle: String?
     public var artifactUrl: String?
     public var artifactFavicon: String?
+    /// Extension: McpApp. The page is stored on the component so the chat
+    /// renders it from the message alone; the server, credential and tool name
+    /// let the host route the page's tools/call requests.
+    public var mcpHtml: String?
+    @Indirect public var mcpCsp: MCPUICSP?
+    public var mcpResourceUri: String?
+    public var mcpServerSlug: String?
+    public var mcpCredentialId: String?
+    public var mcpToolName: String?
+    public var mcpToolInput: [String: JSONValue]?
+    @Indirect public var mcpToolResult: A2UIMcpToolResult?
+    public var mcpPrefersBorder: Bool?
+    /// McpArtifactId is set when the page is one of our artifacts (an app's
+    /// own UI) rather than a remote server's: the host then serves the page's
+    /// runtime calls through the artifact's data endpoints, not /mcps.
+    public var mcpArtifactId: String?
 
     public init(
         id: String = "",
@@ -13240,7 +13287,17 @@ public struct A2UIComponent: Codable, Sendable {
         artifactVersionId: String? = nil,
         artifactTitle: String? = nil,
         artifactUrl: String? = nil,
-        artifactFavicon: String? = nil
+        artifactFavicon: String? = nil,
+        mcpHtml: String? = nil,
+        mcpCsp: MCPUICSP? = nil,
+        mcpResourceUri: String? = nil,
+        mcpServerSlug: String? = nil,
+        mcpCredentialId: String? = nil,
+        mcpToolName: String? = nil,
+        mcpToolInput: [String: JSONValue]? = nil,
+        mcpToolResult: A2UIMcpToolResult? = nil,
+        mcpPrefersBorder: Bool? = nil,
+        mcpArtifactId: String? = nil
     ) {
         self.id = id
         self.component = component
@@ -13293,6 +13350,16 @@ public struct A2UIComponent: Codable, Sendable {
         self.artifactTitle = artifactTitle
         self.artifactUrl = artifactUrl
         self.artifactFavicon = artifactFavicon
+        self.mcpHtml = mcpHtml
+        self.mcpCsp = mcpCsp
+        self.mcpResourceUri = mcpResourceUri
+        self.mcpServerSlug = mcpServerSlug
+        self.mcpCredentialId = mcpCredentialId
+        self.mcpToolName = mcpToolName
+        self.mcpToolInput = mcpToolInput
+        self.mcpToolResult = mcpToolResult
+        self.mcpPrefersBorder = mcpPrefersBorder
+        self.mcpArtifactId = mcpArtifactId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -13347,6 +13414,74 @@ public struct A2UIComponent: Codable, Sendable {
         case artifactTitle = "artifactTitle"
         case artifactUrl = "artifactUrl"
         case artifactFavicon = "artifactFavicon"
+        case mcpHtml = "mcpHtml"
+        case mcpCsp = "mcpCsp"
+        case mcpResourceUri = "mcpResourceUri"
+        case mcpServerSlug = "mcpServerSlug"
+        case mcpCredentialId = "mcpCredentialId"
+        case mcpToolName = "mcpToolName"
+        case mcpToolInput = "mcpToolInput"
+        case mcpToolResult = "mcpToolResult"
+        case mcpPrefersBorder = "mcpPrefersBorder"
+        case mcpArtifactId = "mcpArtifactId"
+    }
+}
+
+/// MCPUICSP is an MCP Apps resource's _meta.ui.csp: the origins the host must
+/// let the page reach, by directive. Lives here rather than in apitypes
+/// because A2UI components carry it and apitypes imports this package.
+public struct MCPUICSP: Codable, Sendable {
+    public var connectDomains: [String]?
+    public var resourceDomains: [String]?
+    public var frameDomains: [String]?
+    public var baseUriDomains: [String]?
+
+    public init(
+        connectDomains: [String]? = nil,
+        resourceDomains: [String]? = nil,
+        frameDomains: [String]? = nil,
+        baseUriDomains: [String]? = nil
+    ) {
+        self.connectDomains = connectDomains
+        self.resourceDomains = resourceDomains
+        self.frameDomains = frameDomains
+        self.baseUriDomains = baseUriDomains
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case connectDomains = "connectDomains"
+        case resourceDomains = "resourceDomains"
+        case frameDomains = "frameDomains"
+        case baseUriDomains = "baseUriDomains"
+    }
+}
+
+/// A2UIMcpToolResult is the tool result in the shape the page expects
+/// (ui/notifications/tool-result carries a CallToolResult): the content blocks
+/// as the server sent them, not the platform's mapped output.
+public struct A2UIMcpToolResult: Codable, Sendable {
+    public var content: [[String: JSONValue]]?
+    public var structuredContent: JSONValue?
+    public var isError: Bool?
+    public var meta: [String: JSONValue]?
+
+    public init(
+        content: [[String: JSONValue]]? = nil,
+        structuredContent: JSONValue? = nil,
+        isError: Bool? = nil,
+        meta: [String: JSONValue]? = nil
+    ) {
+        self.content = content
+        self.structuredContent = structuredContent
+        self.isError = isError
+        self.meta = meta
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case content = "content"
+        case structuredContent = "structuredContent"
+        case isError = "isError"
+        case meta = "_meta"
     }
 }
 
