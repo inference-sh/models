@@ -1765,9 +1765,13 @@ type BountyProgramDTO struct {
 	MaxPerUser         int    `json:"max_per_user"`
 	MaxPerDay          int    `json:"max_per_day"`
 	ProofType          string `json:"proof_type"`
+	// ProofForm is the form (namespace/name) a "form" program takes a
+	// submission to as proof; empty for every other proof type.
+	ProofForm string `json:"proof_form"`
 	// RequiresPaymentMethod withholds the reward until the claimant's team has
-	// a saved payment method. The claim itself is refused with 402
-	// payment_method_required (survey answers are still recorded).
+	// a saved payment method. The claim is refused with 402
+	// payment_method_required and no claim is recorded, so it can be retried
+	// once a card is on file.
 	RequiresPaymentMethod bool       `json:"requires_payment_method"`
 	Status                string     `json:"status"`
 	NoticeText            string     `json:"notice_text"`
@@ -1789,7 +1793,10 @@ type BountySubmissionDTO struct {
 	Source             string `json:"source,omitempty"`
 }
 
-// SubmitBountyRequest is used to claim a bounty reward.
+// SubmitBountyRequest is used to claim a bounty reward. proof_id names the
+// proof the program's proof_type asks for: an app (id or namespace/name) for
+// "app", one of the caller's form submission ids for "form", free text
+// otherwise.
 type SubmitBountyRequest struct {
 	BountyID string `json:"bounty_id"`
 	ProofID  string `json:"proof_id"`
@@ -2470,6 +2477,9 @@ const (
 	// already holds the caller's submission.
 	ErrorCodeFormClosed       ErrorCode = "form_closed"
 	ErrorCodeAlreadySubmitted ErrorCode = "already_submitted"
+	// Bounty claims (409): the caller already claimed this proof, or as many
+	// times as the program allows.
+	ErrorCodeAlreadyClaimed ErrorCode = "already_claimed"
 	// Entitlement requests (409): the team already holds the entitlement, or
 	// already has an open request for it.
 	ErrorCodeAlreadyEntitled ErrorCode = "already_entitled"
@@ -2828,7 +2838,6 @@ type FormDTO struct {
 	Schema             json.RawMessage  `json:"schema"`
 	Status             FormStatus       `json:"status"`
 	SubmitPolicy       FormSubmitPolicy `json:"submit_policy"`
-	BountyName         string           `json:"bounty_name,omitempty"`
 }
 
 // FormSubmissionDTO is one set of answers to a form.
@@ -2842,9 +2851,6 @@ type FormSubmissionDTO struct {
 	Source             string          `json:"source,omitempty"`
 	Agent              string          `json:"agent,omitempty"`
 	Context            string          `json:"context,omitempty"`
-	// RewardAmount is the credit reward in microcents (0 when none was earned).
-	RewardAmount        int64  `json:"reward_amount,omitempty"`
-	RewardBlockedReason string `json:"reward_blocked_reason,omitempty"`
 }
 
 // CreateFormRequest creates a form in the caller's team namespace. The name
@@ -2859,14 +2865,12 @@ type CreateFormRequest struct {
 }
 
 // UpdateFormRequest patches a form; nil fields are left as they are.
-// bounty_name is settable by platform admins only.
 type UpdateFormRequest struct {
 	Title        *string           `json:"title,omitempty"`
 	Description  *string           `json:"description,omitempty"`
 	Schema       json.RawMessage   `json:"schema,omitempty"`
 	Status       *FormStatus       `json:"status,omitempty"`
 	SubmitPolicy *FormSubmitPolicy `json:"submit_policy,omitempty"`
-	BountyName   *string           `json:"bounty_name,omitempty"`
 }
 
 // SubmitFormRequest is one person's answers to a form. data is validated
@@ -2879,13 +2883,8 @@ type SubmitFormRequest struct {
 }
 
 // SubmitFormResponse is returned when a submission was recorded.
-// GrantedAmount is the credit reward in microcents (0 if no reward was
-// earned). RewardBlockedReason is set when the submission was recorded but
-// the reward was withheld (see the RewardBlocked* constants).
 type SubmitFormResponse struct {
-	Submission          FormSubmissionDTO `json:"submission"`
-	GrantedAmount       int64             `json:"granted_amount,omitempty"`
-	RewardBlockedReason string            `json:"reward_blocked_reason,omitempty"`
+	Submission FormSubmissionDTO `json:"submission"`
 }
 
 // SurveyResponseDTO is the API representation of a survey response.
@@ -2900,9 +2899,9 @@ type SurveyResponseDTO struct {
 }
 
 // SubmitSurveyResponse is returned when submitting a survey answer.
-// GrantedAmount is the credit reward in microcents (0 if no reward was earned).
-// RewardBlockedReason is set when the answer was recorded but the reward was
-// withheld by policy (see RewardBlockedPaymentMethodRequired).
+// GrantedAmount and RewardBlockedReason are kept for the CLIs that read
+// them; the alias records answers only, so they are always 0 and empty.
+// Bounties are claimed through POST /me/bounty.
 type SubmitSurveyResponse struct {
 	Response            SurveyResponseDTO `json:"response"`
 	GrantedAmount       int64             `json:"granted_amount,omitempty"`
