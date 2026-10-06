@@ -2647,7 +2647,6 @@ export interface BountyProgramDTO extends BaseModelDTO, PermissionModelDTO {
   max_per_user: number /* int */;
   max_per_day: number /* int */;
   proof_type: string;
-  proof_min_length: number /* int */;
   /**
    * RequiresPaymentMethod withholds the reward until the claimant's team has
    * a saved payment method. The claim itself is refused with 402
@@ -2673,7 +2672,6 @@ export interface CreateBountyProgramRequest {
   max_per_user: number /* int */;
   max_per_day: number /* int */;
   proof_type: string;
-  proof_min_length: number /* int */;
   requires_payment_method: boolean;
   notice_text: string;
   notice_cooldown_hours: number /* int */;
@@ -2691,7 +2689,6 @@ export interface UpdateBountyProgramRequest {
   expiry_days?: number /* int */;
   max_per_user?: number /* int */;
   max_per_day?: number /* int */;
-  proof_min_length?: number /* int */;
   requires_payment_method?: boolean;
   notice_text?: string;
   notice_cooldown_hours?: number /* int */;

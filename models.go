@@ -1765,7 +1765,6 @@ type BountyProgramDTO struct {
 	MaxPerUser         int    `json:"max_per_user"`
 	MaxPerDay          int    `json:"max_per_day"`
 	ProofType          string `json:"proof_type"`
-	ProofMinLength     int    `json:"proof_min_length"`
 	// RequiresPaymentMethod withholds the reward until the claimant's team has
 	// a saved payment method. The claim itself is refused with 402
 	// payment_method_required (survey answers are still recorded).
