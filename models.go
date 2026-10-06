@@ -2358,9 +2358,57 @@ type EntitlementErrorMeta struct {
 	Limit            *int                `json:"limit,omitempty"`
 	Current          *int                `json:"current,omitempty"`
 	UpgradeAvailable bool                `json:"upgrade_available"`
+	Requestable      bool                `json:"requestable"`
+	RequestState     string              `json:"request_state,omitempty"`
 	AddonPlanID      string              `json:"addon_plan_id,omitempty"`
 	AddonPlanName    string              `json:"addon_plan_name,omitempty"`
 	AddonPlanVersion *int                `json:"addon_plan_price,omitempty"`
+}
+
+// --------------------
+// source: entitlement_request.go
+// --------------------
+
+// EntitlementRequestDTO is a team's request for an entitlement, with the
+// form submission that came with it when there was one, so the admin queue
+// shows the answers next to the decision.
+type EntitlementRequestDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	Resource           EntitlementResource     `json:"resource"`
+	ResourceLabel      string                  `json:"resource_label,omitempty"`
+	Requested          json.RawMessage         `json:"requested"`
+	SubmissionID       string                  `json:"submission_id,omitempty"`
+	Submission         *FormSubmissionDTO      `json:"submission,omitempty"`
+	State              EntitlementRequestState `json:"state"`
+	DecidedBy          string                  `json:"decided_by,omitempty"`
+	DecidedAt          *time.Time              `json:"decided_at,omitempty"`
+	Note               string                  `json:"note,omitempty"`
+}
+
+// EntitlementRequested is the shape of a request's "requested" field and of
+// the grant an acceptance makes: a boolean gate switched on, or a limit.
+type EntitlementRequested struct {
+	Type    EntitlementType `json:"type"`
+	Enabled bool            `json:"enabled,omitempty"`
+	Limit   int             `json:"limit,omitempty"`
+}
+
+// CreateEntitlementRequestRequest asks for a resource on behalf of the
+// caller's team. requested defaults to a switched-on boolean gate. form
+// (namespace/name or id) with data submits that form first and attaches
+// the submission; the form's own policy and validation errors apply.
+type CreateEntitlementRequestRequest struct {
+	Resource  EntitlementResource `json:"resource"`
+	Requested json.RawMessage     `json:"requested,omitempty"`
+	Form      string              `json:"form,omitempty"`
+	Data      json.RawMessage     `json:"data,omitempty"`
+}
+
+// DecideEntitlementRequestRequest is an admin's accept or decline; the note
+// reaches the requester by email.
+type DecideEntitlementRequestRequest struct {
+	Note string `json:"note,omitempty"`
 }
 
 // --------------------
@@ -2419,6 +2467,14 @@ const (
 	// payment method and the caller's team has none. Meta is
 	// PaymentMethodRequiredMeta; clients send the user to BillingPage.
 	ErrorCodePaymentMethodRequired ErrorCode = "payment_method_required"
+	// Form submissions (409): the form is not open, or its submit policy
+	// already holds the caller's submission.
+	ErrorCodeFormClosed       ErrorCode = "form_closed"
+	ErrorCodeAlreadySubmitted ErrorCode = "already_submitted"
+	// Entitlement requests (409): the team already holds the entitlement, or
+	// already has an open request for it.
+	ErrorCodeAlreadyEntitled ErrorCode = "already_entitled"
+	ErrorCodeRequestOpen     ErrorCode = "request_open"
 	// Remote harness refusals.
 	ErrorCodeAgentsDisabled     ErrorCode = "agents_disabled"
 	ErrorCodeRemoteOffline      ErrorCode = "remote_offline"
@@ -2755,6 +2811,112 @@ type RemoveOutputMappingPayload struct {
 type RenameOutputFieldPayload struct {
 	OldField string `json:"old_field"`
 	NewField string `json:"new_field"`
+}
+
+// --------------------
+// source: forms.go
+// --------------------
+
+// FormDTO is the API representation of a form: a JSON Schema plus the
+// settings that say who may submit, and how often.
+type FormDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	Namespace          string           `json:"namespace"`
+	Name               string           `json:"name"`
+	Title              string           `json:"title"`
+	Description        string           `json:"description"`
+	Schema             json.RawMessage  `json:"schema"`
+	Status             FormStatus       `json:"status"`
+	SubmitPolicy       FormSubmitPolicy `json:"submit_policy"`
+	BountyName         string           `json:"bounty_name,omitempty"`
+}
+
+// FormSubmissionDTO is one set of answers to a form.
+type FormSubmissionDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	FormID             string          `json:"form_id"`
+	FormTeamID         string          `json:"form_team_id"`
+	SubmitterTeamID    string          `json:"submitter_team_id,omitempty"`
+	Data               json.RawMessage `json:"data"`
+	Source             string          `json:"source,omitempty"`
+	Agent              string          `json:"agent,omitempty"`
+	Context            string          `json:"context,omitempty"`
+	// RewardAmount is the credit reward in microcents (0 when none was earned).
+	RewardAmount        int64  `json:"reward_amount,omitempty"`
+	RewardBlockedReason string `json:"reward_blocked_reason,omitempty"`
+}
+
+// CreateFormRequest creates a form in the caller's team namespace. The name
+// is the immutable slug behind GET /forms/{namespace}/{name}.
+type CreateFormRequest struct {
+	Name         string           `json:"name"`
+	Title        string           `json:"title"`
+	Description  string           `json:"description,omitempty"`
+	Schema       json.RawMessage  `json:"schema,omitempty"`
+	SubmitPolicy FormSubmitPolicy `json:"submit_policy,omitempty"`
+	Visibility   Visibility       `json:"visibility,omitempty"`
+}
+
+// UpdateFormRequest patches a form; nil fields are left as they are.
+// bounty_name is settable by platform admins only.
+type UpdateFormRequest struct {
+	Title        *string           `json:"title,omitempty"`
+	Description  *string           `json:"description,omitempty"`
+	Schema       json.RawMessage   `json:"schema,omitempty"`
+	Status       *FormStatus       `json:"status,omitempty"`
+	SubmitPolicy *FormSubmitPolicy `json:"submit_policy,omitempty"`
+	BountyName   *string           `json:"bounty_name,omitempty"`
+}
+
+// SubmitFormRequest is one person's answers to a form. data is validated
+// against the form's schema.
+type SubmitFormRequest struct {
+	Data    json.RawMessage `json:"data"`
+	Source  string          `json:"source,omitempty"`  // "cli", "web" or "api"
+	Agent   string          `json:"agent,omitempty"`   // agent runtime name (e.g. "claude-code")
+	Context string          `json:"context,omitempty"` // command/app that was running
+}
+
+// SubmitFormResponse is returned when a submission was recorded.
+// GrantedAmount is the credit reward in microcents (0 if no reward was
+// earned). RewardBlockedReason is set when the submission was recorded but
+// the reward was withheld (see the RewardBlocked* constants).
+type SubmitFormResponse struct {
+	Submission          FormSubmissionDTO `json:"submission"`
+	GrantedAmount       int64             `json:"granted_amount,omitempty"`
+	RewardBlockedReason string            `json:"reward_blocked_reason,omitempty"`
+}
+
+// SurveyResponseDTO is the API representation of a survey response.
+type SurveyResponseDTO struct {
+	BaseModelDTO       `json:",inline" tstype:",extends"`
+	PermissionModelDTO `json:",inline" tstype:",extends"`
+	QuestionID         string `json:"question_id"`
+	Response           string `json:"response"`
+	Agent              string `json:"agent,omitempty"`
+	Source             string `json:"source,omitempty"`
+	Context            string `json:"context,omitempty"`
+}
+
+// SubmitSurveyResponse is returned when submitting a survey answer.
+// GrantedAmount is the credit reward in microcents (0 if no reward was earned).
+// RewardBlockedReason is set when the answer was recorded but the reward was
+// withheld by policy (see RewardBlockedPaymentMethodRequired).
+type SubmitSurveyResponse struct {
+	Response            SurveyResponseDTO `json:"response"`
+	GrantedAmount       int64             `json:"granted_amount,omitempty"`
+	RewardBlockedReason string            `json:"reward_blocked_reason,omitempty"`
+}
+
+// SubmitSurveyRequest is used to submit a single survey answer.
+type SubmitSurveyRequest struct {
+	QuestionID string `json:"question_id"`
+	Response   string `json:"response"`
+	Agent      string `json:"agent,omitempty"`
+	Source     string `json:"source,omitempty"`
+	Context    string `json:"context,omitempty"`
 }
 
 // --------------------
@@ -4410,6 +4572,12 @@ type SDKTypes struct {
 	// Entitlements
 	_entitlementDTO     EntitlementDTO
 	_entitlementErrMeta EntitlementErrorMeta
+	// Entitlement requests (a team asks for a feature gate, an admin decides)
+	_entitlementRequestDTO       EntitlementRequestDTO
+	_entitlementRequested        EntitlementRequested
+	_entitlementRequestCreateReq CreateEntitlementRequestRequest
+	_entitlementRequestDecideReq DecideEntitlementRequestRequest
+	_entitlementRequestState     EntitlementRequestState
 	// Error codes and typed error meta
 	_errorCode             ErrorCode
 	_teamRoleRequiredMeta  TeamRoleRequiredMeta
@@ -4510,7 +4678,16 @@ type SDKTypes struct {
 	_bountyProgramDTO BountyProgramDTO
 	_bountySubmitReq  SubmitBountyRequest
 	_bountySubmitResp SubmitBountyResponse
-	// Survey (belt feedback)
+	// Forms (schema-driven submissions)
+	_formDTO           FormDTO
+	_formSubmissionDTO FormSubmissionDTO
+	_formCreateReq     CreateFormRequest
+	_formUpdateReq     UpdateFormRequest
+	_formSubmitReq     SubmitFormRequest
+	_formSubmitResp    SubmitFormResponse
+	_formStatus        FormStatus
+	_formSubmitPolicy  FormSubmitPolicy
+	// Survey (belt feedback), the legacy alias of forms in the infsh namespace
 	_surveyResponseDTO SurveyResponseDTO
 	_surveySubmitReq   SubmitSurveyRequest
 	_surveySubmitResp  SubmitSurveyResponse
@@ -4816,40 +4993,6 @@ type SubscriptionDTO struct {
 	TrialEnd           *time.Time           `json:"trial_end,omitempty"`
 	CancelAtPeriodEnd  bool                 `json:"cancel_at_period_end"`
 	CreditsPerPeriod   int64                `json:"credits_per_period"`
-}
-
-// --------------------
-// source: survey.go
-// --------------------
-
-// SurveyResponseDTO is the API representation of a survey response.
-type SurveyResponseDTO struct {
-	BaseModelDTO       `json:",inline" tstype:",extends"`
-	PermissionModelDTO `json:",inline" tstype:",extends"`
-	QuestionID         string `json:"question_id"`
-	Response           string `json:"response"`
-	Agent              string `json:"agent,omitempty"`
-	Source             string `json:"source,omitempty"`
-	Context            string `json:"context,omitempty"`
-}
-
-// SubmitSurveyResponse is returned when submitting a survey answer.
-// GrantedAmount is the credit reward in microcents (0 if no reward was earned).
-// RewardBlockedReason is set when the answer was recorded but the reward was
-// withheld by policy (see RewardBlockedPaymentMethodRequired).
-type SubmitSurveyResponse struct {
-	Response            SurveyResponseDTO `json:"response"`
-	GrantedAmount       int64             `json:"granted_amount,omitempty"`
-	RewardBlockedReason string            `json:"reward_blocked_reason,omitempty"`
-}
-
-// SubmitSurveyRequest is used to submit a single survey answer.
-type SubmitSurveyRequest struct {
-	QuestionID string `json:"question_id"`
-	Response   string `json:"response"`
-	Agent      string `json:"agent,omitempty"`
-	Source     string `json:"source,omitempty"`
-	Context    string `json:"context,omitempty"`
 }
 
 // --------------------
@@ -5440,7 +5583,9 @@ type UserRelationDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Role      Role      `json:"role"`
-	AvatarURL string    `json:"avatar_url"`
+	// Name is omitted when empty so older generated copies of this DTO stay assignable.
+	Name      string `json:"name,omitempty"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 // --------------------
@@ -6579,6 +6724,18 @@ const (
 	EnforcementWarn  EnforcementMode = "warn"
 )
 
+// EntitlementRequestState is where a team's request for an entitlement
+// stands. A team holds at most one open request per resource; an admin
+// accepts (which grants) or declines it, or the team withdraws it.
+type EntitlementRequestState string
+
+const (
+	EntitlementRequestOpen      EntitlementRequestState = "open"
+	EntitlementRequestAccepted  EntitlementRequestState = "accepted"
+	EntitlementRequestDeclined  EntitlementRequestState = "declined"
+	EntitlementRequestWithdrawn EntitlementRequestState = "withdrawn"
+)
+
 // --------------------
 // source: chat.go
 // --------------------
@@ -7010,6 +7167,33 @@ type OutputFieldMapping struct {
 
 // OutputMappings is a map of output field name to OutputFieldMapping
 type OutputMappings map[string]OutputFieldMapping
+
+// --------------------
+// source: forms.go
+// --------------------
+
+// FormStatus is a form's lifecycle. Only an open form takes submissions.
+type FormStatus string
+
+const (
+	FormStatusDraft  FormStatus = "draft"
+	FormStatusOpen   FormStatus = "open"
+	FormStatusClosed FormStatus = "closed"
+)
+
+// FormSubmitPolicy says how many submissions a form takes from one source.
+type FormSubmitPolicy string
+
+const (
+	// FormSubmitOncePerUser: one submission per person, whichever team they
+	// selected when they answered.
+	FormSubmitOncePerUser FormSubmitPolicy = "once_per_user"
+	// FormSubmitOncePerTeam: one submission per team; the submitter's
+	// selected team counts.
+	FormSubmitOncePerTeam FormSubmitPolicy = "once_per_team"
+	// FormSubmitMany: no limit.
+	FormSubmitMany FormSubmitPolicy = "many"
+)
 
 // --------------------
 // source: gate.go
@@ -7642,6 +7826,14 @@ const (
 
 type EntitlementResource string
 
+// Requestable says whether a team may ask to be granted a resource
+// (entitlement requests): every feature gate (feature:*) is, capacity
+// limits are not. The prefix is written out: gotypegen copies this method
+// into the generated packages and emits no untyped consts.
+func (r EntitlementResource) Requestable() bool {
+	return strings.HasPrefix(string(r), "feature:")
+}
+
 func (v EntitlementResource) Value() (driver.Value, error) {
 	return string(v), nil
 }
@@ -7665,6 +7857,8 @@ const (
 	ResourceFeatureSeedance EntitlementResource = "feature:seedance"
 	// Granted per team: the marketplace takes submissions by invitation.
 	ResourceFeatureMarketplacePublish EntitlementResource = "feature:marketplace_publish"
+	// Granted per team: creating forms is by invitation for now.
+	ResourceFeatureForms EntitlementResource = "feature:forms"
 	// Legacy feature gates — kept for DB compatibility, no longer gated
 	ResourceFeatureScopes       EntitlementResource = "feature:scopes"
 	ResourceFeatureWebhooks     EntitlementResource = "feature:webhooks"
@@ -7882,6 +8076,8 @@ const (
 	NotificationTypeServiceNotice NotificationType = "service_notice"
 	// Team notifications
 	NotificationTypeTeamInvite NotificationType = "team_invite"
+	// An admin decided the team's entitlement request
+	NotificationTypeEntitlementRequest NotificationType = "entitlement_request"
 )
 
 // NotificationStatus represents the status of a notification
