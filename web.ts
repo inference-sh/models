@@ -5271,8 +5271,16 @@ export interface MCPToolUI {
   resource_uri: string;
   /**
    * HTML is the resource text, a full document (text/html;profile=mcp-app).
+   * Absent once the page is stored by hash (PageHash): a client then reads
+   * it from GET /mcp-ui-pages/{hash}. Rows written before that carry it.
    */
   html?: string;
+  /**
+   * PageHash names the stored page (mcp_ui_pages). A page is the same for
+   * every call that rendered with it, so it is kept once rather than on
+   * every call row.
+   */
+  page_hash?: string;
   /**
    * CSP, PrefersBorder and Domain come from the resource's _meta.ui.
    */
@@ -8963,11 +8971,16 @@ export interface A2UIComponent {
   artifactUrl?: string;
   artifactFavicon?: string;
   /**
-   * Extension: McpApp. The page is stored on the component so the chat
-   * renders it from the message alone; the server, credential and tool name
-   * let the host route the page's tools/call requests.
+   * Extension: McpApp. A remote server's page is named by McpPageHash and
+   * read from GET /mcp-ui-pages/{hash}, so a chat that runs a tool many
+   * times holds one copy of its page, not one per message. McpHtml carries
+   * the page inline instead: an artifact's page, a component written
+   * before pages were stored by hash, or a page that could not be stored.
+   * The server, credential and tool name let the host route the page's
+   * tools/call requests.
    */
   mcpHtml?: string;
+  mcpPageHash?: string;
   mcpCsp?: MCPUICSP;
   mcpResourceUri?: string;
   mcpServerSlug?: string;
