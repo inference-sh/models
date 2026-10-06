@@ -3901,6 +3901,9 @@ type RemoteRegisterRequest struct {
 	// AgentsEnabled is the daemon's per-host opt-in to running agent
 	// harness sessions.
 	AgentsEnabled bool `json:"agents_enabled,omitempty"`
+	// Home is the home directory of the account the daemon runs commands
+	// as, so policy rules can resolve ~ paths on this machine.
+	Home string `json:"home,omitempty"`
 	// Harnesses are the agent CLIs the daemon discovered on the machine. The
 	// api reconciles them into Profiles — one row per harness the remote can
 	// serve. It never carries a credential: LoggedIn is only a hint the daemon

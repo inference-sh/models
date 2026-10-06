@@ -2911,6 +2911,11 @@ export interface PolicyLayerDTO {
    */
   reach?: PolicyReach;
   /**
+   * ReachEnforced are the usage kinds whose reach is enforced: final over
+   * every lower admin layer, which can narrow it but not loosen it.
+   */
+  reach_enforced?: PolicyKind[];
+  /**
    * RuleKinds are the kinds a rule added here may have, set on an
    * editable layer.
    */
@@ -2991,6 +2996,11 @@ export interface PolicyRuleUpdateRequest {
  */
 export interface PolicyLayerSetRequest {
   reach: PolicyReach;
+  /**
+   * ReachEnforced are the usage kinds whose reach to enforce over every
+   * lower admin layer; each needs a reach in Reach.
+   */
+  reach_enforced?: PolicyKind[];
   rules: PolicyRuleCreateRequest[];
 }
 /**
@@ -5766,6 +5776,11 @@ export interface RemoteRegisterRequest {
    * harness sessions.
    */
   agents_enabled?: boolean;
+  /**
+   * Home is the home directory of the account the daemon runs commands
+   * as, so policy rules can resolve ~ paths on this machine.
+   */
+  home?: string;
   /**
    * Harnesses are the agent CLIs the daemon discovered on the machine. The
    * api reconciles them into Profiles — one row per harness the remote can
