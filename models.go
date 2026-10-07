@@ -2591,6 +2591,37 @@ type FileDTO struct {
 	Metadata           *FileMetadata `json:"metadata,omitempty"`
 }
 
+// TaskFileRole says how a task relates to a file.
+type TaskFileRole string
+
+const (
+	TaskFileRoleInput  TaskFileRole = "input"
+	TaskFileRoleOutput TaskFileRole = "output"
+)
+
+// TaskFileDTO is one file attached to a task, as GET /tasks/{id}/files lists it.
+type TaskFileDTO struct {
+	ID          string       `json:"id"`
+	CreatedAt   time.Time    `json:"created_at"`
+	Role        TaskFileRole `json:"role"`
+	URI         string       `json:"uri"`
+	Filename    string       `json:"filename"`
+	ContentType string       `json:"content_type"`
+	Size        int64        `json:"size"`
+}
+
+// TaskFileSkipped is a file DELETE /tasks/{id}/files left in place.
+type TaskFileSkipped struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
+// DeleteTaskFilesResponse reports what DELETE /tasks/{id}/files did.
+type DeleteTaskFilesResponse struct {
+	Deleted []string          `json:"deleted"`
+	Skipped []TaskFileSkipped `json:"skipped"`
+}
+
 // --------------------
 // source: flow.go
 // --------------------
@@ -4641,7 +4672,9 @@ type SDKTypes struct {
 	_cancelTask     CancelTaskRequest
 	_taskVisibility SetVisibilityRequest
 	// Files
-	_fileCreate FileCreateRequest
+	_fileCreate      FileCreateRequest
+	_taskFile        TaskFileDTO
+	_taskFilesDelete DeleteTaskFilesResponse
 	// Secrets
 	_secretDTO      SecretDTO
 	_secretCreate   SecretCreateRequest
