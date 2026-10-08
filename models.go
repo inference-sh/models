@@ -585,14 +585,18 @@ type AppVersionInput struct {
 
 // CreateAppRequest is the request body for POST /apps
 type CreateAppRequest struct {
-	ID                     string           `json:"id,omitempty"`
-	Namespace              string           `json:"namespace,omitempty"`
-	Name                   string           `json:"name"`
-	Title                  string           `json:"title,omitempty"`
-	Description            string           `json:"description,omitempty"`
-	AgentDescription       string           `json:"agent_description,omitempty"`
-	Category               AppCategory      `json:"category,omitempty"`
-	Images                 AppImages        `json:"images,omitempty"`
+	ID               string      `json:"id,omitempty"`
+	Namespace        string      `json:"namespace,omitempty"`
+	Name             string      `json:"name"`
+	Title            string      `json:"title,omitempty"`
+	Description      string      `json:"description,omitempty"`
+	AgentDescription string      `json:"agent_description,omitempty"`
+	Category         AppCategory `json:"category,omitempty"`
+	Images           AppImages   `json:"images,omitempty"`
+	// Tags replace the app's tags when given; omitted, a deploy takes them
+	// from the version's metadata.tags, and keeps the stored ones if that is
+	// empty too.
+	Tags                   []string         `json:"tags,omitempty"`
 	Version                *AppVersionInput `json:"version,omitempty"`
 	PreserveCurrentVersion bool             `json:"preserve_current_version,omitempty"`
 }
@@ -1218,16 +1222,19 @@ type AppDTO struct {
 	// "Veo 3.1" for the app named veo-3-1. Name stays the immutable slug that
 	// addresses it. Empty means the surface falls back to the name, so nothing
 	// breaks for a resource that never sets one.
-	Title            string         `json:"title"`
-	Description      string         `json:"description"`
-	AgentDescription string         `json:"agent_description"`
-	Category         AppCategory    `json:"category"`
-	Images           AppImages      `json:"images"`
-	VersionID        string         `json:"version_id"`
-	Version          *AppVersionDTO `json:"version"`
-	Status           AppStatus      `json:"status"`
-	StatusMessage    string         `json:"status_message,omitempty"`
-	StatusChangedAt  *time.Time     `json:"status_changed_at,omitempty"`
+	Title            string      `json:"title"`
+	Description      string      `json:"description"`
+	AgentDescription string      `json:"agent_description"`
+	Category         AppCategory `json:"category"`
+	Images           AppImages   `json:"images"`
+	// Tags name what the app does and its traits, as lowercase slugs. Known
+	// slugs are the shared.AppTag constants; others are free-form.
+	Tags            []string       `json:"tags"`
+	VersionID       string         `json:"version_id"`
+	Version         *AppVersionDTO `json:"version"`
+	Status          AppStatus      `json:"status"`
+	StatusMessage   string         `json:"status_message,omitempty"`
+	StatusChangedAt *time.Time     `json:"status_changed_at,omitempty"`
 	// ResolvedFunction is the function the requested ref named, when it named
 	// one: "ns/app:fn" in the ref itself, or a route on the name that pins a
 	// function (a retired dialogue app routed to "ns/new-app:dialogue"). Only
@@ -4753,6 +4760,8 @@ type SDKTypes struct {
 	_taskStatus      TaskStatus
 	_visibility      Visibility
 	_appCategory     AppCategory
+	_appTag          AppTag
+	_appTagTitle     AppTagTitle
 	_entitlementType EntitlementType
 	_teamType        TeamType
 	_teamStatus      TeamStatus
@@ -6406,6 +6415,109 @@ const (
 	AppCategory3D    AppCategory = "3d"
 	AppCategoryOther AppCategory = "other"
 	AppCategoryFlow  AppCategory = "flow"
+	// Decision models: typed questions in, a probability for every answer out, no generation.
+	AppCategoryDecision AppCategory = "decision"
+)
+
+// AppTag is a known app tag: a lowercase slug naming a task an app performs
+// (text-to-image) or a trait it has (open-weights). An app's tags are free
+// strings; the ones listed here are the tags clients present by title and
+// build pages for. Each has an AppTagTitle constant with the same suffix.
+type AppTag string
+
+const (
+	AppTagTextToImage       AppTag = "text-to-image"
+	AppTagImageToImage      AppTag = "image-to-image"
+	AppTagImageEditing      AppTag = "image-editing"
+	AppTagImageUpscaling    AppTag = "image-upscaling"
+	AppTagBackgroundRemoval AppTag = "background-removal"
+	AppTagVirtualTryOn      AppTag = "virtual-try-on"
+	AppTagFaceSwap          AppTag = "face-swap"
+	AppTagTraining          AppTag = "training"
+	AppTagTextToVideo       AppTag = "text-to-video"
+	AppTagImageToVideo      AppTag = "image-to-video"
+	AppTagReferenceToVideo  AppTag = "reference-to-video"
+	AppTagVideoToVideo      AppTag = "video-to-video"
+	AppTagVideoUpscaling    AppTag = "video-upscaling"
+	AppTagVideoExtension    AppTag = "video-extension"
+	AppTagLipSync           AppTag = "lip-sync"
+	AppTagTalkingAvatar     AppTag = "talking-avatar"
+	AppTagVideoCaptions     AppTag = "video-captions"
+	AppTagTextToSpeech      AppTag = "text-to-speech"
+	AppTagSpeechToText      AppTag = "speech-to-text"
+	AppTagSpeechToSpeech    AppTag = "speech-to-speech"
+	AppTagVoiceCloning      AppTag = "voice-cloning"
+	AppTagVoiceDesign       AppTag = "voice-design"
+	AppTagMusicGeneration   AppTag = "music-generation"
+	AppTagSoundEffects      AppTag = "sound-effects"
+	AppTagVideoToAudio      AppTag = "video-to-audio"
+	AppTagDubbing           AppTag = "dubbing"
+	AppTagTextTo3D          AppTag = "text-to-3d"
+	AppTagImageTo3D         AppTag = "image-to-3d"
+	AppTagPBRMaterials      AppTag = "pbr-materials"
+	AppTagWebSearch         AppTag = "web-search"
+	AppTagWebScraping       AppTag = "web-scraping"
+	AppTagOCR               AppTag = "ocr"
+	AppTagEmbeddings        AppTag = "embeddings"
+	AppTagClassification    AppTag = "classification"
+	AppTagModeration        AppTag = "moderation"
+	AppTagRouting           AppTag = "routing"
+	AppTagVision            AppTag = "vision"
+	AppTagReasoning         AppTag = "reasoning"
+	AppTagCoding            AppTag = "coding"
+	AppTagOpenWeights       AppTag = "open-weights"
+	AppTagRealtime          AppTag = "realtime"
+	AppTagNativeAudio       AppTag = "native-audio"
+	AppTagLoRA              AppTag = "lora"
+)
+
+// AppTagTitle is the display title of a known AppTag.
+type AppTagTitle string
+
+const (
+	AppTagTitleTextToImage       AppTagTitle = "Text to Image"
+	AppTagTitleImageToImage      AppTagTitle = "Image to Image"
+	AppTagTitleImageEditing      AppTagTitle = "Image Editing"
+	AppTagTitleImageUpscaling    AppTagTitle = "Image Upscaling"
+	AppTagTitleBackgroundRemoval AppTagTitle = "Background Removal"
+	AppTagTitleVirtualTryOn      AppTagTitle = "Virtual Try-On"
+	AppTagTitleFaceSwap          AppTagTitle = "Face Swap"
+	AppTagTitleTraining          AppTagTitle = "Model Training"
+	AppTagTitleTextToVideo       AppTagTitle = "Text to Video"
+	AppTagTitleImageToVideo      AppTagTitle = "Image to Video"
+	AppTagTitleReferenceToVideo  AppTagTitle = "Reference to Video"
+	AppTagTitleVideoToVideo      AppTagTitle = "Video to Video"
+	AppTagTitleVideoUpscaling    AppTagTitle = "Video Upscaling"
+	AppTagTitleVideoExtension    AppTagTitle = "Video Extension"
+	AppTagTitleLipSync           AppTagTitle = "Lip Sync"
+	AppTagTitleTalkingAvatar     AppTagTitle = "Talking Avatar"
+	AppTagTitleVideoCaptions     AppTagTitle = "Video Captions"
+	AppTagTitleTextToSpeech      AppTagTitle = "Text to Speech"
+	AppTagTitleSpeechToText      AppTagTitle = "Speech to Text"
+	AppTagTitleSpeechToSpeech    AppTagTitle = "Speech to Speech"
+	AppTagTitleVoiceCloning      AppTagTitle = "Voice Cloning"
+	AppTagTitleVoiceDesign       AppTagTitle = "Voice Design"
+	AppTagTitleMusicGeneration   AppTagTitle = "Music Generation"
+	AppTagTitleSoundEffects      AppTagTitle = "Sound Effects"
+	AppTagTitleVideoToAudio      AppTagTitle = "Video to Audio"
+	AppTagTitleDubbing           AppTagTitle = "Dubbing"
+	AppTagTitleTextTo3D          AppTagTitle = "Text to 3D"
+	AppTagTitleImageTo3D         AppTagTitle = "Image to 3D"
+	AppTagTitlePBRMaterials      AppTagTitle = "PBR Materials"
+	AppTagTitleWebSearch         AppTagTitle = "Web Search"
+	AppTagTitleWebScraping       AppTagTitle = "Web Scraping"
+	AppTagTitleOCR               AppTagTitle = "OCR"
+	AppTagTitleEmbeddings        AppTagTitle = "Embeddings"
+	AppTagTitleClassification    AppTagTitle = "Classification"
+	AppTagTitleModeration        AppTagTitle = "Moderation"
+	AppTagTitleRouting           AppTagTitle = "Routing"
+	AppTagTitleVision            AppTagTitle = "Vision"
+	AppTagTitleReasoning         AppTagTitle = "Reasoning"
+	AppTagTitleCoding            AppTagTitle = "Coding"
+	AppTagTitleOpenWeights       AppTagTitle = "Open Weights"
+	AppTagTitleRealtime          AppTagTitle = "Realtime"
+	AppTagTitleNativeAudio       AppTagTitle = "Native Audio"
+	AppTagTitleLoRA              AppTagTitle = "LoRA"
 )
 
 type AppStatus string
@@ -6569,7 +6681,7 @@ type AuthSchemeCapability struct {
 type AuthSchemeSpec struct {
 	Kind         AuthSchemeKind `json:"kind"`
 	AuthorizeURL string         `json:"authorize_url,omitempty"`
-	Scopes       []string       `json:"scopes,omitempty"` // requested by default; a connect request may override
+	Scopes       []string       `json:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
 	// ScopeAliases map the scheme's own scope names to what the provider
 	// wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
 	// gmail.send"). Credentials store the alias; the wire form is used only
@@ -6586,8 +6698,26 @@ type AuthSchemeSpec struct {
 	// ExtraAuthorizeParams are appended to the authorize URL verbatim
 	// (Google's access_type=offline). AddScopesParams override them when
 	// re-authorizing for more scopes (Google's include_granted_scopes).
-	ExtraAuthorizeParams map[string]string      `json:"extra_authorize_params,omitempty"`
-	AddScopesParams      map[string]string      `json:"add_scopes_params,omitempty"`
+	ExtraAuthorizeParams map[string]string `json:"extra_authorize_params,omitempty"`
+	AddScopesParams      map[string]string `json:"add_scopes_params,omitempty"`
+	// AccountHintParam is the authorize param that names the account to sign
+	// in with (Google's and Microsoft's "login_hint"). When re-authorizing
+	// for more scopes it carries the login's account identifier, so the
+	// provider goes to that account instead of offering a chooser. Empty =
+	// no hint sent.
+	AccountHintParam string `json:"account_hint_param,omitempty"`
+	// RequiredScopes are always requested, on a connect and when
+	// re-authorizing for more scopes, whatever the caller asked for: the
+	// scopes the identity lookup and token refresh need (Google's openid,
+	// email and profile; X's users.read and offline.access). In the
+	// scheme's own names, like Scopes. Empty = only what was asked for.
+	RequiredScopes []string `json:"required_scopes,omitempty"`
+	// IncrementalAddScopes: re-authorizing for more scopes asks only for
+	// the new ones (plus RequiredScopes), and the provider returns a token
+	// that also covers what the login already holds (Google, with
+	// include_granted_scopes in AddScopesParams). Without it the full list
+	// is asked for again.
+	IncrementalAddScopes bool                   `json:"incremental_add_scopes,omitempty"`
 	TokenURL             string                 `json:"token_url,omitempty"`
 	ClientAuth           AuthSchemeClientAuth   `json:"client_auth,omitempty"`   // empty = basic
 	TokenRequest         AuthSchemeTokenRequest `json:"token_request,omitempty"` // empty = form

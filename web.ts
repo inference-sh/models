@@ -879,6 +879,12 @@ export interface CreateAppRequest {
   agent_description?: string;
   category?: AppCategory;
   images?: AppImages;
+  /**
+   * Tags replace the app's tags when given; omitted, a deploy takes them
+   * from the version's metadata.tags, and keeps the stored ones if that is
+   * empty too.
+   */
+  tags?: string[];
   version?: AppVersionInput;
   preserve_current_version?: boolean;
 }
@@ -1930,6 +1936,11 @@ export interface AppDTO extends BaseModelDTO, PermissionModelDTO {
   agent_description: string;
   category: AppCategory;
   images: AppImages;
+  /**
+   * Tags name what the app does and its traits, as lowercase slugs. Known
+   * slugs are the shared.AppTag constants; others are free-form.
+   */
+  tags: string[];
   version_id: string;
   version?: AppVersionDTO;
   status: AppStatus;
@@ -7987,6 +7998,17 @@ export interface UsageAccessItemDTO {
   source_name?: string;
   outcome: UsageAccessOutcome;
   reason: UsageAccessReason;
+  /**
+   * DecidedBy names the layer whose rule or reach decided (nil for the
+   * workspace's own resources and an ungoverned default), so a preview of
+   * one layer can say another decided: "blocked by acme (enforced)".
+   */
+  decided_by?: PolicyRungDTO;
+  /**
+   * Enforced: an enforced rule or reach decided; the edited policy cannot
+   * change this outcome.
+   */
+  enforced?: boolean;
 }
 /**
  * UsageAccessPageDTO is one page of the effective-access list.
@@ -9110,7 +9132,8 @@ export type AppCategory =
   | "chat"
   | "3d"
   | "other"
-  | "flow";
+  | "flow"
+  | "decision";
 export const AppCategoryImage: AppCategory = "image";
 export const AppCategoryVideo: AppCategory = "video";
 export const AppCategoryAudio: AppCategory = "audio";
@@ -9119,6 +9142,193 @@ export const AppCategoryChat: AppCategory = "chat";
 export const AppCategory3D: AppCategory = "3d";
 export const AppCategoryOther: AppCategory = "other";
 export const AppCategoryFlow: AppCategory = "flow";
+/**
+ * Decision models: typed questions in, a probability for every answer out, no generation.
+ */
+export const AppCategoryDecision: AppCategory = "decision";
+/**
+ * AppTag is a known app tag: a lowercase slug naming a task an app performs
+ * (text-to-image) or a trait it has (open-weights). An app's tags are free
+ * strings; the ones listed here are the tags clients present by title and
+ * build pages for. Each has an AppTagTitle constant with the same suffix.
+ */
+export type AppTag =
+  | "text-to-image"
+  | "image-to-image"
+  | "image-editing"
+  | "image-upscaling"
+  | "background-removal"
+  | "virtual-try-on"
+  | "face-swap"
+  | "training"
+  | "text-to-video"
+  | "image-to-video"
+  | "reference-to-video"
+  | "video-to-video"
+  | "video-upscaling"
+  | "video-extension"
+  | "lip-sync"
+  | "talking-avatar"
+  | "video-captions"
+  | "text-to-speech"
+  | "speech-to-text"
+  | "speech-to-speech"
+  | "voice-cloning"
+  | "voice-design"
+  | "music-generation"
+  | "sound-effects"
+  | "video-to-audio"
+  | "dubbing"
+  | "text-to-3d"
+  | "image-to-3d"
+  | "pbr-materials"
+  | "web-search"
+  | "web-scraping"
+  | "ocr"
+  | "embeddings"
+  | "classification"
+  | "moderation"
+  | "routing"
+  | "vision"
+  | "reasoning"
+  | "coding"
+  | "open-weights"
+  | "realtime"
+  | "native-audio"
+  | "lora";
+export const AppTagTextToImage: AppTag = "text-to-image";
+export const AppTagImageToImage: AppTag = "image-to-image";
+export const AppTagImageEditing: AppTag = "image-editing";
+export const AppTagImageUpscaling: AppTag = "image-upscaling";
+export const AppTagBackgroundRemoval: AppTag = "background-removal";
+export const AppTagVirtualTryOn: AppTag = "virtual-try-on";
+export const AppTagFaceSwap: AppTag = "face-swap";
+export const AppTagTraining: AppTag = "training";
+export const AppTagTextToVideo: AppTag = "text-to-video";
+export const AppTagImageToVideo: AppTag = "image-to-video";
+export const AppTagReferenceToVideo: AppTag = "reference-to-video";
+export const AppTagVideoToVideo: AppTag = "video-to-video";
+export const AppTagVideoUpscaling: AppTag = "video-upscaling";
+export const AppTagVideoExtension: AppTag = "video-extension";
+export const AppTagLipSync: AppTag = "lip-sync";
+export const AppTagTalkingAvatar: AppTag = "talking-avatar";
+export const AppTagVideoCaptions: AppTag = "video-captions";
+export const AppTagTextToSpeech: AppTag = "text-to-speech";
+export const AppTagSpeechToText: AppTag = "speech-to-text";
+export const AppTagSpeechToSpeech: AppTag = "speech-to-speech";
+export const AppTagVoiceCloning: AppTag = "voice-cloning";
+export const AppTagVoiceDesign: AppTag = "voice-design";
+export const AppTagMusicGeneration: AppTag = "music-generation";
+export const AppTagSoundEffects: AppTag = "sound-effects";
+export const AppTagVideoToAudio: AppTag = "video-to-audio";
+export const AppTagDubbing: AppTag = "dubbing";
+export const AppTagTextTo3D: AppTag = "text-to-3d";
+export const AppTagImageTo3D: AppTag = "image-to-3d";
+export const AppTagPBRMaterials: AppTag = "pbr-materials";
+export const AppTagWebSearch: AppTag = "web-search";
+export const AppTagWebScraping: AppTag = "web-scraping";
+export const AppTagOCR: AppTag = "ocr";
+export const AppTagEmbeddings: AppTag = "embeddings";
+export const AppTagClassification: AppTag = "classification";
+export const AppTagModeration: AppTag = "moderation";
+export const AppTagRouting: AppTag = "routing";
+export const AppTagVision: AppTag = "vision";
+export const AppTagReasoning: AppTag = "reasoning";
+export const AppTagCoding: AppTag = "coding";
+export const AppTagOpenWeights: AppTag = "open-weights";
+export const AppTagRealtime: AppTag = "realtime";
+export const AppTagNativeAudio: AppTag = "native-audio";
+export const AppTagLoRA: AppTag = "lora";
+/**
+ * AppTagTitle is the display title of a known AppTag.
+ */
+export type AppTagTitle =
+  | "Text to Image"
+  | "Image to Image"
+  | "Image Editing"
+  | "Image Upscaling"
+  | "Background Removal"
+  | "Virtual Try-On"
+  | "Face Swap"
+  | "Model Training"
+  | "Text to Video"
+  | "Image to Video"
+  | "Reference to Video"
+  | "Video to Video"
+  | "Video Upscaling"
+  | "Video Extension"
+  | "Lip Sync"
+  | "Talking Avatar"
+  | "Video Captions"
+  | "Text to Speech"
+  | "Speech to Text"
+  | "Speech to Speech"
+  | "Voice Cloning"
+  | "Voice Design"
+  | "Music Generation"
+  | "Sound Effects"
+  | "Video to Audio"
+  | "Dubbing"
+  | "Text to 3D"
+  | "Image to 3D"
+  | "PBR Materials"
+  | "Web Search"
+  | "Web Scraping"
+  | "OCR"
+  | "Embeddings"
+  | "Classification"
+  | "Moderation"
+  | "Routing"
+  | "Vision"
+  | "Reasoning"
+  | "Coding"
+  | "Open Weights"
+  | "Realtime"
+  | "Native Audio"
+  | "LoRA";
+export const AppTagTitleTextToImage: AppTagTitle = "Text to Image";
+export const AppTagTitleImageToImage: AppTagTitle = "Image to Image";
+export const AppTagTitleImageEditing: AppTagTitle = "Image Editing";
+export const AppTagTitleImageUpscaling: AppTagTitle = "Image Upscaling";
+export const AppTagTitleBackgroundRemoval: AppTagTitle = "Background Removal";
+export const AppTagTitleVirtualTryOn: AppTagTitle = "Virtual Try-On";
+export const AppTagTitleFaceSwap: AppTagTitle = "Face Swap";
+export const AppTagTitleTraining: AppTagTitle = "Model Training";
+export const AppTagTitleTextToVideo: AppTagTitle = "Text to Video";
+export const AppTagTitleImageToVideo: AppTagTitle = "Image to Video";
+export const AppTagTitleReferenceToVideo: AppTagTitle = "Reference to Video";
+export const AppTagTitleVideoToVideo: AppTagTitle = "Video to Video";
+export const AppTagTitleVideoUpscaling: AppTagTitle = "Video Upscaling";
+export const AppTagTitleVideoExtension: AppTagTitle = "Video Extension";
+export const AppTagTitleLipSync: AppTagTitle = "Lip Sync";
+export const AppTagTitleTalkingAvatar: AppTagTitle = "Talking Avatar";
+export const AppTagTitleVideoCaptions: AppTagTitle = "Video Captions";
+export const AppTagTitleTextToSpeech: AppTagTitle = "Text to Speech";
+export const AppTagTitleSpeechToText: AppTagTitle = "Speech to Text";
+export const AppTagTitleSpeechToSpeech: AppTagTitle = "Speech to Speech";
+export const AppTagTitleVoiceCloning: AppTagTitle = "Voice Cloning";
+export const AppTagTitleVoiceDesign: AppTagTitle = "Voice Design";
+export const AppTagTitleMusicGeneration: AppTagTitle = "Music Generation";
+export const AppTagTitleSoundEffects: AppTagTitle = "Sound Effects";
+export const AppTagTitleVideoToAudio: AppTagTitle = "Video to Audio";
+export const AppTagTitleDubbing: AppTagTitle = "Dubbing";
+export const AppTagTitleTextTo3D: AppTagTitle = "Text to 3D";
+export const AppTagTitleImageTo3D: AppTagTitle = "Image to 3D";
+export const AppTagTitlePBRMaterials: AppTagTitle = "PBR Materials";
+export const AppTagTitleWebSearch: AppTagTitle = "Web Search";
+export const AppTagTitleWebScraping: AppTagTitle = "Web Scraping";
+export const AppTagTitleOCR: AppTagTitle = "OCR";
+export const AppTagTitleEmbeddings: AppTagTitle = "Embeddings";
+export const AppTagTitleClassification: AppTagTitle = "Classification";
+export const AppTagTitleModeration: AppTagTitle = "Moderation";
+export const AppTagTitleRouting: AppTagTitle = "Routing";
+export const AppTagTitleVision: AppTagTitle = "Vision";
+export const AppTagTitleReasoning: AppTagTitle = "Reasoning";
+export const AppTagTitleCoding: AppTagTitle = "Coding";
+export const AppTagTitleOpenWeights: AppTagTitle = "Open Weights";
+export const AppTagTitleRealtime: AppTagTitle = "Realtime";
+export const AppTagTitleNativeAudio: AppTagTitle = "Native Audio";
+export const AppTagTitleLoRA: AppTagTitle = "LoRA";
 export type AppStatus = "active" | "maintenance" | "deprecated" | "retired";
 export const AppStatusActive: AppStatus = "active";
 export const AppStatusMaintenance: AppStatus = "maintenance";
@@ -9279,7 +9489,7 @@ export interface AuthSchemeCapability {
 export interface AuthSchemeSpec {
   kind: AuthSchemeKind;
   authorize_url?: string;
-  scopes?: string[]; // requested by default; a connect request may override
+  scopes?: string[]; // requested by default; a connect request may override (RequiredScopes stay)
   /**
    * ScopeAliases map the scheme's own scope names to what the provider
    * wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
@@ -9304,6 +9514,30 @@ export interface AuthSchemeSpec {
    */
   extra_authorize_params?: { [key: string]: string};
   add_scopes_params?: { [key: string]: string};
+  /**
+   * AccountHintParam is the authorize param that names the account to sign
+   * in with (Google's and Microsoft's "login_hint"). When re-authorizing
+   * for more scopes it carries the login's account identifier, so the
+   * provider goes to that account instead of offering a chooser. Empty =
+   * no hint sent.
+   */
+  account_hint_param?: string;
+  /**
+   * RequiredScopes are always requested, on a connect and when
+   * re-authorizing for more scopes, whatever the caller asked for: the
+   * scopes the identity lookup and token refresh need (Google's openid,
+   * email and profile; X's users.read and offline.access). In the
+   * scheme's own names, like Scopes. Empty = only what was asked for.
+   */
+  required_scopes?: string[];
+  /**
+   * IncrementalAddScopes: re-authorizing for more scopes asks only for
+   * the new ones (plus RequiredScopes), and the provider returns a token
+   * that also covers what the login already holds (Google, with
+   * include_granted_scopes in AddScopesParams). Without it the full list
+   * is asked for again.
+   */
+  incremental_add_scopes?: boolean;
   token_url?: string;
   client_auth?: AuthSchemeClientAuth; // empty = basic
   token_request?: AuthSchemeTokenRequest; // empty = form
