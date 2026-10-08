@@ -2469,7 +2469,11 @@ const (
 	// account is one and cannot sign in.
 	ErrorCodePersonRequired ErrorCode = "person_required"
 	ErrorCodeOTPRequired    ErrorCode = "otp_required"
-	ErrorCodeMCPAuthExpired ErrorCode = "mcp_auth_expired"
+	// ErrorCodeImpersonationReasonRequired (403): a platform admin named a
+	// team they are not a member of without a live impersonation grant.
+	// Clients stop viewing as the team on it.
+	ErrorCodeImpersonationReasonRequired ErrorCode = "impersonation_reason_required"
+	ErrorCodeMCPAuthExpired              ErrorCode = "mcp_auth_expired"
 	// Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
 	// EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
 	// not be checked and the request is retriable.
@@ -4761,6 +4765,9 @@ type SDKTypes struct {
 	_taskStatus      TaskStatus
 	_visibility      Visibility
 	_appCategory     AppCategory
+	_decisionInput   DecisionInput
+	_decisionVision  DecisionVisionInput
+	_decisionOutput  DecisionOutput
 	_entitlementType EntitlementType
 	_teamType        TeamType
 	_teamStatus      TeamStatus
@@ -6981,6 +6988,102 @@ type ChatHookEvent struct {
 type ChannelContext struct {
 	ChannelType     *ChannelType    `json:"channel_type,omitempty"`
 	ChannelMetadata json.RawMessage `json:"channel_metadata,omitempty"`
+}
+
+// --------------------
+// source: decision_types.go
+// --------------------
+
+// DecisionChoiceOption is one answer option of a choice question.
+type DecisionChoiceOption struct {
+	// Name is returned as the choice and keys the probabilities.
+	Name string `json:"name"`
+	// Description says what the option covers.
+	Description any `json:"description,omitempty"`
+}
+
+// DecisionChoiceQuestion asks which one of a fixed set of options holds.
+type DecisionChoiceQuestion struct {
+	// ID is the caller's key for the question; its answer comes back under it.
+	ID           string                 `json:"id"`
+	Instructions any                    `json:"instructions"`
+	Options      []DecisionChoiceOption `json:"options"`
+}
+
+// DecisionScoreQuestion asks where the state sits on ordered levels.
+type DecisionScoreQuestion struct {
+	ID           string `json:"id"`
+	Instructions any    `json:"instructions"`
+	// Levels are described low end to high end; a level's number is its index.
+	Levels []any `json:"levels"`
+}
+
+// DecisionNoulCriteria pins down what yes and no mean for a noul question.
+type DecisionNoulCriteria struct {
+	True  any `json:"true,omitempty"`
+	False any `json:"false,omitempty"`
+}
+
+// DecisionNoulQuestion asks for the probability that something is true.
+type DecisionNoulQuestion struct {
+	ID           string                `json:"id"`
+	Instructions any                   `json:"instructions"`
+	Criteria     *DecisionNoulCriteria `json:"criteria,omitempty"`
+}
+
+// DecisionInput is one state and the questions asked of it.
+type DecisionInput struct {
+	State   any                      `json:"state"`
+	Choices []DecisionChoiceQuestion `json:"choices,omitempty"`
+	Scores  []DecisionScoreQuestion  `json:"scores,omitempty"`
+	Nouls   []DecisionNoulQuestion   `json:"nouls,omitempty"`
+}
+
+// DecisionVisionInput is the input of a decision model that also sees
+// images: a DecisionInput plus the images the questions are about.
+type DecisionVisionInput struct {
+	DecisionInput `tstype:",extends"`
+	// Images are file URIs. Every question sees them.
+	Images []string `json:"images,omitempty"`
+}
+
+// DecisionChoiceAnswer is the answer to a choice question.
+type DecisionChoiceAnswer struct {
+	// Choice is the highest-probability option.
+	Choice     string  `json:"choice"`
+	Confidence float64 `json:"confidence"`
+	// Probabilities maps every option name to its probability.
+	Probabilities map[string]float64 `json:"probabilities"`
+}
+
+// DecisionScoreAnswer is the answer to a score question.
+type DecisionScoreAnswer struct {
+	// Score is the probability-weighted level, 0 to the top level number.
+	Score float64 `json:"score"`
+	// Normalized is Score over the top level number: 0 to 1.
+	Normalized float64 `json:"normalized"`
+	Confidence float64 `json:"confidence"`
+	// Probabilities maps each level number, as a string, to its probability.
+	Probabilities map[string]float64 `json:"probabilities"`
+	// Legend maps each level number back to its description.
+	Legend map[string]any `json:"legend"`
+}
+
+// DecisionNoulAnswer is the answer to a noul question.
+type DecisionNoulAnswer struct {
+	// Noul is the probability that the answer is yes.
+	Noul float64 `json:"noul"`
+}
+
+// DecisionOutput is the answers, keyed by question id within each kind.
+type DecisionOutput struct {
+	Choices map[string]DecisionChoiceAnswer `json:"choices"`
+	Scores  map[string]DecisionScoreAnswer  `json:"scores"`
+	Nouls   map[string]DecisionNoulAnswer   `json:"nouls"`
+	// Model is the model that answered.
+	Model string `json:"model"`
+	// InputTokens is what the model read; decision models write none.
+	InputTokens int `json:"input_tokens"`
 }
 
 // --------------------
