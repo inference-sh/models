@@ -4768,6 +4768,8 @@ type SDKTypes struct {
 	_decisionInput   DecisionInput
 	_decisionVision  DecisionVisionInput
 	_decisionOutput  DecisionOutput
+	_storeCategory   StoreCategoryDTO
+	_storeTag        StoreTagDTO
 	_entitlementType EntitlementType
 	_teamType        TeamType
 	_teamStatus      TeamStatus
@@ -5026,6 +5028,27 @@ type StatBuckets struct {
 	Today   int64 `json:"today"`
 	Week    int64 `json:"this_week"`
 	AllTime int64 `json:"all_time"`
+}
+
+// --------------------
+// source: store.go
+// --------------------
+
+type StoreCategoryDTO struct {
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	Rank        int    `json:"rank"`
+	Count       int64  `json:"count"` // live listings
+}
+
+// StoreTagDTO is one app tag the store lists: a tag at least
+// shared.MinAppsPerListedTag public apps carry.
+type StoreTagDTO struct {
+	Slug  string `json:"slug"`
+	Title string `json:"title"`
+	Count int64  `json:"count"` // public apps carrying it
 }
 
 // --------------------
