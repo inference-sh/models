@@ -1227,8 +1227,9 @@ type AppDTO struct {
 	AgentDescription string      `json:"agent_description"`
 	Category         AppCategory `json:"category"`
 	Images           AppImages   `json:"images"`
-	// Tags name what the app does and its traits, as lowercase slugs. Known
-	// slugs are the shared.AppTag constants; others are free-form.
+	// Tags name what the app does and its traits, as lowercase slugs
+	// (text-to-image, open-weights). GET /store/tags lists the ones in use
+	// with their titles.
 	Tags            []string       `json:"tags"`
 	VersionID       string         `json:"version_id"`
 	Version         *AppVersionDTO `json:"version"`
@@ -4760,8 +4761,6 @@ type SDKTypes struct {
 	_taskStatus      TaskStatus
 	_visibility      Visibility
 	_appCategory     AppCategory
-	_appTag          AppTag
-	_appTagTitle     AppTagTitle
 	_entitlementType EntitlementType
 	_teamType        TeamType
 	_teamStatus      TeamStatus
@@ -6417,107 +6416,6 @@ const (
 	AppCategoryFlow  AppCategory = "flow"
 	// Decision models: typed questions in, a probability for every answer out, no generation.
 	AppCategoryDecision AppCategory = "decision"
-)
-
-// AppTag is a known app tag: a lowercase slug naming a task an app performs
-// (text-to-image) or a trait it has (open-weights). An app's tags are free
-// strings; the ones listed here are the tags clients present by title and
-// build pages for. Each has an AppTagTitle constant with the same suffix.
-type AppTag string
-
-// The list holds tags that at least three public apps carry, so each one
-// leads somewhere. A tag on fewer apps stays a plain tag until it does.
-const (
-	AppTagTextToImage       AppTag = "text-to-image"
-	AppTagImageToImage      AppTag = "image-to-image"
-	AppTagImageEditing      AppTag = "image-editing"
-	AppTagImageUpscaling    AppTag = "image-upscaling"
-	AppTagBackgroundRemoval AppTag = "background-removal"
-	AppTagTraining          AppTag = "training"
-	AppTagLoRA              AppTag = "lora"
-	AppTagPBRMaterials      AppTag = "pbr-materials"
-	AppTagTextToVideo       AppTag = "text-to-video"
-	AppTagImageToVideo      AppTag = "image-to-video"
-	AppTagReferenceToVideo  AppTag = "reference-to-video"
-	AppTagVideoToVideo      AppTag = "video-to-video"
-	AppTagVideoUpscaling    AppTag = "video-upscaling"
-	AppTagVideoExtension    AppTag = "video-extension"
-	AppTagVideoEnhancement  AppTag = "video-enhancement"
-	AppTagLipSync           AppTag = "lip-sync"
-	AppTagTalkingAvatar     AppTag = "talking-avatar"
-	AppTagNativeAudio       AppTag = "native-audio"
-	AppTagTextToSpeech      AppTag = "text-to-speech"
-	AppTagSpeechToText      AppTag = "speech-to-text"
-	AppTagVoiceCloning      AppTag = "voice-cloning"
-	AppTagVoiceDesign       AppTag = "voice-design"
-	AppTagMusicGeneration   AppTag = "music-generation"
-	AppTagSoundEffects      AppTag = "sound-effects"
-	AppTagRealtime          AppTag = "realtime"
-	AppTagReasoning         AppTag = "reasoning"
-	AppTagVision            AppTag = "vision"
-	AppTagCoding            AppTag = "coding"
-	AppTagOpenWeights       AppTag = "open-weights"
-	AppTagClassification    AppTag = "classification"
-	AppTagModeration        AppTag = "moderation"
-	AppTagRouting           AppTag = "routing"
-	AppTagWebSearch         AppTag = "web-search"
-	AppTagWebScraping       AppTag = "web-scraping"
-	AppTagDeepResearch      AppTag = "deep-research"
-	AppTagResearchPapers    AppTag = "research-papers"
-	AppTagSocialMedia       AppTag = "social-media"
-	AppTagMessaging         AppTag = "messaging"
-	AppTagProductivity      AppTag = "productivity"
-	AppTagMediaUtilities    AppTag = "media-utilities"
-	AppTagRendering         AppTag = "rendering"
-	AppTagEvaluation        AppTag = "evaluation"
-)
-
-// AppTagTitle is the display title of a known AppTag.
-type AppTagTitle string
-
-const (
-	AppTagTitleTextToImage       AppTagTitle = "Text to Image"
-	AppTagTitleImageToImage      AppTagTitle = "Image to Image"
-	AppTagTitleImageEditing      AppTagTitle = "Image Editing"
-	AppTagTitleImageUpscaling    AppTagTitle = "Image Upscaling"
-	AppTagTitleBackgroundRemoval AppTagTitle = "Background Removal"
-	AppTagTitleTraining          AppTagTitle = "Model Training"
-	AppTagTitleLoRA              AppTagTitle = "LoRA"
-	AppTagTitlePBRMaterials      AppTagTitle = "PBR Materials"
-	AppTagTitleTextToVideo       AppTagTitle = "Text to Video"
-	AppTagTitleImageToVideo      AppTagTitle = "Image to Video"
-	AppTagTitleReferenceToVideo  AppTagTitle = "Reference to Video"
-	AppTagTitleVideoToVideo      AppTagTitle = "Video to Video"
-	AppTagTitleVideoUpscaling    AppTagTitle = "Video Upscaling"
-	AppTagTitleVideoExtension    AppTagTitle = "Video Extension"
-	AppTagTitleVideoEnhancement  AppTagTitle = "Video Enhancement"
-	AppTagTitleLipSync           AppTagTitle = "Lip Sync"
-	AppTagTitleTalkingAvatar     AppTagTitle = "Talking Avatar"
-	AppTagTitleNativeAudio       AppTagTitle = "Native Audio"
-	AppTagTitleTextToSpeech      AppTagTitle = "Text to Speech"
-	AppTagTitleSpeechToText      AppTagTitle = "Speech to Text"
-	AppTagTitleVoiceCloning      AppTagTitle = "Voice Cloning"
-	AppTagTitleVoiceDesign       AppTagTitle = "Voice Design"
-	AppTagTitleMusicGeneration   AppTagTitle = "Music Generation"
-	AppTagTitleSoundEffects      AppTagTitle = "Sound Effects"
-	AppTagTitleRealtime          AppTagTitle = "Realtime"
-	AppTagTitleReasoning         AppTagTitle = "Reasoning"
-	AppTagTitleVision            AppTagTitle = "Vision"
-	AppTagTitleCoding            AppTagTitle = "Coding"
-	AppTagTitleOpenWeights       AppTagTitle = "Open Weights"
-	AppTagTitleClassification    AppTagTitle = "Classification"
-	AppTagTitleModeration        AppTagTitle = "Moderation"
-	AppTagTitleRouting           AppTagTitle = "Routing"
-	AppTagTitleWebSearch         AppTagTitle = "Web Search"
-	AppTagTitleWebScraping       AppTagTitle = "Web Scraping"
-	AppTagTitleDeepResearch      AppTagTitle = "Deep Research"
-	AppTagTitleResearchPapers    AppTagTitle = "Research Papers"
-	AppTagTitleSocialMedia       AppTagTitle = "Social Media"
-	AppTagTitleMessaging         AppTagTitle = "Messaging"
-	AppTagTitleProductivity      AppTagTitle = "Productivity"
-	AppTagTitleMediaUtilities    AppTagTitle = "Media Utilities"
-	AppTagTitleRendering         AppTagTitle = "Rendering"
-	AppTagTitleEvaluation        AppTagTitle = "Evaluation"
 )
 
 type AppStatus string
