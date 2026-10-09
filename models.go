@@ -724,6 +724,39 @@ type SessionTokenResponse struct {
 	Scopes    []Scope   `json:"scopes,omitempty"`
 }
 
+// AdminElevateRequest is the body of POST /device/auth/elevate: a platform
+// admin's CLI login asking to carry admin power for TTLSeconds (default one
+// hour, at most eight).
+type AdminElevateRequest struct {
+	TTLSeconds int `json:"ttl_seconds,omitempty"`
+}
+
+// AdminElevateResponse is a pending elevation request: the admin approves
+// UserCode at ApproveURL in their browser and the CLI polls PollURL.
+type AdminElevateResponse struct {
+	UserCode   string `json:"user_code"`
+	DeviceCode string `json:"device_code"`
+	PollURL    string `json:"poll_url"`
+	ApproveURL string `json:"approve_url"`
+	ExpiresIn  int    `json:"expires_in"`
+	Interval   int    `json:"interval"`
+	TTLSeconds int    `json:"ttl_seconds"`
+}
+
+// AdminElevationStatus is GET /device/auth/elevate: whether the calling
+// session carries an admin elevation, and until when.
+type AdminElevationStatus struct {
+	Elevated   bool       `json:"elevated"`
+	AdminUntil *time.Time `json:"admin_until,omitempty"`
+}
+
+// AdminElevationDropResponse is DELETE /device/auth/elevate. Dropped is
+// false when the session held no elevation.
+type AdminElevationDropResponse struct {
+	Elevated bool `json:"elevated"`
+	Dropped  bool `json:"dropped"`
+}
+
 type MeResponse struct {
 	User *UserDTO `json:"user"`
 	Team *TeamDTO `json:"team,omitempty"`
@@ -743,6 +776,15 @@ type MeResponse struct {
 	// before landing, whichever team it lands in (an invite's included), via
 	// POST /teams/{personal_team_id}/complete-setup.
 	NeedsUsername bool `json:"needs_username"`
+	// PlatformPower: the credential carries platform administration
+	// (admin:read): an admin's own browser sign-in that proved their
+	// authenticator, or an elevated CLI login. The admin role alone is not
+	// it.
+	PlatformPower bool `json:"platform_power"`
+	// Scopes is every scope the request's credential holds
+	// (AuthContext.HeldScopes): what a client asks before it calls a route
+	// it may not reach (an API key holds no sign-in-only scope).
+	Scopes []Scope `json:"scopes"`
 }
 
 type TeamCreateRequest struct {
@@ -1008,6 +1050,10 @@ const (
 	// Action-level scopes for Secrets (sensitive - excluded from read-only preset)
 	ScopeSecretsRead  Scope = "secrets:read"
 	ScopeSecretsWrite Scope = "secrets:write"
+	// ScopeSecretsReveal reads a secret's plaintext value. A key holding
+	// secrets:read holds it too (keys revealed with secrets:read before it
+	// existed); an app's OAuth token or a bound session never does.
+	ScopeSecretsReveal Scope = "secrets:reveal"
 	// Action-level scopes for credentials (connected accounts, vaults,
 	// auth schemes, MCP servers).
 	ScopeCredentialsRead  Scope = "credentials:read"
@@ -1033,6 +1079,18 @@ const (
 	// Action-level scopes for Settings/Notifications
 	ScopeSettingsRead  Scope = "settings:read"
 	ScopeSettingsWrite Scope = "settings:write"
+	// Approvals: answering a human-in-the-loop question (a tool approval, a
+	// gate, a widget or MCP input request, always-allow) and widening a
+	// chat's approval policy (allow every tool, skip hooks, allow rules).
+	// Held only by the account holder's own sign-in.
+	ScopeApprovalsWrite Scope = "approvals:write"
+	// ScopeAdminRead views platform administration (/admin GET). Held
+	// only by an admin's own sign-in; the route's admin gate decides
+	// whether it carries power.
+	ScopeAdminRead Scope = "admin:read"
+	// ScopeAdminWrite changes platform administration (/admin). Held only
+	// by an admin's own sign-in.
+	ScopeAdminWrite Scope = "admin:write"
 )
 
 // ScopeGroup identifies a category of scopes for UI grouping
@@ -1057,6 +1115,8 @@ const (
 	ScopeGroupArtifacts     ScopeGroup = "artifacts"
 	ScopeGroupUser          ScopeGroup = "user"
 	ScopeGroupSettings      ScopeGroup = "settings"
+	ScopeGroupApprovals     ScopeGroup = "approvals"
+	ScopeGroupAdmin         ScopeGroup = "admin"
 )
 
 // ScopeDefinition describes a single scope for UI rendering
@@ -1065,6 +1125,17 @@ type ScopeDefinition struct {
 	Label       string     `json:"label"`       // Human-readable label
 	Description string     `json:"description"` // Longer description
 	Group       ScopeGroup `json:"group"`       // Category for grouping
+	// SignInOnly: only the account holder's own sign-in (browser session,
+	// CLI login) holds it. No API key, workspace key, OAuth token, bound or
+	// grant session can be granted it or pass a check for it.
+	SignInOnly bool `json:"sign_in_only,omitempty"`
+	// NotForApps: an app's OAuth token, a bound session or a grant never
+	// holds it, whatever it was granted; the person's sign-in and API keys
+	// may.
+	NotForApps bool `json:"not_for_apps,omitempty"`
+	// CostsCredits: using the scope spends the account's credits (running
+	// apps, agents, flows).
+	CostsCredits bool `json:"costs_credits,omitempty"`
 }
 
 // ScopeGroupDefinition describes a group of scopes for UI rendering
@@ -1072,6 +1143,13 @@ type ScopeGroupDefinition struct {
 	ID          ScopeGroup `json:"id"`
 	Label       string     `json:"label"`
 	Description string     `json:"description"`
+	// PublicRows: the resource's rows can be public, so a credential
+	// without its read scope still reads what a signed-out caller reads
+	// (its public rows) instead of being refused.
+	PublicRows bool `json:"public_rows,omitempty"`
+	// StaffOnly: the group's scopes are offered (GET /scopes) only to staff
+	// holding platform power: the platform's own engines.
+	StaffOnly bool `json:"staff_only,omitempty"`
 }
 
 // ScopesResponse is the API response for GET /scopes
@@ -1089,6 +1167,13 @@ type ScopePreset struct {
 	Scopes      []Scope  `json:"scopes"`
 	Summary     []string `json:"summary,omitempty"`
 	Hidden      bool     `json:"hidden,omitempty"`
+	// Default: the preset a new key or app grant starts from.
+	Default bool `json:"default,omitempty"`
+	// Grants is every action scope the preset's key holds (Scopes expanded:
+	// a resource scope's actions, the read a write implies, secrets:reveal
+	// with secrets:read; never a sign-in-only scope), so a client compares a
+	// key against it without re-deriving the rule (ApiKeyDTO.Grants).
+	Grants []Scope `json:"grants,omitempty"`
 }
 
 // --------------------
@@ -1105,7 +1190,11 @@ type ApiKeyDTO struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	Scopes     []Scope    `json:"scopes"`
-	Source     string     `json:"source,omitempty"`
+	// Grants is every action scope the key holds: Scopes expanded the way a
+	// request with the key is checked (models.KeyGrants), every key scope
+	// for a key created without any.
+	Grants []Scope `json:"grants"`
+	Source string  `json:"source,omitempty"`
 	// Scope is who the key acts as: its creator (user) or the workspace.
 	Scope ApiKeyScope `json:"scope"`
 	// CreatedBy is the person who created the key; Creator is that person,
@@ -2570,6 +2659,17 @@ const (
 	// account is one and cannot sign in.
 	ErrorCodePersonRequired ErrorCode = "person_required"
 	ErrorCodeOTPRequired    ErrorCode = "otp_required"
+	// ErrorCodeRequiresSignIn (403): the action needs a scope only the
+	// account holder's own sign-in holds (answering an approval, widening a
+	// chat's approval policy, the account, API keys, billing changes,
+	// admin), and the request carried an API key, an app's OAuth token or
+	// another delegated credential. Sign in on the web app or with `belt
+	// login` to do it.
+	ErrorCodeRequiresSignIn ErrorCode = "requires_sign_in"
+	// ErrorCodeInsufficientScope (403): the credential does not hold the
+	// scope the operation takes (an API key, an app's OAuth token or a
+	// narrowed login granted less). The detail names the scope.
+	ErrorCodeInsufficientScope ErrorCode = "insufficient_scope"
 	// ErrorCodeImpersonationReasonRequired (403): a platform admin named a
 	// team they are not a member of without a live impersonation grant.
 	// Clients stop viewing as the team on it.
@@ -2582,12 +2682,16 @@ const (
 	// only a platform admin may ask for or grant one. SameAdminRequired
 	// (403): the elevation was asked for by another account.
 	// BrowserSessionRequired (403): only the admin's own browser sign-in
-	// grants one.
+	// grants one, and only the person's own browser sign-in changes how the
+	// account is signed into (authenticator enrollment, RequireBrowserSession).
+	// InvalidTTL (400): the elevation asked for a window outside
+	// models.AdminElevationMinTTL..AdminElevationMaxTTL.
 	ErrorCodeAdminSessionRequired   ErrorCode = "admin_session_required"
 	ErrorCodeCLISessionRequired     ErrorCode = "cli_session_required"
 	ErrorCodeAdminRequired          ErrorCode = "admin_required"
 	ErrorCodeSameAdminRequired      ErrorCode = "same_admin_required"
 	ErrorCodeBrowserSessionRequired ErrorCode = "browser_session_required"
+	ErrorCodeInvalidTTL             ErrorCode = "invalid_ttl"
 	// AdminAuthenticatorRequired (403): a platform admin without an
 	// authenticator app (TOTP) enrolled. Admin power needs one; until it is
 	// enrolled (POST /auth/totp/enroll, then /auth/totp/confirm) the admin
@@ -2616,6 +2720,26 @@ const (
 	// already has an open request for it.
 	ErrorCodeAlreadyEntitled ErrorCode = "already_entitled"
 	ErrorCodeRequestOpen     ErrorCode = "request_open"
+	// Authorization codes (device sign-in, admin elevation) (400): the code
+	// is unknown, already approved or denied, or past its expiry.
+	ErrorCodeInvalidCode      ErrorCode = "invalid_code"
+	ErrorCodeAlreadyProcessed ErrorCode = "already_processed"
+	ErrorCodeExpired          ErrorCode = "expired"
+	// Run-time refusals. AppRetired (410): the app no longer runs.
+	// AppMaintenance (503, Retry-After): the owner paused it; the message is
+	// theirs. InvalidTransition (409): the task already moved on.
+	ErrorCodeAppRetired        ErrorCode = "app_retired"
+	ErrorCodeAppMaintenance    ErrorCode = "app_maintenance"
+	ErrorCodeInvalidTransition ErrorCode = "invalid_transition"
+	// Session-bound runs. SessionNotFound (404), SessionExpired and
+	// SessionEnded (410), WorkerLeased, AppMismatch and VersionMismatch
+	// (409). The SDKs match these upper-case strings.
+	ErrorCodeSessionNotFound ErrorCode = "SESSION_NOT_FOUND"
+	ErrorCodeSessionExpired  ErrorCode = "SESSION_EXPIRED"
+	ErrorCodeSessionEnded    ErrorCode = "SESSION_ENDED"
+	ErrorCodeWorkerLeased    ErrorCode = "WORKER_LEASED"
+	ErrorCodeAppMismatch     ErrorCode = "APP_MISMATCH"
+	ErrorCodeVersionMismatch ErrorCode = "VERSION_MISMATCH"
 	// Remote harness refusals.
 	ErrorCodeAgentsDisabled     ErrorCode = "agents_disabled"
 	ErrorCodeRemoteOffline      ErrorCode = "remote_offline"
@@ -3623,10 +3747,6 @@ type MCPTool struct {
 	// "ui" (MCP Apps: resourceUri, visibility) and "openai/ui" (entrypoints).
 	// Free-form so outbound servers' keys survive a round trip unchanged.
 	Meta map[string]any `json:"_meta,omitempty"`
-	// RequiredScope is the API-key scope a caller must hold to invoke this
-	// tool. Empty means any authenticated caller. Not serialized: it is an
-	// authorization rule, not part of the MCP wire contract.
-	RequiredScope Scope `json:"-"`
 }
 
 // ToolCallRequest represents a request to call a tool.
@@ -4719,6 +4839,11 @@ type SDKTypes struct {
 	_deviceAuthInit DeviceAuthInitRequest
 	_deviceAuthResp DeviceAuthResponse
 	_deviceAuthPoll DeviceAuthPollResponse
+	// Admin elevation of a CLI login (belt admin elevate)
+	_adminElevateReq    AdminElevateRequest
+	_adminElevateResp   AdminElevateResponse
+	_adminElevStatus    AdminElevationStatus
+	_adminElevationDrop AdminElevationDropResponse
 	// Teams
 	_me               MeResponse // GET /me: current user and team
 	_teamCreate       TeamCreateRequest
@@ -5418,9 +5543,8 @@ type TaskDispatchPayload struct {
 	AppEnv     map[string]string `json:"app_env,omitempty"`
 	GPUCount   int               `json:"gpu_count"`
 	// Sandbox is the app version's declared sandbox exceptions, which the
-	// engine enforces. Absent when the version has none recorded (deployed
-	// before the API recorded them): the engine then reads the package's
-	// inf.yml, as engines did before the API carried it.
+	// engine enforces. Always sent: the empty value is the hardened default
+	// (models.AppVersion.SandboxDeclared).
 	Sandbox *AppSandbox `json:"sandbox,omitempty"`
 }
 

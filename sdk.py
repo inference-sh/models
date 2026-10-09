@@ -437,6 +437,35 @@ class DeviceAuthPollResponse(TypedDict, total=False):
     # credential comes with it.
     admin_until: Optional[str]
 
+# AdminElevateRequest is the body of POST /device/auth/elevate: a platform
+# admin's CLI login asking to carry admin power for TTLSeconds (default one
+# hour, at most eight).
+class AdminElevateRequest(TypedDict, total=False):
+    ttl_seconds: int
+
+# AdminElevateResponse is a pending elevation request: the admin approves
+# UserCode at ApproveURL in their browser and the CLI polls PollURL.
+class AdminElevateResponse(TypedDict, total=False):
+    user_code: str
+    device_code: str
+    poll_url: str
+    approve_url: str
+    expires_in: int
+    interval: int
+    ttl_seconds: int
+
+# AdminElevationStatus is GET /device/auth/elevate: whether the calling
+# session carries an admin elevation, and until when.
+class AdminElevationStatus(TypedDict, total=False):
+    elevated: bool
+    admin_until: Optional[str]
+
+# AdminElevationDropResponse is DELETE /device/auth/elevate. Dropped is
+# false when the session held no elevation.
+class AdminElevationDropResponse(TypedDict, total=False):
+    elevated: bool
+    dropped: bool
+
 class MeResponse(TypedDict, total=False):
     user: Optional[UserDTO]
     team: Optional[TeamDTO]
@@ -456,6 +485,15 @@ class MeResponse(TypedDict, total=False):
     # before landing, whichever team it lands in (an invite's included), via
     # POST /teams/{personal_team_id}/complete-setup.
     needs_username: bool
+    # PlatformPower: the credential carries platform administration
+    # (admin:read): an admin's own browser sign-in that proved their
+    # authenticator, or an elevated CLI login. The admin role alone is not
+    # it.
+    platform_power: bool
+    # Scopes is every scope the request's credential holds
+    # (AuthContext.HeldScopes): what a client asks before it calls a route
+    # it may not reach (an API key holds no sign-in-only scope).
+    scopes: List[Scope]
 
 class TeamCreateRequest(TypedDict, total=False):
     name: str
@@ -590,12 +628,30 @@ class ScopeDefinition(TypedDict, total=False):
     label: str
     description: str
     group: ScopeGroup
+    # SignInOnly: only the account holder's own sign-in (browser session,
+    # CLI login) holds it. No API key, workspace key, OAuth token, bound or
+    # grant session can be granted it or pass a check for it.
+    sign_in_only: bool
+    # NotForApps: an app's OAuth token, a bound session or a grant never
+    # holds it, whatever it was granted; the person's sign-in and API keys
+    # may.
+    not_for_apps: bool
+    # CostsCredits: using the scope spends the account's credits (running
+    # apps, agents, flows).
+    costs_credits: bool
 
 # ScopeGroupDefinition describes a group of scopes for UI rendering
 class ScopeGroupDefinition(TypedDict, total=False):
     id: ScopeGroup
     label: str
     description: str
+    # PublicRows: the resource's rows can be public, so a credential
+    # without its read scope still reads what a signed-out caller reads
+    # (its public rows) instead of being refused.
+    public_rows: bool
+    # StaffOnly: the group's scopes are offered (GET /scopes) only to staff
+    # holding platform power: the platform's own engines.
+    staff_only: bool
 
 # ScopesResponse is the API response for GET /scopes
 class ScopesResponse(TypedDict, total=False):
@@ -611,6 +667,13 @@ class ScopePreset(TypedDict, total=False):
     scopes: List[Scope]
     summary: List[str]
     hidden: bool
+    # Default: the preset a new key or app grant starts from.
+    default: bool
+    # Grants is every action scope the preset's key holds (Scopes expanded:
+    # a resource scope's actions, the read a write implies, secrets:reveal
+    # with secrets:read; never a sign-in-only scope), so a client compares a
+    # key against it without re-deriving the rule (ApiKeyDTO.Grants).
+    grants: List[Scope]
 
 # AppPricing configures all pricing using CEL expressions.
 # Empty expressions use defaults. All values in microcents.
@@ -3411,6 +3474,10 @@ class ApiKeyDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     last_used_at: Optional[str]
     expires_at: Optional[str]
     scopes: List[Scope]
+    # Grants is every action scope the key holds: Scopes expanded the way a
+    # request with the key is checked (models.KeyGrants), every key scope
+    # for a key created without any.
+    grants: List[Scope]
     source: str
     # Scope is who the key acts as: its creator (user) or the workspace.
     scope: ApiKeyScope
@@ -4092,6 +4159,10 @@ class Scope(str, Enum):
     # Action-level scopes for Secrets (sensitive - excluded from read-only preset)
     SECRETS_READ = "secrets:read"
     SECRETS_WRITE = "secrets:write"
+    # ScopeSecretsReveal reads a secret's plaintext value. A key holding
+    # secrets:read holds it too (keys revealed with secrets:read before it
+    # existed); an app's OAuth token or a bound session never does.
+    SECRETS_REVEAL = "secrets:reveal"
     # Action-level scopes for credentials (connected accounts, vaults,
     # auth schemes, MCP servers).
     CREDENTIALS_READ = "credentials:read"
@@ -4117,6 +4188,18 @@ class Scope(str, Enum):
     # Action-level scopes for Settings/Notifications
     SETTINGS_READ = "settings:read"
     SETTINGS_WRITE = "settings:write"
+    # Approvals: answering a human-in-the-loop question (a tool approval, a
+    # gate, a widget or MCP input request, always-allow) and widening a
+    # chat's approval policy (allow every tool, skip hooks, allow rules).
+    # Held only by the account holder's own sign-in.
+    APPROVALS_WRITE = "approvals:write"
+    # ScopeAdminRead views platform administration (/admin GET). Held
+    # only by an admin's own sign-in; the route's admin gate decides
+    # whether it carries power.
+    ADMIN_READ = "admin:read"
+    # ScopeAdminWrite changes platform administration (/admin). Held only
+    # by an admin's own sign-in.
+    ADMIN_WRITE = "admin:write"
 
 class ScopeGroup(str, Enum):
     AGENTS = "agents"
@@ -4137,6 +4220,8 @@ class ScopeGroup(str, Enum):
     ARTIFACTS = "artifacts"
     USER = "user"
     SETTINGS = "settings"
+    APPROVALS = "approvals"
+    ADMIN = "admin"
 
 class AlwaysAllowScope(str, Enum):
     # AlwaysAllowScopeExact: this call exactly (each piece of the command,
@@ -4194,6 +4279,17 @@ class ErrorCode(str, Enum):
     # account is one and cannot sign in.
     PERSON_REQUIRED = "person_required"
     OTP_REQUIRED = "otp_required"
+    # ErrorCodeRequiresSignIn (403): the action needs a scope only the
+    # account holder's own sign-in holds (answering an approval, widening a
+    # chat's approval policy, the account, API keys, billing changes,
+    # admin), and the request carried an API key, an app's OAuth token or
+    # another delegated credential. Sign in on the web app or with `belt
+    # login` to do it.
+    REQUIRES_SIGN_IN = "requires_sign_in"
+    # ErrorCodeInsufficientScope (403): the credential does not hold the
+    # scope the operation takes (an API key, an app's OAuth token or a
+    # narrowed login granted less). The detail names the scope.
+    INSUFFICIENT_SCOPE = "insufficient_scope"
     # ErrorCodeImpersonationReasonRequired (403): a platform admin named a
     # team they are not a member of without a live impersonation grant.
     # Clients stop viewing as the team on it.
@@ -4206,12 +4302,16 @@ class ErrorCode(str, Enum):
     # only a platform admin may ask for or grant one. SameAdminRequired
     # (403): the elevation was asked for by another account.
     # BrowserSessionRequired (403): only the admin's own browser sign-in
-    # grants one.
+    # grants one, and only the person's own browser sign-in changes how the
+    # account is signed into (authenticator enrollment, RequireBrowserSession).
+    # InvalidTTL (400): the elevation asked for a window outside
+    # models.AdminElevationMinTTL..AdminElevationMaxTTL.
     ADMIN_SESSION_REQUIRED = "admin_session_required"
     CLI_SESSION_REQUIRED = "cli_session_required"
     ADMIN_REQUIRED = "admin_required"
     SAME_ADMIN_REQUIRED = "same_admin_required"
     BROWSER_SESSION_REQUIRED = "browser_session_required"
+    INVALID_TTL = "invalid_ttl"
     # AdminAuthenticatorRequired (403): a platform admin without an
     # authenticator app (TOTP) enrolled. Admin power needs one; until it is
     # enrolled (POST /auth/totp/enroll, then /auth/totp/confirm) the admin
@@ -4240,6 +4340,26 @@ class ErrorCode(str, Enum):
     # already has an open request for it.
     ALREADY_ENTITLED = "already_entitled"
     REQUEST_OPEN = "request_open"
+    # Authorization codes (device sign-in, admin elevation) (400): the code
+    # is unknown, already approved or denied, or past its expiry.
+    INVALID_CODE = "invalid_code"
+    ALREADY_PROCESSED = "already_processed"
+    EXPIRED = "expired"
+    # Run-time refusals. AppRetired (410): the app no longer runs.
+    # AppMaintenance (503, Retry-After): the owner paused it; the message is
+    # theirs. InvalidTransition (409): the task already moved on.
+    APP_RETIRED = "app_retired"
+    APP_MAINTENANCE = "app_maintenance"
+    INVALID_TRANSITION = "invalid_transition"
+    # Session-bound runs. SessionNotFound (404), SessionExpired and
+    # SessionEnded (410), WorkerLeased, AppMismatch and VersionMismatch
+    # (409). The SDKs match these upper-case strings.
+    SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
+    SESSION_EXPIRED = "SESSION_EXPIRED"
+    SESSION_ENDED = "SESSION_ENDED"
+    WORKER_LEASED = "WORKER_LEASED"
+    APP_MISMATCH = "APP_MISMATCH"
+    VERSION_MISMATCH = "VERSION_MISMATCH"
     # Remote harness refusals.
     AGENTS_DISABLED = "agents_disabled"
     REMOTE_OFFLINE = "remote_offline"
