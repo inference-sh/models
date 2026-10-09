@@ -237,8 +237,14 @@ type AgentToolConfig struct {
 }
 
 type HookToolConfig struct {
-	URL          string           `json:"url" yaml:"url"`
-	Secret       string           `json:"secret,omitempty" yaml:"secret,omitempty"`
+	URL string `json:"url" yaml:"url"`
+	// Secret is write-only: a new value for the X-Hook-Secret header. On
+	// save it moves into the team's encrypted secret store and SecretRef
+	// names it; a stored config, and every read, has it empty.
+	Secret string `json:"secret,omitempty" yaml:"secret,omitempty"`
+	// SecretRef names the stored hook secret. Sending it back unchanged
+	// (with Secret empty) keeps it; leaving both empty removes it.
+	SecretRef    string           `json:"secret_ref,omitempty" yaml:"secret_ref,omitempty"`
 	InputSchema  *json.RawMessage `json:"input_schema,omitempty" yaml:"input_schema,omitempty"`
 	OutputSchema *json.RawMessage `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
@@ -281,12 +287,20 @@ type ToolAuthConfig struct {
 }
 
 type HTTPToolConfig struct {
-	URL          string            `json:"url" yaml:"url"`
-	Method       string            `json:"method,omitempty" yaml:"method,omitempty"`
-	Auth         *ToolAuthConfig   `json:"auth,omitempty" yaml:"auth,omitempty"`
-	Headers      map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
-	InputSchema  json.RawMessage   `json:"input_schema,omitempty" yaml:"input_schema,omitempty"`
-	OutputSchema json.RawMessage   `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
+	URL    string          `json:"url" yaml:"url"`
+	Method string          `json:"method,omitempty" yaml:"method,omitempty"`
+	Auth   *ToolAuthConfig `json:"auth,omitempty" yaml:"auth,omitempty"`
+	// Headers are sent with every call. A value is either a reference to a
+	// team secret ("${{secrets.NAME}}"), kept as written, or a literal: on
+	// save a literal moves into the team's encrypted secret store and
+	// HeaderSecretRefs names it, so a stored config and every read carry
+	// the header with an empty value. An empty value whose header has a
+	// ref keeps the stored one.
+	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
+	// HeaderSecretRefs maps a header name to its stored value.
+	HeaderSecretRefs map[string]string `json:"header_secret_refs,omitempty" yaml:"header_secret_refs,omitempty"`
+	InputSchema      json.RawMessage   `json:"input_schema,omitempty" yaml:"input_schema,omitempty"`
+	OutputSchema     json.RawMessage   `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
 type MCPToolConfig struct {
@@ -314,8 +328,10 @@ type AgentToolConfigDTO struct {
 }
 
 type HookToolConfigDTO struct {
-	URL          string           `json:"url"`
+	URL string `json:"url"`
+	// Secret is always empty on a read; SecretRef says one is stored.
 	Secret       string           `json:"secret,omitempty"`
+	SecretRef    string           `json:"secret_ref,omitempty"`
 	InputSchema  *json.RawMessage `json:"input_schema,omitempty"`
 	OutputSchema *json.RawMessage `json:"output_schema,omitempty"`
 }
@@ -326,12 +342,15 @@ type ClientToolConfigDTO struct {
 }
 
 type HTTPToolConfigDTO struct {
-	URL          string            `json:"url"`
-	Method       string            `json:"method,omitempty"`
-	Auth         *ToolAuthConfig   `json:"auth,omitempty"`
-	Headers      map[string]string `json:"headers,omitempty"`
-	InputSchema  json.RawMessage   `json:"input_schema,omitempty"`
-	OutputSchema json.RawMessage   `json:"output_schema,omitempty"`
+	URL    string          `json:"url"`
+	Method string          `json:"method,omitempty"`
+	Auth   *ToolAuthConfig `json:"auth,omitempty"`
+	// Headers lists every header; a stored (secret) value reads as empty,
+	// and HeaderSecretRefs names it.
+	Headers          map[string]string `json:"headers,omitempty"`
+	HeaderSecretRefs map[string]string `json:"header_secret_refs,omitempty"`
+	InputSchema      json.RawMessage   `json:"input_schema,omitempty"`
+	OutputSchema     json.RawMessage   `json:"output_schema,omitempty"`
 }
 
 type MCPToolConfigDTO struct {
@@ -406,12 +425,20 @@ type AgentVersionDTO struct {
 // CreateAgentRequest is the request body for POST /agents
 // For new agents: omit ID, backend generates it
 // For new version of existing agent: include ID
+// A new agent's namespace is its team's; the body cannot name one.
 type CreateAgentRequest struct {
-	ID        string      `json:"id,omitempty"`
-	Name      string      `json:"name"`
-	Title     string      `json:"title,omitempty"`
-	Namespace string      `json:"namespace,omitempty"`
-	Images    AgentImages `json:"images,omitempty"`
+	ID         string      `json:"id,omitempty"`
+	Name       string      `json:"name"`
+	Title      string      `json:"title,omitempty"`
+	Images     AgentImages `json:"images,omitempty"`
+	Visibility Visibility  `json:"visibility,omitempty"`
+	// Harness runs the agent: "inference" (ours) or an external harness.
+	Harness string `json:"harness,omitempty"`
+	// ProfileID and RemoteID place the agent on one of the caller's
+	// machines; ProjectID files it in a project.
+	ProfileID *string `json:"profile_id,omitempty"`
+	RemoteID  *string `json:"remote_id,omitempty"`
+	ProjectID *string `json:"project_id,omitempty"`
 	// Version config (embedded - backend generates version ID, timestamps, etc)
 	Version *AgentConfigInput `json:"version,omitempty"`
 }
@@ -666,6 +693,10 @@ type DeviceAuthPollResponse struct {
 	// SessionToken is set when the flow was initiated with token_kind=session.
 	SessionToken string `json:"session_token,omitempty"`
 	TeamID       string `json:"team_id,omitempty"`
+	// AdminUntil is set when an admin elevation request was approved: the
+	// CLI login that asked now carries admin power until then. No
+	// credential comes with it.
+	AdminUntil *time.Time `json:"admin_until,omitempty"`
 }
 
 type DeviceAuthClaimRequest struct {
@@ -775,6 +806,10 @@ type CredentialConnectRequest struct {
 	// admin). Empty = the provider's default. Distinct from Scopes, which
 	// are OAuth permission scopes.
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
+	// AnotherAccount connects an account next to the ones already
+	// connected: the provider is asked to let the user choose the account
+	// rather than reuse the one it remembers.
+	AnotherAccount bool `json:"another_account,omitempty"`
 }
 
 // CredentialCompleteOAuthRequest is what the provider's redirect delivered:
@@ -1260,6 +1295,27 @@ type AppUIRef struct {
 	Artifact string `json:"artifact"`
 }
 
+// AppSandbox is what an app version's container may do beyond the engine's
+// default hardening, as its package's inf.yml declares it:
+//
+//	sandbox:
+//	  host_network: true          # share the host's network namespace
+//	  capabilities: [SYS_PTRACE]  # Linux capabilities the app's processes keep
+//
+// The API reads it from the package when the version is deployed and stores
+// it on the version (server-owned: no caller writes it). Engines enforce the
+// copy the task dispatch carries, and store review shows it. The empty value
+// declares no exception.
+type AppSandbox struct {
+	// HostNetwork runs the container on the host's network: it reaches the
+	// host's services and the cloud metadata service.
+	HostNetwork bool `json:"host_network,omitempty" yaml:"host_network"`
+	// Capabilities are Linux capability names without the CAP_ prefix, in
+	// upper case. The container is given them and the app's processes keep
+	// them.
+	Capabilities []string `json:"capabilities,omitempty" yaml:"capabilities"`
+}
+
 // AppVersionDTO is the API response for an app version.
 type AppVersionDTO struct {
 	BaseModelDTO `tstype:",extends"`
@@ -1279,7 +1335,11 @@ type AppVersionDTO struct {
 	RequiredSecrets     []SecretRequirement     `json:"required_secrets,omitempty"`
 	RequiredCredentials []CredentialRequirement `json:"required_credentials,omitempty"`
 	RequiredResources   AppResources            `json:"resources"`
-	Checksum            string                  `json:"checksum,omitempty"`
+	// Sandbox is the version's declared sandbox exceptions. Absent on a
+	// version deployed before the API recorded them (engines then read the
+	// package's inf.yml) and on a version with no package (a flow app).
+	Sandbox  *AppSandbox `json:"sandbox,omitempty"`
+	Checksum string      `json:"checksum,omitempty"`
 }
 
 // LicenseRecordDTO is the API response for a license record.
@@ -2002,6 +2062,29 @@ type AlwaysAllowOptionsDTO struct {
 	// Unavailable says why there are no options: a policy allows only its
 	// own rules, or no chat rule could allow this call.
 	Unavailable string `json:"unavailable,omitempty"`
+	// SecretSend is set when the call is an agent of another team sending
+	// the runner's own secrets: what it sends and where. Approving the call
+	// sends them; the prompt names them.
+	SecretSend *SecretSendDTO `json:"secret_send,omitempty"`
+}
+
+// SecretSendDTO is an agent of another team asking to send the runner's
+// secrets with a call: "alice/helper wants to send OPENAI_API_KEY to
+// alice.example". It rides on the call's approval interrupt (meta
+// secret_send) and on its always-allow options.
+type SecretSendDTO struct {
+	// Agent is the agent as people know it (namespace/name); AgentID is
+	// its id.
+	Agent   string `json:"agent"`
+	AgentID string `json:"agent_id"`
+	// AgentVersionID is the agent version making the call: approving the
+	// prompt approves this version's send only.
+	AgentVersionID string `json:"agent_version_id"`
+	// Host is where the call sends them.
+	Host string `json:"host"`
+	// Secrets are the runner's secrets the call sends, by name: secret
+	// keys (OPENAI_API_KEY) and logins (credential:github).
+	Secrets []string `json:"secrets"`
 }
 
 // AlwaysAllowRequest is POST /chats/{id}/tools/{toolId}/always-allow. The
@@ -2066,14 +2149,18 @@ type CredentialDTO struct {
 	Status             CredentialStatus `json:"status"`
 	DisplayName        string           `json:"display_name"`
 	IconURL            string           `json:"icon_url,omitempty"`
-	AccountIdentifier  string           `json:"account_identifier,omitempty"`
-	AccountName        string           `json:"account_name,omitempty"`
-	Scopes             StringSlice      `json:"scopes"`
-	ExpiresAt          *time.Time       `json:"expires_at,omitempty"`
-	VaultID            *string          `json:"vault_id,omitempty"`
-	Metadata           map[string]any   `json:"metadata,omitempty"`
-	IsPrimary          bool             `json:"is_primary"`
-	ErrorMessage       string           `json:"error_message,omitempty"`
+	// AccountID is the provider's own, unchanging id for the account; what
+	// an account is named by when choosing one. AccountIdentifier is its
+	// label (an email, an @handle).
+	AccountID         string         `json:"account_id,omitempty"`
+	AccountIdentifier string         `json:"account_identifier,omitempty"`
+	AccountName       string         `json:"account_name,omitempty"`
+	Scopes            StringSlice    `json:"scopes"`
+	ExpiresAt         *time.Time     `json:"expires_at,omitempty"`
+	VaultID           *string        `json:"vault_id,omitempty"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
+	IsPrimary         bool           `json:"is_primary"`
+	ErrorMessage      string         `json:"error_message,omitempty"`
 }
 
 // CredentialConfigDTO is the merged view: provider catalog + credential state.
@@ -2102,8 +2189,14 @@ type CredentialConfigDTO struct {
 	App *CredentialDTO `json:"app,omitempty"`
 	// AuthSchemeID is set when the provider is one the team defined
 	// itself (models.AuthScheme), so the UI can offer edit and remove.
-	AuthSchemeID string         `json:"auth_scheme_id,omitempty"`
-	Credential   *CredentialDTO `json:"credential,omitempty"`
+	AuthSchemeID string `json:"auth_scheme_id,omitempty"`
+	// Credential is the login used where no account is named: the caller's
+	// own, else the workspace's default account.
+	Credential *CredentialDTO `json:"credential,omitempty"`
+	// Accounts is every login to this provider the caller can use, in that
+	// order (Credential first). More than one when several accounts are
+	// connected.
+	Accounts []*CredentialDTO `json:"accounts,omitempty"`
 }
 
 // --------------------
@@ -2203,6 +2296,14 @@ type EngineConfig struct {
 	GPUs                 []string     `json:"gpus" yaml:"gpus"`
 	CallbackBasePort     int          `json:"callback_base_port" yaml:"callback_base_port"`
 	EngineInternalAPIURL string       `json:"engine_internal_api_url" yaml:"engine_internal_api_url"`
+}
+
+// Stored is the config as the API keeps it on the engine row: without the
+// API key. The engine sends its whole local config on register, key
+// included; the key is the owner's credential and the API never reads it.
+func (c EngineConfig) Stored() EngineConfig {
+	c.APIKey = ""
+	return c
 }
 
 // WorkerGPUConfig defines GPU allocation for a worker.
@@ -2474,6 +2575,25 @@ const (
 	// Clients stop viewing as the team on it.
 	ErrorCodeImpersonationReasonRequired ErrorCode = "impersonation_reason_required"
 	ErrorCodeMCPAuthExpired              ErrorCode = "mcp_auth_expired"
+	// Admin elevation ("belt admin elevate"). AdminSessionRequired (403): a
+	// platform admin's credential that carries no admin power reached an
+	// admin route; a CLI login gets it by elevating. CLISessionRequired
+	// (403): only a CLI login may ask to be elevated. AdminRequired (403):
+	// only a platform admin may ask for or grant one. SameAdminRequired
+	// (403): the elevation was asked for by another account.
+	// BrowserSessionRequired (403): only the admin's own browser sign-in
+	// grants one.
+	ErrorCodeAdminSessionRequired   ErrorCode = "admin_session_required"
+	ErrorCodeCLISessionRequired     ErrorCode = "cli_session_required"
+	ErrorCodeAdminRequired          ErrorCode = "admin_required"
+	ErrorCodeSameAdminRequired      ErrorCode = "same_admin_required"
+	ErrorCodeBrowserSessionRequired ErrorCode = "browser_session_required"
+	// AdminAuthenticatorRequired (403): a platform admin without an
+	// authenticator app (TOTP) enrolled. Admin power needs one; until it is
+	// enrolled (POST /auth/totp/enroll, then /auth/totp/confirm) the admin
+	// works as an ordinary member. An admin who has one but whose session
+	// has not proved it gets otp_required instead: re-authenticate with it.
+	ErrorCodeAdminAuthenticatorRequired ErrorCode = "admin_authenticator_required"
 	// Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
 	// EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
 	// not be checked and the request is retriable.
@@ -2530,23 +2650,25 @@ type PaymentMethodRequiredMeta struct {
 type ExecRunDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	RemoteID           string          `json:"remote_id"`
-	Command            string          `json:"command"`
-	Args               []string        `json:"args"`
-	Cwd                string          `json:"cwd"`
-	Env                []string        `json:"env"`
-	Pty                bool            `json:"pty"`
-	TimeoutMs          int             `json:"timeout_ms"`
-	Status             ExecRunStatus   `json:"status"`
-	ExitCode           *int            `json:"exit_code,omitempty"`
-	Error              *string         `json:"error,omitempty"`
-	TimedOut           bool            `json:"timed_out"`
-	StartedAt          *time.Time      `json:"started_at,omitempty"`
-	EndedAt            *time.Time      `json:"ended_at,omitempty"`
-	DurationMs         *int64          `json:"duration_ms,omitempty"`
-	RequestedBy        ExecRequestedBy `json:"requested_by"`
-	AgentRunID         *string         `json:"agent_run_id,omitempty"`
-	LastSeq            int             `json:"last_seq"`
+	RemoteID           string   `json:"remote_id"`
+	Command            string   `json:"command"`
+	Args               []string `json:"args"`
+	Cwd                string   `json:"cwd"`
+	// Env names the variables the run was given (NAME, without =value).
+	// Their values are never returned.
+	Env         []string        `json:"env"`
+	Pty         bool            `json:"pty"`
+	TimeoutMs   int             `json:"timeout_ms"`
+	Status      ExecRunStatus   `json:"status"`
+	ExitCode    *int            `json:"exit_code,omitempty"`
+	Error       *string         `json:"error,omitempty"`
+	TimedOut    bool            `json:"timed_out"`
+	StartedAt   *time.Time      `json:"started_at,omitempty"`
+	EndedAt     *time.Time      `json:"ended_at,omitempty"`
+	DurationMs  *int64          `json:"duration_ms,omitempty"`
+	RequestedBy ExecRequestedBy `json:"requested_by"`
+	AgentRunID  *string         `json:"agent_run_id,omitempty"`
+	LastSeq     int             `json:"last_seq"`
 }
 
 // ExecRunOutputDTO is one sequenced chunk of a run's output.
@@ -4470,15 +4592,22 @@ type CheckRequirementsResponse struct {
 
 type ResourceShareDTO struct {
 	BaseModelDTO `tstype:",extends"`
-	ResourceID   string           `json:"resource_id"`
-	ResourceType string           `json:"resource_type"`
-	UserID       string           `json:"user_id"`
-	User         *UserRelationDTO `json:"user,omitempty"`
-	Permission   Permission       `json:"permission"`
+	ResourceID   string `json:"resource_id"`
+	ResourceType string `json:"resource_type"`
+	// UserID names the person a share is to; TeamID, with UserID empty,
+	// the resource's whole team.
+	UserID     string           `json:"user_id"`
+	TeamID     string           `json:"team_id,omitempty"`
+	User       *UserRelationDTO `json:"user,omitempty"`
+	Permission Permission       `json:"permission"`
 }
 
+// ShareRequest is POST /{resource}/{id}/share: a share to one person
+// (user_id) or to the resource's whole team (team: true), at a permission
+// (read when empty).
 type ShareRequest struct {
-	UserID     string     `json:"user_id"`
+	UserID     string     `json:"user_id,omitempty"`
+	Team       bool       `json:"team,omitempty"`
 	Permission Permission `json:"permission"`
 }
 
@@ -5288,13 +5417,18 @@ type TaskDispatchPayload struct {
 	Kernel     string            `json:"kernel"`
 	AppEnv     map[string]string `json:"app_env,omitempty"`
 	GPUCount   int               `json:"gpu_count"`
+	// Sandbox is the app version's declared sandbox exceptions, which the
+	// engine enforces. Absent when the version has none recorded (deployed
+	// before the API recorded them): the engine then reads the package's
+	// inf.yml, as engines did before the API carried it.
+	Sandbox *AppSandbox `json:"sandbox,omitempty"`
 }
 
 // ToDTO converts a TaskDispatchPayload into a TaskDTO, mapping the flat
 // dispatch fields into the nested App/AppVersion pointers that the engine's
 // internal pipeline expects.
 func (d TaskDispatchPayload) ToDTO() TaskDTO {
-	return TaskDTO{BaseModelDTO: BaseModelDTO{ID: d.ID, ShortID: d.ShortID}, PermissionModelDTO: PermissionModelDTO{UserID: d.UserID, TeamID: d.TeamID}, Status: d.Status, AppID: d.AppID, AppVersionID: d.AppVersionID, Function: d.Function, Input: d.Input, Setup: d.Setup, WorkerID: d.WorkerID, SessionID: d.SessionID, SessionTimeout: d.SessionTimeout, App: &AppDTO{Name: d.AppName}, AppVersion: &AppVersionDTO{Repository: d.Repository, Kernel: d.Kernel, Env: d.AppEnv, RequiredResources: AppResources{GPU: AppGPUResource{Count: d.GPUCount}}}}
+	return TaskDTO{BaseModelDTO: BaseModelDTO{ID: d.ID, ShortID: d.ShortID}, PermissionModelDTO: PermissionModelDTO{UserID: d.UserID, TeamID: d.TeamID}, Status: d.Status, AppID: d.AppID, AppVersionID: d.AppVersionID, Function: d.Function, Input: d.Input, Setup: d.Setup, WorkerID: d.WorkerID, SessionID: d.SessionID, SessionTimeout: d.SessionTimeout, App: &AppDTO{Name: d.AppName}, AppVersion: &AppVersionDTO{Repository: d.Repository, Kernel: d.Kernel, Env: d.AppEnv, RequiredResources: AppResources{GPU: AppGPUResource{Count: d.GPUCount}}, Sandbox: d.Sandbox}}
 }
 
 // TaskResultDTO is a slim response for task run/result endpoints.
@@ -5487,8 +5621,29 @@ type TelemetryReportDTO struct {
 	Payload            map[string]any `json:"payload"`
 }
 
+// SubmitTelemetryRequest is the CLI's diagnostics report for an account the
+// abuse redlist flags. Payload is the host report (platform, locale,
+// network); Device carries the identifiers that recognise the same machine
+// across accounts. The API stores Device's hashes for matching and its
+// readable names encrypted, apart from the payload.
 type SubmitTelemetryRequest struct {
-	Payload map[string]any `json:"payload"`
+	Payload map[string]any  `json:"payload"`
+	Device  *DeviceEvidence `json:"device,omitempty"`
+}
+
+// DeviceEvidence is what a flagged account's CLI sends about its machine:
+// salted hashes of the hostname, OS user, git user.name, MAC addresses and
+// SSH key fingerprints, and the hostname, OS user and git user.name readable.
+type DeviceEvidence struct {
+	Scheme                  string   `json:"scheme"`
+	HostnameHash            string   `json:"hostname_hash,omitempty"`
+	UsernameHash            string   `json:"username_hash,omitempty"`
+	GitUserNameHash         string   `json:"git_user_name_hash,omitempty"`
+	MACHashes               []string `json:"mac_hashes,omitempty"`
+	SSHKeyFingerprintHashes []string `json:"ssh_key_fingerprint_hashes,omitempty"`
+	Hostname                string   `json:"hostname,omitempty"`
+	Username                string   `json:"username,omitempty"`
+	GitUserName             string   `json:"git_user_name,omitempty"`
 }
 
 // --------------------
@@ -6634,6 +6789,11 @@ type AuthSchemeSpec struct {
 	// provider goes to that account instead of offering a chooser. Empty =
 	// no hint sent.
 	AccountHintParam string `json:"account_hint_param,omitempty"`
+	// AnotherAccountParams are authorize params for connecting an account
+	// next to one already connected: the provider shows its account chooser
+	// instead of signing the user back in to the account it remembers
+	// (Google prompt=select_account). They override ExtraAuthorizeParams.
+	AnotherAccountParams map[string]string `json:"another_account_params,omitempty"`
 	// RequiredScopes are always requested, on a connect and when
 	// re-authorizing for more scopes, whatever the caller asked for: the
 	// scopes the identity lookup and token refresh need (Google's openid,
@@ -6670,6 +6830,12 @@ type AuthSchemeSpec struct {
 	// ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
 	Identifier string `json:"identifier,omitempty"`
 	Name       string `json:"name,omitempty"`
+	// AccountID is the account's id as the provider keeps it and never
+	// changes it ("{{user.sub}}" for Google, "{{user.data.id}}" for X), as
+	// opposed to Identifier, which the user may rename. Logins are matched
+	// and chosen by it. Empty = Identifier, for providers whose identifier
+	// already is such an id (Slack, Notion).
+	AccountID string `json:"account_id,omitempty"`
 	// IdentityHook names Go code that derives identifier and name when a
 	// template cannot (Discord's discriminator rule). It wins over both.
 	IdentityHook string `json:"identity_hook,omitempty"`
@@ -8355,7 +8521,7 @@ type PolicyKind string
 // Valid reports whether k is a known kind.
 func (k PolicyKind) Valid() bool {
 	switch k {
-	case PolicyKindRemoteExec, PolicyKindWorkspace, PolicyKindHarness, PolicyKindTool, PolicyKindApp, PolicyKindAgent, PolicyKindKnowledge, PolicyKindMcp, PolicyKindFlow, PolicyKindWebFetch:
+	case PolicyKindRemoteExec, PolicyKindWorkspace, PolicyKindHarness, PolicyKindTool, PolicyKindApp, PolicyKindAgent, PolicyKindKnowledge, PolicyKindMcp, PolicyKindFlow, PolicyKindWebFetch, PolicyKindSecretSend:
 		return true
 	}
 	return false
@@ -8379,6 +8545,9 @@ const (
 	PolicyKindFlow      PolicyKind = "Flow"
 	// PolicyKindWebFetch: fetched domains.
 	PolicyKindWebFetch PolicyKind = "WebFetch"
+	// PolicyKindSecretSend: an agent of another team sending the runner's
+	// secrets to a host.
+	PolicyKindSecretSend PolicyKind = "SecretSend"
 )
 
 // --------------------

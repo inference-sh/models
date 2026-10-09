@@ -112,7 +112,13 @@ class AgentToolConfig(TypedDict, total=False):
 
 class HookToolConfig(TypedDict, total=False):
     url: str
+    # Secret is write-only: a new value for the X-Hook-Secret header. On
+    # save it moves into the team's encrypted secret store and SecretRef
+    # names it; a stored config, and every read, has it empty.
     secret: str
+    # SecretRef names the stored hook secret. Sending it back unchanged
+    # (with Secret empty) keeps it; leaving both empty removes it.
+    secret_ref: str
     input_schema: Optional[Any]
     output_schema: Optional[Any]
 
@@ -132,7 +138,15 @@ class HTTPToolConfig(TypedDict, total=False):
     url: str
     method: str
     auth: Optional[ToolAuthConfig]
+    # Headers are sent with every call. A value is either a reference to a
+    # team secret ("${{secrets.NAME}}"), kept as written, or a literal: on
+    # save a literal moves into the team's encrypted secret store and
+    # HeaderSecretRefs names it, so a stored config and every read carry
+    # the header with an empty value. An empty value whose header has a
+    # ref keeps the stored one.
     headers: Dict[str, str]
+    # HeaderSecretRefs maps a header name to its stored value.
+    header_secret_refs: Dict[str, str]
     input_schema: Any
     output_schema: Any
 
@@ -159,7 +173,9 @@ class AgentToolConfigDTO(TypedDict, total=False):
 
 class HookToolConfigDTO(TypedDict, total=False):
     url: str
+    # Secret is always empty on a read; SecretRef says one is stored.
     secret: str
+    secret_ref: str
     input_schema: Optional[Any]
     output_schema: Optional[Any]
 
@@ -171,7 +187,10 @@ class HTTPToolConfigDTO(TypedDict, total=False):
     url: str
     method: str
     auth: Optional[ToolAuthConfig]
+    # Headers lists every header; a stored (secret) value reads as empty,
+    # and HeaderSecretRefs names it.
     headers: Dict[str, str]
+    header_secret_refs: Dict[str, str]
     input_schema: Any
     output_schema: Any
 
@@ -197,12 +216,20 @@ class CoreAppConfigDTO(TypedDict, total=False):
 # CreateAgentRequest is the request body for POST /agents
 # For new agents: omit ID, backend generates it
 # For new version of existing agent: include ID
+# A new agent's namespace is its team's; the body cannot name one.
 class CreateAgentRequest(TypedDict, total=False):
     id: str
     name: str
     title: str
-    namespace: str
     images: AgentImages
+    visibility: Visibility
+    # Harness runs the agent: "inference" (ours) or an external harness.
+    harness: str
+    # ProfileID and RemoteID place the agent on one of the caller's
+    # machines; ProjectID files it in a project.
+    profile_id: Optional[str]
+    remote_id: Optional[str]
+    project_id: Optional[str]
     # Version config (embedded - backend generates version ID, timestamps, etc)
     version: Optional[AgentConfigInput]
 
@@ -405,6 +432,10 @@ class DeviceAuthPollResponse(TypedDict, total=False):
     # SessionToken is set when the flow was initiated with token_kind=session.
     session_token: str
     team_id: str
+    # AdminUntil is set when an admin elevation request was approved: the
+    # CLI login that asked now carries admin power until then. No
+    # credential comes with it.
+    admin_until: Optional[str]
 
 class MeResponse(TypedDict, total=False):
     user: Optional[UserDTO]
@@ -480,6 +511,10 @@ class CredentialConnectRequest(TypedDict, total=False):
     # admin). Empty = the provider's default. Distinct from Scopes, which
     # are OAuth permission scopes.
     connection_scope: CredentialScope
+    # AnotherAccount connects an account next to the ones already
+    # connected: the provider is asked to let the user choose the account
+    # rather than reuse the one it remembers.
+    another_account: bool
 
 # CredentialCompleteOAuthRequest is what the provider's redirect delivered:
 # the code and state, the PKCE verifier the client kept, and every other
@@ -669,6 +704,26 @@ class CredentialRequirement(TypedDict, total=False):
 # an unpinned ref follows the artifact's current version.
 class AppUIRef(TypedDict, total=False):
     artifact: str
+
+# AppSandbox is what an app version's container may do beyond the engine's
+# default hardening, as its package's inf.yml declares it:
+# 
+# 	sandbox:
+# 	  host_network: true          # share the host's network namespace
+# 	  capabilities: [SYS_PTRACE]  # Linux capabilities the app's processes keep
+# 
+# The API reads it from the package when the version is deployed and stores
+# it on the version (server-owned: no caller writes it). Engines enforce the
+# copy the task dispatch carries, and store review shows it. The empty value
+# declares no exception.
+class AppSandbox(TypedDict, total=False):
+    # HostNetwork runs the container on the host's network: it reaches the
+    # host's services and the cloud metadata service.
+    host_network: bool
+    # Capabilities are Linux capability names without the CAP_ prefix, in
+    # upper case. The container is given them and the app's processes keep
+    # them.
+    capabilities: List[str]
 
 # AppStoreListingDTO for API responses
 class AppStoreListingDTO(TypedDict, total=False):
@@ -1041,6 +1096,28 @@ class AlwaysAllowOptionsDTO(TypedDict, total=False):
     # Unavailable says why there are no options: a policy allows only its
     # own rules, or no chat rule could allow this call.
     unavailable: str
+    # SecretSend is set when the call is an agent of another team sending
+    # the runner's own secrets: what it sends and where. Approving the call
+    # sends them; the prompt names them.
+    secret_send: Optional[SecretSendDTO]
+
+# SecretSendDTO is an agent of another team asking to send the runner's
+# secrets with a call: "alice/helper wants to send OPENAI_API_KEY to
+# alice.example". It rides on the call's approval interrupt (meta
+# secret_send) and on its always-allow options.
+class SecretSendDTO(TypedDict, total=False):
+    # Agent is the agent as people know it (namespace/name); AgentID is
+    # its id.
+    agent: str
+    agent_id: str
+    # AgentVersionID is the agent version making the call: approving the
+    # prompt approves this version's send only.
+    agent_version_id: str
+    # Host is where the call sends them.
+    host: str
+    # Secrets are the runner's secrets the call sends, by name: secret
+    # keys (OPENAI_API_KEY) and logins (credential:github).
+    secrets: List[str]
 
 # AlwaysAllowRequest is POST /chats/{id}/tools/{toolId}/always-allow. The
 # api saves the option's rules to the chat and approves the call once.
@@ -1100,7 +1177,13 @@ class CredentialConfigDTO(TypedDict, total=False):
     # AuthSchemeID is set when the provider is one the team defined
     # itself (models.AuthScheme), so the UI can offer edit and remove.
     auth_scheme_id: str
+    # Credential is the login used where no account is named: the caller's
+    # own, else the workspace's default account.
     credential: Optional[CredentialDTO]
+    # Accounts is every login to this provider the caller can use, in that
+    # order (Credential first). More than one when several accounts are
+    # connected.
+    accounts: List[Optional[CredentialDTO]]
 
 # SecretFieldConfig defines a secret field for the UI
 class SecretFieldConfig(TypedDict, total=False):
@@ -1950,8 +2033,12 @@ class CheckRequirementsResponse(TypedDict, total=False):
     satisfied: bool
     errors: List[RequirementError]
 
+# ShareRequest is POST /{resource}/{id}/share: a share to one person
+# (user_id) or to the resource's whole team (team: true), at a permission
+# (read when empty).
 class ShareRequest(TypedDict, total=False):
     user_id: str
+    team: bool
     permission: Permission
 
 # SDKTypes is a phantom type for gotypegen dependency tracing.
@@ -2249,8 +2336,28 @@ class TeamViewDTO(TypedDict, total=False):
     governance: TeamGovernance
     can: List[TeamCapability]
 
+# SubmitTelemetryRequest is the CLI's diagnostics report for an account the
+# abuse redlist flags. Payload is the host report (platform, locale,
+# network); Device carries the identifiers that recognise the same machine
+# across accounts. The API stores Device's hashes for matching and its
+# readable names encrypted, apart from the payload.
 class SubmitTelemetryRequest(TypedDict, total=False):
     payload: Dict[str, Any]
+    device: Optional[DeviceEvidence]
+
+# DeviceEvidence is what a flagged account's CLI sends about its machine:
+# salted hashes of the hostname, OS user, git user.name, MAC addresses and
+# SSH key fingerprints, and the hostname, OS user and git user.name readable.
+class DeviceEvidence(TypedDict, total=False):
+    scheme: str
+    hostname_hash: str
+    username_hash: str
+    git_user_name_hash: str
+    mac_hashes: List[str]
+    ssh_key_fingerprint_hashes: List[str]
+    hostname: str
+    username: str
+    git_user_name: str
 
 # ToolInvocationFunction contains the function details for a tool invocation
 class ToolInvocationFunction(TypedDict, total=False):
@@ -3022,6 +3129,10 @@ class AppVersionDTO(BaseModelDTO, TypedDict, total=False):
     required_secrets: List[SecretRequirement]
     required_credentials: List[CredentialRequirement]
     resources: AppResources
+    # Sandbox is the version's declared sandbox exceptions. Absent on a
+    # version deployed before the API recorded them (engines then read the
+    # package's inf.yml) and on a version with no package (a flow app).
+    sandbox: Optional[AppSandbox]
     checksum: str
 
 # LicenseRecordDTO is the API response for a license record.
@@ -3199,7 +3310,10 @@ class RefRouteDTO(BaseModelDTO, TypedDict, total=False):
 class ResourceShareDTO(BaseModelDTO, TypedDict, total=False):
     resource_id: str
     resource_type: str
+    # UserID names the person a share is to; TeamID, with UserID empty,
+    # the resource's whole team.
     user_id: str
+    team_id: str
     user: Optional[UserRelationDTO]
     permission: Permission
 
@@ -3463,6 +3577,10 @@ class CredentialDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     status: CredentialStatus
     display_name: str
     icon_url: str
+    # AccountID is the provider's own, unchanging id for the account; what
+    # an account is named by when choosing one. AccountIdentifier is its
+    # label (an email, an @handle).
+    account_id: str
     account_identifier: str
     account_name: str
     scopes: StringSlice
@@ -4081,6 +4199,25 @@ class ErrorCode(str, Enum):
     # Clients stop viewing as the team on it.
     IMPERSONATION_REASON_REQUIRED = "impersonation_reason_required"
     MCP_AUTH_EXPIRED = "mcp_auth_expired"
+    # Admin elevation ("belt admin elevate"). AdminSessionRequired (403): a
+    # platform admin's credential that carries no admin power reached an
+    # admin route; a CLI login gets it by elevating. CLISessionRequired
+    # (403): only a CLI login may ask to be elevated. AdminRequired (403):
+    # only a platform admin may ask for or grant one. SameAdminRequired
+    # (403): the elevation was asked for by another account.
+    # BrowserSessionRequired (403): only the admin's own browser sign-in
+    # grants one.
+    ADMIN_SESSION_REQUIRED = "admin_session_required"
+    CLI_SESSION_REQUIRED = "cli_session_required"
+    ADMIN_REQUIRED = "admin_required"
+    SAME_ADMIN_REQUIRED = "same_admin_required"
+    BROWSER_SESSION_REQUIRED = "browser_session_required"
+    # AdminAuthenticatorRequired (403): a platform admin without an
+    # authenticator app (TOTP) enrolled. Admin power needs one; until it is
+    # enrolled (POST /auth/totp/enroll, then /auth/totp/confirm) the admin
+    # works as an ordinary member. An admin who has one but whose session
+    # has not proved it gets otp_required instead: re-authenticate with it.
+    ADMIN_AUTHENTICATOR_REQUIRED = "admin_authenticator_required"
     # Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
     # EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
     # not be checked and the request is retriable.
@@ -4823,6 +4960,9 @@ class PolicyKind(str, Enum):
     FLOW = "Flow"
     # PolicyKindWebFetch: fetched domains.
     WEB_FETCH = "WebFetch"
+    # PolicyKindSecretSend: an agent of another team sending the runner's
+    # secrets to a host.
+    SECRET_SEND = "SecretSend"
 
 class FunctionKind(str, Enum):
     # FunctionKindRun takes an input and returns an output (optionally
