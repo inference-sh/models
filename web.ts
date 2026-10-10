@@ -6320,6 +6320,13 @@ export interface PublicationDTO extends BaseModelDTO, PermissionModelDTO {
   theme?: PublicationTheme;
   label?: string;
   enabled: boolean;
+  /**
+   * VisitorReads is the scope groups of the team's resources (knowledge,
+   * artifacts, files, remotes) a visitor can ask the published agent's
+   * current version to reach by id: what its built-in tools add to an
+   * embed run. Empty when its tools reach only what it names itself.
+   */
+  visitor_reads: ScopeGroup[];
 }
 export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
   match_type: string;
