@@ -420,6 +420,12 @@ type AgentVersionDTO struct {
 	Permissions        *AgentPermissions     `json:"permissions,omitempty"`
 	Hooks              []LifecycleHookConfig `json:"hooks,omitempty"`
 	OutputSchema       *json.RawMessage      `json:"output_schema"`
+	// VisitorReads is the scope groups of the team's resources (knowledge,
+	// files, artifacts, remotes) a visitor of an embed of this version can
+	// have it read by id, beyond what it configures by name. Set when the
+	// agent is read (get, version get); the value a publication of it
+	// answers. Absent elsewhere (lists, chats).
+	VisitorReads []ScopeGroup `json:"visitor_reads,omitempty"`
 }
 
 // CreateAgentRequest is the request body for POST /agents

@@ -984,6 +984,12 @@ public struct AgentVersionDTO: Codable, Sendable {
     @Indirect public var permissions: AgentPermissions?
     public var hooks: [LifecycleHookConfig]?
     public var outputSchema: JSONValue?
+    /// VisitorReads is the scope groups of the team's resources (knowledge,
+    /// files, artifacts, remotes) a visitor of an embed of this version can
+    /// have it read by id, beyond what it configures by name. Set when the
+    /// agent is read (get, version get); the value a publication of it
+    /// answers. Absent elsewhere (lists, chats).
+    public var visitorReads: [ScopeGroup]?
 
     public init(
         id: String = "",
@@ -1006,7 +1012,8 @@ public struct AgentVersionDTO: Codable, Sendable {
         internalTools: InternalToolsConfig? = nil,
         permissions: AgentPermissions? = nil,
         hooks: [LifecycleHookConfig]? = nil,
-        outputSchema: JSONValue? = nil
+        outputSchema: JSONValue? = nil,
+        visitorReads: [ScopeGroup]? = nil
     ) {
         self.id = id
         self.shortId = shortId
@@ -1029,6 +1036,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         self.permissions = permissions
         self.hooks = hooks
         self.outputSchema = outputSchema
+        self.visitorReads = visitorReads
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1053,6 +1061,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         case permissions = "permissions"
         case hooks = "hooks"
         case outputSchema = "output_schema"
+        case visitorReads = "visitor_reads"
     }
 }
 
