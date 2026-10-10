@@ -6910,7 +6910,11 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     /// account is signed into (authenticator enrollment, RequireBrowserSession).
     /// InvalidTTL (400): the elevation asked for a window outside
     /// models.AdminElevationMinTTL..AdminElevationMaxTTL.
+    /// AdminScopesNotApproved (403): a platform admin's CLI login was approved
+    /// with a scope list that does not name the admin scopes, so it can't be
+    /// elevated: log in again approving them, then elevate.
     public static let adminSessionRequired = ErrorCode(rawValue: "admin_session_required")
+    public static let adminScopesNotApproved = ErrorCode(rawValue: "admin_scopes_not_approved")
     public static let cliSessionRequired = ErrorCode(rawValue: "cli_session_required")
     public static let adminRequired = ErrorCode(rawValue: "admin_required")
     public static let sameAdminRequired = ErrorCode(rawValue: "same_admin_required")
@@ -6999,6 +7003,23 @@ public struct TeamRoleRequiredMeta: Codable, Sendable {
         case actualRole = "actual_role"
         case requiredRole = "required_role"
         case requiresOrgAdmin = "requires_org_admin"
+    }
+}
+
+/// ScopeRefusedMeta is the meta of an insufficient_scope or
+/// requires_sign_in error: the scope the operation declares and the
+/// credential does not hold. The detail says what would hold it.
+public struct ScopeRefusedMeta: Codable, Sendable {
+    public var requiredScope: Scope
+
+    public init(
+        requiredScope: Scope
+    ) {
+        self.requiredScope = requiredScope
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case requiredScope = "required_scope"
     }
 }
 

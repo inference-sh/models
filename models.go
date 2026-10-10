@@ -2707,7 +2707,11 @@ const (
 	// account is signed into (authenticator enrollment, RequireBrowserSession).
 	// InvalidTTL (400): the elevation asked for a window outside
 	// models.AdminElevationMinTTL..AdminElevationMaxTTL.
+	// AdminScopesNotApproved (403): a platform admin's CLI login was approved
+	// with a scope list that does not name the admin scopes, so it can't be
+	// elevated: log in again approving them, then elevate.
 	ErrorCodeAdminSessionRequired   ErrorCode = "admin_session_required"
+	ErrorCodeAdminScopesNotApproved ErrorCode = "admin_scopes_not_approved"
 	ErrorCodeCLISessionRequired     ErrorCode = "cli_session_required"
 	ErrorCodeAdminRequired          ErrorCode = "admin_required"
 	ErrorCodeSameAdminRequired      ErrorCode = "same_admin_required"
@@ -2778,6 +2782,13 @@ type TeamRoleRequiredMeta struct {
 	ActualRole       TeamRole       `json:"actual_role,omitempty"`
 	RequiredRole     TeamRole       `json:"required_role,omitempty"`
 	RequiresOrgAdmin *bool          `json:"requires_org_admin,omitempty"`
+}
+
+// ScopeRefusedMeta is the meta of an insufficient_scope or
+// requires_sign_in error: the scope the operation declares and the
+// credential does not hold. The detail says what would hold it.
+type ScopeRefusedMeta struct {
+	RequiredScope Scope `json:"required_scope"`
 }
 
 // PaymentMethodRequiredMeta is the meta of a payment_method_required error.
@@ -4903,6 +4914,7 @@ type SDKTypes struct {
 	// Error codes and typed error meta
 	_errorCode             ErrorCode
 	_teamRoleRequiredMeta  TeamRoleRequiredMeta
+	_scopeRefusedMeta      ScopeRefusedMeta
 	_paymentMethodReqdMeta PaymentMethodRequiredMeta
 	// Response envelope
 	_responseMessage ResponseMessage
