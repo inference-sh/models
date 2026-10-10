@@ -1168,6 +1168,16 @@ type ScopesResponse struct {
 	Scopes  []ScopeDefinition      `json:"scopes"`
 	Groups  []ScopeGroupDefinition `json:"groups"`
 	Presets []ScopePreset          `json:"presets"`
+	// AccountScopes are the account holder's own scopes (approvals,
+	// profile and sessions, keys, billing writes) a sign-in may be approved
+	// for: the device approval page offers them as their own section. No
+	// key or app is ever granted one.
+	AccountScopes []ScopeDefinition `json:"account_scopes"`
+	// LoginPreset is what the device approval page preselects for
+	// `belt login`: the standard preset plus approvals:write (answering
+	// the person's own approvals from the CLI). Its Grants is what such a
+	// login holds (LoginGrants).
+	LoginPreset ScopePreset `json:"login_preset"`
 }
 
 // ScopePreset represents a predefined bundle of scopes for common use cases

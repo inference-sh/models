@@ -2850,21 +2850,37 @@ public struct ScopesResponse: Codable, Sendable {
     public var scopes: [ScopeDefinition]?
     public var groups: [ScopeGroupDefinition]?
     public var presets: [ScopePreset]?
+    /// AccountScopes are the account holder's own scopes (approvals,
+    /// profile and sessions, keys, billing writes) a sign-in may be approved
+    /// for: the device approval page offers them as their own section. No
+    /// key or app is ever granted one.
+    public var accountScopes: [ScopeDefinition]?
+    /// LoginPreset is what the device approval page preselects for
+    /// `belt login`: the standard preset plus approvals:write (answering
+    /// the person's own approvals from the CLI). Its Grants is what such a
+    /// login holds (LoginGrants).
+    @Indirect public var loginPreset: ScopePreset
 
     public init(
         scopes: [ScopeDefinition]? = nil,
         groups: [ScopeGroupDefinition]? = nil,
-        presets: [ScopePreset]? = nil
+        presets: [ScopePreset]? = nil,
+        accountScopes: [ScopeDefinition]? = nil,
+        loginPreset: ScopePreset
     ) {
         self.scopes = scopes
         self.groups = groups
         self.presets = presets
+        self.accountScopes = accountScopes
+        self.loginPreset = loginPreset
     }
 
     enum CodingKeys: String, CodingKey {
         case scopes = "scopes"
         case groups = "groups"
         case presets = "presets"
+        case accountScopes = "account_scopes"
+        case loginPreset = "login_preset"
     }
 }
 
