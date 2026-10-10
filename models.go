@@ -1091,6 +1091,12 @@ const (
 	// ScopeAdminWrite changes platform administration (/admin). Held only
 	// by an admin's own sign-in.
 	ScopeAdminWrite Scope = "admin:write"
+	// ScopeAdminPricing reads and changes store pricing: a version's
+	// terms, its draft pricing (edit, evaluate, discard, publish, apply to
+	// the listing) and the sample tasks drafts are evaluated against. Held
+	// by an admin's own sign-in with platform power, and by a key of the
+	// platform's automation account (ScopeDefinition.Automation).
+	ScopeAdminPricing Scope = "admin:pricing"
 )
 
 // ScopeGroup identifies a category of scopes for UI grouping
@@ -1136,6 +1142,11 @@ type ScopeDefinition struct {
 	// CostsCredits: using the scope spends the account's credits (running
 	// apps, agents, flows).
 	CostsCredits bool `json:"costs_credits,omitempty"`
+	// Automation: a narrow platform-administration scope that a workspace
+	// key of the platform's automation account (the system team's service
+	// account) may hold, minted by an admin with platform power and always
+	// expiring. Every other key, token and app holds no admin scope.
+	Automation bool `json:"automation,omitempty"`
 }
 
 // ScopeGroupDefinition describes a group of scopes for UI rendering

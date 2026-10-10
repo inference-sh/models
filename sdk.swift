@@ -2715,6 +2715,12 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     /// ScopeAdminWrite changes platform administration (/admin). Held only
     /// by an admin's own sign-in.
     public static let adminWrite = Scope(rawValue: "admin:write")
+    /// ScopeAdminPricing reads and changes store pricing: a version's
+    /// terms, its draft pricing (edit, evaluate, discard, publish, apply to
+    /// the listing) and the sample tasks drafts are evaluated against. Held
+    /// by an admin's own sign-in with platform power, and by a key of the
+    /// platform's automation account (ScopeDefinition.Automation).
+    public static let adminPricing = Scope(rawValue: "admin:pricing")
 }
 
 /// ScopeGroup identifies a category of scopes for UI grouping
@@ -2765,6 +2771,11 @@ public struct ScopeDefinition: Codable, Sendable {
     /// CostsCredits: using the scope spends the account's credits (running
     /// apps, agents, flows).
     public var costsCredits: Bool?
+    /// Automation: a narrow platform-administration scope that a workspace
+    /// key of the platform's automation account (the system team's service
+    /// account) may hold, minted by an admin with platform power and always
+    /// expiring. Every other key, token and app holds no admin scope.
+    public var automation: Bool?
 
     public init(
         value: Scope,
@@ -2773,7 +2784,8 @@ public struct ScopeDefinition: Codable, Sendable {
         group: ScopeGroup,
         signInOnly: Bool? = nil,
         notForApps: Bool? = nil,
-        costsCredits: Bool? = nil
+        costsCredits: Bool? = nil,
+        automation: Bool? = nil
     ) {
         self.value = value
         self.label = label
@@ -2782,6 +2794,7 @@ public struct ScopeDefinition: Codable, Sendable {
         self.signInOnly = signInOnly
         self.notForApps = notForApps
         self.costsCredits = costsCredits
+        self.automation = automation
     }
 
     enum CodingKeys: String, CodingKey {
@@ -2792,6 +2805,7 @@ public struct ScopeDefinition: Codable, Sendable {
         case signInOnly = "sign_in_only"
         case notForApps = "not_for_apps"
         case costsCredits = "costs_credits"
+        case automation = "automation"
     }
 }
 

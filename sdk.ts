@@ -887,7 +887,8 @@ export type Scope =
   | "settings:write"
   | "approvals:write"
   | "admin:read"
-  | "admin:write";
+  | "admin:write"
+  | "admin:pricing";
 /**
  * API Key Scopes - hierarchical permission system.
  * Resource-level scopes (e.g., "agents") imply all action-level scopes (e.g., "agents:read").
@@ -1182,6 +1183,14 @@ export const ScopeAdminRead: Scope = "admin:read";
  */
 export const ScopeAdminWrite: Scope = "admin:write";
 /**
+ * ScopeAdminPricing reads and changes store pricing: a version's
+ * terms, its draft pricing (edit, evaluate, discard, publish, apply to
+ * the listing) and the sample tasks drafts are evaluated against. Held
+ * by an admin's own sign-in with platform power, and by a key of the
+ * platform's automation account (ScopeDefinition.Automation).
+ */
+export const ScopeAdminPricing: Scope = "admin:pricing";
+/**
  * ScopeGroup identifies a category of scopes for UI grouping
  */
 export type ScopeGroup =
@@ -1250,6 +1259,13 @@ export interface ScopeDefinition {
    * apps, agents, flows).
    */
   costs_credits?: boolean;
+  /**
+   * Automation: a narrow platform-administration scope that a workspace
+   * key of the platform's automation account (the system team's service
+   * account) may hold, minted by an admin with platform power and always
+   * expiring. Every other key, token and app holds no admin scope.
+   */
+  automation?: boolean;
 }
 /**
  * ScopeGroupDefinition describes a group of scopes for UI rendering
