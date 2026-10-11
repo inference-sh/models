@@ -615,9 +615,14 @@ type CreateAgentMessageResponse struct {
 	AssistantMessage *ChatMessageDTO `json:"assistant_message"`
 }
 
-// ToolResultRequest represents a tool result submission
+// ToolResultRequest is the body of POST /tools/{id}: a client's result for a
+// tool call it ran.
 type ToolResultRequest struct {
 	Result string `json:"result"`
+	// Attachments are files uploaded with POST /files, as in MessageInput.
+	// The tool message carries them; images reach the model as image input
+	// when it accepts images.
+	Attachments []FileRef `json:"attachments,omitempty"`
 }
 
 // PartialFile is the clean DTO version (no gorm tags).

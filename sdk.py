@@ -339,9 +339,14 @@ class CreateAgentMessageResponse(TypedDict, total=False):
     user_message: Optional[ChatMessageDTO]
     assistant_message: Optional[ChatMessageDTO]
 
-# ToolResultRequest represents a tool result submission
+# ToolResultRequest is the body of POST /tools/{id}: a client's result for a
+# tool call it ran.
 class ToolResultRequest(TypedDict, total=False):
     result: str
+    # Attachments are files uploaded with POST /files, as in MessageInput.
+    # The tool message carries them; images reach the model as image input
+    # when it accepts images.
+    attachments: List[FileRef]
 
 # PartialFile is the clean DTO version (no gorm tags).
 class PartialFile(TypedDict, total=False):
@@ -5352,6 +5357,9 @@ class AgentEventType(str, Enum):
     AGENT_EVENT_CONTEXT_COMPACTED = "context.compacted"
     # Errors
     AGENT_EVENT_ERROR = "error"
+    AGENT_EVENT_SUBAGENT_STARTED = "subagent.started"
+    AGENT_EVENT_SUBAGENT_UPDATED = "subagent.updated"
+    AGENT_EVENT_SUBAGENT_COMPLETED = "subagent.completed"
 
 class ContentDeltaKind(str, Enum):
     CONTENT_DELTA_TEXT = "text"
@@ -5424,11 +5432,6 @@ class BuiltinHook(str, Enum):
     # background: on agent.complete every tenth user turn, and before
     # compaction drops the turns it would have learned from.
     BELT_EXTRACT = "belt:extract"
-
-class AgentEventType(str, Enum):
-    AGENT_EVENT_SUBAGENT_STARTED = "subagent.started"
-    AGENT_EVENT_SUBAGENT_UPDATED = "subagent.updated"
-    AGENT_EVENT_SUBAGENT_COMPLETED = "subagent.completed"
 
 class ToolInvocationStatus(str, Enum):
     PENDING = "pending"
