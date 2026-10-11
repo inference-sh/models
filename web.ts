@@ -2079,6 +2079,18 @@ export interface AppFunction {
    * a stream function declares a socket parameter. Empty means run.
    */
   kind?: FunctionKind;
+  /**
+   * Credentials the function needs at run time, declared on the function
+   * in app code. Each must be covered by the app-wide list in inf.yml.
+   * Empty means the function gets the app-wide list.
+   */
+  credentials?: CredentialRequirement[];
+  /**
+   * Annotations are MCP tool hints (read-only, destructive, idempotent,
+   * open-world) declared on the function. Hints only: nothing trusts
+   * them for an unverified namespace.
+   */
+  annotations?: ToolAnnotations;
 }
 /**
  * AppImages holds developer-provided images for the app.

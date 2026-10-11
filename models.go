@@ -1286,6 +1286,14 @@ type AppFunction struct {
 	// Kind is how the function talks to its caller, from engine discovery:
 	// a stream function declares a socket parameter. Empty means run.
 	Kind FunctionKind `json:"kind,omitempty"`
+	// Credentials the function needs at run time, declared on the function
+	// in app code. Each must be covered by the app-wide list in inf.yml.
+	// Empty means the function gets the app-wide list.
+	Credentials []CredentialRequirement `json:"credentials,omitempty"`
+	// Annotations are MCP tool hints (read-only, destructive, idempotent,
+	// open-world) declared on the function. Hints only: nothing trusts
+	// them for an unverified namespace.
+	Annotations *ToolAnnotations `json:"annotations,omitempty"`
 }
 
 // IsStream reports whether calling the function opens a socket.
@@ -5083,6 +5091,9 @@ type AppSDKTypes struct {
 	_ MetaItem
 	_ OutputMeta
 	_ RequestMetadata
+	// Per-function declarations (@function / <Name>Meta in app code).
+	_ CredentialRequirement
+	_ ToolAnnotations
 }
 
 // --------------------
