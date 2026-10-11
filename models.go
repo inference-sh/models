@@ -191,12 +191,18 @@ type SkillConfig struct {
 	Preload     bool   `json:"preload,omitempty" yaml:"preload,omitempty"`
 }
 
-// ContextField declares a context parameter expected by the agent.
+// ContextField declares a context parameter expected by the agent. The
+// agent's prompt names it with its description, and the agent writes
+// {{context.NAME}} in a tool call's arguments for the server to fill in;
+// it does not see the value unless InPrompt.
 type ContextField struct {
 	Name        string `json:"name" yaml:"name"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	Required    bool   `json:"required,omitempty" yaml:"required,omitempty"`
 	Default     string `json:"default,omitempty" yaml:"default,omitempty"`
+	// InPrompt shows the value to the model too, in the system prompt,
+	// labeled as the caller's data and quoted.
+	InPrompt bool `json:"in_prompt,omitempty" yaml:"in_prompt,omitempty"`
 }
 
 // AgentToolDTO for API responses
@@ -549,31 +555,59 @@ type ApiAppRunRequest struct {
 	Metadata       *TaskMetadata    `json:"metadata,omitempty"`
 }
 
-// ApiAgentRunRequest is the request body for /agents/run endpoint.
-type ApiAgentRunRequest struct {
-	ChatID      *string           `json:"chat_id,omitempty"`
-	AgentRef    *string           `json:"agent,omitempty"`
-	AgentConfig *AgentConfigInput `json:"agent_config,omitempty"`
-	AgentName   *string           `json:"agent_name,omitempty"`
-	Input       LLMInput          `json:"input" validate:"required"`
-	Context     map[string]string `json:"context,omitempty"`
-	Stream      bool              `json:"stream,omitempty"`
-	// ChannelContext is recorded on the chat the first time it is seen.
-	ChannelContext *ChannelContext `json:"channel_context,omitempty"`
+// MessageInput is a message a caller sends to an agent: its text and the
+// files sent with it. The model, its settings, the system prompt, the tools
+// and the history come from the agent and the chat. Every endpoint that
+// takes a message decodes this type.
+type MessageInput struct {
+	Text *string `json:"text,omitempty"`
+	// Attachments are files uploaded with POST /files. Images reach the
+	// model as image input.
+	Attachments []FileRef `json:"attachments,omitempty"`
+	// Deprecated: send Attachments. Image URIs, read only when Attachments
+	// is empty.
+	Images []string `json:"images,omitempty"`
+	// Deprecated: send Attachments. File URIs, read only when Attachments
+	// is empty.
+	Files []string `json:"files,omitempty"`
 }
 
-// CreateAgentMessageRequest is the request for creating agent messages.
-type CreateAgentMessageRequest struct {
-	ChatID         *string           `json:"chat_id,omitempty"`
+// IsEmpty reports whether the message has neither text nor files.
+func (m MessageInput) IsEmpty() bool {
+	return (m.Text == nil || *m.Text == "") && len(m.Attachments) == 0 && len(m.Images) == 0 && len(m.Files) == 0
+}
+
+// LLMInput is the message as a run takes it.
+func (m MessageInput) LLMInput() LLMInput {
+	in := LLMInput{Text: m.Text}
+	if len(m.Attachments) > 0 {
+		in.Attachments = &m.Attachments
+	}
+	if len(m.Images) > 0 {
+		in.Images = &m.Images
+	}
+	if len(m.Files) > 0 {
+		in.Files = &m.Files
+	}
+	return in
+}
+
+// ApiAgentRunRequest is the request body of POST /agents/run and its aliases
+// /agents/message and /agents/messages. It names the agent once: by ref
+// (agent), by id (agent_id, with an optional agent_version_id), or by an
+// ad-hoc agent_config; or names none and posts into chat_id's chat.
+type ApiAgentRunRequest struct {
+	ChatID   *string `json:"chat_id,omitempty"`
+	AgentRef *string `json:"agent,omitempty"`
+	// AgentID names a stored agent by id; AgentVersionID pins one of its
+	// versions (full or short id), else the agent's current version runs.
 	AgentID        *string           `json:"agent_id,omitempty"`
 	AgentVersionID *string           `json:"agent_version_id,omitempty"`
-	Agent          *string           `json:"agent,omitempty"`
-	ToolCallID     *string           `json:"tool_call_id,omitempty"`
-	Input          LLMInput          `json:"input" validate:"required"`
-	ChannelContext *ChannelContext   `json:"channel_context,omitempty"`
 	AgentConfig    *AgentConfigInput `json:"agent_config,omitempty"`
 	AgentName      *string           `json:"agent_name,omitempty"`
+	Input          MessageInput      `json:"input" validate:"required"`
 	Context        map[string]string `json:"context,omitempty"`
+	Stream         bool              `json:"stream,omitempty"`
 }
 
 type CreateAgentMessageResponse struct {
@@ -1097,12 +1131,15 @@ const (
 	// ScopeAdminWrite changes platform administration (/admin). Held only
 	// by an admin's own sign-in.
 	ScopeAdminWrite Scope = "admin:write"
-	// ScopeAdminPricing reads and changes store pricing: a version's
-	// terms, its draft pricing (edit, evaluate, discard, publish, apply to
-	// the listing) and the sample tasks drafts are evaluated against. Held
-	// by an admin's own sign-in with platform power, and by a key of the
-	// platform's automation account (ScopeDefinition.Automation).
-	ScopeAdminPricing Scope = "admin:pricing"
+	// ScopeStorePricing reads and changes store pricing: a version's terms,
+	// its draft pricing (edit, evaluate, discard, publish, apply to the
+	// listing) and the sample tasks drafts are evaluated against. Held only
+	// in the platform's workspace (the system team), by its members, their
+	// keys and runs, and its own keys.
+	ScopeStorePricing Scope = "store:pricing"
+	// ScopeStoreSubmit submits a resource version to the store on its
+	// publisher's behalf. Held like ScopeStorePricing.
+	ScopeStoreSubmit Scope = "store:submit"
 )
 
 // ScopeGroup identifies a category of scopes for UI grouping
@@ -1129,6 +1166,7 @@ const (
 	ScopeGroupSettings      ScopeGroup = "settings"
 	ScopeGroupApprovals     ScopeGroup = "approvals"
 	ScopeGroupAdmin         ScopeGroup = "admin"
+	ScopeGroupStore         ScopeGroup = "store"
 )
 
 // ScopeDefinition describes a single scope for UI rendering
@@ -1148,11 +1186,6 @@ type ScopeDefinition struct {
 	// CostsCredits: using the scope spends the account's credits (running
 	// apps, agents, flows).
 	CostsCredits bool `json:"costs_credits,omitempty"`
-	// Automation: a narrow platform-administration scope that a workspace
-	// key of the platform's automation account (the system team's service
-	// account) may hold, minted by an admin with platform power and always
-	// expiring. Every other key, token and app holds no admin scope.
-	Automation bool `json:"automation,omitempty"`
 }
 
 // ScopeGroupDefinition describes a group of scopes for UI rendering
@@ -2762,8 +2795,9 @@ const (
 	ErrorCodeFeatureNotAvailable    ErrorCode = "feature_not_available"
 	ErrorCodeEntitlementUnavailable ErrorCode = "entitlement_unavailable"
 	ErrorCodePaymentRequired        ErrorCode = "payment_required"
-	// ErrorCodePaymentMethodRequired (402): a bounty program requires a saved
-	// payment method and the caller's team has none. Meta is
+	// ErrorCodePaymentMethodRequired (402): the action needs a saved payment
+	// method and the caller's team has none: a bounty program that requires
+	// one, or a free app run without a balance. Meta is
 	// PaymentMethodRequiredMeta; clients send the user to BillingPage.
 	ErrorCodePaymentMethodRequired ErrorCode = "payment_method_required"
 	// Form submissions (409): the form is not open, or its submit policy
@@ -2824,8 +2858,9 @@ type ScopeRefusedMeta struct {
 }
 
 // PaymentMethodRequiredMeta is the meta of a payment_method_required error.
+// BountyID is set when a bounty claim was refused.
 type PaymentMethodRequiredMeta struct {
-	BountyID    string `json:"bounty_id"`
+	BountyID    string `json:"bounty_id,omitempty"`
 	BillingPage string `json:"billing_page"`
 }
 
@@ -4474,6 +4509,14 @@ type HarnessCapabilities struct {
 	Resume bool `json:"resume"`
 	// Tools: the caller can supply tools for the harness to call.
 	Tools bool `json:"tools"`
+	// Images: an image attached to a prompt reaches the harness's model as an
+	// image. When false the harness gets the image's path on the remote, and
+	// sees it only if it opens it.
+	Images bool `json:"images"`
+	// Files: the daemon hands a prompt's attached files to the harness, as
+	// images or as paths on the remote. A daemon older than this reads only
+	// the prompt's text, so the server writes the files' URLs into it.
+	Files bool `json:"files"`
 }
 
 // RemoteRegisterRequest creates a remote from a connecting daemon.
@@ -4950,6 +4993,8 @@ type SDKTypes struct {
 	_paymentMethodReqdMeta PaymentMethodRequiredMeta
 	// Response envelope
 	_responseMessage ResponseMessage
+	// An LLM app's task input; no agent request type reaches it.
+	_llmInput LLMInput
 	// Output
 	_outputMeta    OutputMeta
 	_llmOutput     LLMOutput
@@ -4989,7 +5034,6 @@ type SDKTypes struct {
 	_agentDTO           AgentDTO
 	_agentVersionDTO    AgentVersionDTO
 	_agentRun           ApiAgentRunRequest
-	_createAgentMsg     CreateAgentMessageRequest
 	_createAgentMsgResp CreateAgentMessageResponse
 	_moveAgentToProject MoveAgentToProjectRequest
 	// Interrupts
@@ -5186,7 +5230,6 @@ type EngineTypes struct {
 	_taskCost           TaskCostDTO
 	_taskLogs           TaskLogsDTO
 	_taskTimings        TaskTimingsDTO
-	_agentMsgReq        CreateAgentMessageRequest
 	_agentMsgResp       CreateAgentMessageResponse
 	_capabilities       CapabilitiesResponse
 	// Affinity
@@ -6414,10 +6457,14 @@ type WsRemoteSessionOpen struct {
 // WsRemoteSessionPrompt sends a user message into a chat's session. RunID is
 // the run this turn belongs to; the daemon stamps it on every event the turn
 // produces, since one harness session serves many runs.
+//
+// The turn is agentprotocol's TurnInput, the text and the attached files,
+// which the daemon hands to the harness driver as it is. Its fields sit at
+// the top level, so a daemon older than files still reads the text.
 type WsRemoteSessionPrompt struct {
 	ChatID string `json:"chat_id"`
 	RunID  string `json:"run_id"`
-	Text   string `json:"text"`
+	TurnInput
 }
 
 // WsRemoteSessionInterrupt abandons the turn in flight and keeps the session.
@@ -10026,6 +10073,26 @@ type ToolParameterProperty struct {
 	Properties  *ToolParameterProperties `json:"properties,omitempty"`
 	Items       *ToolParameterProperty   `json:"items,omitempty"`
 	Required    *[]string                `json:"required,omitempty"`
+}
+
+// --------------------
+// source: turn_input.go
+// --------------------
+
+// TurnInput is what a user sends into a turn: the text and the files
+// attached to it. It is the one shape for a prompt from the server that
+// stores the message, through the host that runs the agent, to the driver
+// that hands it to the agent, so none of them can drop a part the others
+// carry.
+//
+// A file's URI is where its bytes are: a URL the server stores it at, or a
+// file:// path on the host the agent runs on. A host fetches remote files
+// before the driver sees them where it can, because a driver only reads local
+// bytes: it sends an image the agent can take as an image, and names every
+// other file, by path, in the text.
+type TurnInput struct {
+	Text  string    `json:"text"`
+	Files []FileRef `json:"files,omitempty"`
 }
 
 // --------------------
