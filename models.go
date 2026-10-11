@@ -2761,6 +2761,10 @@ const (
 	// scope the operation takes (an API key, an app's OAuth token or a
 	// narrowed login granted less). The detail names the scope.
 	ErrorCodeInsufficientScope ErrorCode = "insufficient_scope"
+	// ErrorCodeInvalidScope (400): a grant request (an OAuth authorization,
+	// a device sign-in's approval) named only scopes this server does not
+	// know. The detail names them.
+	ErrorCodeInvalidScope ErrorCode = "invalid_scope"
 	// ErrorCodeImpersonationReasonRequired (403): a platform admin named a
 	// team they are not a member of without a live impersonation grant.
 	// Clients stop viewing as the team on it.

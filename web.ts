@@ -4215,6 +4215,7 @@ export type ErrorCode =
   | "otp_required"
   | "requires_sign_in"
   | "insufficient_scope"
+  | "invalid_scope"
   | "impersonation_reason_required"
   | "mcp_auth_expired"
   | "admin_session_required"
@@ -4310,6 +4311,12 @@ export const ErrorCodeRequiresSignIn: ErrorCode = "requires_sign_in";
  * narrowed login granted less). The detail names the scope.
  */
 export const ErrorCodeInsufficientScope: ErrorCode = "insufficient_scope";
+/**
+ * ErrorCodeInvalidScope (400): a grant request (an OAuth authorization,
+ * a device sign-in's approval) named only scopes this server does not
+ * know. The detail names them.
+ */
+export const ErrorCodeInvalidScope: ErrorCode = "invalid_scope";
 /**
  * ErrorCodeImpersonationReasonRequired (403): a platform admin named a
  * team they are not a member of without a live impersonation grant.
