@@ -9182,8 +9182,13 @@ const (
 	AgentEventApprovalResolved AgentEventType = "approval.resolved"
 	// Hook lifecycle
 	AgentEventHookExecuted AgentEventType = "hook.executed"
-	// Usage
-	AgentEventUsageUpdated AgentEventType = "usage.updated"
+	// Usage: a turn's tokens (usage.updated), the context window's fill
+	// (context.updated), the plan's rate limits (limits.updated) and the
+	// account the agent runs as (account.updated).
+	AgentEventUsageUpdated   AgentEventType = "usage.updated"
+	AgentEventContextUpdated AgentEventType = "context.updated"
+	AgentEventLimitsUpdated  AgentEventType = "limits.updated"
+	AgentEventAccountUpdated AgentEventType = "account.updated"
 	// Context management
 	AgentEventContextCompacted AgentEventType = "context.compacted"
 	// Errors
@@ -9242,6 +9247,8 @@ type TurnCompletedPayload struct {
 type ContentDeltaPayload struct {
 	Kind  ContentDeltaKind `json:"kind"`
 	Delta string           `json:"delta"`
+	// SubagentID is set on a subagent's own output (subagent_types.go).
+	SubagentID string `json:"subagent_id,omitempty"`
 }
 
 type ContentDeltaKind string
@@ -9257,6 +9264,8 @@ type ToolStartedPayload struct {
 	ToolType         ToolType         `json:"tool_type,omitempty"`
 	DisplayName      string           `json:"display_name,omitempty"`
 	Arguments        StringEncodedMap `json:"arguments,omitempty"`
+	// SubagentID is set on a subagent's own tool calls.
+	SubagentID string `json:"subagent_id,omitempty"`
 }
 
 type ToolCompletedPayload struct {
@@ -9265,6 +9274,8 @@ type ToolCompletedPayload struct {
 	Status           ToolInvocationStatus `json:"status"`
 	Result           string               `json:"result,omitempty"`
 	DurationMs       int64                `json:"duration_ms,omitempty"`
+	// SubagentID is set on a subagent's own tool calls.
+	SubagentID string `json:"subagent_id,omitempty"`
 }
 
 type ApprovalRequiredPayload struct {
@@ -9272,6 +9283,9 @@ type ApprovalRequiredPayload struct {
 	ToolName         string           `json:"tool_name"`
 	Arguments        StringEncodedMap `json:"arguments,omitempty"`
 	Reason           InterruptReason  `json:"reason"`
+	// SubagentID is set when a subagent asks: its tool call, not the
+	// agent's.
+	SubagentID string `json:"subagent_id,omitempty"`
 }
 
 type ApprovalResolvedPayload struct {
@@ -9288,12 +9302,21 @@ type HookExecutedPayload struct {
 	DurationMs int64        `json:"duration_ms,omitempty"`
 }
 
+// UsageUpdatedPayload is what one turn used, emitted once when the turn
+// ends. PromptTokens counts every input token, cached or not:
+// CachedInputTokens (read from a prompt cache) and CacheCreationTokens
+// (written to one) are parts of it. ReasoningTokens is part of
+// CompletionTokens. CostUSD is the agent's own figure, 0 when it reports
+// none.
 type UsageUpdatedPayload struct {
-	PromptTokens     int     `json:"prompt_tokens"`
-	CompletionTokens int     `json:"completion_tokens"`
-	TotalTokens      int     `json:"total_tokens"`
-	ReasoningTokens  int     `json:"reasoning_tokens,omitempty"`
-	CostUSD          float64 `json:"cost_usd,omitempty"`
+	PromptTokens        int             `json:"prompt_tokens"`
+	CompletionTokens    int             `json:"completion_tokens"`
+	TotalTokens         int             `json:"total_tokens"`
+	CachedInputTokens   int             `json:"cached_input_tokens,omitempty"`
+	CacheCreationTokens int             `json:"cache_creation_tokens,omitempty"`
+	ReasoningTokens     int             `json:"reasoning_tokens,omitempty"`
+	CostUSD             float64         `json:"cost_usd,omitempty"`
+	Status              TurnUsageStatus `json:"status,omitempty"`
 }
 
 type ContextCompactedPayload struct {
@@ -9759,6 +9782,16 @@ type ErrorEventData struct {
 }
 
 // --------------------
+// source: subagent_types.go
+// --------------------
+
+const (
+	AgentEventSubagentStarted   AgentEventType = "subagent.started"
+	AgentEventSubagentUpdated   AgentEventType = "subagent.updated"
+	AgentEventSubagentCompleted AgentEventType = "subagent.completed"
+)
+
+// --------------------
 // source: tool_contracts.go
 // --------------------
 
@@ -9965,6 +9998,21 @@ type ToolParameterProperty struct {
 	Items       *ToolParameterProperty   `json:"items,omitempty"`
 	Required    *[]string                `json:"required,omitempty"`
 }
+
+// --------------------
+// source: usage_types.go
+// --------------------
+
+// TurnUsageStatus says how much of a turn's usage the agent reported.
+type TurnUsageStatus string
+
+const (
+	// TurnUsageComplete is the whole turn, as the agent counted it.
+	TurnUsageComplete TurnUsageStatus = "complete"
+	// TurnUsagePartial is what was reported before the turn ended early
+	// (interrupted, failed).
+	TurnUsagePartial TurnUsageStatus = "partial"
+)
 
 // --------------------
 // companion functions

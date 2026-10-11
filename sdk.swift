@@ -17192,12 +17192,20 @@ public struct AgentEventType: RawRepresentable, Codable, Hashable, Sendable {
     public static let agentEventApprovalResolved = AgentEventType(rawValue: "approval.resolved")
     /// Hook lifecycle
     public static let agentEventHookExecuted = AgentEventType(rawValue: "hook.executed")
-    /// Usage
+    /// Usage: a turn's tokens (usage.updated), the context window's fill
+    /// (context.updated), the plan's rate limits (limits.updated) and the
+    /// account the agent runs as (account.updated).
     public static let agentEventUsageUpdated = AgentEventType(rawValue: "usage.updated")
+    public static let agentEventContextUpdated = AgentEventType(rawValue: "context.updated")
+    public static let agentEventLimitsUpdated = AgentEventType(rawValue: "limits.updated")
+    public static let agentEventAccountUpdated = AgentEventType(rawValue: "account.updated")
     /// Context management
     public static let agentEventContextCompacted = AgentEventType(rawValue: "context.compacted")
     /// Errors
     public static let agentEventError = AgentEventType(rawValue: "error")
+    public static let agentEventSubagentStarted = AgentEventType(rawValue: "subagent.started")
+    public static let agentEventSubagentUpdated = AgentEventType(rawValue: "subagent.updated")
+    public static let agentEventSubagentCompleted = AgentEventType(rawValue: "subagent.completed")
 }
 
 /// AgentEvent is the backbone protocol event for agent runs.
@@ -17331,18 +17339,23 @@ public struct TurnCompletedPayload: Codable, Sendable {
 public struct ContentDeltaPayload: Codable, Sendable {
     public var kind: ContentDeltaKind
     public var delta: String
+    /// SubagentID is set on a subagent's own output (subagent_types.go).
+    public var subagentId: String?
 
     public init(
         kind: ContentDeltaKind,
-        delta: String = ""
+        delta: String = "",
+        subagentId: String? = nil
     ) {
         self.kind = kind
         self.delta = delta
+        self.subagentId = subagentId
     }
 
     enum CodingKeys: String, CodingKey {
         case kind = "kind"
         case delta = "delta"
+        case subagentId = "subagent_id"
     }
 }
 
@@ -17360,19 +17373,23 @@ public struct ToolStartedPayload: Codable, Sendable {
     public var toolType: ToolType?
     public var displayName: String?
     public var arguments: StringEncodedMap?
+    /// SubagentID is set on a subagent's own tool calls.
+    public var subagentId: String?
 
     public init(
         toolInvocationId: String = "",
         toolName: String = "",
         toolType: ToolType? = nil,
         displayName: String? = nil,
-        arguments: StringEncodedMap? = nil
+        arguments: StringEncodedMap? = nil,
+        subagentId: String? = nil
     ) {
         self.toolInvocationId = toolInvocationId
         self.toolName = toolName
         self.toolType = toolType
         self.displayName = displayName
         self.arguments = arguments
+        self.subagentId = subagentId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -17381,6 +17398,7 @@ public struct ToolStartedPayload: Codable, Sendable {
         case toolType = "tool_type"
         case displayName = "display_name"
         case arguments = "arguments"
+        case subagentId = "subagent_id"
     }
 }
 
@@ -17390,19 +17408,23 @@ public struct ToolCompletedPayload: Codable, Sendable {
     public var status: ToolInvocationStatus
     public var result: String?
     public var durationMs: Int?
+    /// SubagentID is set on a subagent's own tool calls.
+    public var subagentId: String?
 
     public init(
         toolInvocationId: String = "",
         toolName: String = "",
         status: ToolInvocationStatus,
         result: String? = nil,
-        durationMs: Int? = nil
+        durationMs: Int? = nil,
+        subagentId: String? = nil
     ) {
         self.toolInvocationId = toolInvocationId
         self.toolName = toolName
         self.status = status
         self.result = result
         self.durationMs = durationMs
+        self.subagentId = subagentId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -17411,6 +17433,7 @@ public struct ToolCompletedPayload: Codable, Sendable {
         case status = "status"
         case result = "result"
         case durationMs = "duration_ms"
+        case subagentId = "subagent_id"
     }
 }
 
@@ -17419,17 +17442,22 @@ public struct ApprovalRequiredPayload: Codable, Sendable {
     public var toolName: String
     public var arguments: StringEncodedMap?
     public var reason: InterruptReason
+    /// SubagentID is set when a subagent asks: its tool call, not the
+    /// agent's.
+    public var subagentId: String?
 
     public init(
         toolInvocationId: String = "",
         toolName: String = "",
         arguments: StringEncodedMap? = nil,
-        reason: InterruptReason
+        reason: InterruptReason,
+        subagentId: String? = nil
     ) {
         self.toolInvocationId = toolInvocationId
         self.toolName = toolName
         self.arguments = arguments
         self.reason = reason
+        self.subagentId = subagentId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -17437,6 +17465,7 @@ public struct ApprovalRequiredPayload: Codable, Sendable {
         case toolName = "tool_name"
         case arguments = "arguments"
         case reason = "reason"
+        case subagentId = "subagent_id"
     }
 }
 
@@ -17493,33 +17522,51 @@ public struct HookExecutedPayload: Codable, Sendable {
     }
 }
 
+/// UsageUpdatedPayload is what one turn used, emitted once when the turn
+/// ends. PromptTokens counts every input token, cached or not:
+/// CachedInputTokens (read from a prompt cache) and CacheCreationTokens
+/// (written to one) are parts of it. ReasoningTokens is part of
+/// CompletionTokens. CostUSD is the agent's own figure, 0 when it reports
+/// none.
 public struct UsageUpdatedPayload: Codable, Sendable {
     public var promptTokens: Int
     public var completionTokens: Int
     public var totalTokens: Int
+    public var cachedInputTokens: Int?
+    public var cacheCreationTokens: Int?
     public var reasoningTokens: Int?
     public var costUsd: Double?
+    public var status: TurnUsageStatus?
 
     public init(
         promptTokens: Int = 0,
         completionTokens: Int = 0,
         totalTokens: Int = 0,
+        cachedInputTokens: Int? = nil,
+        cacheCreationTokens: Int? = nil,
         reasoningTokens: Int? = nil,
-        costUsd: Double? = nil
+        costUsd: Double? = nil,
+        status: TurnUsageStatus? = nil
     ) {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
+        self.cachedInputTokens = cachedInputTokens
+        self.cacheCreationTokens = cacheCreationTokens
         self.reasoningTokens = reasoningTokens
         self.costUsd = costUsd
+        self.status = status
     }
 
     enum CodingKeys: String, CodingKey {
         case promptTokens = "prompt_tokens"
         case completionTokens = "completion_tokens"
         case totalTokens = "total_tokens"
+        case cachedInputTokens = "cached_input_tokens"
+        case cacheCreationTokens = "cache_creation_tokens"
         case reasoningTokens = "reasoning_tokens"
         case costUsd = "cost_usd"
+        case status = "status"
     }
 }
 
@@ -18235,5 +18282,17 @@ public struct ToolParameterProperty: Codable, Sendable {
         case items = "items"
         case required = "required"
     }
+}
+
+/// TurnUsageStatus says how much of a turn's usage the agent reported.
+public struct TurnUsageStatus: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// TurnUsageComplete is the whole turn, as the agent counted it.
+    public static let turnUsageComplete = TurnUsageStatus(rawValue: "complete")
+    /// TurnUsagePartial is what was reported before the turn ended early
+    /// (interrupted, failed).
+    public static let turnUsagePartial = TurnUsageStatus(rawValue: "partial")
 }
 
