@@ -1955,6 +1955,11 @@ export interface ScopesResponse {
    */
   account_scopes: ScopeDefinition[];
   /**
+   * AccountGroups are the groups AccountScopes fall in, so the page labels
+   * them the way it labels Groups.
+   */
+  account_groups: ScopeGroupDefinition[];
+  /**
    * LoginPreset is what the device approval page preselects for
    * `belt login`: the standard preset plus approvals:write (answering
    * the person's own approvals from the CLI). Its Grants is what such a

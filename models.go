@@ -1179,6 +1179,9 @@ type ScopesResponse struct {
 	// for: the device approval page offers them as their own section. No
 	// key or app is ever granted one.
 	AccountScopes []ScopeDefinition `json:"account_scopes"`
+	// AccountGroups are the groups AccountScopes fall in, so the page labels
+	// them the way it labels Groups.
+	AccountGroups []ScopeGroupDefinition `json:"account_groups"`
 	// LoginPreset is what the device approval page preselects for
 	// `belt login`: the standard preset plus approvals:write (answering
 	// the person's own approvals from the CLI). Its Grants is what such a
