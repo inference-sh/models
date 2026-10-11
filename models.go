@@ -1464,6 +1464,21 @@ type AppVersionDTO struct {
 	// package's inf.yml) and on a version with no package (a flow app).
 	Sandbox  *AppSandbox `json:"sandbox,omitempty"`
 	Checksum string      `json:"checksum,omitempty"`
+	// Warnings are what the deploy that created this version accepted but
+	// the author should fix. Only the deploy's own response carries them.
+	Warnings []DeployWarning `json:"warnings,omitempty"`
+}
+
+// DeployWarning is something a deploy accepted but the author should fix:
+// the app works, but asks for more than it needs or says less than clients
+// use.
+type DeployWarning struct {
+	// Code identifies the check: readonly_broad_credential,
+	// unused_credential, missing_annotations.
+	Code string `json:"code"`
+	// Function is the function the warning is about, when it is about one.
+	Function string `json:"function,omitempty"`
+	Message  string `json:"message"`
 }
 
 // LicenseRecordDTO is the API response for a license record.
