@@ -5130,6 +5130,7 @@ type SDKTypes struct {
 	_appCategory     AppCategory
 	_decisionInput   DecisionInput
 	_decisionVision  DecisionVisionInput
+	_decisionVideo   DecisionVideoInput
 	_decisionOutput  DecisionOutput
 	_storeCategory   StoreCategoryDTO
 	_storeTag        StoreTagDTO
@@ -7473,6 +7474,14 @@ type DecisionVisionInput struct {
 	DecisionInput `tstype:",extends"`
 	// Images are file URIs. Every question sees them.
 	Images []string `json:"images,omitempty"`
+}
+
+// DecisionVideoInput is the input of a decision model that also watches
+// videos: a DecisionVisionInput plus the videos the questions are about.
+type DecisionVideoInput struct {
+	DecisionVisionInput `tstype:",extends"`
+	// Videos are file URIs. Every question sees them, after the images.
+	Videos []string `json:"videos,omitempty"`
 }
 
 // DecisionChoiceAnswer is the answer to a choice question.
