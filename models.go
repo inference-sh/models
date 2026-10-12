@@ -8488,11 +8488,24 @@ type StreamDelta struct {
 // LLMOutput is the output envelope from an LLM provider task.
 // This is the contract between chat apps (sdk-py) and the agent runtime (go/api).
 type LLMOutput struct {
-	Response  string      `json:"response"`
-	Reasoning *string     `json:"reasoning"`
-	ToolCalls *[]ToolCall `json:"tool_calls"`
-	Usage     *LLMUsage   `json:"usage"`
+	Response       string         `json:"response"`
+	Reasoning      *string        `json:"reasoning"`
+	ReasoningState ReasoningState `json:"reasoning_state,omitempty"`
+	ToolCalls      *[]ToolCall    `json:"tool_calls"`
+	Usage          *LLMUsage      `json:"usage"`
 }
+
+// ReasoningState is the opaque state a model hands back with a response for
+// the next request to carry: a signature over its reasoning (Anthropic
+// thinking, Gemini thought_signature) or the reasoning itself encrypted
+// (OpenAI). The platform never reads it. An app writes its own entry under
+// its own key and, replaying a conversation, places only the entries it
+// wrote: another provider's signature in its request is refused. The agent
+// loop stores every assistant message's state and sends all of it back, so a
+// conversation that moves between models keeps each one's state for it.
+//
+// Not on LLMDelta: the state is whole only on the final output.
+type ReasoningState map[string]json.RawMessage
 
 // LLMDelta is a streaming delta for LLMOutput.
 type LLMDelta struct {
@@ -8632,14 +8645,17 @@ func (in LLMInput) TaskInput() (json.RawMessage, error) {
 
 // LLMContextMessage represents a message in the chat context for LLM tasks
 type LLMContextMessage struct {
-	Role       ChatMessageRole `json:"role"`
-	Text       *string         `json:"text"`
-	Reasoning  *string         `json:"reasoning"`
-	Images     *[]string       `json:"images"`
-	Files      *[]string       `json:"files"`
-	Tools      *[]Tool         `json:"tools"`
-	ToolCalls  *[]ToolCall     `json:"tool_calls"`
-	ToolCallID *string         `json:"tool_call_id,omitempty"`
+	Role      ChatMessageRole `json:"role"`
+	Text      *string         `json:"text"`
+	Reasoning *string         `json:"reasoning"`
+	// ReasoningState is what the model's output carried, on an assistant
+	// message: see ReasoningState.
+	ReasoningState ReasoningState `json:"reasoning_state,omitempty"`
+	Images         *[]string      `json:"images"`
+	Files          *[]string      `json:"files"`
+	Tools          *[]Tool        `json:"tools"`
+	ToolCalls      *[]ToolCall    `json:"tool_calls"`
+	ToolCallID     *string        `json:"tool_call_id,omitempty"`
 }
 
 // --------------------
