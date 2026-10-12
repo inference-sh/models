@@ -240,9 +240,16 @@ export interface HTTPToolConfig {
   input_schema?: any;
   output_schema?: any;
 }
+/**
+ * MCPToolConfig is a tool of an MCP server: the server by its slug (the
+ * agent's team's registration, its org's or the directory's) and the tool
+ * to call. CredentialID pins the connection the call signs in with; without
+ * it the runner's connection to the server's provider is used.
+ */
 export interface MCPToolConfig {
-  credential_id?: string;
+  server: string;
   tool_name: string;
+  credential_id?: string;
 }
 export interface AppToolConfigDTO {
   ref: string;
@@ -289,8 +296,9 @@ export interface HTTPToolConfigDTO {
   output_schema?: any;
 }
 export interface MCPToolConfigDTO {
-  credential_id: string;
+  server: string;
   tool_name: string;
+  credential_id?: string;
 }
 /**
  * AgentImages contains display images for an agent
@@ -3703,107 +3711,6 @@ export interface CredentialAppRequest {
   values: { [key: string]: string};
 }
 /**
- * AuthAppField is an extra, non-secret key an OAuth app carries beside its
- * client id and secret, declared by the authorization server's profile (a
- * directory tenant, say) so the app form asks for it.
- */
-export interface AuthAppField {
-  key: string;
-  label: string;
-  /**
-   * Help says when and how to fill it.
-   */
-  help?: string;
-  optional?: boolean;
-}
-/**
- * MCPOAuthAppDTO is one OAuth app for an MCP server's host, owned by a team,
- * an org or the platform. The client secret is never returned.
- */
-export interface MCPOAuthAppDTO {
-  id: string;
-  scope: CredentialScope;
-  status: CredentialStatus;
-  client_id: string;
-  has_secret: boolean;
-  /**
-   * Fields are the app's values for the profile's AppFields.
-   */
-  fields?: { [key: string]: string};
-}
-/**
- * MCPOAuthAppStatus answers GET /credentials/mcp/app?server_url=: how a
- * connection to an MCP server signs in, for the connect dialog.
- */
-export interface MCPOAuthAppStatus {
-  server_url: string;
-  /**
-   * Account is the server's host: OAuth apps are set per host.
-   */
-  account: string;
-  /**
-   * App is the app a new connection would go through: the caller's team's,
-   * else its org's, else the platform's. Nil when there is none.
-   */
-  app?: MCPOAuthAppDTO;
-  /**
-   * Apps are every app for this host the caller's connections could use.
-   */
-  apps: MCPOAuthAppDTO[];
-  /**
-   * ManageScopes are the owners whose app the caller may set (team, org,
-   * platform), decided by capabilities. Empty: ask an admin.
-   */
-  manage_scopes: CredentialScope[];
-  /**
-   * RedirectURL is the callback the OAuth app must register.
-   */
-  redirect_url: string;
-  /**
-   * AuthorizationServer is the issuer the server's metadata names; empty
-   * when discovery failed.
-   */
-  authorization_server?: string;
-  /**
-   * NeedsApp: the authorization server offers no dynamic registration, so
-   * connections need an OAuth app someone sets up.
-   */
-  needs_app: boolean;
-  /**
-   * AppFields are the extra keys an app for this authorization server
-   * carries, from its profile. Empty for most servers.
-   */
-  app_fields: AuthAppField[];
-  /**
-   * AdminConsentURL is the link an admin of the signing-in organization
-   * opens once to approve the app, when the authorization server has that
-   * step and an app exists.
-   */
-  admin_consent_url?: string;
-  /**
-   * Scopes are what a connection requests.
-   */
-  scopes?: string[];
-  /**
-   * RecommendedHeaders are the static headers the server's directory entry
-   * recommends (MCPServerSetup), for the headers editor to offer.
-   */
-  recommended_headers?: { [key: string]: string};
-}
-/**
- * MCPOAuthAppRequest is the body of PUT /credentials/mcp/app: the OAuth app
- * for the server's host, owned at Scope (team, org or platform; empty = the
- * caller's workspace). A blank secret keeps the stored one. Fields are the
- * values for the authorization server's AppFields; blanks keep what is stored.
- */
-export interface MCPOAuthAppRequest {
-  server_url: string;
-  scope?: CredentialScope;
-  client_id?: string;
-  client_secret?: string;
-  fields?: { [key: string]: string};
-}
-/**
  * OAuthNoticeOutcome is what an authorization server's redirect amounted to.
  */
 export type OAuthNoticeOutcome = "error" | "approved";
@@ -5770,7 +5677,6 @@ export interface MCPServerDTO {
   icon_url: string;
   server_url: string;
   auth_type: MCPServerAuthType;
-  oauth_client_id?: string;
   default_scopes: StringSlice;
   /**
    * Headers are static HTTP headers sent on every request to the server,
@@ -5838,7 +5744,6 @@ export interface AdminMCPServerDTO {
   icon_url: string;
   server_url: string;
   auth_type: MCPServerAuthType;
-  oauth_client_id?: string;
   default_scopes: StringSlice;
   documentation_url: string;
   credentials?: CredentialRequirements;
@@ -11745,7 +11650,6 @@ export type CredentialProvider =
   | "salesforce"
   | "discord"
   | "gcp"
-  | "mcp"
   | "reddit";
 /**
  * Credential.Provider is a plain string; cast with string(...) when assigning.
@@ -11790,23 +11694,13 @@ export const CredentialProviderGCP: CredentialProvider = "gcp";
 /**
  * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
-export const CredentialProviderMCP: CredentialProvider = "mcp";
-/**
- * Credential.Provider is a plain string; cast with string(...) when assigning.
- */
 export const CredentialProviderReddit: CredentialProvider = "reddit";
 /**
  * CredentialType describes the credential category.
  */
-export type CredentialType =
-  | "oauth"
-  | "api_key"
-  | "mcp"
-  | "service_account"
-  | "wif";
+export type CredentialType = "oauth" | "api_key" | "service_account" | "wif";
 export const CredentialTypeOAuth: CredentialType = "oauth";
 export const CredentialTypeAPIKey: CredentialType = "api_key";
-export const CredentialTypeMCP: CredentialType = "mcp";
 export const CredentialTypeServiceAccount: CredentialType = "service_account";
 export const CredentialTypeWIF: CredentialType = "wif";
 /**

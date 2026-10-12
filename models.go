@@ -311,9 +311,14 @@ type HTTPToolConfig struct {
 	OutputSchema     json.RawMessage   `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 }
 
+// MCPToolConfig is a tool of an MCP server: the server by its slug (the
+// agent's team's registration, its org's or the directory's) and the tool
+// to call. CredentialID pins the connection the call signs in with; without
+// it the runner's connection to the server's provider is used.
 type MCPToolConfig struct {
-	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
+	Server       string `json:"server" yaml:"server"`
 	ToolName     string `json:"tool_name" yaml:"tool_name"`
+	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
 }
 
 type AppToolConfigDTO struct {
@@ -362,8 +367,9 @@ type HTTPToolConfigDTO struct {
 }
 
 type MCPToolConfigDTO struct {
-	CredentialID string `json:"credential_id"`
+	Server       string `json:"server"`
 	ToolName     string `json:"tool_name"`
+	CredentialID string `json:"credential_id,omitempty"`
 }
 
 // AgentImages contains display images for an agent
@@ -4307,14 +4313,12 @@ type MCPServerDTO struct {
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 	// Title is the human-readable name; empty falls back to Name.
-	Title          string            `json:"title"`
-	Description    string            `json:"description"`
-	IconURL        string            `json:"icon_url"`
-	ServerURL      string            `json:"server_url"`
-	AuthType       MCPServerAuthType `json:"auth_type"`
-	OAuthClientID  string            `json:"oauth_client_id,omitempty"`
-	OAuthSecretKey string            `json:"-"`
-	DefaultScopes  StringSlice       `json:"default_scopes"`
+	Title         string            `json:"title"`
+	Description   string            `json:"description"`
+	IconURL       string            `json:"icon_url"`
+	ServerURL     string            `json:"server_url"`
+	AuthType      MCPServerAuthType `json:"auth_type"`
+	DefaultScopes StringSlice       `json:"default_scopes"`
 	// Headers are static HTTP headers sent on every request to the server,
 	// set by the team's admins (e.g. X-MCP-Toolsets, X-MCP-Readonly).
 	Headers map[string]string `json:"headers,omitempty"`
@@ -9096,7 +9100,6 @@ const (
 	CredentialProviderSalesforce CredentialProvider = "salesforce"
 	CredentialProviderDiscord    CredentialProvider = "discord"
 	CredentialProviderGCP        CredentialProvider = "gcp"
-	CredentialProviderMCP        CredentialProvider = "mcp"
 	CredentialProviderReddit     CredentialProvider = "reddit"
 )
 
@@ -9106,7 +9109,6 @@ type CredentialType string
 const (
 	CredentialTypeOAuth          CredentialType = "oauth"
 	CredentialTypeAPIKey         CredentialType = "api_key"
-	CredentialTypeMCP            CredentialType = "mcp"
 	CredentialTypeServiceAccount CredentialType = "service_account"
 	CredentialTypeWIF            CredentialType = "wif"
 )
