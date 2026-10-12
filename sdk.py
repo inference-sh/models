@@ -455,6 +455,10 @@ class DeviceAuthPollResponse(TypedDict, total=False):
     # CLI login that asked now carries admin power until then. No
     # credential comes with it.
     admin_until: Optional[str]
+    # Interval is the polling interval in seconds the device is now held
+    # to, set with status slow_down (RFC 8628 3.5: each one raises it by
+    # five seconds).
+    interval: int
 
 # AdminElevateRequest is the body of POST /device/auth/elevate: a platform
 # admin's CLI login asking to carry admin power for TTLSeconds (default one
@@ -2500,6 +2504,10 @@ class ToolInvocationFunction(TypedDict, total=False):
 class MetaItem(TypedDict, total=False):
     type: MetaItemType
     tokens: int
+    # CachedTokens and CacheWriteTokens are the parts of Tokens (on an input
+    # text item) read from and written to the provider's prompt cache.
+    cached_tokens: int
+    cache_write_tokens: int
     width: int
     height: int
     resolution_mp: float
@@ -3207,7 +3215,13 @@ class LLMUsage(TypedDict, total=False):
     stop_reason: str
     time_to_first_token: float
     tokens_per_second: float
+    # PromptTokens counts every input token, cached ones included
+    # (OpenAI, xAI and OpenRouter count them this way).
     prompt_tokens: int
+    # CachedTokens is how many of PromptTokens were read from the provider's
+    # prompt cache; CacheWriteTokens how many were written to it.
+    cached_tokens: int
+    cache_write_tokens: int
     completion_tokens: int
     total_tokens: int
     reasoning_tokens: int
@@ -4402,6 +4416,10 @@ class ErrorCode(str, Enum):
     # scope the operation takes (an API key, an app's OAuth token or a
     # narrowed login granted less). The detail names the scope.
     INSUFFICIENT_SCOPE = "insufficient_scope"
+    # ErrorCodeInvalidScope (400): a grant request (an OAuth authorization,
+    # a device sign-in's approval) named only scopes this server does not
+    # know. The detail names them.
+    INVALID_SCOPE = "invalid_scope"
     # ErrorCodeImpersonationReasonRequired (403): a platform admin named a
     # team they are not a member of without a live impersonation grant.
     # Clients stop viewing as the team on it.
@@ -4462,6 +4480,9 @@ class ErrorCode(str, Enum):
     INVALID_CODE = "invalid_code"
     ALREADY_PROCESSED = "already_processed"
     EXPIRED = "expired"
+    # A device sign-in started away from the approver is approved only
+    # with the code typed from the device (400).
+    CODE_CONFIRMATION_REQUIRED = "code_confirmation_required"
     # Run-time refusals. AppRetired (410): the app no longer runs.
     # AppMaintenance (503, Retry-After): the owner paused it; the message is
     # theirs. InvalidTransition (409): the task already moved on.
@@ -5001,6 +5022,9 @@ class DeviceAuthStatus(str, Enum):
     APPROVED = "approved"
     EXPIRED = "expired"
     DENIED = "denied"
+    # DeviceAuthStatusSlowDown: still pending, and the device polled sooner
+    # than its interval, which is now five seconds longer (RFC 8628 3.5).
+    SLOW_DOWN = "slow_down"
     VALID = "valid"
     INVALID = "invalid"
     LOADING = "loading"

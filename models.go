@@ -742,6 +742,10 @@ type DeviceAuthPollResponse struct {
 	// CLI login that asked now carries admin power until then. No
 	// credential comes with it.
 	AdminUntil *time.Time `json:"admin_until,omitempty"`
+	// Interval is the polling interval in seconds the device is now held
+	// to, set with status slow_down (RFC 8628 3.5: each one raises it by
+	// five seconds).
+	Interval int `json:"interval,omitempty"`
 }
 
 type DeviceAuthClaimRequest struct {
@@ -2825,6 +2829,9 @@ const (
 	ErrorCodeInvalidCode      ErrorCode = "invalid_code"
 	ErrorCodeAlreadyProcessed ErrorCode = "already_processed"
 	ErrorCodeExpired          ErrorCode = "expired"
+	// A device sign-in started away from the approver is approved only
+	// with the code typed from the device (400).
+	ErrorCodeCodeConfirmationRequired ErrorCode = "code_confirmation_required"
 	// Run-time refusals. AppRetired (410): the app no longer runs.
 	// AppMaintenance (503, Retry-After): the owner paused it; the message is
 	// theirs. InvalidTransition (409): the task already moved on.
@@ -5965,19 +5972,23 @@ type TaskCostDTO struct {
 
 // MetaItem represents metadata about an input or output item
 type MetaItem struct {
-	Type         MetaItemType    `json:"type"`
-	Tokens       int             `json:"tokens,omitempty"`
-	Width        int             `json:"width,omitempty"`
-	Height       int             `json:"height,omitempty"`
-	ResolutionMP float64         `json:"resolution_mp,omitempty"`
-	Steps        int             `json:"steps,omitempty"`
-	Count        int             `json:"count,omitempty"`
-	Resolution   VideoResolution `json:"resolution,omitempty"`
-	Seconds      float64         `json:"seconds,omitempty"`
-	FPS          int             `json:"fps,omitempty"`
-	SampleRate   int             `json:"sample_rate,omitempty"`
-	Cost         float64         `json:"cost,omitempty"`
-	Extra        map[string]any  `json:"extra,omitempty"`
+	Type   MetaItemType `json:"type"`
+	Tokens int          `json:"tokens,omitempty"`
+	// CachedTokens and CacheWriteTokens are the parts of Tokens (on an input
+	// text item) read from and written to the provider's prompt cache.
+	CachedTokens     int             `json:"cached_tokens,omitempty"`
+	CacheWriteTokens int             `json:"cache_write_tokens,omitempty"`
+	Width            int             `json:"width,omitempty"`
+	Height           int             `json:"height,omitempty"`
+	ResolutionMP     float64         `json:"resolution_mp,omitempty"`
+	Steps            int             `json:"steps,omitempty"`
+	Count            int             `json:"count,omitempty"`
+	Resolution       VideoResolution `json:"resolution,omitempty"`
+	Seconds          float64         `json:"seconds,omitempty"`
+	FPS              int             `json:"fps,omitempty"`
+	SampleRate       int             `json:"sample_rate,omitempty"`
+	Cost             float64         `json:"cost,omitempty"`
+	Extra            map[string]any  `json:"extra,omitempty"`
 }
 
 // ToMap converts MetaItem to a map for CEL evaluation.
@@ -5987,7 +5998,7 @@ func (m *MetaItem) ToMap() map[string]any {
 	if extra == nil {
 		extra = map[string]any{}
 	}
-	return map[string]any{"type": string(m.Type), "tokens": m.Tokens, "width": m.Width, "height": m.Height, "resolution_mp": m.ResolutionMP, "steps": m.Steps, "count": m.Count, "resolution": string(m.Resolution), "seconds": m.Seconds, "fps": m.FPS, "sample_rate": m.SampleRate, "cost": m.Cost, "extra": extra}
+	return map[string]any{"type": string(m.Type), "tokens": m.Tokens, "cached_tokens": m.CachedTokens, "cache_write_tokens": m.CacheWriteTokens, "width": m.Width, "height": m.Height, "resolution_mp": m.ResolutionMP, "steps": m.Steps, "count": m.Count, "resolution": string(m.Resolution), "seconds": m.Seconds, "fps": m.FPS, "sample_rate": m.SampleRate, "cost": m.Cost, "extra": extra}
 }
 
 // OutputMeta contains structured metadata about task inputs and outputs for pricing calculation
@@ -8426,6 +8437,9 @@ const (
 	DeviceAuthStatusApproved DeviceAuthStatus = "approved"
 	DeviceAuthStatusExpired  DeviceAuthStatus = "expired"
 	DeviceAuthStatusDenied   DeviceAuthStatus = "denied"
+	// DeviceAuthStatusSlowDown: still pending, and the device polled sooner
+	// than its interval, which is now five seconds longer (RFC 8628 3.5).
+	DeviceAuthStatusSlowDown DeviceAuthStatus = "slow_down"
 	DeviceAuthStatusValid    DeviceAuthStatus = "valid"
 	DeviceAuthStatusInvalid  DeviceAuthStatus = "invalid"
 	DeviceAuthStatusLoading  DeviceAuthStatus = "loading"
@@ -10033,7 +10047,13 @@ type LLMUsage struct {
 	StopReason       string  `json:"stop_reason"`
 	TimeToFirstToken float64 `json:"time_to_first_token"`
 	TokensPerSecond  float64 `json:"tokens_per_second"`
-	PromptTokens     int     `json:"prompt_tokens"`
+	// PromptTokens counts every input token, cached ones included
+	// (OpenAI, xAI and OpenRouter count them this way).
+	PromptTokens int `json:"prompt_tokens"`
+	// CachedTokens is how many of PromptTokens were read from the provider's
+	// prompt cache; CacheWriteTokens how many were written to it.
+	CachedTokens     int     `json:"cached_tokens"`
+	CacheWriteTokens int     `json:"cache_write_tokens"`
 	CompletionTokens int     `json:"completion_tokens"`
 	TotalTokens      int     `json:"total_tokens"`
 	ReasoningTokens  int     `json:"reasoning_tokens"`
