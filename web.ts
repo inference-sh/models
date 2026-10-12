@@ -944,7 +944,7 @@ export interface AppVersionInput {
   env?: { [key: string]: string};
   kernel?: string;
   required_secrets?: SecretRequirement[];
-  required_credentials?: CredentialRequirement[];
+  required_credentials?: CredentialRequirements;
   resources?: AppResources;
 }
 /**
@@ -2125,7 +2125,7 @@ export interface AppFunction {
    * in app code. Each must be covered by the app-wide list in inf.yml.
    * Empty means the function gets the app-wide list.
    */
-  credentials?: CredentialRequirement[];
+  credentials?: CredentialRequirements;
   /**
    * Annotations are MCP tool hints (read-only, destructive, idempotent,
    * open-world) declared on the function. Hints only: nothing trusts
@@ -2165,33 +2165,63 @@ export interface SecretRequirement {
   optional?: boolean;
 }
 /**
- * CredentialRequirement is an entry under credentials: in inf.yml: keys an
- * app needs that belong to a provider. Provider names whose credential
- * supplies them; Secrets lists the keys to inject from it (an API key
- * credential), Scopes what to ask for (an OAuth one).
+ * CredentialRequirement is an entry under credentials: in inf.yml: a
+ * credential the app uses, keyed by the credential's slug (what
+ * Credential.Provider stores). Secrets lists the keys to inject from it (an
+ * API key credential), Scopes what to ask for (an OAuth one), Capabilities
+ * the platform-defined grants it needs ("x.tweet.read", "google.sheets":
+ * an OAuth grant with the scopes it implies), each a capability of the
+ * entry's own provider. Provider seeds the catalog row for the company the
+ * first time it is seen and never overwrites it; Auth seeds the auth scheme
+ * when the slug is free.
  * 	credentials:
- * 	  - provider: acme
- * 	    name: Acme CRM
- * 	    website: acme.com
+ * 	  slack:
+ * 	    capabilities: [slack.channels.write]
+ * 	  acme:
  * 	    secrets: [ACME_API_KEY]
- * Key is a capability of a provider the platform defines ("x.tweet.read",
- * "google.sheets"): an OAuth grant with the scopes it implies. An entry sets
- * Provider, Key, or both; with both, Key decides how it is resolved.
+ * 	    provider: {name: Acme CRM, website: acme.com}
+ * The list form that preceded it is still read: `- provider: acme` names
+ * the slug, `- key: x.tweet.read` a capability (its slug is the part
+ * before the first dot), `name:` and `website:` seed the provider.
  */
 export interface CredentialRequirement {
-  provider?: string;
-  /**
-   * Name and Website describe a provider the platform does not list: the
-   * name its credential is shown under and the site its logo comes from.
-   */
-  name?: string;
-  website?: string;
-  key?: string;
+  slug?: string;
+  capabilities?: string[];
   description?: string;
   optional?: boolean;
   secrets?: string[];
   scopes?: string[];
+  /**
+   * Provider describes the company the credential belongs to, for a
+   * catalog row that does not exist yet. Its slug defaults to the
+   * credential slug.
+   */
+  provider?: ProviderSeed;
+  /**
+   * Auth is the credential's auth scheme, for a slug no row defines yet.
+   */
+  auth?: AuthSchemeSpec;
 }
+/**
+ * ProviderSeed is a provider (the company behind a credential) as an app
+ * declares it: enough to create its catalog row when none exists.
+ */
+export interface ProviderSeed {
+  slug?: string;
+  name?: string;
+  description?: string;
+  website?: string;
+  logo_uri?: string;
+  docs_uri?: string;
+  tos_uri?: string;
+  policy_uri?: string;
+}
+/**
+ * CredentialRequirements is the credentials: list of a manifest. It reads
+ * both forms: a map keyed by credential slug (the current one) and a list
+ * of entries; it is always written as a list.
+ */
+export type CredentialRequirements = CredentialRequirement[];
 /**
  * AppDTO is the API response for a full app.
  */
@@ -2282,7 +2312,7 @@ export interface AppVersionDTO extends BaseModelDTO {
   env: { [key: string]: string};
   kernel: string;
   required_secrets?: SecretRequirement[];
-  required_credentials?: CredentialRequirement[];
+  required_credentials?: CredentialRequirements;
   resources: AppResources;
   /**
    * Sandbox is the version's declared sandbox exceptions. Absent on a
@@ -2710,6 +2740,10 @@ export interface ArtifactFrameDTO {
 export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
   scope: CredentialScope;
   slug: string;
+  /**
+   * Provider is the company the slug belongs to (its providers row).
+   */
+  provider: string;
   display_name: string;
   icon_url?: string;
   description?: string;
@@ -3603,6 +3637,16 @@ export interface ToolExplanationDTO {
    */
   risk: string;
 }
+/**
+ * ConnectTokens are tokens a provider minted while connecting, for grants
+ * that need no redirect (OAuth client credentials): the credential service
+ * saves them on the login it writes. They travel inside the process only.
+ */
+export interface ConnectTokens {
+  AccessToken: SensitiveString;
+  RefreshToken: SensitiveString;
+  ExpiresAt?: string /* RFC3339 */;
+}
 export interface AcceptTermsResponse {
   accepted: boolean;
   version: string;
@@ -3807,11 +3851,31 @@ export interface CredentialScopeRequest {
   scope: CredentialScope;
 }
 /**
+ * ProviderSummary is the company a credential slug belongs to: the
+ * providers row's identity, for grouping and display.
+ */
+export interface ProviderSummary {
+  slug: string;
+  name: string;
+  icon_url?: string;
+  website?: string;
+  docs_url?: string;
+}
+/**
  * CredentialConfigDTO is the merged view: provider catalog + credential state.
  */
 export interface CredentialConfigDTO {
   slug: string;
+  /**
+   * Provider is the credential slug (what Credential.Provider stores):
+   * one way to authenticate. The company it belongs to is ProviderInfo.
+   */
   provider: string;
+  /**
+   * ProviderInfo is the company this slug belongs to, for grouping: the
+   * providers row its auth scheme names, else the slug's own identity.
+   */
+  provider_info?: ProviderSummary;
   type: string;
   name: string;
   short_name: string;
@@ -5718,6 +5782,13 @@ export interface MCPServerDTO {
    */
   setup?: MCPServerSetup;
   documentation_url: string;
+  /**
+   * Credentials is what the server needs to be called (the same shape as
+   * an app's inf.yml credentials). CredentialSlug is the first entry's
+   * slug: the vault entry a call sends, so a page can link to it.
+   */
+  credentials?: CredentialRequirements;
+  credential_slug?: string;
   connection_status?: string;
   /**
    * ConnectionScope is who the caller's connection to this server belongs
@@ -5748,6 +5819,8 @@ export interface PublicMCPServerDTO {
   rank: number /* int */;
   installs: number /* int64 */;
   uses: number /* int64 */;
+  credentials?: CredentialRequirements;
+  credential_slug?: string;
   connection_status?: string;
 }
 /**
@@ -5768,6 +5841,7 @@ export interface AdminMCPServerDTO {
   oauth_client_id?: string;
   default_scopes: StringSlice;
   documentation_url: string;
+  credentials?: CredentialRequirements;
   user_id: string;
   team_id: string;
   visibility: Visibility;
@@ -6956,7 +7030,7 @@ export interface CapabilitiesResponse {
  */
 export interface CheckRequirementsRequest {
   secrets?: SecretRequirement[];
-  credentials?: CredentialRequirement[];
+  credentials?: CredentialRequirements;
 }
 /**
  * CheckRequirementsResponse is the API response for checking requirements
@@ -7079,6 +7153,23 @@ export interface SecretDTO extends BaseModelDTO, PermissionModelDTO {
    * a plain secret.
    */
   credential_id?: string;
+}
+/**
+ * SensitiveString is a string type that prevents accidental exposure of secrets.
+ * It redacts in JSON/fmt output unless explicitly accessed via .Expose().
+ * Encryption at rest is handled by the GORM "sensitive" serializer
+ * (api/internal/lib/secrets). Fields must be tagged: `gorm:"serializer:sensitive"`
+ * Note: map-based GORM Updates (map[string]any{"value": ...}) bypass serializers.
+ * Always use struct-based operations for SensitiveString fields.
+ * Redaction:
+ *   - JSON serialization: always returns "" (empty string)
+ *   - fmt.Sprintf with %s, %v, %#v: always returns "[REDACTED]"
+ *   - Only .Expose() returns the actual value
+ * Encryption is enabled when SECRETS_ENCRYPTION_KEY env var is set.
+ * Values are stored as "enc:v2:<encrypted_dek>:<encrypted_data>" in the database.
+ * Key rotation only re-encrypts the DEK, not the data.
+ */
+export interface SensitiveString {
 }
 /**
  * SocketAccess is where one end of a socket dials and the credential it
@@ -9867,12 +9958,70 @@ export const GPUTypeNvidia: GPUType = "nvidia";
 export const GPUTypeAMD: GPUType = "amd";
 export const GPUTypeApple: GPUType = "apple";
 /**
- * AuthSchemeKind is how a provider authenticates. One kind ships today; the
- * list is open so client-credentials, OAuth1 or API-key schemes can be added
- * without changing the AuthScheme shape.
+ * AuthSchemeKind is how a provider authenticates: the kinds of an OpenAPI
+ * Security Scheme Object (oauth2, apiKey, http), named the same so a
+ * vendor's spec maps onto a scheme without translation.
  */
-export type AuthSchemeKind = "oauth2_authorization_code";
-export const AuthSchemeOAuth2AuthorizationCode: AuthSchemeKind = "oauth2_authorization_code";
+export type AuthSchemeKind = "oauth2" | "api_key" | "http" | "oauth2_authorization_code";
+/**
+ * AuthSchemeOAuth2 is OAuth 2.0; Flow says which grant.
+ */
+export const AuthSchemeOAuth2: AuthSchemeKind = "oauth2";
+/**
+ * AuthSchemeAPIKey is one or more keys a person pastes, sent as a
+ * header or query parameter.
+ */
+export const AuthSchemeAPIKey: AuthSchemeKind = "api_key";
+/**
+ * AuthSchemeHTTP is a pasted secret sent as an HTTP auth scheme
+ * (Authorization: Bearer or Basic).
+ */
+export const AuthSchemeHTTP: AuthSchemeKind = "http";
+/**
+ * Deprecated: the kind is AuthSchemeOAuth2 with AuthSchemeFlowAuthorizationCode.
+ * Same value, so comparisons keep working; rows still stored as
+ * "oauth2_authorization_code" are read as oauth2 (UnmarshalJSON).
+ */
+export const AuthSchemeOAuth2AuthorizationCode = AuthSchemeOAuth2;
+/**
+ * AuthSchemeFlow is the OAuth 2.0 grant an oauth2 scheme uses.
+ */
+export type AuthSchemeFlow = "authorization_code" | "client_credentials";
+/**
+ * AuthSchemeFlowAuthorizationCode is the user-consent flow: authorization
+ * endpoint → code → token endpoint, optionally with PKCE. The default.
+ */
+export const AuthSchemeFlowAuthorizationCode: AuthSchemeFlow = "authorization_code";
+/**
+ * AuthSchemeFlowClientCredentials is server-to-server: the app's client
+ * id and secret are exchanged at the token endpoint, no redirect, no
+ * user. The login is the app's own.
+ */
+export const AuthSchemeFlowClientCredentials: AuthSchemeFlow = "client_credentials";
+/**
+ * AuthSchemeAPIKeyIn is where an api_key scheme's key travels.
+ */
+export type AuthSchemeAPIKeyIn = "header" | "query";
+export const AuthSchemeAPIKeyInHeader: AuthSchemeAPIKeyIn = "header";
+export const AuthSchemeAPIKeyInQuery: AuthSchemeAPIKeyIn = "query";
+/**
+ * AuthSchemeHTTPScheme is the Authorization scheme of an http scheme.
+ */
+export type AuthSchemeHTTPScheme = "bearer" | "basic";
+export const AuthSchemeHTTPBearer: AuthSchemeHTTPScheme = "bearer";
+export const AuthSchemeHTTPBasic: AuthSchemeHTTPScheme = "basic";
+/**
+ * SecretField is one value a person pastes to connect an api_key or http
+ * scheme: its vault key and how the form asks for it. Several fields make
+ * a multi-secret provider (Kling's access and secret key).
+ */
+export interface SecretField {
+  key: string;
+  label?: string;
+  placeholder?: string;
+  sensitive?: boolean;
+  optional?: boolean;
+}
 /**
  * AuthSchemeClientAuth is how client_id/client_secret reach the token
  * endpoint. Most providers accept either; a few insist on one.
@@ -10007,7 +10156,28 @@ export interface AuthSchemeCapability {
  */
 export interface AuthSchemeSpec {
   kind: AuthSchemeKind;
-  authorize_url?: string;
+  /**
+   * Flow is the oauth2 grant; empty means authorization_code.
+   */
+  flow?: AuthSchemeFlow;
+  /**
+   * Fields are what a person pastes (api_key and http kinds).
+   */
+  fields?: SecretField[];
+  /**
+   * In and ParamName say where an api_key key goes on a request: the
+   * header or query parameter of that name. ValuePrefix is prepended to
+   * the value ("Bearer "). Not needed to connect; read by injection.
+   */
+  in?: AuthSchemeAPIKeyIn;
+  param_name?: string;
+  value_prefix?: string;
+  /**
+   * Scheme and BearerFormat describe an http kind's Authorization header.
+   */
+  scheme?: AuthSchemeHTTPScheme;
+  bearer_format?: string;
+  authorization_endpoint?: string;
   scopes?: string[]; // requested by default; a connect request may override (RequiredScopes stay)
   /**
    * ScopeAliases map the scheme's own scope names to what the provider
@@ -10064,7 +10234,13 @@ export interface AuthSchemeSpec {
    * is asked for again.
    */
   incremental_add_scopes?: boolean;
-  token_url?: string;
+  token_endpoint?: string;
+  /**
+   * RevocationEndpoint is the RFC 7009 endpoint, when the provider has
+   * one and Revoke names no style of its own: tokens are revoked there
+   * with a form POST.
+   */
+  revocation_endpoint?: string;
   client_auth?: AuthSchemeClientAuth; // empty = basic
   token_request?: AuthSchemeTokenRequest; // empty = form
   /**

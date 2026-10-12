@@ -3,11 +3,13 @@
 package models
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -641,18 +643,18 @@ type FileCreateRequest struct {
 
 // AppVersionInput is the API input shape for app version config (no gorm tags).
 type AppVersionInput struct {
-	Metadata            map[string]any          `json:"metadata,omitempty"`
-	Repository          string                  `json:"repository,omitempty"`
-	SetupSchema         json.RawMessage         `json:"setup_schema,omitempty"`
-	InputSchema         json.RawMessage         `json:"input_schema,omitempty"`
-	OutputSchema        json.RawMessage         `json:"output_schema,omitempty"`
-	Functions           map[string]AppFunction  `json:"functions,omitempty"`
-	DefaultFunction     string                  `json:"default_function,omitempty"`
-	Env                 map[string]string       `json:"env,omitempty"`
-	Kernel              string                  `json:"kernel,omitempty"`
-	RequiredSecrets     []SecretRequirement     `json:"required_secrets,omitempty"`
-	RequiredCredentials []CredentialRequirement `json:"required_credentials,omitempty"`
-	RequiredResources   AppResources            `json:"resources,omitempty"`
+	Metadata            map[string]any         `json:"metadata,omitempty"`
+	Repository          string                 `json:"repository,omitempty"`
+	SetupSchema         json.RawMessage        `json:"setup_schema,omitempty"`
+	InputSchema         json.RawMessage        `json:"input_schema,omitempty"`
+	OutputSchema        json.RawMessage        `json:"output_schema,omitempty"`
+	Functions           map[string]AppFunction `json:"functions,omitempty"`
+	DefaultFunction     string                 `json:"default_function,omitempty"`
+	Env                 map[string]string      `json:"env,omitempty"`
+	Kernel              string                 `json:"kernel,omitempty"`
+	RequiredSecrets     []SecretRequirement    `json:"required_secrets,omitempty"`
+	RequiredCredentials CredentialRequirements `json:"required_credentials,omitempty"`
+	RequiredResources   AppResources           `json:"resources,omitempty"`
 }
 
 // CreateAppRequest is the request body for POST /apps
@@ -917,11 +919,15 @@ type CredentialCompleteOAuthRequest struct {
 }
 
 type CredentialConnectResponse struct {
-	Credential           *CredentialDTO `json:"credential"`
-	AuthURL              string         `json:"auth_url,omitempty"`
-	State                string         `json:"state,omitempty"`
-	CodeVerifier         string         `json:"code_verifier,omitempty"`
-	Instructions         string         `json:"instructions,omitempty"`
+	Credential   *CredentialDTO `json:"credential"`
+	AuthURL      string         `json:"auth_url,omitempty"`
+	State        string         `json:"state,omitempty"`
+	CodeVerifier string         `json:"code_verifier,omitempty"`
+	Instructions string         `json:"instructions,omitempty"`
+	// Tokens the provider minted on connect (client-credentials grants):
+	// the credential service stores them as the login's secrets. Never
+	// sent to clients.
+	Tokens               *ConnectTokens `json:"-"`
 	RequiresConfirmation bool           `json:"requires_confirmation,omitempty"`
 	ConfirmationType     string         `json:"confirmation_type,omitempty"`
 	Message              string         `json:"message,omitempty"`
@@ -1334,7 +1340,7 @@ type AppFunction struct {
 	// Credentials the function needs at run time, declared on the function
 	// in app code. Each must be covered by the app-wide list in inf.yml.
 	// Empty means the function gets the app-wide list.
-	Credentials []CredentialRequirement `json:"credentials,omitempty"`
+	Credentials CredentialRequirements `json:"credentials,omitempty"`
 	// Annotations are MCP tool hints (read-only, destructive, idempotent,
 	// open-world) declared on the function. Hints only: nothing trusts
 	// them for an unverified namespace.
@@ -1373,47 +1379,342 @@ type SecretRequirement struct {
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
 }
 
-// CredentialRequirement is an entry under credentials: in inf.yml: keys an
-// app needs that belong to a provider. Provider names whose credential
-// supplies them; Secrets lists the keys to inject from it (an API key
-// credential), Scopes what to ask for (an OAuth one).
+// CredentialRequirement is an entry under credentials: in inf.yml: a
+// credential the app uses, keyed by the credential's slug (what
+// Credential.Provider stores). Secrets lists the keys to inject from it (an
+// API key credential), Scopes what to ask for (an OAuth one), Capabilities
+// the platform-defined grants it needs ("x.tweet.read", "google.sheets":
+// an OAuth grant with the scopes it implies), each a capability of the
+// entry's own provider. Provider seeds the catalog row for the company the
+// first time it is seen and never overwrites it; Auth seeds the auth scheme
+// when the slug is free.
 //
 //	credentials:
-//	  - provider: acme
-//	    name: Acme CRM
-//	    website: acme.com
+//	  slack:
+//	    capabilities: [slack.channels.write]
+//	  acme:
 //	    secrets: [ACME_API_KEY]
+//	    provider: {name: Acme CRM, website: acme.com}
 //
-// Key is a capability of a provider the platform defines ("x.tweet.read",
-// "google.sheets"): an OAuth grant with the scopes it implies. An entry sets
-// Provider, Key, or both; with both, Key decides how it is resolved.
+// The list form that preceded it is still read: `- provider: acme` names
+// the slug, `- key: x.tweet.read` a capability (its slug is the part
+// before the first dot), `name:` and `website:` seed the provider.
 type CredentialRequirement struct {
-	Provider string `json:"provider,omitempty" yaml:"provider,omitempty"`
-	// Name and Website describe a provider the platform does not list: the
-	// name its credential is shown under and the site its logo comes from.
-	Name        string   `json:"name,omitempty" yaml:"name,omitempty"`
-	Website     string   `json:"website,omitempty" yaml:"website,omitempty"`
-	Key         string   `json:"key,omitempty" yaml:"key,omitempty"`
-	Description string   `json:"description,omitempty" yaml:"description,omitempty"`
-	Optional    bool     `json:"optional,omitempty" yaml:"optional,omitempty"`
-	Secrets     []string `json:"secrets,omitempty" yaml:"secrets,omitempty"`
-	Scopes      []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+	Slug         string   `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	Description  string   `json:"description,omitempty" yaml:"description,omitempty"`
+	Optional     bool     `json:"optional,omitempty" yaml:"optional,omitempty"`
+	Secrets      []string `json:"secrets,omitempty" yaml:"secrets,omitempty"`
+	Scopes       []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+	// Provider describes the company the credential belongs to, for a
+	// catalog row that does not exist yet. Its slug defaults to the
+	// credential slug.
+	Provider *ProviderSeed `json:"provider,omitempty" yaml:"provider,omitempty"`
+	// Auth is the credential's auth scheme, for a slug no row defines yet.
+	Auth *AuthSchemeSpec `json:"auth,omitempty" yaml:"auth,omitempty"`
+}
+
+// UnmarshalJSON reads an entry in the current or the list form.
+func (r *CredentialRequirement) UnmarshalJSON(data []byte) error {
+	var w CredentialRequirementWire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return err
+	}
+	req, err := w.Requirement()
+	if err != nil {
+		return err
+	}
+	*r = req
+	return nil
+}
+
+// UnmarshalYAML reads an entry in the current or the list form. The
+// signature is the one yaml.v3 keeps for unmarshalers that import no yaml
+// package, so the generated copy of this type builds everywhere.
+func (r *CredentialRequirement) UnmarshalYAML(unmarshal func(any) error) error {
+	var w CredentialRequirementWire
+	if err := unmarshal(&w); err != nil {
+		return err
+	}
+	req, err := w.Requirement()
+	if err != nil {
+		return err
+	}
+	*r = req
+	return nil
+}
+
+// Normalize derives what the entry leaves implicit: the slug of a
+// capability-only entry (the part of the capability before the first dot)
+// and the provider seed's slug.
+func (r *CredentialRequirement) Normalize() {
+	if r.Slug == "" {
+		for _, c := range r.Capabilities {
+			if p, _, ok := strings.Cut(c, "."); ok && p != "" {
+				r.Slug = p
+				break
+			}
+		}
+	}
+	if r.Provider != nil && r.Provider.Slug == "" {
+		r.Provider.Slug = r.Slug
+	}
 }
 
 // Ref identifies the requirement in satisfied lists and requirement errors:
-// the capability key when there is one, else the provider.
+// the capability when there is one, else the slug.
 func (r CredentialRequirement) Ref() string {
-	if r.Key != "" {
-		return r.Key
+	if c := r.Capability(); c != "" {
+		return c
 	}
-	return r.Provider
+	return r.Slug
+}
+
+// Capability is the entry's first capability, "" when it names none.
+func (r CredentialRequirement) Capability() string {
+	if len(r.Capabilities) > 0 {
+		return r.Capabilities[0]
+	}
+	return ""
 }
 
 // ByProvider reports whether the requirement is resolved through the
-// provider's credential. A capability key, when given, wins: it carries the
-// scopes the app needs, which the capability path checks.
+// slug's credential as a whole. A capability, when given, wins: it carries
+// the scopes the app needs, which the capability path checks.
 func (r CredentialRequirement) ByProvider() bool {
-	return r.Provider != "" && r.Key == ""
+	return r.Slug != "" && len(r.Capabilities) == 0
+}
+
+// ProviderName is the name the credential is shown under when the platform
+// does not list the provider; "" when the entry gives none.
+func (r CredentialRequirement) ProviderName() string {
+	if r.Provider == nil {
+		return ""
+	}
+	return r.Provider.Name
+}
+
+// ProviderWebsite is the provider's site, for its logo; "" when none.
+func (r CredentialRequirement) ProviderWebsite() string {
+	if r.Provider == nil {
+		return ""
+	}
+	return r.Provider.Website
+}
+
+// KeyedAs sets the slug a map entry was keyed by. A slug named inside the
+// entry must be the same one.
+func (r *CredentialRequirement) KeyedAs(slug string) error {
+	if r.Slug != "" && r.Slug != slug {
+		return fmt.Errorf("credentials.%s: names slug %q; drop one", slug, r.Slug)
+	}
+	r.Slug = slug
+	r.Normalize()
+	return nil
+}
+
+// ProviderSeed is a provider (the company behind a credential) as an app
+// declares it: enough to create its catalog row when none exists.
+type ProviderSeed struct {
+	Slug        string `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Name        string `json:"name,omitempty" yaml:"name,omitempty"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	Website     string `json:"website,omitempty" yaml:"website,omitempty"`
+	LogoURI     string `json:"logo_uri,omitempty" yaml:"logo_uri,omitempty"`
+	DocsURI     string `json:"docs_uri,omitempty" yaml:"docs_uri,omitempty"`
+	TosURI      string `json:"tos_uri,omitempty" yaml:"tos_uri,omitempty"`
+	PolicyURI   string `json:"policy_uri,omitempty" yaml:"policy_uri,omitempty"`
+}
+
+// CredentialRequirementWire is the entry as written, in either form: the
+// current fields plus the list form's provider (a string there, the seed
+// here), key, name and website. Exported, with everything it needs, so the
+// generated copy of the type (the models module the CLI reads inf.yml with)
+// carries the same parsing.
+type CredentialRequirementWire struct {
+	Slug         string   `json:"slug" yaml:"slug"`
+	Capabilities []string `json:"capabilities" yaml:"capabilities"`
+	Description  string   `json:"description" yaml:"description"`
+	Optional     bool     `json:"optional" yaml:"optional"`
+	Secrets      []string `json:"secrets" yaml:"secrets"`
+	Scopes       []string `json:"scopes" yaml:"scopes"`
+	Provider     any      `json:"provider" yaml:"provider"`
+	Auth         any      `json:"auth" yaml:"auth"`
+	Key          string   `json:"key" yaml:"key"`
+	Name         string   `json:"name" yaml:"name"`
+	Website      string   `json:"website" yaml:"website"`
+}
+
+// Requirement is the entry the wire form means.
+func (w CredentialRequirementWire) Requirement() (CredentialRequirement, error) {
+	r := CredentialRequirement{Slug: w.Slug, Capabilities: w.Capabilities, Description: w.Description, Optional: w.Optional, Secrets: w.Secrets, Scopes: w.Scopes}
+	switch p := w.Provider.(type) {
+	case nil:
+	case string:
+		r.Slug = p
+	case map[string]any, map[any]any:
+		r.Provider = &ProviderSeed{}
+		if err := w.DecodeInto(p, r.Provider); err != nil {
+			return r, fmt.Errorf("credentials: provider: %w", err)
+		}
+	default:
+		return r, fmt.Errorf("credentials: provider must be a slug or a map, got %T", w.Provider)
+	}
+	if w.Auth != nil {
+		r.Auth = &AuthSchemeSpec{}
+		if err := w.DecodeInto(w.Auth, r.Auth); err != nil {
+			return r, fmt.Errorf("credentials: auth: %w", err)
+		}
+	}
+	if w.Key != "" {
+		r.Capabilities = append([]string{w.Key}, r.Capabilities...)
+	}
+	if w.Name != "" || w.Website != "" {
+		if r.Provider == nil {
+			r.Provider = &ProviderSeed{}
+		}
+		if r.Provider.Name == "" {
+			r.Provider.Name = w.Name
+		}
+		if r.Provider.Website == "" {
+			r.Provider.Website = w.Website
+		}
+	}
+	r.Normalize()
+	return r, nil
+}
+
+// DecodeInto reads a decoded YAML or JSON value into out by out's JSON field
+// names. yaml hands maps as map[string]any, or map[any]any when a key is
+// not a string, which json can only encode once the keys are strings.
+func (CredentialRequirementWire) DecodeInto(v any, out any) error {
+	var stringKeys func(any) any
+	stringKeys = func(v any) any {
+		switch m := v.(type) {
+		case map[string]any:
+			o := make(map[string]any, len(m))
+			for k, val := range m {
+				o[k] = stringKeys(val)
+			}
+			return o
+		case map[any]any:
+			o := make(map[string]any, len(m))
+			for k, val := range m {
+				o[fmt.Sprint(k)] = stringKeys(val)
+			}
+			return o
+		case []any:
+			o := make([]any, len(m))
+			for i, val := range m {
+				o[i] = stringKeys(val)
+			}
+			return o
+		}
+		return v
+	}
+	b, err := json.Marshal(stringKeys(v))
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
+}
+
+// CredentialRequirements is the credentials: list of a manifest. It reads
+// both forms: a map keyed by credential slug (the current one) and a list
+// of entries; it is always written as a list.
+type CredentialRequirements []CredentialRequirement
+
+// Flatten gives every capability its own entry, so a check written for one
+// capability per entry applies to each.
+func (c CredentialRequirements) Flatten() CredentialRequirements {
+	out := make(CredentialRequirements, 0, len(c))
+	for _, r := range c {
+		if len(r.Capabilities) <= 1 {
+			out = append(out, r)
+			continue
+		}
+		for _, cap := range r.Capabilities {
+			one := r
+			one.Capabilities = []string{cap}
+			out = append(out, one)
+		}
+	}
+	return out
+}
+
+func (c CredentialRequirements) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]CredentialRequirement(c))
+}
+
+func (c *CredentialRequirements) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		*c = nil
+		return nil
+	}
+	if trimmed[0] == '[' {
+		var list []CredentialRequirement
+		if err := json.Unmarshal(trimmed, &list); err != nil {
+			return err
+		}
+		*c = list
+		return nil
+	}
+	if trimmed[0] != '{' {
+		return fmt.Errorf("credentials: expected a list or a map keyed by slug")
+	}
+	dec := json.NewDecoder(bytes.NewReader(trimmed))
+	if _, err := dec.Token(); err != nil {
+		return err
+	}
+	var out CredentialRequirements
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		slug, _ := tok.(string)
+		var entry CredentialRequirement
+		if err := dec.Decode(&entry); err != nil {
+			return fmt.Errorf("credentials.%s: %w", slug, err)
+		}
+		if err := entry.KeyedAs(slug); err != nil {
+			return err
+		}
+		out = append(out, entry)
+	}
+	*c = out
+	return nil
+}
+
+func (c *CredentialRequirements) UnmarshalYAML(unmarshal func(any) error) error {
+	var list []CredentialRequirement
+	if err := unmarshal(&list); err == nil {
+		*c = list
+		return nil
+	}
+	var byRef map[string]*CredentialRequirement
+	if err := unmarshal(&byRef); err != nil {
+		return fmt.Errorf("credentials: expected a list or a map keyed by slug: %w", err)
+	}
+	slugs := make([]string, 0, len(byRef))
+	for slug := range byRef {
+		slugs = append(slugs, slug)
+	}
+	sort.Strings(slugs)
+	out := make(CredentialRequirements, 0, len(slugs))
+	for _, slug := range slugs {
+		entry := byRef[slug]
+		if entry == nil {
+			entry = &CredentialRequirement{}
+		}
+		if err := entry.KeyedAs(slug); err != nil {
+			return err
+		}
+		out = append(out, *entry)
+	}
+	*c = out
+	return nil
 }
 
 // AppDTO is the API response for a full app.
@@ -1490,20 +1791,20 @@ type AppVersionDTO struct {
 	BaseModelDTO `tstype:",extends"`
 	Metadata     map[string]any `json:"metadata"`
 	// UI mirrors metadata.ui so clients need not dig through the map.
-	UI                  *AppUIRef               `json:"ui,omitempty"`
-	Repository          string                  `json:"repository"`
-	FlowVersionID       *string                 `json:"flow_version_id"`
-	FlowVersion         *FlowVersionDTO         `json:"flow_version"`
-	SetupSchema         json.RawMessage         `json:"setup_schema"`
-	InputSchema         json.RawMessage         `json:"input_schema"`
-	OutputSchema        json.RawMessage         `json:"output_schema"`
-	Functions           map[string]AppFunction  `json:"functions,omitempty"`
-	DefaultFunction     string                  `json:"default_function,omitempty"`
-	Env                 map[string]string       `json:"env"`
-	Kernel              string                  `json:"kernel"`
-	RequiredSecrets     []SecretRequirement     `json:"required_secrets,omitempty"`
-	RequiredCredentials []CredentialRequirement `json:"required_credentials,omitempty"`
-	RequiredResources   AppResources            `json:"resources"`
+	UI                  *AppUIRef              `json:"ui,omitempty"`
+	Repository          string                 `json:"repository"`
+	FlowVersionID       *string                `json:"flow_version_id"`
+	FlowVersion         *FlowVersionDTO        `json:"flow_version"`
+	SetupSchema         json.RawMessage        `json:"setup_schema"`
+	InputSchema         json.RawMessage        `json:"input_schema"`
+	OutputSchema        json.RawMessage        `json:"output_schema"`
+	Functions           map[string]AppFunction `json:"functions,omitempty"`
+	DefaultFunction     string                 `json:"default_function,omitempty"`
+	Env                 map[string]string      `json:"env"`
+	Kernel              string                 `json:"kernel"`
+	RequiredSecrets     []SecretRequirement    `json:"required_secrets,omitempty"`
+	RequiredCredentials CredentialRequirements `json:"required_credentials,omitempty"`
+	RequiredResources   AppResources           `json:"resources"`
 	// Sandbox is the version's declared sandbox exceptions. Absent on a
 	// version deployed before the API recorded them (engines then read the
 	// package's inf.yml) and on a version with no package (a flow app).
@@ -1846,16 +2147,18 @@ type ArtifactFrameDTO struct {
 type AuthSchemeDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Scope              CredentialScope  `json:"scope"`
-	Slug               string           `json:"slug"`
-	DisplayName        string           `json:"display_name"`
-	IconURL            string           `json:"icon_url,omitempty"`
-	Description        string           `json:"description,omitempty"`
-	DocsURL            string           `json:"docs_url,omitempty"`
-	HowItWorks         []string         `json:"how_it_works,omitempty"`
-	Website            string           `json:"website,omitempty"`
-	ConnectionScope    CredentialScope  `json:"connection_scope,omitempty"`
-	Specs              []AuthSchemeSpec `json:"specs"`
+	Scope              CredentialScope `json:"scope"`
+	Slug               string          `json:"slug"`
+	// Provider is the company the slug belongs to (its providers row).
+	Provider        string           `json:"provider"`
+	DisplayName     string           `json:"display_name"`
+	IconURL         string           `json:"icon_url,omitempty"`
+	Description     string           `json:"description,omitempty"`
+	DocsURL         string           `json:"docs_url,omitempty"`
+	HowItWorks      []string         `json:"how_it_works,omitempty"`
+	Website         string           `json:"website,omitempty"`
+	ConnectionScope CredentialScope  `json:"connection_scope,omitempty"`
+	Specs           []AuthSchemeSpec `json:"specs"`
 	// Where the OAuth app's client id and secret live in the team vault.
 	ClientIDKey     string `json:"client_id_key"`
 	ClientSecretKey string `json:"client_secret_key"`
@@ -2318,6 +2621,19 @@ type ToolExplanationDTO struct {
 }
 
 // --------------------
+// source: connect_tokens.go
+// --------------------
+
+// ConnectTokens are tokens a provider minted while connecting, for grants
+// that need no redirect (OAuth client credentials): the credential service
+// saves them on the login it writes. They travel inside the process only.
+type ConnectTokens struct {
+	AccessToken  SensitiveString
+	RefreshToken SensitiveString
+	ExpiresAt    *time.Time
+}
+
+// --------------------
 // source: credential.go
 // --------------------
 
@@ -2347,10 +2663,25 @@ type CredentialDTO struct {
 	ErrorMessage      string         `json:"error_message,omitempty"`
 }
 
+// ProviderSummary is the company a credential slug belongs to: the
+// providers row's identity, for grouping and display.
+type ProviderSummary struct {
+	Slug    string `json:"slug"`
+	Name    string `json:"name"`
+	IconURL string `json:"icon_url,omitempty"`
+	Website string `json:"website,omitempty"`
+	DocsURL string `json:"docs_url,omitempty"`
+}
+
 // CredentialConfigDTO is the merged view: provider catalog + credential state.
 type CredentialConfigDTO struct {
-	Slug         string              `json:"slug"`
-	Provider     string              `json:"provider"`
+	Slug string `json:"slug"`
+	// Provider is the credential slug (what Credential.Provider stores):
+	// one way to authenticate. The company it belongs to is ProviderInfo.
+	Provider string `json:"provider"`
+	// ProviderInfo is the company this slug belongs to, for grouping: the
+	// providers row its auth scheme names, else the slug's own identity.
+	ProviderInfo *ProviderSummary    `json:"provider_info,omitempty"`
 	Type         string              `json:"type"`
 	Name         string              `json:"name"`
 	ShortName    string              `json:"short_name"`
@@ -3990,7 +4321,12 @@ type MCPServerDTO struct {
 	// Setup is what the server's directory entry knows about setting it up.
 	Setup            *MCPServerSetup `json:"setup,omitempty"`
 	DocumentationURL string          `json:"documentation_url"`
-	ConnectionStatus string          `json:"connection_status,omitempty"`
+	// Credentials is what the server needs to be called (the same shape as
+	// an app's inf.yml credentials). CredentialSlug is the first entry's
+	// slug: the vault entry a call sends, so a page can link to it.
+	Credentials      CredentialRequirements `json:"credentials,omitempty"`
+	CredentialSlug   string                 `json:"credential_slug,omitempty"`
+	ConnectionStatus string                 `json:"connection_status,omitempty"`
 	// ConnectionScope is who the caller's connection to this server belongs
 	// to (user, team, org, platform); empty when not connected.
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
@@ -4002,20 +4338,22 @@ type PublicMCPServerDTO struct {
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 	// Title is the human-readable name; empty falls back to Name.
-	Title            string            `json:"title"`
-	Description      string            `json:"description"`
-	IconURL          string            `json:"icon_url"`
-	Category         MCPServerCategory `json:"category"`
-	ServerURL        string            `json:"server_url"`
-	AuthType         MCPServerAuthType `json:"auth_type"`
-	DefaultScopes    StringSlice       `json:"default_scopes"`
-	DocumentationURL string            `json:"documentation_url"`
-	Namespace        string            `json:"namespace"`
-	IsFeatured       bool              `json:"is_featured"`
-	Rank             int               `json:"rank"`
-	Installs         int64             `json:"installs"`
-	Uses             int64             `json:"uses"`
-	ConnectionStatus string            `json:"connection_status,omitempty"`
+	Title            string                 `json:"title"`
+	Description      string                 `json:"description"`
+	IconURL          string                 `json:"icon_url"`
+	Category         MCPServerCategory      `json:"category"`
+	ServerURL        string                 `json:"server_url"`
+	AuthType         MCPServerAuthType      `json:"auth_type"`
+	DefaultScopes    StringSlice            `json:"default_scopes"`
+	DocumentationURL string                 `json:"documentation_url"`
+	Namespace        string                 `json:"namespace"`
+	IsFeatured       bool                   `json:"is_featured"`
+	Rank             int                    `json:"rank"`
+	Installs         int64                  `json:"installs"`
+	Uses             int64                  `json:"uses"`
+	Credentials      CredentialRequirements `json:"credentials,omitempty"`
+	CredentialSlug   string                 `json:"credential_slug,omitempty"`
+	ConnectionStatus string                 `json:"connection_status,omitempty"`
 }
 
 // MCPServerSetup is what a server's directory entry knows about setting the
@@ -4819,8 +5157,8 @@ type CapabilitiesResponse struct {
 
 // CheckRequirementsRequest is the request body for checking requirements
 type CheckRequirementsRequest struct {
-	Secrets     []SecretRequirement     `json:"secrets,omitempty"`
-	Credentials []CredentialRequirement `json:"credentials,omitempty"`
+	Secrets     []SecretRequirement    `json:"secrets,omitempty"`
+	Credentials CredentialRequirements `json:"credentials,omitempty"`
 }
 
 // CheckRequirementsResponse is the API response for checking requirements
@@ -5172,6 +5510,11 @@ type AppSDKTypes struct {
 	_ RequestMetadata
 	// Per-function declarations (@function / <Name>Meta in app code).
 	_ CredentialRequirement
+	// The credentials: list of inf.yml, with both forms it is read in and
+	// the provider seed an entry may carry.
+	_ CredentialRequirements
+	_ CredentialRequirementWire
+	_ ProviderSeed
 	_ ToolAnnotations
 }
 
@@ -5355,6 +5698,87 @@ type SecretDTO struct {
 	// CredentialID is the credential this secret is attached to; empty for
 	// a plain secret.
 	CredentialID string `json:"credential_id,omitempty"`
+}
+
+// --------------------
+// source: sensitive.go
+// --------------------
+
+// SensitiveString is a string type that prevents accidental exposure of secrets.
+// It redacts in JSON/fmt output unless explicitly accessed via .Expose().
+//
+// Encryption at rest is handled by the GORM "sensitive" serializer
+// (api/internal/lib/secrets). Fields must be tagged: `gorm:"serializer:sensitive"`
+//
+// Note: map-based GORM Updates (map[string]any{"value": ...}) bypass serializers.
+// Always use struct-based operations for SensitiveString fields.
+//
+// Redaction:
+//   - JSON serialization: always returns "" (empty string)
+//   - fmt.Sprintf with %s, %v, %#v: always returns "[REDACTED]"
+//   - Only .Expose() returns the actual value
+//
+// Encryption is enabled when SECRETS_ENCRYPTION_KEY env var is set.
+// Values are stored as "enc:v2:<encrypted_dek>:<encrypted_data>" in the database.
+// Key rotation only re-encrypts the DEK, not the data.
+type SensitiveString struct {
+	value string // Always stores the plaintext value in memory
+}
+
+// SetValue replaces the internal plaintext value.
+// Used by the secrets serializer to populate the field after decryption.
+func (s *SensitiveString) SetValue(v string) {
+	s.value = v
+}
+
+// IsEmpty returns true if the secret value is empty.
+func (s SensitiveString) IsEmpty() bool {
+	return s.value == ""
+}
+
+// String implements fmt.Stringer - always returns redacted.
+// This prevents accidental logging with %s or %v.
+func (s SensitiveString) String() string {
+	if s.value == "" {
+		return ""
+	}
+	return "[REDACTED]"
+}
+
+// GoString implements fmt.GoStringer - always returns redacted.
+// This prevents accidental logging with %#v.
+func (s SensitiveString) GoString() string {
+	if s.value == "" {
+		return `SensitiveString{}`
+	}
+	return `SensitiveString{[REDACTED]}`
+}
+
+// MarshalJSON implements json.Marshaler - never serializes the actual value.
+// Returns empty string in JSON to prevent accidental exposure.
+func (s SensitiveString) MarshalJSON() ([]byte, error) {
+	return []byte(`""`), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler - accepts the value when deserializing.
+func (s *SensitiveString) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	s.value = value
+	return nil
+}
+
+// Expose returns the actual secret value. This is the ONLY way to access it.
+// Use sparingly and audit all call sites.
+func (s SensitiveString) Expose() string {
+	return s.value
+}
+
+// GormDataType returns the GORM data type.
+func (s SensitiveString) GormDataType() string {
+	return "text"
 }
 
 // --------------------
@@ -6895,12 +7319,66 @@ const (
 // source: auth_scheme.go
 // --------------------
 
-// AuthSchemeKind is how a provider authenticates. One kind ships today; the
-// list is open so client-credentials, OAuth1 or API-key schemes can be added
-// without changing the AuthScheme shape.
+// AuthSchemeKind is how a provider authenticates: the kinds of an OpenAPI
+// Security Scheme Object (oauth2, apiKey, http), named the same so a
+// vendor's spec maps onto a scheme without translation.
 type AuthSchemeKind string
 
-const AuthSchemeOAuth2AuthorizationCode AuthSchemeKind = "oauth2_authorization_code"
+const (
+	// AuthSchemeOAuth2 is OAuth 2.0; Flow says which grant.
+	AuthSchemeOAuth2 AuthSchemeKind = "oauth2"
+	// AuthSchemeAPIKey is one or more keys a person pastes, sent as a
+	// header or query parameter.
+	AuthSchemeAPIKey AuthSchemeKind = "api_key"
+	// AuthSchemeHTTP is a pasted secret sent as an HTTP auth scheme
+	// (Authorization: Bearer or Basic).
+	AuthSchemeHTTP AuthSchemeKind = "http"
+	// Deprecated: the kind is AuthSchemeOAuth2 with AuthSchemeFlowAuthorizationCode.
+	// Same value, so comparisons keep working; rows still stored as
+	// "oauth2_authorization_code" are read as oauth2 (UnmarshalJSON).
+	AuthSchemeOAuth2AuthorizationCode                = AuthSchemeOAuth2
+	legacyKindOAuth2AuthorizationCode AuthSchemeKind = "oauth2_authorization_code"
+)
+
+// AuthSchemeFlow is the OAuth 2.0 grant an oauth2 scheme uses.
+type AuthSchemeFlow string
+
+const (
+	// AuthSchemeFlowAuthorizationCode is the user-consent flow: authorization
+	// endpoint → code → token endpoint, optionally with PKCE. The default.
+	AuthSchemeFlowAuthorizationCode AuthSchemeFlow = "authorization_code"
+	// AuthSchemeFlowClientCredentials is server-to-server: the app's client
+	// id and secret are exchanged at the token endpoint, no redirect, no
+	// user. The login is the app's own.
+	AuthSchemeFlowClientCredentials AuthSchemeFlow = "client_credentials"
+)
+
+// AuthSchemeAPIKeyIn is where an api_key scheme's key travels.
+type AuthSchemeAPIKeyIn string
+
+const (
+	AuthSchemeAPIKeyInHeader AuthSchemeAPIKeyIn = "header"
+	AuthSchemeAPIKeyInQuery  AuthSchemeAPIKeyIn = "query"
+)
+
+// AuthSchemeHTTPScheme is the Authorization scheme of an http scheme.
+type AuthSchemeHTTPScheme string
+
+const (
+	AuthSchemeHTTPBearer AuthSchemeHTTPScheme = "bearer"
+	AuthSchemeHTTPBasic  AuthSchemeHTTPScheme = "basic"
+)
+
+// SecretField is one value a person pastes to connect an api_key or http
+// scheme: its vault key and how the form asks for it. Several fields make
+// a multi-secret provider (Kling's access and secret key).
+type SecretField struct {
+	Key         string `json:"key" yaml:"key"`
+	Label       string `json:"label,omitempty" yaml:"label,omitempty"`
+	Placeholder string `json:"placeholder,omitempty" yaml:"placeholder,omitempty"`
+	Sensitive   bool   `json:"sensitive,omitempty" yaml:"sensitive,omitempty"`
+	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
+}
 
 // AuthSchemeClientAuth is how client_id/client_secret reach the token
 // endpoint. Most providers accept either; a few insist on one.
@@ -7022,96 +7500,113 @@ type AuthSchemeCapability struct {
 // path present. A template none of whose placeholders resolve renders "":
 // omitted from env and metadata, blank as identifier or name.
 type AuthSchemeSpec struct {
-	Kind         AuthSchemeKind `json:"kind"`
-	AuthorizeURL string         `json:"authorize_url,omitempty"`
-	Scopes       []string       `json:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
+	Kind AuthSchemeKind `json:"kind" yaml:"kind"`
+	// Flow is the oauth2 grant; empty means authorization_code.
+	Flow AuthSchemeFlow `json:"flow,omitempty" yaml:"flow,omitempty"`
+	// Fields are what a person pastes (api_key and http kinds).
+	Fields []SecretField `json:"fields,omitempty" yaml:"fields,omitempty"`
+	// In and ParamName say where an api_key key goes on a request: the
+	// header or query parameter of that name. ValuePrefix is prepended to
+	// the value ("Bearer "). Not needed to connect; read by injection.
+	In          AuthSchemeAPIKeyIn `json:"in,omitempty" yaml:"in,omitempty"`
+	ParamName   string             `json:"param_name,omitempty" yaml:"param_name,omitempty"`
+	ValuePrefix string             `json:"value_prefix,omitempty" yaml:"value_prefix,omitempty"`
+	// Scheme and BearerFormat describe an http kind's Authorization header.
+	Scheme                AuthSchemeHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	BearerFormat          string               `json:"bearer_format,omitempty" yaml:"bearer_format,omitempty"`
+	AuthorizationEndpoint string               `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
+	Scopes                []string             `json:"scopes,omitempty" yaml:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
 	// ScopeAliases map the scheme's own scope names to what the provider
 	// wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
 	// gmail.send"). Credentials store the alias; the wire form is used only
 	// in requests. A scope with no alias is sent as is.
-	ScopeAliases   map[string]string `json:"scope_aliases,omitempty"`
-	ScopeParam     string            `json:"scope_param,omitempty"`      // default "scope" (Slack: "user_scope")
-	ScopeSeparator string            `json:"scope_separator,omitempty"`  // default " " (Slack: ",")
-	OmitScopeParam bool              `json:"omit_scope_param,omitempty"` // the provider takes no scope (Notion)
-	PKCE           bool              `json:"pkce,omitempty"`
+	ScopeAliases   map[string]string `json:"scope_aliases,omitempty" yaml:"scope_aliases,omitempty"`
+	ScopeParam     string            `json:"scope_param,omitempty" yaml:"scope_param,omitempty"`           // default "scope" (Slack: "user_scope")
+	ScopeSeparator string            `json:"scope_separator,omitempty" yaml:"scope_separator,omitempty"`   // default " " (Slack: ",")
+	OmitScopeParam bool              `json:"omit_scope_param,omitempty" yaml:"omit_scope_param,omitempty"` // the provider takes no scope (Notion)
+	PKCE           bool              `json:"pkce,omitempty" yaml:"pkce,omitempty"`
 	// ClientIDParam is the name the client id travels under in the
 	// authorize URL and the token body; default "client_id" (TikTok:
 	// "client_key").
-	ClientIDParam string `json:"client_id_param,omitempty"`
+	ClientIDParam string `json:"client_id_param,omitempty" yaml:"client_id_param,omitempty"`
 	// ExtraAuthorizeParams are appended to the authorize URL verbatim
 	// (Google's access_type=offline). AddScopesParams override them when
 	// re-authorizing for more scopes (Google's include_granted_scopes).
-	ExtraAuthorizeParams map[string]string `json:"extra_authorize_params,omitempty"`
-	AddScopesParams      map[string]string `json:"add_scopes_params,omitempty"`
+	ExtraAuthorizeParams map[string]string `json:"extra_authorize_params,omitempty" yaml:"extra_authorize_params,omitempty"`
+	AddScopesParams      map[string]string `json:"add_scopes_params,omitempty" yaml:"add_scopes_params,omitempty"`
 	// AccountHintParam is the authorize param that names the account to sign
 	// in with (Google's and Microsoft's "login_hint"). When re-authorizing
 	// for more scopes it carries the login's account identifier, so the
 	// provider goes to that account instead of offering a chooser. Empty =
 	// no hint sent.
-	AccountHintParam string `json:"account_hint_param,omitempty"`
+	AccountHintParam string `json:"account_hint_param,omitempty" yaml:"account_hint_param,omitempty"`
 	// AnotherAccountParams are authorize params for connecting an account
 	// next to one already connected: the provider shows its account chooser
 	// instead of signing the user back in to the account it remembers
 	// (Google prompt=select_account). They override ExtraAuthorizeParams.
-	AnotherAccountParams map[string]string `json:"another_account_params,omitempty"`
+	AnotherAccountParams map[string]string `json:"another_account_params,omitempty" yaml:"another_account_params,omitempty"`
 	// RequiredScopes are always requested, on a connect and when
 	// re-authorizing for more scopes, whatever the caller asked for: the
 	// scopes the identity lookup and token refresh need (Google's openid,
 	// email and profile; X's users.read and offline.access). In the
 	// scheme's own names, like Scopes. Empty = only what was asked for.
-	RequiredScopes []string `json:"required_scopes,omitempty"`
+	RequiredScopes []string `json:"required_scopes,omitempty" yaml:"required_scopes,omitempty"`
 	// IncrementalAddScopes: re-authorizing for more scopes asks only for
 	// the new ones (plus RequiredScopes), and the provider returns a token
 	// that also covers what the login already holds (Google, with
 	// include_granted_scopes in AddScopesParams). Without it the full list
 	// is asked for again.
-	IncrementalAddScopes bool                   `json:"incremental_add_scopes,omitempty"`
-	TokenURL             string                 `json:"token_url,omitempty"`
-	ClientAuth           AuthSchemeClientAuth   `json:"client_auth,omitempty"`   // empty = basic
-	TokenRequest         AuthSchemeTokenRequest `json:"token_request,omitempty"` // empty = form
+	IncrementalAddScopes bool   `json:"incremental_add_scopes,omitempty" yaml:"incremental_add_scopes,omitempty"`
+	TokenEndpoint        string `json:"token_endpoint,omitempty" yaml:"token_endpoint,omitempty"`
+	// RevocationEndpoint is the RFC 7009 endpoint, when the provider has
+	// one and Revoke names no style of its own: tokens are revoked there
+	// with a form POST.
+	RevocationEndpoint string                 `json:"revocation_endpoint,omitempty" yaml:"revocation_endpoint,omitempty"`
+	ClientAuth         AuthSchemeClientAuth   `json:"client_auth,omitempty" yaml:"client_auth,omitempty"`     // empty = basic
+	TokenRequest       AuthSchemeTokenRequest `json:"token_request,omitempty" yaml:"token_request,omitempty"` // empty = form
 	// Headers go on every request to the provider (User-Agent for Reddit,
 	// Notion-Version); values are templates ({{client_id}} for Twitch's
 	// Client-Id).
-	Headers map[string]string `json:"headers,omitempty"`
+	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
 	// TokenResponseHook names the Go reader for a token response that is
 	// not the RFC 6749 shape (Slack's nested authed_user). Empty = standard.
-	TokenResponseHook string            `json:"token_response_hook,omitempty"`
-	Refresh           AuthSchemeRefresh `json:"refresh,omitempty"`
-	Revoke            *AuthSchemeRevoke `json:"revoke,omitempty"`
+	TokenResponseHook string            `json:"token_response_hook,omitempty" yaml:"token_response_hook,omitempty"`
+	Refresh           AuthSchemeRefresh `json:"refresh,omitempty" yaml:"refresh,omitempty"`
+	Revoke            *AuthSchemeRevoke `json:"revoke,omitempty" yaml:"revoke,omitempty"`
 	// UserInfoURL is fetched with the new access token; the response is the
 	// identity document (user.*). UserInfoURLPath instead reads that URL
 	// from a path within the token response (Salesforce's "id"). Lookups
 	// are further calls, each becoming a root of its name, in order, after
 	// user. With none of these, the token response is all there is.
-	UserInfoURL     string             `json:"userinfo_url,omitempty"`
-	UserInfoURLPath string             `json:"userinfo_url_path,omitempty"`
-	Lookups         []AuthSchemeLookup `json:"lookups,omitempty"`
+	UserInfoURL     string             `json:"userinfo_url,omitempty" yaml:"userinfo_url,omitempty"`
+	UserInfoURLPath string             `json:"userinfo_url_path,omitempty" yaml:"userinfo_url_path,omitempty"`
+	Lookups         []AuthSchemeLookup `json:"lookups,omitempty" yaml:"lookups,omitempty"`
 	// Identifier is the connected account's stable, human-readable id
 	// ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
-	Identifier string `json:"identifier,omitempty"`
-	Name       string `json:"name,omitempty"`
+	Identifier string `json:"identifier,omitempty" yaml:"identifier,omitempty"`
+	Name       string `json:"name,omitempty" yaml:"name,omitempty"`
 	// AccountID is the account's id as the provider keeps it and never
 	// changes it ("{{user.sub}}" for Google, "{{user.data.id}}" for X), as
 	// opposed to Identifier, which the user may rename. Logins are matched
 	// and chosen by it. Empty = Identifier, for providers whose identifier
 	// already is such an id (Slack, Notion).
-	AccountID string `json:"account_id,omitempty"`
+	AccountID string `json:"account_id,omitempty" yaml:"account_id,omitempty"`
 	// IdentityHook names Go code that derives identifier and name when a
 	// template cannot (Discord's discriminator rule). It wins over both.
-	IdentityHook string `json:"identity_hook,omitempty"`
+	IdentityHook string `json:"identity_hook,omitempty" yaml:"identity_hook,omitempty"`
 	// Metadata is what the credential stores about the account, by key.
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	// Env is what a run reads, by variable. Empty = PREFIX_ACCESS_TOKEN and
 	// PREFIX_ACCESS_TOKEN_EXPIRES_AT.
-	Env map[string]string `json:"env,omitempty"`
+	Env map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	// AppKeys are the OAuth app's keys beyond the implied client id and
 	// secret, and label overrides for those.
-	AppKeys []AuthSchemeAppKey `json:"app_keys,omitempty"`
+	AppKeys []AuthSchemeAppKey `json:"app_keys,omitempty" yaml:"app_keys,omitempty"`
 	// VarsHook names Go code that turns the app's extra keys into the
 	// {var} values substituted into the URLs (Microsoft's tenant,
 	// Salesforce's sandbox host).
-	VarsHook     string                 `json:"vars_hook,omitempty"`
-	Capabilities []AuthSchemeCapability `json:"capabilities,omitempty"`
+	VarsHook     string                 `json:"vars_hook,omitempty" yaml:"vars_hook,omitempty"`
+	Capabilities []AuthSchemeCapability `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
 }
 
 // Wire returns the provider's form of one of the scheme's scope names.
@@ -7130,6 +7625,32 @@ func (s *AuthSchemeSpec) Alias(wire string) string {
 		}
 	}
 	return wire
+}
+
+// FlowOrDefault is the oauth2 grant: authorization_code unless the spec
+// says otherwise.
+func (s *AuthSchemeSpec) FlowOrDefault() AuthSchemeFlow {
+	if s.Flow == "" {
+		return AuthSchemeFlowAuthorizationCode
+	}
+	return s.Flow
+}
+
+// IsOAuth2 reports whether the spec is an OAuth 2.0 scheme (any flow).
+func (s *AuthSchemeSpec) IsOAuth2() bool {
+	return s.Kind == AuthSchemeOAuth2
+}
+
+// Revocation is how tokens are revoked: Revoke as given, else the RFC 7009
+// endpoint with a form POST, else nothing.
+func (s *AuthSchemeSpec) Revocation() *AuthSchemeRevoke {
+	if s.Revoke != nil {
+		return s.Revoke
+	}
+	if s.RevocationEndpoint != "" {
+		return &AuthSchemeRevoke{URL: s.RevocationEndpoint, Style: AuthSchemeRevokeForm}
+	}
+	return nil
 }
 
 // --------------------
