@@ -7390,6 +7390,12 @@ const (
 	AuthSchemeClientAuthBasic AuthSchemeClientAuth = "basic"
 	// AuthSchemeClientAuthBody sends them as form fields in the request body.
 	AuthSchemeClientAuthBody AuthSchemeClientAuth = "body"
+	// AuthSchemeClientAuthNone is a public client (RFC 8414
+	// token_endpoint_auth_method "none"): the client id goes in the body,
+	// there is no secret, and PKCE is what proves the client. Its OAuth app
+	// is complete with a client id alone (a dynamically registered client,
+	// or a Client ID Metadata Document URL).
+	AuthSchemeClientAuthNone AuthSchemeClientAuth = "none"
 )
 
 // AuthSchemeTokenRequest is the token request's body encoding.
@@ -7556,8 +7562,29 @@ type AuthSchemeSpec struct {
 	// that also covers what the login already holds (Google, with
 	// include_granted_scopes in AddScopesParams). Without it the full list
 	// is asked for again.
-	IncrementalAddScopes bool   `json:"incremental_add_scopes,omitempty" yaml:"incremental_add_scopes,omitempty"`
-	TokenEndpoint        string `json:"token_endpoint,omitempty" yaml:"token_endpoint,omitempty"`
+	IncrementalAddScopes bool `json:"incremental_add_scopes,omitempty" yaml:"incremental_add_scopes,omitempty"`
+	// Resource is the RFC 8707 resource indicator: the protected resource
+	// the token is minted for (an MCP server's URL). Sent on the authorize,
+	// code and refresh requests when the profile takes one. Empty = none.
+	Resource string `json:"resource,omitempty" yaml:"resource,omitempty"`
+	// Issuer is the authorization server's RFC 8414 issuer. With
+	// AuthorizationResponseIssParameterSupported, the callback's iss must
+	// name it (RFC 9207, against mix-up); an issuer alone still refuses a
+	// callback naming another one.
+	Issuer                                     string `json:"issuer,omitempty" yaml:"issuer,omitempty"`
+	AuthorizationResponseIssParameterSupported bool   `json:"authorization_response_iss_parameter_supported,omitempty" yaml:"authorization_response_iss_parameter_supported,omitempty"`
+	// Callback is the name of the redirect URI the app was registered with
+	// (<app>/settings/secrets/oauth/<callback>). Empty = the slug. Schemes
+	// whose clients are registered once for many slugs share one (an MCP
+	// server's dynamically registered client and the Client ID Metadata
+	// Document name the "mcp" callback); the flow's provider then comes
+	// from the connect intent, never from the callback's path.
+	Callback string `json:"callback,omitempty" yaml:"callback,omitempty"`
+	// Profile names the authorization server's deviations from the specs
+	// (authprovider.AuthServerProfile: endpoints placed by app fields,
+	// scopes on refresh, actionable errors, admin consent). Empty = none.
+	Profile       string `json:"profile,omitempty" yaml:"profile,omitempty"`
+	TokenEndpoint string `json:"token_endpoint,omitempty" yaml:"token_endpoint,omitempty"`
 	// RevocationEndpoint is the RFC 7009 endpoint, when the provider has
 	// one and Revoke names no style of its own: tokens are revoked there
 	// with a form POST.
