@@ -5516,6 +5516,33 @@ export const CacheScopePublic: CacheScope = "public";
  */
 export const CacheScopePrivate: CacheScope = "private";
 /**
+ * Server capability objects. Every member of ServerCapabilities is optional and
+ * its presence is the advertisement, so each is a pointer: a server declares
+ * only what it implements, and a zero value never claims a feature by accident.
+ */
+export interface ServerCapabilitiesLogging {
+}
+export interface ServerCapabilitiesPrompts {
+  listChanged?: boolean;
+}
+export interface ServerCapabilitiesResources {
+  subscribe?: boolean;
+  listChanged?: boolean;
+}
+export interface ServerCapabilitiesTools {
+  listChanged?: boolean;
+}
+/**
+ * ServerCapabilities represents the server's supported features.
+ */
+export interface ServerCapabilities {
+  logging?: ServerCapabilitiesLogging;
+  prompts?: ServerCapabilitiesPrompts;
+  resources?: ServerCapabilitiesResources;
+  tools?: ServerCapabilitiesTools;
+  extensions?: { [key: string]: any};
+}
+/**
  * ServerInfo represents information about the server
  */
 export interface ServerInfo {
@@ -5654,6 +5681,46 @@ export interface ToolContent {
   data?: string;
   mimeType?: string;
   resource?: ResourceContent;
+}
+/**
+ * MCPConnectionDTO is an MCP server as reached through one credential:
+ * the server, the credential and its status, and what the server told
+ * this connection about itself (initialize, its tool catalogue, the last
+ * call).
+ */
+export interface MCPConnectionDTO extends BaseModelDTO, PermissionModelDTO {
+  server_id: string;
+  server_slug: string;
+  server_name: string;
+  server_url: string;
+  /**
+   * CredentialID is the login the server is reached with; "" for a
+   * server that declares no provider. Provider is its slug, Scope whose
+   * the login is, Status the login's (connected for a server needing
+   * none).
+   */
+  credential_id: string;
+  provider: string;
+  scope: CredentialScope;
+  status: string;
+  server_info?: ServerInfo;
+  protocol_version: string;
+  capabilities?: ServerCapabilities;
+  instructions?: string;
+  tools?: MCPTool[];
+  tools_listed_at?: string /* RFC3339 */;
+  last_called_at?: string /* RFC3339 */;
+  last_error?: string;
+  last_error_at?: string /* RFC3339 */;
+}
+/**
+ * MCPConnectionCreateRequest is POST /mcp-connections: connect the caller
+ * to a server (by slug) with their login for the provider it declares, or
+ * the login CredentialID names.
+ */
+export interface MCPConnectionCreateRequest {
+  server: string;
+  credential_id?: string;
 }
 /**
  * StringSlice is a custom type for storing string slices
