@@ -8665,7 +8665,11 @@ type ResponseFormat struct {
 //
 // Which model runs is not a setting: the app is the model. An app that
 // fronts several models (a router) declares its own `model` input.
+//
+// Field order is schema order: the generated pydantic model, and the input
+// form built from its JSON schema, list fields as they are declared here.
 type LLMSettings struct {
+	SystemPrompt       string          `json:"system_prompt"`
 	ContextSize        int             `json:"context_size"`
 	Temperature        *float64        `json:"temperature,omitempty"`
 	TopP               *float64        `json:"top_p,omitempty"`
@@ -8679,7 +8683,6 @@ type LLMSettings struct {
 	MaxTokens          *int            `json:"max_tokens,omitempty"`
 	ReasoningEffort    *string         `json:"reasoning_effort,omitempty"`
 	ReasoningMaxTokens *int            `json:"reasoning_max_tokens,omitempty"`
-	SystemPrompt       string          `json:"system_prompt"`
 	Tools              *[]Tool         `json:"tools,omitempty"`
 	ToolChoice         *ToolChoice     `json:"tool_choice,omitempty"`
 	ResponseFormat     *ResponseFormat `json:"response_format,omitempty"`
@@ -8705,18 +8708,21 @@ func (s *LLMSettings) Normalize() {
 	}
 }
 
-// LLMInput is the input envelope for an LLM provider task: the settings plus
-// the conversation, with the current turn split out of the context.
+// LLMInput is the input envelope for an LLM provider task: the conversation,
+// with the current turn split out of the context, plus the settings.
+//
+// Field order is schema order (see LLMSettings): the turn comes first, the
+// settings last, so an input form shows what to say before how to say it.
 type LLMInput struct {
-	LLMSettings `tstype:",extends"`
-	Context     []LLMContextMessage `json:"context"`
-	Role        ChatMessageRole     `json:"role,omitempty"`
 	Text        *string             `json:"text"`
-	Reasoning   *string             `json:"reasoning"`
-	Attachments *[]FileRef          `json:"attachments,omitempty"`
 	Images      *[]string           `json:"images,omitempty"`
 	Files       *[]string           `json:"files,omitempty"`
+	Attachments *[]FileRef          `json:"attachments,omitempty"`
+	Context     []LLMContextMessage `json:"context"`
+	Role        ChatMessageRole     `json:"role,omitempty"`
+	Reasoning   *string             `json:"reasoning"`
 	ToolCallID  *string             `json:"tool_call_id,omitempty"`
+	LLMSettings `tstype:",extends"`
 }
 
 // TaskInput is the input as an LLM app's task takes it. The app's input
