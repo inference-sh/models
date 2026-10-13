@@ -2675,10 +2675,6 @@ type CredentialDTO struct {
 	Metadata          map[string]any `json:"metadata,omitempty"`
 	IsPrimary         bool           `json:"is_primary"`
 	ErrorMessage      string         `json:"error_message,omitempty"`
-	// Template: retired. It marked the catalogue template of an api_key
-	// provider; the platform api_key auth scheme carries that now and no
-	// row is written with it. Always false; dropped in a later release.
-	Template bool `json:"template"`
 	// Secrets are the secret rows linked to the credential (a key's values),
 	// by row and key, never by value. Filled on the vault's api_key configs
 	// and the admin provider tree.
