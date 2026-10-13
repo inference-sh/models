@@ -5764,9 +5764,12 @@ export interface MCPServerDTO {
    */
   credentials?: CredentialRequirements;
   credential_slug?: string;
+  /**
+   * Deprecated: Connection.Status. Kept for clients reading it.
+   */
   connection_status?: string;
   /**
-   * ConnectionScope is who the caller's connection to this server belongs
+   * Deprecated: Connection.Scope. ConnectionScope is who the caller's connection to this server belongs
    * to (user, team, org, platform); empty when not connected.
    */
   connection_scope?: CredentialScope;
@@ -5777,8 +5780,9 @@ export interface MCPServerDTO {
   connection?: ConnectionInfo;
 }
 /**
- * ConnectionInfo is the caller's login for one requirement: its
- * status (connected, expired, error; "" when none) and whose it is.
+ * ConnectionInfo is the caller's standing with a server: their login's
+ * status (connected, expired, error; "" when they hold none) and whose it
+ * is, and what the connection made with that login holds.
  */
 export interface ConnectionInfo extends MCPConnectionFacts {
   /**

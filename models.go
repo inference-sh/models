@@ -4330,10 +4330,11 @@ type MCPServerDTO struct {
 	// Credentials is what the server needs to be called (the same shape as
 	// an app's inf.yml credentials). CredentialSlug is the first entry's
 	// slug: the vault entry a call sends, so a page can link to it.
-	Credentials      CredentialRequirements `json:"credentials,omitempty"`
-	CredentialSlug   string                 `json:"credential_slug,omitempty"`
-	ConnectionStatus string                 `json:"connection_status,omitempty"`
-	// ConnectionScope is who the caller's connection to this server belongs
+	Credentials    CredentialRequirements `json:"credentials,omitempty"`
+	CredentialSlug string                 `json:"credential_slug,omitempty"`
+	// Deprecated: Connection.Status. Kept for clients reading it.
+	ConnectionStatus string `json:"connection_status,omitempty"`
+	// Deprecated: Connection.Scope. ConnectionScope is who the caller's connection to this server belongs
 	// to (user, team, org, platform); empty when not connected.
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
 	// Connection is the whole of it: the login's status and scope above,
@@ -4341,8 +4342,9 @@ type MCPServerDTO struct {
 	Connection *ConnectionInfo `json:"connection,omitempty"`
 }
 
-// ConnectionInfo is the caller's login for one requirement: its
-// status (connected, expired, error; "" when none) and whose it is.
+// ConnectionInfo is the caller's standing with a server: their login's
+// status (connected, expired, error; "" when they hold none) and whose it
+// is, and what the connection made with that login holds.
 type ConnectionInfo struct {
 	// Status and Scope are the caller's login's for the server: whether
 	// they can call it, and whose the login is.
