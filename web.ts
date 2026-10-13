@@ -2775,6 +2775,11 @@ export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
  */
 export interface AuthSchemeCreateRequest {
   slug: string;
+  /**
+   * Provider is the company the slug belongs to (its providers row).
+   * Empty means the scheme is its own company: the slug.
+   */
+  provider?: string;
   display_name: string;
   icon_url?: string;
   description?: string;
@@ -2801,6 +2806,11 @@ export interface AuthSchemeCreateRequest {
  * secrets leave the stored ones alone.
  */
 export interface AuthSchemeUpdateRequest {
+  /**
+   * Provider moves the scheme under another company. Empty keeps the
+   * stored one.
+   */
+  provider?: string;
   display_name?: string;
   icon_url?: string;
   description?: string;
@@ -3703,6 +3713,11 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   metadata?: { [key: string]: any};
   is_primary: boolean;
   error_message?: string;
+  /**
+   * Template: the catalogue template of an api_key provider (the empty
+   * platform row teams connect their own key against), never a real key.
+   */
+  template: boolean;
   /**
    * Secrets are the secret rows linked to the credential (a key's values),
    * by row and key, never by value. Filled on the vault's api_key configs

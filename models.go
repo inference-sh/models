@@ -2176,7 +2176,10 @@ type AuthSchemeDTO struct {
 // ClientID and ClientSecret are its OAuth app: they are written to the
 // team's app row (a grant=credentials credential), not to the scheme.
 type AuthSchemeCreateRequest struct {
-	Slug            string           `json:"slug"`
+	Slug string `json:"slug"`
+	// Provider is the company the slug belongs to (its providers row).
+	// Empty means the scheme is its own company: the slug.
+	Provider        string           `json:"provider,omitempty"`
 	DisplayName     string           `json:"display_name"`
 	IconURL         string           `json:"icon_url,omitempty"`
 	Description     string           `json:"description,omitempty"`
@@ -2198,6 +2201,9 @@ type AuthSchemeCreateRequest struct {
 // the provider key (stored on every credential) and cannot change. Empty
 // secrets leave the stored ones alone.
 type AuthSchemeUpdateRequest struct {
+	// Provider moves the scheme under another company. Empty keeps the
+	// stored one.
+	Provider        string           `json:"provider,omitempty"`
 	DisplayName     string           `json:"display_name,omitempty"`
 	IconURL         string           `json:"icon_url,omitempty"`
 	Description     string           `json:"description,omitempty"`
@@ -2669,6 +2675,9 @@ type CredentialDTO struct {
 	Metadata          map[string]any `json:"metadata,omitempty"`
 	IsPrimary         bool           `json:"is_primary"`
 	ErrorMessage      string         `json:"error_message,omitempty"`
+	// Template: the catalogue template of an api_key provider (the empty
+	// platform row teams connect their own key against), never a real key.
+	Template bool `json:"template"`
 	// Secrets are the secret rows linked to the credential (a key's values),
 	// by row and key, never by value. Filled on the vault's api_key configs
 	// and the admin provider tree.
@@ -4721,6 +4730,37 @@ type ProjectDTO struct {
 }
 
 // --------------------
+// source: provider.go
+// --------------------
+
+type ProviderDTO struct {
+	Slug           string           `json:"slug"`
+	DisplayName    string           `json:"display_name"`
+	Description    string           `json:"description,omitempty"`
+	IconURL        string           `json:"icon_url,omitempty"`
+	DocsURL        string           `json:"docs_url,omitempty"`
+	SupportedTypes StringSlice      `json:"supported_types,omitempty"`
+	Category       ProviderCategory `json:"category,omitempty"`
+	Status         ProviderStatus   `json:"status"`
+	DataResidency  map[string]any   `json:"data_residency,omitempty"`
+	Legal          map[string]any   `json:"legal,omitempty"`
+	PartnerConfig  map[string]any   `json:"partner_config,omitempty"`
+	Metadata       map[string]any   `json:"metadata,omitempty"`
+	CreatedAt      time.Time        `json:"created_at"`
+	UpdatedAt      time.Time        `json:"updated_at"`
+}
+
+// ProviderTreeDTO is a company with everything the platform holds for it
+// (GET /admin/providers/{slug}/tree): its platform-scoped auth schemes, and
+// every platform-scoped credential row (OAuth apps, templates and keys) for
+// one of those schemes, each with the keys of its linked secrets.
+type ProviderTreeDTO struct {
+	Provider    ProviderDTO     `json:"provider"`
+	Schemes     []AuthSchemeDTO `json:"schemes"`
+	Credentials []CredentialDTO `json:"credentials"`
+}
+
+// --------------------
 // source: redlist.go
 // --------------------
 
@@ -5611,31 +5651,34 @@ type EngineTypes struct {
 	_integDTO           CredentialDTO
 	_vaultDTO           VaultDTO
 	_credentialDTO      CredentialDTO
-	_skillResolve       SkillResolveResult
-	_skillDownload      SkillDownloadResponse
-	_skillDTO           SkillDTO
-	_knowledgeDTO       KnowledgeDTO
-	_knowledgeVersion   KnowledgeVersionDTO
-	_searchReq          SearchRequest
-	_hfCache            HFCacheInfo
-	_publicMCP          PublicMCPServerDTO
-	_menuCreate         MenuCreateRequest
-	_pageCreate         PageCreateRequest
-	_createApp          CreateAppRequest
-	_listResp           ListResponse[any]
-	_fileCreate         FileCreateRequest
-	_mcpTool            MCPTool
-	_mcpClientCaps      ClientCapabilities
-	_mcpElicitResult    ElicitResult
-	_mcpInputRequest    InputRequest
-	_mcpToolCallReq     ToolCallRequest
-	_mcpToolCallResp    ToolCallResponse
-	_mcpToolCallResult  ToolCallResult
-	_taskCost           TaskCostDTO
-	_taskLogs           TaskLogsDTO
-	_taskTimings        TaskTimingsDTO
-	_agentMsgResp       CreateAgentMessageResponse
-	_capabilities       CapabilitiesResponse
+	// The providers catalogue and a company's tree (admin, read by the CLI)
+	_providerDTO       ProviderDTO
+	_providerTreeDTO   ProviderTreeDTO
+	_skillResolve      SkillResolveResult
+	_skillDownload     SkillDownloadResponse
+	_skillDTO          SkillDTO
+	_knowledgeDTO      KnowledgeDTO
+	_knowledgeVersion  KnowledgeVersionDTO
+	_searchReq         SearchRequest
+	_hfCache           HFCacheInfo
+	_publicMCP         PublicMCPServerDTO
+	_menuCreate        MenuCreateRequest
+	_pageCreate        PageCreateRequest
+	_createApp         CreateAppRequest
+	_listResp          ListResponse[any]
+	_fileCreate        FileCreateRequest
+	_mcpTool           MCPTool
+	_mcpClientCaps     ClientCapabilities
+	_mcpElicitResult   ElicitResult
+	_mcpInputRequest   InputRequest
+	_mcpToolCallReq    ToolCallRequest
+	_mcpToolCallResp   ToolCallResponse
+	_mcpToolCallResult ToolCallResult
+	_taskCost          TaskCostDTO
+	_taskLogs          TaskLogsDTO
+	_taskTimings       TaskTimingsDTO
+	_agentMsgResp      CreateAgentMessageResponse
+	_capabilities      CapabilitiesResponse
 	// Affinity
 	_affinityKey AffinityKey
 	// Contract types
@@ -9191,6 +9234,25 @@ const (
 	// CredentialGrantToken: a connection: an OAuth login, an API key, a
 	// service account, an MCP authorization.
 	CredentialGrantToken CredentialGrant = "token"
+)
+
+type ProviderCategory string
+
+const (
+	ProviderCategoryAIML   ProviderCategory = "ai_ml"
+	ProviderCategoryMedia  ProviderCategory = "media"
+	ProviderCategorySearch ProviderCategory = "search"
+	ProviderCategoryCloud  ProviderCategory = "cloud"
+	ProviderCategorySocial ProviderCategory = "social"
+	ProviderCategoryTools  ProviderCategory = "tools"
+)
+
+type ProviderStatus string
+
+const (
+	ProviderStatusActive     ProviderStatus = "active"
+	ProviderStatusBeta       ProviderStatus = "beta"
+	ProviderStatusDeprecated ProviderStatus = "deprecated"
 )
 
 type RejectionReason string
