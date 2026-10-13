@@ -4336,6 +4336,30 @@ type MCPServerDTO struct {
 	// ConnectionScope is who the caller's connection to this server belongs
 	// to (user, team, org, platform); empty when not connected.
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
+	// Connection is the whole of it: the login's status and scope above,
+	// and what the connection made with that login holds.
+	Connection *ConnectionInfo `json:"connection,omitempty"`
+}
+
+// ConnectionInfo is the caller's login for one requirement: its
+// status (connected, expired, error; "" when none) and whose it is.
+type ConnectionInfo struct {
+	// Status and Scope are the caller's login's for the server: whether
+	// they can call it, and whose the login is.
+	Status string          `json:"status,omitempty"`
+	Scope  CredentialScope `json:"scope,omitempty"`
+	// What the connection made with that login holds.
+	MCPConnectionFacts `tstype:",extends"`
+}
+
+// MCPConnectionFacts is what an MCP connection (a server reached through
+// one login) has recorded: the catalogue it listed, its last call.
+type MCPConnectionFacts struct {
+	ConnectionID  string     `json:"connection_id,omitempty"`
+	ToolCount     int        `json:"tool_count,omitempty"`
+	ToolsListedAt *time.Time `json:"tools_listed_at,omitempty"`
+	LastCalledAt  *time.Time `json:"last_called_at,omitempty"`
+	LastError     string     `json:"last_error,omitempty"`
 }
 
 // PublicMCPServerDTO is a lean DTO for the public MCP directory.
