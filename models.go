@@ -2696,11 +2696,13 @@ type CredentialSecretRef struct {
 // ProviderSummary is the company a credential slug belongs to: the
 // providers row's identity, for grouping and display.
 type ProviderSummary struct {
-	Slug    string `json:"slug"`
-	Name    string `json:"name"`
-	IconURL string `json:"icon_url,omitempty"`
-	Website string `json:"website,omitempty"`
-	DocsURL string `json:"docs_url,omitempty"`
+	Slug       string `json:"slug"`
+	Name       string `json:"name"`
+	IconURL    string `json:"icon_url,omitempty"`
+	Website    string `json:"website,omitempty"`
+	DocsURL    string `json:"docs_url,omitempty"`
+	TermsURL   string `json:"terms_url,omitempty"`
+	PrivacyURL string `json:"privacy_url,omitempty"`
 }
 
 // CredentialConfigDTO is the merged view: provider catalog + credential state.
@@ -4734,12 +4736,18 @@ type ProjectDTO struct {
 // source: provider.go
 // --------------------
 
+// ProviderDTO is a company of the catalogue. Its links: docs_url, website
+// (metadata.website), terms_url and privacy_url (legal.terms_url,
+// legal.privacy_url); the flat fields read the maps.
 type ProviderDTO struct {
 	Slug           string           `json:"slug"`
 	DisplayName    string           `json:"display_name"`
 	Description    string           `json:"description,omitempty"`
 	IconURL        string           `json:"icon_url,omitempty"`
 	DocsURL        string           `json:"docs_url,omitempty"`
+	Website        string           `json:"website,omitempty"`
+	TermsURL       string           `json:"terms_url,omitempty"`
+	PrivacyURL     string           `json:"privacy_url,omitempty"`
 	SupportedTypes StringSlice      `json:"supported_types,omitempty"`
 	Category       ProviderCategory `json:"category,omitempty"`
 	Status         ProviderStatus   `json:"status"`

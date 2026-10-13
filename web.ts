@@ -3800,6 +3800,8 @@ export interface ProviderSummary {
   icon_url?: string;
   website?: string;
   docs_url?: string;
+  terms_url?: string;
+  privacy_url?: string;
 }
 /**
  * CredentialConfigDTO is the merged view: provider catalog + credential state.
@@ -6492,12 +6494,20 @@ export interface ProjectDTO extends BaseModelDTO, PermissionModelDTO {
   parent?: ProjectDTO;
   children: (ProjectDTO | undefined)[];
 }
+/**
+ * ProviderDTO is a company of the catalogue. Its links: docs_url, website
+ * (metadata.website), terms_url and privacy_url (legal.terms_url,
+ * legal.privacy_url); the flat fields read the maps.
+ */
 export interface ProviderDTO {
   slug: string;
   display_name: string;
   description?: string;
   icon_url?: string;
   docs_url?: string;
+  website?: string;
+  terms_url?: string;
+  privacy_url?: string;
   supported_types?: StringSlice;
   category?: ProviderCategory;
   status: ProviderStatus;
@@ -6507,6 +6517,29 @@ export interface ProviderDTO {
   metadata?: { [key: string]: any};
   created_at: string /* RFC3339 */;
   updated_at: string /* RFC3339 */;
+}
+/**
+ * ProviderUpsertRequest is the body of PUT /admin/providers/{slug}: the
+ * fields to set. An empty field leaves the row's value; metadata and legal
+ * merge key by key. website, terms_url and privacy_url are the flat
+ * spelling of metadata.website, legal.terms_url and legal.privacy_url and
+ * win over the maps.
+ */
+export interface ProviderUpsertRequest {
+  display_name?: string;
+  description?: string;
+  icon_url?: string;
+  docs_url?: string;
+  website?: string;
+  terms_url?: string;
+  privacy_url?: string;
+  supported_types?: StringSlice;
+  category?: ProviderCategory;
+  status?: ProviderStatus;
+  data_residency?: { [key: string]: any};
+  legal?: { [key: string]: any};
+  partner_config?: { [key: string]: any};
+  metadata?: { [key: string]: any};
 }
 /**
  * ProviderTreeDTO is a company with everything the platform holds for it
