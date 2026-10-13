@@ -3714,8 +3714,9 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   is_primary: boolean;
   error_message?: string;
   /**
-   * Template: the catalogue template of an api_key provider (the empty
-   * platform row teams connect their own key against), never a real key.
+   * Template: retired. It marked the catalogue template of an api_key
+   * provider; the platform api_key auth scheme carries that now and no
+   * row is written with it. Always false; dropped in a later release.
    */
   template: boolean;
   /**
@@ -6510,7 +6511,7 @@ export interface ProviderDTO {
 /**
  * ProviderTreeDTO is a company with everything the platform holds for it
  * (GET /admin/providers/{slug}/tree): its platform-scoped auth schemes, and
- * every platform-scoped credential row (OAuth apps, templates and keys) for
+ * every platform-scoped credential row (OAuth apps, keys and logins) for
  * one of those schemes, each with the keys of its linked secrets.
  */
 export interface ProviderTreeDTO {

@@ -2675,8 +2675,9 @@ type CredentialDTO struct {
 	Metadata          map[string]any `json:"metadata,omitempty"`
 	IsPrimary         bool           `json:"is_primary"`
 	ErrorMessage      string         `json:"error_message,omitempty"`
-	// Template: the catalogue template of an api_key provider (the empty
-	// platform row teams connect their own key against), never a real key.
+	// Template: retired. It marked the catalogue template of an api_key
+	// provider; the platform api_key auth scheme carries that now and no
+	// row is written with it. Always false; dropped in a later release.
 	Template bool `json:"template"`
 	// Secrets are the secret rows linked to the credential (a key's values),
 	// by row and key, never by value. Filled on the vault's api_key configs
@@ -4752,7 +4753,7 @@ type ProviderDTO struct {
 
 // ProviderTreeDTO is a company with everything the platform holds for it
 // (GET /admin/providers/{slug}/tree): its platform-scoped auth schemes, and
-// every platform-scoped credential row (OAuth apps, templates and keys) for
+// every platform-scoped credential row (OAuth apps, keys and logins) for
 // one of those schemes, each with the keys of its linked secrets.
 type ProviderTreeDTO struct {
 	Provider    ProviderDTO     `json:"provider"`
