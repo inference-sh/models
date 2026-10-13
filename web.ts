@@ -3703,6 +3703,21 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   metadata?: { [key: string]: any};
   is_primary: boolean;
   error_message?: string;
+  /**
+   * Secrets are the secret rows linked to the credential (a key's values),
+   * by row and key, never by value. Filled on the vault's api_key configs
+   * and the admin provider tree.
+   */
+  secrets?: CredentialSecretRef[];
+}
+/**
+ * CredentialSecretRef names one secret linked to a credential: the row's
+ * id, the key it is stored under and when its value last changed.
+ */
+export interface CredentialSecretRef {
+  id: string;
+  key: string;
+  updated_at: string /* RFC3339 */;
 }
 /**
  * CredentialAppRequest is the body of PUT /credentials/{provider}/app: the
@@ -6476,6 +6491,17 @@ export interface ProviderDTO {
   metadata?: { [key: string]: any};
   created_at: string /* RFC3339 */;
   updated_at: string /* RFC3339 */;
+}
+/**
+ * ProviderTreeDTO is a company with everything the platform holds for it
+ * (GET /admin/providers/{slug}/tree): its platform-scoped auth schemes, and
+ * every platform-scoped credential row (OAuth apps, templates and keys) for
+ * one of those schemes, each with the keys of its linked secrets.
+ */
+export interface ProviderTreeDTO {
+  provider: ProviderDTO;
+  schemes: AuthSchemeDTO[];
+  credentials: CredentialDTO[];
 }
 /**
  * PublicationThemeColors defines the core colors for one mode (light or dark).
