@@ -2669,6 +2669,18 @@ type CredentialDTO struct {
 	Metadata          map[string]any `json:"metadata,omitempty"`
 	IsPrimary         bool           `json:"is_primary"`
 	ErrorMessage      string         `json:"error_message,omitempty"`
+	// Secrets are the secret rows linked to the credential (a key's values),
+	// by row and key, never by value. Filled on the vault's api_key configs
+	// and the admin provider tree.
+	Secrets []CredentialSecretRef `json:"secrets,omitempty"`
+}
+
+// CredentialSecretRef names one secret linked to a credential: the row's
+// id, the key it is stored under and when its value last changed.
+type CredentialSecretRef struct {
+	ID        string    `json:"id"`
+	Key       string    `json:"key"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // ProviderSummary is the company a credential slug belongs to: the
