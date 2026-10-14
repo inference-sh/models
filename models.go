@@ -5795,6 +5795,19 @@ type SecretDTO struct {
 	// CredentialID is the credential this secret is attached to; empty for
 	// a plain secret.
 	CredentialID string `json:"credential_id,omitempty"`
+	// The four below are read from the credential a listing preloads; a
+	// row read without it leaves them empty.
+	//
+	// Provider is the slug of the credential the secret belongs to.
+	Provider string `json:"provider,omitempty"`
+	// ProviderName is that credential's display name ("Anthropic").
+	ProviderName string `json:"provider_name,omitempty"`
+	// Label is the credential's account identifier: a key's label.
+	Label string `json:"label,omitempty"`
+	// CredentialDefault is whether the credential is its owner's default.
+	// Always serialised: a linked non-default row and an unlabelled row
+	// must not read the same.
+	CredentialDefault bool `json:"credential_default"`
 }
 
 // --------------------
