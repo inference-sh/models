@@ -374,13 +374,6 @@ type MCPToolConfigDTO struct {
 	CredentialID string `json:"credential_id,omitempty"`
 }
 
-// AgentImages contains display images for an agent
-type AgentImages struct {
-	Card      string `json:"card"`
-	Thumbnail string `json:"thumbnail"`
-	Banner    string `json:"banner"`
-}
-
 // CoreAppConfigDTO references an app used as the agent's core
 type CoreAppConfigDTO struct {
 	ID        *string          `json:"id"`
@@ -400,7 +393,7 @@ type AgentDTO struct {
 	Name               string `json:"name"`
 	// Title is the human-readable name; empty falls back to Name.
 	Title     string           `json:"title"`
-	Images    AgentImages      `json:"images"`
+	Images    ResourceImages   `json:"images"`
 	VersionID string           `json:"version_id"`
 	Version   *AgentVersionDTO `json:"version"`
 	// Harness is what drives the agent: "inference" for our own loop, or an
@@ -449,11 +442,11 @@ type AgentVersionDTO struct {
 // For new version of existing agent: include ID
 // A new agent's namespace is its team's; the body cannot name one.
 type CreateAgentRequest struct {
-	ID         string      `json:"id,omitempty"`
-	Name       string      `json:"name"`
-	Title      string      `json:"title,omitempty"`
-	Images     AgentImages `json:"images,omitempty"`
-	Visibility Visibility  `json:"visibility,omitempty"`
+	ID         string         `json:"id,omitempty"`
+	Name       string         `json:"name"`
+	Title      string         `json:"title,omitempty"`
+	Images     ResourceImages `json:"images,omitempty"`
+	Visibility Visibility     `json:"visibility,omitempty"`
 	// Harness runs the agent: "inference" (ours) or an external harness.
 	Harness string `json:"harness,omitempty"`
 	// ProfileID and RemoteID place the agent on one of the caller's
@@ -667,14 +660,14 @@ type AppVersionInput struct {
 
 // CreateAppRequest is the request body for POST /apps
 type CreateAppRequest struct {
-	ID               string      `json:"id,omitempty"`
-	Namespace        string      `json:"namespace,omitempty"`
-	Name             string      `json:"name"`
-	Title            string      `json:"title,omitempty"`
-	Description      string      `json:"description,omitempty"`
-	AgentDescription string      `json:"agent_description,omitempty"`
-	Category         AppCategory `json:"category,omitempty"`
-	Images           AppImages   `json:"images,omitempty"`
+	ID               string         `json:"id,omitempty"`
+	Namespace        string         `json:"namespace,omitempty"`
+	Name             string         `json:"name"`
+	Title            string         `json:"title,omitempty"`
+	Description      string         `json:"description,omitempty"`
+	AgentDescription string         `json:"agent_description,omitempty"`
+	Category         AppCategory    `json:"category,omitempty"`
+	Images           ResourceImages `json:"images,omitempty"`
 	// Tags replace the app's tags when given; omitted, a deploy takes them
 	// from the version's metadata.tags, and keeps the stored ones if that is
 	// empty too.
@@ -1367,13 +1360,6 @@ func (f AppFunction) IsStream() bool {
 	return f.Kind == FunctionKindStream
 }
 
-// AppImages holds developer-provided images for the app.
-type AppImages struct {
-	Card      string `json:"card" yaml:"card"`
-	Thumbnail string `json:"thumbnail" yaml:"thumbnail"`
-	Banner    string `json:"banner" yaml:"banner"`
-}
-
 // AppGPUResource describes GPU requirements.
 type AppGPUResource struct {
 	Count int     `json:"count" yaml:"count"`
@@ -1742,11 +1728,11 @@ type AppDTO struct {
 	// "Veo 3.1" for the app named veo-3-1. Name stays the immutable slug that
 	// addresses it. Empty means the surface falls back to the name, so nothing
 	// breaks for a resource that never sets one.
-	Title            string      `json:"title"`
-	Description      string      `json:"description"`
-	AgentDescription string      `json:"agent_description"`
-	Category         AppCategory `json:"category"`
-	Images           AppImages   `json:"images"`
+	Title            string         `json:"title"`
+	Description      string         `json:"description"`
+	AgentDescription string         `json:"agent_description"`
+	Category         AppCategory    `json:"category"`
+	Images           ResourceImages `json:"images"`
 	// Tags name what the app does and its traits, as lowercase slugs
 	// (text-to-image, open-weights). GET /store/tags lists the ones in use
 	// with their titles.
@@ -1903,30 +1889,19 @@ type PublicAppStoreDTO struct {
 	Namespace   string   `json:"namespace"`
 	Name        string   `json:"name"`
 	// Title is the human-readable name; empty falls back to Name.
-	Title              string    `json:"title"`
-	Description        string    `json:"description"`
-	Images             AppImages `json:"images"`
-	IsFeatured         bool      `json:"is_featured"`
-	Rank               int       `json:"rank"`
-	HasApprovedVersion bool      `json:"has_approved_version"`
-	PageID             *string   `json:"page_id,omitempty"`
-	PricingDescription string    `json:"pricing_description,omitempty"`
+	Title              string         `json:"title"`
+	Description        string         `json:"description"`
+	Images             ResourceImages `json:"images"`
+	IsFeatured         bool           `json:"is_featured"`
+	Rank               int            `json:"rank"`
+	HasApprovedVersion bool           `json:"has_approved_version"`
+	PageID             *string        `json:"page_id,omitempty"`
+	PricingDescription string         `json:"pricing_description,omitempty"`
 }
 
 // --------------------
 // source: artifact.go
 // --------------------
-
-// ResourceImages is the display-image set every listable resource carries:
-// a card image for grids, a thumbnail for dense rows, a banner for headers.
-// AppImages and AgentImages predate this and hold the same three fields;
-// they should collapse onto this type, but aliasing them changes what
-// gotypegen emits for existing consumers, so that migration is separate.
-type ResourceImages struct {
-	Card      string `json:"card" yaml:"card"`
-	Thumbnail string `json:"thumbnail" yaml:"thumbnail"`
-	Banner    string `json:"banner" yaml:"banner"`
-}
 
 // ArtifactDTO is the API shape of an artifact entry.
 type ArtifactDTO struct {
@@ -1943,10 +1918,6 @@ type ArtifactDTO struct {
 	// Images are the cover images shown in galleries and headers, same as
 	// apps and agents. The favicon stays the rendered page's tab icon.
 	Images ResourceImages `json:"images"`
-	// ImagesDark is the cover for a dark theme, set only by a capture of a
-	// page that looks different in dark. Empty means Images serve both
-	// themes.
-	ImagesDark ResourceImages `json:"images_dark,omitempty"`
 	// VersionID points at the latest published version.
 	VersionID string              `json:"version_id"`
 	Version   *ArtifactVersionDTO `json:"version"`
@@ -2317,6 +2288,18 @@ type ResourceStatusDTO struct {
 	ID        string    `json:"id"`
 	Status    any       `json:"status"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ResourceImages is the display-image set every listable resource carries
+// (apps, agents, artifacts): a card image for grids, a thumbnail for dense
+// rows, a banner for headers.
+type ResourceImages struct {
+	Card      string `json:"card" yaml:"card"`
+	Thumbnail string `json:"thumbnail" yaml:"thumbnail"`
+	Banner    string `json:"banner" yaml:"banner"`
+	// Dark holds the same slots for a dark theme. Nil means the slots above
+	// serve both themes.
+	Dark *ResourceImages `json:"dark,omitempty" yaml:"dark,omitempty"`
 }
 
 // AvailabilityResponse answers "can I use this name?" — for page slugs, team
