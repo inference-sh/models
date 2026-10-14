@@ -879,6 +879,10 @@ type SecretCreateRequest struct {
 	// logo is looked up from. Ignored for a provider the platform knows.
 	ProviderName    string `json:"provider_name,omitempty"`
 	ProviderWebsite string `json:"provider_website,omitempty"`
+	// Label names this key among the owner's keys for Provider (prod,
+	// personal): a new label adds a key beside the others, the same label
+	// replaces that key's value. Empty: the owner's default key.
+	Label string `json:"label,omitempty"`
 }
 
 // SecretProviderRequest attaches an existing secret to a provider's
@@ -889,6 +893,9 @@ type SecretProviderRequest struct {
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
 	ProviderName    string          `json:"provider_name,omitempty"`
 	ProviderWebsite string          `json:"provider_website,omitempty"`
+	// Label names the key among the owner's keys for Provider, as on
+	// SecretCreateRequest. Empty: the owner's default key.
+	Label string `json:"label,omitempty"`
 }
 
 type SecretUpdateRequest struct {
@@ -2751,6 +2758,10 @@ type CredentialConfigDTO struct {
 	// order (Credential first). More than one when several accounts are
 	// connected.
 	Accounts []*CredentialDTO `json:"accounts,omitempty"`
+	// MultiAccount: several accounts of this provider can be connected side
+	// by side, each addressed by its account_id; the default (is_primary) is
+	// used where none is named.
+	MultiAccount bool `json:"multi_account"`
 }
 
 // --------------------
