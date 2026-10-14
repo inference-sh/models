@@ -1941,12 +1941,19 @@ type ArtifactDTO struct {
 	Version   *ArtifactVersionDTO `json:"version"`
 	// SharedVersionID pins the version viewers see. Empty = always latest.
 	SharedVersionID string `json:"shared_version_id,omitempty"`
+	// CoverVersionID is the version a captured cover shows. Empty means the
+	// cover (if any) was set by a person or agent, and a capture never
+	// replaces it.
+	CoverVersionID string `json:"cover_version_id,omitempty"`
 	// Capabilities declared by the latest version (runtime features the page
 	// may use). Reserved for the artifact runtime; opaque to the API.
 	Capabilities map[string]any `json:"capabilities,omitempty"`
 	Views        int64          `json:"views"`
 	// URL is the canonical viewer URL for this artifact.
 	URL string `json:"url,omitempty"`
+	// Access is the viewer's level on this artifact: read, interact (may
+	// change its data) or write (may edit it). Set on single reads only.
+	Access Permission `json:"access,omitempty"`
 }
 
 // FullName returns "namespace/name".
@@ -7799,6 +7806,10 @@ type Permission string
 const (
 	PermRead  Permission = "read"
 	PermWrite Permission = "write"
+	// PermInteract changes what a page's people keep in it (an artifact's
+	// shared data) without editing the page. Write covers interact, and
+	// interact covers read; public and unlisted visibility grant read only.
+	PermInteract Permission = "interact"
 	// PermUse is execute intent: run an app, load a skill/knowledge into an
 	// agent context, invoke an MCP tool. Distinct from read — a public
 	// resource is readable by everyone, but whether this caller may USE it is
