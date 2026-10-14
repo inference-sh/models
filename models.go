@@ -1936,6 +1936,10 @@ type ArtifactDTO struct {
 	// Images are the cover images shown in galleries and headers, same as
 	// apps and agents. The favicon stays the rendered page's tab icon.
 	Images ResourceImages `json:"images"`
+	// ImagesDark is the cover for a dark theme, set only by a capture of a
+	// page that looks different in dark. Empty means Images serve both
+	// themes.
+	ImagesDark ResourceImages `json:"images_dark,omitempty"`
 	// VersionID points at the latest published version.
 	VersionID string              `json:"version_id"`
 	Version   *ArtifactVersionDTO `json:"version"`
