@@ -1118,7 +1118,7 @@ const (
 	// existed); an app's OAuth token or a bound session never does.
 	ScopeSecretsReveal Scope = "secrets:reveal"
 	// Action-level scopes for credentials (connected accounts, vaults,
-	// auth schemes, MCP servers).
+	// auth providers, MCP servers).
 	ScopeCredentialsRead  Scope = "credentials:read"
 	ScopeCredentialsWrite Scope = "credentials:write"
 	// Action-level scopes for Engines
@@ -1387,7 +1387,7 @@ type SecretRequirement struct {
 // the platform-defined grants it needs ("x.tweet.read", "google.sheets":
 // an OAuth grant with the scopes it implies), each a capability of the
 // entry's own provider. Provider seeds the catalog row for the company the
-// first time it is seen and never overwrites it; Auth seeds the auth scheme
+// first time it is seen and never overwrites it; Auth seeds the auth provider
 // when the slug is free.
 //
 //	credentials:
@@ -1410,9 +1410,9 @@ type CredentialRequirement struct {
 	// Provider describes the company the credential belongs to, for a
 	// catalog row that does not exist yet. Its slug defaults to the
 	// credential slug.
-	Provider *ProviderSeed `json:"provider,omitempty" yaml:"provider,omitempty"`
-	// Auth is the credential's auth scheme, for a slug no row defines yet.
-	Auth *AuthSchemeSpec `json:"auth,omitempty" yaml:"auth,omitempty"`
+	Provider *CompanySeed `json:"provider,omitempty" yaml:"provider,omitempty"`
+	// Auth is the credential's auth provider, for a slug no row defines yet.
+	Auth *AuthMethod `json:"auth,omitempty" yaml:"auth,omitempty"`
 }
 
 // UnmarshalJSON reads an entry in the current or the list form.
@@ -1514,9 +1514,9 @@ func (r *CredentialRequirement) KeyedAs(slug string) error {
 	return nil
 }
 
-// ProviderSeed is a provider (the company behind a credential) as an app
+// CompanySeed is a provider (the company behind a credential) as an app
 // declares it: enough to create its catalog row when none exists.
-type ProviderSeed struct {
+type CompanySeed struct {
 	Slug        string `json:"slug,omitempty" yaml:"slug,omitempty"`
 	Name        string `json:"name,omitempty" yaml:"name,omitempty"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
@@ -1540,6 +1540,7 @@ type CredentialRequirementWire struct {
 	Secrets      []string `json:"secrets" yaml:"secrets"`
 	Scopes       []string `json:"scopes" yaml:"scopes"`
 	Provider     any      `json:"provider" yaml:"provider"`
+	Company      any      `json:"company" yaml:"company"`
 	Auth         any      `json:"auth" yaml:"auth"`
 	Key          string   `json:"key" yaml:"key"`
 	Name         string   `json:"name" yaml:"name"`
@@ -1554,15 +1555,25 @@ func (w CredentialRequirementWire) Requirement() (CredentialRequirement, error) 
 	case string:
 		r.Slug = p
 	case map[string]any, map[any]any:
-		r.Provider = &ProviderSeed{}
+		r.Provider = &CompanySeed{}
 		if err := w.DecodeInto(p, r.Provider); err != nil {
 			return r, fmt.Errorf("credentials: provider: %w", err)
 		}
 	default:
 		return r, fmt.Errorf("credentials: provider must be a slug or a map, got %T", w.Provider)
 	}
+	switch c := w.Company.(type) {
+	case nil:
+	case map[string]any, map[any]any:
+		r.Provider = &CompanySeed{}
+		if err := w.DecodeInto(c, r.Provider); err != nil {
+			return r, fmt.Errorf("credentials: company: %w", err)
+		}
+	default:
+		return r, fmt.Errorf("credentials: company must be a map, got %T", w.Company)
+	}
 	if w.Auth != nil {
-		r.Auth = &AuthSchemeSpec{}
+		r.Auth = &AuthMethod{}
 		if err := w.DecodeInto(w.Auth, r.Auth); err != nil {
 			return r, fmt.Errorf("credentials: auth: %w", err)
 		}
@@ -1572,7 +1583,7 @@ func (w CredentialRequirementWire) Requirement() (CredentialRequirement, error) 
 	}
 	if w.Name != "" || w.Website != "" {
 		if r.Provider == nil {
-			r.Provider = &ProviderSeed{}
+			r.Provider = &CompanySeed{}
 		}
 		if r.Provider.Name == "" {
 			r.Provider.Name = w.Name
@@ -2135,48 +2146,48 @@ type ArtifactFrameDTO struct {
 }
 
 // --------------------
-// source: auth_scheme.go
+// source: auth_provider.go
 // --------------------
 
-// AuthSchemeDTO is how a team connects to a service it defined itself: its
+// AuthProviderDTO is how a team connects to a service it defined itself: its
 // own OAuth app registered against a third party. Secrets never leave the
 // vault; the DTO carries the keys they are stored under.
-type AuthSchemeDTO struct {
+type AuthProviderDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
 	Scope              CredentialScope `json:"scope"`
 	Slug               string          `json:"slug"`
 	// Provider is the company the slug belongs to (its providers row).
-	Provider        string           `json:"provider"`
-	DisplayName     string           `json:"display_name"`
-	IconURL         string           `json:"icon_url,omitempty"`
-	Description     string           `json:"description,omitempty"`
-	DocsURL         string           `json:"docs_url,omitempty"`
-	HowItWorks      []string         `json:"how_it_works,omitempty"`
-	Website         string           `json:"website,omitempty"`
-	ConnectionScope CredentialScope  `json:"connection_scope,omitempty"`
-	Specs           []AuthSchemeSpec `json:"specs"`
+	Provider        string          `json:"provider"`
+	DisplayName     string          `json:"display_name"`
+	IconURL         string          `json:"icon_url,omitempty"`
+	Description     string          `json:"description,omitempty"`
+	DocsURL         string          `json:"docs_url,omitempty"`
+	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	Website         string          `json:"website,omitempty"`
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
+	Specs           []AuthMethod    `json:"specs"`
 	// Where the OAuth app's client id and secret live in the team vault.
 	ClientIDKey     string `json:"client_id_key"`
 	ClientSecretKey string `json:"client_secret_key"`
 }
 
-// AuthSchemeCreateRequest registers how to connect to a team's own service.
+// AuthProviderCreateRequest registers how to connect to a team's own service.
 // ClientID and ClientSecret are its OAuth app: they are written to the
 // team's app row (a grant=credentials credential), not to the scheme.
-type AuthSchemeCreateRequest struct {
+type AuthProviderCreateRequest struct {
 	Slug string `json:"slug"`
 	// Provider is the company the slug belongs to (its providers row).
 	// Empty means the scheme is its own company: the slug.
-	Provider        string           `json:"provider,omitempty"`
-	DisplayName     string           `json:"display_name"`
-	IconURL         string           `json:"icon_url,omitempty"`
-	Description     string           `json:"description,omitempty"`
-	DocsURL         string           `json:"docs_url,omitempty"`
-	HowItWorks      []string         `json:"how_it_works,omitempty"`
-	Website         string           `json:"website,omitempty"`
-	ConnectionScope CredentialScope  `json:"connection_scope,omitempty"`
-	Specs           []AuthSchemeSpec `json:"specs"`
+	Provider        string          `json:"provider,omitempty"`
+	DisplayName     string          `json:"display_name"`
+	IconURL         string          `json:"icon_url,omitempty"`
+	Description     string          `json:"description,omitempty"`
+	DocsURL         string          `json:"docs_url,omitempty"`
+	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	Website         string          `json:"website,omitempty"`
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
+	Specs           []AuthMethod    `json:"specs"`
 	// The OAuth app, required for a team scheme. A platform scheme's app
 	// is managed separately (PUT /credentials/{provider}/app).
 	ClientID     string `json:"client_id,omitempty"`
@@ -2186,28 +2197,28 @@ type AuthSchemeCreateRequest struct {
 	Scope CredentialScope `json:"scope,omitempty"`
 }
 
-// AuthSchemeUpdateRequest changes the display fields and specs; the slug is
+// AuthProviderUpdateRequest changes the display fields and specs; the slug is
 // the provider key (stored on every credential) and cannot change. Empty
 // secrets leave the stored ones alone.
-type AuthSchemeUpdateRequest struct {
+type AuthProviderUpdateRequest struct {
 	// Provider moves the scheme under another company. Empty keeps the
 	// stored one.
-	Provider        string           `json:"provider,omitempty"`
-	DisplayName     string           `json:"display_name,omitempty"`
-	IconURL         string           `json:"icon_url,omitempty"`
-	Description     string           `json:"description,omitempty"`
-	DocsURL         string           `json:"docs_url,omitempty"`
-	HowItWorks      []string         `json:"how_it_works,omitempty"`
-	Website         string           `json:"website,omitempty"`
-	ConnectionScope CredentialScope  `json:"connection_scope,omitempty"`
-	Specs           []AuthSchemeSpec `json:"specs,omitempty"`
-	ClientID        string           `json:"client_id,omitempty"`
-	ClientSecret    string           `json:"client_secret,omitempty"`
+	Provider        string          `json:"provider,omitempty"`
+	DisplayName     string          `json:"display_name,omitempty"`
+	IconURL         string          `json:"icon_url,omitempty"`
+	Description     string          `json:"description,omitempty"`
+	DocsURL         string          `json:"docs_url,omitempty"`
+	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	Website         string          `json:"website,omitempty"`
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
+	Specs           []AuthMethod    `json:"specs,omitempty"`
+	ClientID        string          `json:"client_id,omitempty"`
+	ClientSecret    string          `json:"client_secret,omitempty"`
 }
 
-// AuthSchemeHooksDTO lists the registered Go hooks a scheme spec may name
+// AuthProviderHooksDTO lists the registered Go hooks a scheme spec may name
 // in each slot (GET /auth-schemes/hooks).
-type AuthSchemeHooksDTO struct {
+type AuthProviderHooksDTO struct {
 	TokenResponse []string `json:"token_response"`
 	Identity      []string `json:"identity"`
 	Vars          []string `json:"vars"`
@@ -2216,26 +2227,26 @@ type AuthSchemeHooksDTO struct {
 	AuthServerProfiles []string `json:"auth_server_profiles"`
 }
 
-// AuthSchemeSeedResult is what POST /admin/auth-schemes/seed did: the
+// AuthProviderSeedResult is what POST /admin/auth-schemes/seed did: the
 // built-in definitions written as platform rows, and the logos looked up
 // for rows that had none, with the reason for each still without one.
-type AuthSchemeSeedResult struct {
+type AuthProviderSeedResult struct {
 	Created   int               `json:"created"`
 	Updated   int               `json:"updated"`
 	Branded   int               `json:"branded"`
 	Unbranded map[string]string `json:"unbranded,omitempty"` // slug → why no logo
 }
 
-// AuthSchemeTypes is a phantom root for gotypegen dependency tracing.
-type AuthSchemeTypes struct {
-	_hooks      AuthSchemeHooksDTO
-	_seed       AuthSchemeSeedResult
-	_dto        AuthSchemeDTO
-	_create     AuthSchemeCreateRequest
-	_update     AuthSchemeUpdateRequest
-	_spec       AuthSchemeSpec
-	_specKind   AuthSchemeKind
-	_clientAuth AuthSchemeClientAuth
+// AuthProviderTypes is a phantom root for gotypegen dependency tracing.
+type AuthProviderTypes struct {
+	_hooks      AuthProviderHooksDTO
+	_seed       AuthProviderSeedResult
+	_dto        AuthProviderDTO
+	_create     AuthProviderCreateRequest
+	_update     AuthProviderUpdateRequest
+	_spec       AuthMethod
+	_specKind   AuthMethodKind
+	_clientAuth AuthMethodClientAuth
 }
 
 // --------------------
@@ -2636,6 +2647,43 @@ type ToolExplanationDTO struct {
 }
 
 // --------------------
+// source: company.go
+// --------------------
+
+// CompanyDTO is a company of the catalogue. Its links: docs_url, website
+// (metadata.website), terms_url and privacy_url (legal.terms_url,
+// legal.privacy_url); the flat fields read the maps.
+type CompanyDTO struct {
+	Slug           string          `json:"slug"`
+	DisplayName    string          `json:"display_name"`
+	Description    string          `json:"description,omitempty"`
+	IconURL        string          `json:"icon_url,omitempty"`
+	DocsURL        string          `json:"docs_url,omitempty"`
+	Website        string          `json:"website,omitempty"`
+	TermsURL       string          `json:"terms_url,omitempty"`
+	PrivacyURL     string          `json:"privacy_url,omitempty"`
+	SupportedTypes StringSlice     `json:"supported_types,omitempty"`
+	Category       CompanyCategory `json:"category,omitempty"`
+	Status         CompanyStatus   `json:"status"`
+	DataResidency  map[string]any  `json:"data_residency,omitempty"`
+	Legal          map[string]any  `json:"legal,omitempty"`
+	PartnerConfig  map[string]any  `json:"partner_config,omitempty"`
+	Metadata       map[string]any  `json:"metadata,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+// CompanyTreeDTO is a company with everything the platform holds for it
+// (GET /admin/providers/{slug}/tree): its platform-scoped auth providers, and
+// every platform-scoped credential row (OAuth apps, keys and logins) for
+// one of those schemes, each with the keys of its linked secrets.
+type CompanyTreeDTO struct {
+	Company     CompanyDTO        `json:"provider"`
+	Schemes     []AuthProviderDTO `json:"schemes"`
+	Credentials []CredentialDTO   `json:"credentials"`
+}
+
+// --------------------
 // source: connect_tokens.go
 // --------------------
 
@@ -2690,9 +2738,9 @@ type CredentialSecretRef struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// ProviderSummary is the company a credential slug belongs to: the
+// CompanySummary is the company a credential slug belongs to: the
 // providers row's identity, for grouping and display.
-type ProviderSummary struct {
+type CompanySummary struct {
 	Slug       string `json:"slug"`
 	Name       string `json:"name"`
 	IconURL    string `json:"icon_url,omitempty"`
@@ -2709,8 +2757,11 @@ type CredentialConfigDTO struct {
 	// one way to authenticate. The company it belongs to is ProviderInfo.
 	Provider string `json:"provider"`
 	// ProviderInfo is the company this slug belongs to, for grouping: the
-	// providers row its auth scheme names, else the slug's own identity.
-	ProviderInfo *ProviderSummary    `json:"provider_info,omitempty"`
+	// providers row its auth provider names, else the slug's own identity.
+	ProviderInfo *CompanySummary `json:"provider_info,omitempty"`
+	// Company is ProviderInfo under its settled name (INF-1079); provider_info
+	// stays one release.
+	Company      *CompanySummary     `json:"company,omitempty"`
 	Type         string              `json:"type"`
 	Name         string              `json:"name"`
 	ShortName    string              `json:"short_name"`
@@ -2731,9 +2782,9 @@ type CredentialConfigDTO struct {
 	// set up yet, or when it doesn't sign in through one. Credential is the
 	// login itself.
 	App *CredentialDTO `json:"app,omitempty"`
-	// AuthSchemeID is set when the provider is one the team defined
-	// itself (models.AuthScheme), so the UI can offer edit and remove.
-	AuthSchemeID string `json:"auth_scheme_id,omitempty"`
+	// AuthProviderID is set when the provider is one the team defined
+	// itself (models.AuthProvider), so the UI can offer edit and remove.
+	AuthProviderID string `json:"auth_scheme_id,omitempty"`
 	// Credential is the login used where no account is named: the caller's
 	// own, else the workspace's default account.
 	Credential *CredentialDTO `json:"credential,omitempty"`
@@ -4734,43 +4785,6 @@ type ProjectDTO struct {
 }
 
 // --------------------
-// source: provider.go
-// --------------------
-
-// ProviderDTO is a company of the catalogue. Its links: docs_url, website
-// (metadata.website), terms_url and privacy_url (legal.terms_url,
-// legal.privacy_url); the flat fields read the maps.
-type ProviderDTO struct {
-	Slug           string           `json:"slug"`
-	DisplayName    string           `json:"display_name"`
-	Description    string           `json:"description,omitempty"`
-	IconURL        string           `json:"icon_url,omitempty"`
-	DocsURL        string           `json:"docs_url,omitempty"`
-	Website        string           `json:"website,omitempty"`
-	TermsURL       string           `json:"terms_url,omitempty"`
-	PrivacyURL     string           `json:"privacy_url,omitempty"`
-	SupportedTypes StringSlice      `json:"supported_types,omitempty"`
-	Category       ProviderCategory `json:"category,omitempty"`
-	Status         ProviderStatus   `json:"status"`
-	DataResidency  map[string]any   `json:"data_residency,omitempty"`
-	Legal          map[string]any   `json:"legal,omitempty"`
-	PartnerConfig  map[string]any   `json:"partner_config,omitempty"`
-	Metadata       map[string]any   `json:"metadata,omitempty"`
-	CreatedAt      time.Time        `json:"created_at"`
-	UpdatedAt      time.Time        `json:"updated_at"`
-}
-
-// ProviderTreeDTO is a company with everything the platform holds for it
-// (GET /admin/providers/{slug}/tree): its platform-scoped auth schemes, and
-// every platform-scoped credential row (OAuth apps, keys and logins) for
-// one of those schemes, each with the keys of its linked secrets.
-type ProviderTreeDTO struct {
-	Provider    ProviderDTO     `json:"provider"`
-	Schemes     []AuthSchemeDTO `json:"schemes"`
-	Credentials []CredentialDTO `json:"credentials"`
-}
-
-// --------------------
 // source: redlist.go
 // --------------------
 
@@ -5608,7 +5622,7 @@ type AppSDKTypes struct {
 	// the provider seed an entry may carry.
 	_ CredentialRequirements
 	_ CredentialRequirementWire
-	_ ProviderSeed
+	_ CompanySeed
 	_ ToolAnnotations
 }
 
@@ -5662,8 +5676,8 @@ type EngineTypes struct {
 	_vaultDTO           VaultDTO
 	_credentialDTO      CredentialDTO
 	// The providers catalogue and a company's tree (admin, read by the CLI)
-	_providerDTO       ProviderDTO
-	_providerTreeDTO   ProviderTreeDTO
+	_providerDTO       CompanyDTO
+	_providerTreeDTO   CompanyTreeDTO
 	_skillResolve      SkillResolveResult
 	_skillDownload     SkillDownloadResponse
 	_skillDTO          SkillDTO
@@ -7426,57 +7440,57 @@ const (
 )
 
 // --------------------
-// source: auth_scheme.go
+// source: auth_method.go
 // --------------------
 
-// AuthSchemeKind is how a provider authenticates: the kinds of an OpenAPI
+// AuthMethodKind is how a provider authenticates: the kinds of an OpenAPI
 // Security Scheme Object (oauth2, apiKey, http), named the same so a
 // vendor's spec maps onto a scheme without translation.
-type AuthSchemeKind string
+type AuthMethodKind string
 
 const (
-	// AuthSchemeOAuth2 is OAuth 2.0; Flow says which grant.
-	AuthSchemeOAuth2 AuthSchemeKind = "oauth2"
-	// AuthSchemeAPIKey is one or more keys a person pastes, sent as a
+	// AuthMethodOAuth2 is OAuth 2.0; Flow says which grant.
+	AuthMethodOAuth2 AuthMethodKind = "oauth2"
+	// AuthMethodAPIKey is one or more keys a person pastes, sent as a
 	// header or query parameter.
-	AuthSchemeAPIKey AuthSchemeKind = "api_key"
-	// AuthSchemeHTTP is a pasted secret sent as an HTTP auth scheme
+	AuthMethodAPIKey AuthMethodKind = "api_key"
+	// AuthMethodHTTP is a pasted secret sent as an HTTP auth provider
 	// (Authorization: Bearer or Basic).
-	AuthSchemeHTTP AuthSchemeKind = "http"
-	// Deprecated: the kind is AuthSchemeOAuth2 with AuthSchemeFlowAuthorizationCode.
+	AuthMethodHTTP AuthMethodKind = "http"
+	// Deprecated: the kind is AuthMethodOAuth2 with AuthMethodFlowAuthorizationCode.
 	// Same value, so comparisons keep working; rows still stored as
 	// "oauth2_authorization_code" are read as oauth2 (UnmarshalJSON).
-	AuthSchemeOAuth2AuthorizationCode                = AuthSchemeOAuth2
-	legacyKindOAuth2AuthorizationCode AuthSchemeKind = "oauth2_authorization_code"
+	AuthMethodOAuth2AuthorizationCode                = AuthMethodOAuth2
+	legacyKindOAuth2AuthorizationCode AuthMethodKind = "oauth2_authorization_code"
 )
 
-// AuthSchemeFlow is the OAuth 2.0 grant an oauth2 scheme uses.
-type AuthSchemeFlow string
+// AuthMethodFlow is the OAuth 2.0 grant an oauth2 scheme uses.
+type AuthMethodFlow string
 
 const (
-	// AuthSchemeFlowAuthorizationCode is the user-consent flow: authorization
+	// AuthMethodFlowAuthorizationCode is the user-consent flow: authorization
 	// endpoint → code → token endpoint, optionally with PKCE. The default.
-	AuthSchemeFlowAuthorizationCode AuthSchemeFlow = "authorization_code"
-	// AuthSchemeFlowClientCredentials is server-to-server: the app's client
+	AuthMethodFlowAuthorizationCode AuthMethodFlow = "authorization_code"
+	// AuthMethodFlowClientCredentials is server-to-server: the app's client
 	// id and secret are exchanged at the token endpoint, no redirect, no
 	// user. The login is the app's own.
-	AuthSchemeFlowClientCredentials AuthSchemeFlow = "client_credentials"
+	AuthMethodFlowClientCredentials AuthMethodFlow = "client_credentials"
 )
 
-// AuthSchemeAPIKeyIn is where an api_key scheme's key travels.
-type AuthSchemeAPIKeyIn string
+// AuthMethodAPIKeyIn is where an api_key scheme's key travels.
+type AuthMethodAPIKeyIn string
 
 const (
-	AuthSchemeAPIKeyInHeader AuthSchemeAPIKeyIn = "header"
-	AuthSchemeAPIKeyInQuery  AuthSchemeAPIKeyIn = "query"
+	AuthMethodAPIKeyInHeader AuthMethodAPIKeyIn = "header"
+	AuthMethodAPIKeyInQuery  AuthMethodAPIKeyIn = "query"
 )
 
-// AuthSchemeHTTPScheme is the Authorization scheme of an http scheme.
-type AuthSchemeHTTPScheme string
+// AuthMethodHTTPScheme is the Authorization scheme of an http scheme.
+type AuthMethodHTTPScheme string
 
 const (
-	AuthSchemeHTTPBearer AuthSchemeHTTPScheme = "bearer"
-	AuthSchemeHTTPBasic  AuthSchemeHTTPScheme = "basic"
+	AuthMethodHTTPBearer AuthMethodHTTPScheme = "bearer"
+	AuthMethodHTTPBasic  AuthMethodHTTPScheme = "basic"
 )
 
 // SecretField is one value a person pastes to connect an api_key or http
@@ -7490,70 +7504,70 @@ type SecretField struct {
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
 }
 
-// AuthSchemeClientAuth is how client_id/client_secret reach the token
+// AuthMethodClientAuth is how client_id/client_secret reach the token
 // endpoint. Most providers accept either; a few insist on one.
-type AuthSchemeClientAuth string
+type AuthMethodClientAuth string
 
 const (
-	// AuthSchemeClientAuthBasic sends them as an HTTP Basic Authorization
+	// AuthMethodClientAuthBasic sends them as an HTTP Basic Authorization
 	// header (RFC 6749 §2.3.1, the default).
-	AuthSchemeClientAuthBasic AuthSchemeClientAuth = "basic"
-	// AuthSchemeClientAuthBody sends them as form fields in the request body.
-	AuthSchemeClientAuthBody AuthSchemeClientAuth = "body"
-	// AuthSchemeClientAuthNone is a public client (RFC 8414
+	AuthMethodClientAuthBasic AuthMethodClientAuth = "basic"
+	// AuthMethodClientAuthBody sends them as form fields in the request body.
+	AuthMethodClientAuthBody AuthMethodClientAuth = "body"
+	// AuthMethodClientAuthNone is a public client (RFC 8414
 	// token_endpoint_auth_method "none"): the client id goes in the body,
 	// there is no secret, and PKCE is what proves the client. Its OAuth app
 	// is complete with a client id alone (a dynamically registered client,
 	// or a Client ID Metadata Document URL).
-	AuthSchemeClientAuthNone AuthSchemeClientAuth = "none"
+	AuthMethodClientAuthNone AuthMethodClientAuth = "none"
 )
 
-// AuthSchemeTokenRequest is the token request's body encoding.
-type AuthSchemeTokenRequest string
+// AuthMethodTokenRequest is the token request's body encoding.
+type AuthMethodTokenRequest string
 
 const (
-	AuthSchemeTokenRequestForm AuthSchemeTokenRequest = "form"
-	AuthSchemeTokenRequestJSON AuthSchemeTokenRequest = "json"
+	AuthMethodTokenRequestForm AuthMethodTokenRequest = "form"
+	AuthMethodTokenRequestJSON AuthMethodTokenRequest = "json"
 )
 
-// AuthSchemeRefresh is when an access token is refreshed.
-type AuthSchemeRefresh string
+// AuthMethodRefresh is when an access token is refreshed.
+type AuthMethodRefresh string
 
 const (
-	// AuthSchemeRefreshWhenExpiring refreshes within five minutes of the
+	// AuthMethodRefreshWhenExpiring refreshes within five minutes of the
 	// reported expiry; a token with no expiry is treated as long-lived
 	// (Slack without token rotation, Notion).
-	AuthSchemeRefreshWhenExpiring AuthSchemeRefresh = ""
-	// AuthSchemeRefreshAlways refreshes on every read: the provider reports
+	AuthMethodRefreshWhenExpiring AuthMethodRefresh = ""
+	// AuthMethodRefreshAlways refreshes on every read: the provider reports
 	// no expiry but the token does expire (Salesforce's session timeout is
 	// per org and not reported).
-	AuthSchemeRefreshAlways AuthSchemeRefresh = "always"
+	AuthMethodRefreshAlways AuthMethodRefresh = "always"
 )
 
-// AuthSchemeRevokeStyle is how the token reaches the revoke endpoint.
-type AuthSchemeRevokeStyle string
+// AuthMethodRevokeStyle is how the token reaches the revoke endpoint.
+type AuthMethodRevokeStyle string
 
 const (
-	AuthSchemeRevokeBearer AuthSchemeRevokeStyle = "bearer"
-	AuthSchemeRevokeQuery  AuthSchemeRevokeStyle = "query"
-	AuthSchemeRevokeForm   AuthSchemeRevokeStyle = "form"
+	AuthMethodRevokeBearer AuthMethodRevokeStyle = "bearer"
+	AuthMethodRevokeQuery  AuthMethodRevokeStyle = "query"
+	AuthMethodRevokeForm   AuthMethodRevokeStyle = "form"
 )
 
-// AuthSchemeRevoke is the optional token revocation on disconnect.
-type AuthSchemeRevoke struct {
+// AuthMethodRevoke is the optional token revocation on disconnect.
+type AuthMethodRevoke struct {
 	URL   string                `json:"url"`
-	Style AuthSchemeRevokeStyle `json:"style"`
+	Style AuthMethodRevokeStyle `json:"style"`
 	// ClientAuth also sends client_id and client_secret in the form
 	// (Discord).
 	ClientAuth bool `json:"client_auth,omitempty"`
 }
 
-// AuthSchemeAppKey is one key of the OAuth app a login goes through. The
+// AuthMethodAppKey is one key of the OAuth app a login goes through. The
 // client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
 // listing them only overrides their label and placeholder. Other keys
 // (bot_token, signing_secret, tenant_id) are optional extras the app holds,
 // read back by name in templates as {app.<name>} and by hooks.
-type AuthSchemeAppKey struct {
+type AuthMethodAppKey struct {
 	// Name is the key's role: client_id, client_secret, bot_token, …
 	Name string `json:"name"`
 	// Key is the vault key; default PREFIX_<NAME>.
@@ -7565,12 +7579,12 @@ type AuthSchemeAppKey struct {
 	Optional bool `json:"optional,omitempty"`
 }
 
-// AuthSchemeLookup is a call made after the token exchange, with the new
+// AuthMethodLookup is a call made after the token exchange, with the new
 // access token as bearer; its decoded response becomes a document root of
 // its name for the identity, metadata and later lookups ({user.email},
 // {resources.0.id}). userinfo_url is shorthand for the lookup named user.
 // URL, body and headers are templates.
-type AuthSchemeLookup struct {
+type AuthMethodLookup struct {
 	Name   string `json:"name"`
 	URL    string `json:"url"`
 	Method string `json:"method,omitempty"` // GET (default) or POST
@@ -7581,10 +7595,10 @@ type AuthSchemeLookup struct {
 	Headers     map[string]string `json:"headers,omitempty"`
 }
 
-// AuthSchemeCapability is something an app can ask for from this provider,
+// AuthMethodCapability is something an app can ask for from this provider,
 // satisfied by a connection holding its scopes. Scopes are in the scheme's
 // own (friendly) names, the ones a credential stores.
-type AuthSchemeCapability struct {
+type AuthMethodCapability struct {
 	Key         string   `json:"key"`                   // "google.gmail.send"
 	Scopes      []string `json:"scopes,omitempty"`      // required scopes; none = any connection
 	Satisfies   []string `json:"satisfies,omitempty"`   // other capability keys this one implies
@@ -7592,10 +7606,10 @@ type AuthSchemeCapability struct {
 	Description string   `json:"description,omitempty"` // "Send emails on your behalf"
 }
 
-// AuthSchemeSpec is one way to authenticate against a provider, as data.
+// AuthMethod is one way to authenticate against a provider, as data.
 // Everything a standard OAuth2 provider needs is a field; where a provider
 // deviates in a way data cannot express, the spec names a hook and Go
-// supplies it (authprovider.RegisterTokenResponseHook and friends).
+// supplies it (authmethod.RegisterTokenResponseHook and friends).
 //
 // Templates: URLs, headers, lookup bodies, identifier, name, metadata and
 // env values are strings with {{path}} placeholders. A path is read from
@@ -7615,20 +7629,20 @@ type AuthSchemeCapability struct {
 // Array elements are indexed: {{resources.0.id}}. {{a|b}} takes the first
 // path present. A template none of whose placeholders resolve renders "":
 // omitted from env and metadata, blank as identifier or name.
-type AuthSchemeSpec struct {
-	Kind AuthSchemeKind `json:"kind" yaml:"kind"`
+type AuthMethod struct {
+	Kind AuthMethodKind `json:"kind" yaml:"kind"`
 	// Flow is the oauth2 grant; empty means authorization_code.
-	Flow AuthSchemeFlow `json:"flow,omitempty" yaml:"flow,omitempty"`
+	Flow AuthMethodFlow `json:"flow,omitempty" yaml:"flow,omitempty"`
 	// Fields are what a person pastes (api_key and http kinds).
 	Fields []SecretField `json:"fields,omitempty" yaml:"fields,omitempty"`
 	// In and ParamName say where an api_key key goes on a request: the
 	// header or query parameter of that name. ValuePrefix is prepended to
 	// the value ("Bearer "). Not needed to connect; read by injection.
-	In          AuthSchemeAPIKeyIn `json:"in,omitempty" yaml:"in,omitempty"`
+	In          AuthMethodAPIKeyIn `json:"in,omitempty" yaml:"in,omitempty"`
 	ParamName   string             `json:"param_name,omitempty" yaml:"param_name,omitempty"`
 	ValuePrefix string             `json:"value_prefix,omitempty" yaml:"value_prefix,omitempty"`
 	// Scheme and BearerFormat describe an http kind's Authorization header.
-	Scheme                AuthSchemeHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	Scheme                AuthMethodHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 	BearerFormat          string               `json:"bearer_format,omitempty" yaml:"bearer_format,omitempty"`
 	AuthorizationEndpoint string               `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
 	Scopes                []string             `json:"scopes,omitempty" yaml:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
@@ -7691,7 +7705,7 @@ type AuthSchemeSpec struct {
 	// from the connect intent, never from the callback's path.
 	Callback string `json:"callback,omitempty" yaml:"callback,omitempty"`
 	// Profile names the authorization server's deviations from the specs
-	// (authprovider.AuthServerProfile: endpoints placed by app fields,
+	// (authmethod.AuthServerProfile: endpoints placed by app fields,
 	// scopes on refresh, actionable errors, admin consent). Empty = none.
 	Profile       string `json:"profile,omitempty" yaml:"profile,omitempty"`
 	TokenEndpoint string `json:"token_endpoint,omitempty" yaml:"token_endpoint,omitempty"`
@@ -7699,8 +7713,8 @@ type AuthSchemeSpec struct {
 	// one and Revoke names no style of its own: tokens are revoked there
 	// with a form POST.
 	RevocationEndpoint string                 `json:"revocation_endpoint,omitempty" yaml:"revocation_endpoint,omitempty"`
-	ClientAuth         AuthSchemeClientAuth   `json:"client_auth,omitempty" yaml:"client_auth,omitempty"`     // empty = basic
-	TokenRequest       AuthSchemeTokenRequest `json:"token_request,omitempty" yaml:"token_request,omitempty"` // empty = form
+	ClientAuth         AuthMethodClientAuth   `json:"client_auth,omitempty" yaml:"client_auth,omitempty"`     // empty = basic
+	TokenRequest       AuthMethodTokenRequest `json:"token_request,omitempty" yaml:"token_request,omitempty"` // empty = form
 	// Headers go on every request to the provider (User-Agent for Reddit,
 	// Notion-Version); values are templates ({{client_id}} for Twitch's
 	// Client-Id).
@@ -7708,8 +7722,8 @@ type AuthSchemeSpec struct {
 	// TokenResponseHook names the Go reader for a token response that is
 	// not the RFC 6749 shape (Slack's nested authed_user). Empty = standard.
 	TokenResponseHook string            `json:"token_response_hook,omitempty" yaml:"token_response_hook,omitempty"`
-	Refresh           AuthSchemeRefresh `json:"refresh,omitempty" yaml:"refresh,omitempty"`
-	Revoke            *AuthSchemeRevoke `json:"revoke,omitempty" yaml:"revoke,omitempty"`
+	Refresh           AuthMethodRefresh `json:"refresh,omitempty" yaml:"refresh,omitempty"`
+	Revoke            *AuthMethodRevoke `json:"revoke,omitempty" yaml:"revoke,omitempty"`
 	// UserInfoURL is fetched with the new access token; the response is the
 	// identity document (user.*). UserInfoURLPath instead reads that URL
 	// from a path within the token response (Salesforce's "id"). Lookups
@@ -7717,7 +7731,7 @@ type AuthSchemeSpec struct {
 	// user. With none of these, the token response is all there is.
 	UserInfoURL     string             `json:"userinfo_url,omitempty" yaml:"userinfo_url,omitempty"`
 	UserInfoURLPath string             `json:"userinfo_url_path,omitempty" yaml:"userinfo_url_path,omitempty"`
-	Lookups         []AuthSchemeLookup `json:"lookups,omitempty" yaml:"lookups,omitempty"`
+	Lookups         []AuthMethodLookup `json:"lookups,omitempty" yaml:"lookups,omitempty"`
 	// Identifier is the connected account's stable, human-readable id
 	// ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
 	Identifier string `json:"identifier,omitempty" yaml:"identifier,omitempty"`
@@ -7738,16 +7752,16 @@ type AuthSchemeSpec struct {
 	Env map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	// AppKeys are the OAuth app's keys beyond the implied client id and
 	// secret, and label overrides for those.
-	AppKeys []AuthSchemeAppKey `json:"app_keys,omitempty" yaml:"app_keys,omitempty"`
+	AppKeys []AuthMethodAppKey `json:"app_keys,omitempty" yaml:"app_keys,omitempty"`
 	// VarsHook names Go code that turns the app's extra keys into the
 	// {var} values substituted into the URLs (Microsoft's tenant,
 	// Salesforce's sandbox host).
 	VarsHook     string                 `json:"vars_hook,omitempty" yaml:"vars_hook,omitempty"`
-	Capabilities []AuthSchemeCapability `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	Capabilities []AuthMethodCapability `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
 }
 
 // Wire returns the provider's form of one of the scheme's scope names.
-func (s *AuthSchemeSpec) Wire(scope string) string {
+func (s *AuthMethod) Wire(scope string) string {
 	if full, ok := s.ScopeAliases[scope]; ok {
 		return full
 	}
@@ -7755,7 +7769,7 @@ func (s *AuthSchemeSpec) Wire(scope string) string {
 }
 
 // Alias returns the scheme's own name for a scope the provider reported.
-func (s *AuthSchemeSpec) Alias(wire string) string {
+func (s *AuthMethod) Alias(wire string) string {
 	for alias, full := range s.ScopeAliases {
 		if full == wire {
 			return alias
@@ -7766,26 +7780,26 @@ func (s *AuthSchemeSpec) Alias(wire string) string {
 
 // FlowOrDefault is the oauth2 grant: authorization_code unless the spec
 // says otherwise.
-func (s *AuthSchemeSpec) FlowOrDefault() AuthSchemeFlow {
+func (s *AuthMethod) FlowOrDefault() AuthMethodFlow {
 	if s.Flow == "" {
-		return AuthSchemeFlowAuthorizationCode
+		return AuthMethodFlowAuthorizationCode
 	}
 	return s.Flow
 }
 
 // IsOAuth2 reports whether the spec is an OAuth 2.0 scheme (any flow).
-func (s *AuthSchemeSpec) IsOAuth2() bool {
-	return s.Kind == AuthSchemeOAuth2
+func (s *AuthMethod) IsOAuth2() bool {
+	return s.Kind == AuthMethodOAuth2
 }
 
 // Revocation is how tokens are revoked: Revoke as given, else the RFC 7009
 // endpoint with a form POST, else nothing.
-func (s *AuthSchemeSpec) Revocation() *AuthSchemeRevoke {
+func (s *AuthMethod) Revocation() *AuthMethodRevoke {
 	if s.Revoke != nil {
 		return s.Revoke
 	}
 	if s.RevocationEndpoint != "" {
-		return &AuthSchemeRevoke{URL: s.RevocationEndpoint, Style: AuthSchemeRevokeForm}
+		return &AuthMethodRevoke{URL: s.RevocationEndpoint, Style: AuthMethodRevokeForm}
 	}
 	return nil
 }
@@ -9269,23 +9283,23 @@ const (
 	CredentialGrantToken CredentialGrant = "token"
 )
 
-type ProviderCategory string
+type CompanyCategory string
 
 const (
-	ProviderCategoryAIML   ProviderCategory = "ai_ml"
-	ProviderCategoryMedia  ProviderCategory = "media"
-	ProviderCategorySearch ProviderCategory = "search"
-	ProviderCategoryCloud  ProviderCategory = "cloud"
-	ProviderCategorySocial ProviderCategory = "social"
-	ProviderCategoryTools  ProviderCategory = "tools"
+	CompanyCategoryAIML   CompanyCategory = "ai_ml"
+	CompanyCategoryMedia  CompanyCategory = "media"
+	CompanyCategorySearch CompanyCategory = "search"
+	CompanyCategoryCloud  CompanyCategory = "cloud"
+	CompanyCategorySocial CompanyCategory = "social"
+	CompanyCategoryTools  CompanyCategory = "tools"
 )
 
-type ProviderStatus string
+type CompanyStatus string
 
 const (
-	ProviderStatusActive     ProviderStatus = "active"
-	ProviderStatusBeta       ProviderStatus = "beta"
-	ProviderStatusDeprecated ProviderStatus = "deprecated"
+	CompanyStatusActive     CompanyStatus = "active"
+	CompanyStatusBeta       CompanyStatus = "beta"
+	CompanyStatusDeprecated CompanyStatus = "deprecated"
 )
 
 type RejectionReason string

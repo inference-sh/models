@@ -1788,7 +1788,7 @@ export const ScopeSecretsWrite: Scope = "secrets:write";
 export const ScopeSecretsReveal: Scope = "secrets:reveal";
 /**
  * Action-level scopes for credentials (connected accounts, vaults,
- * auth schemes, MCP servers).
+ * auth providers, MCP servers).
  */
 export const ScopeCredentialsRead: Scope = "credentials:read";
 /**
@@ -2177,7 +2177,7 @@ export interface SecretRequirement {
  * the platform-defined grants it needs ("x.tweet.read", "google.sheets":
  * an OAuth grant with the scopes it implies), each a capability of the
  * entry's own provider. Provider seeds the catalog row for the company the
- * first time it is seen and never overwrites it; Auth seeds the auth scheme
+ * first time it is seen and never overwrites it; Auth seeds the auth provider
  * when the slug is free.
  * 	credentials:
  * 	  slack:
@@ -2201,17 +2201,17 @@ export interface CredentialRequirement {
    * catalog row that does not exist yet. Its slug defaults to the
    * credential slug.
    */
-  provider?: ProviderSeed;
+  provider?: CompanySeed;
   /**
-   * Auth is the credential's auth scheme, for a slug no row defines yet.
+   * Auth is the credential's auth provider, for a slug no row defines yet.
    */
-  auth?: AuthSchemeSpec;
+  auth?: AuthMethod;
 }
 /**
- * ProviderSeed is a provider (the company behind a credential) as an app
+ * CompanySeed is a provider (the company behind a credential) as an app
  * declares it: enough to create its catalog row when none exists.
  */
-export interface ProviderSeed {
+export interface CompanySeed {
   slug?: string;
   name?: string;
   description?: string;
@@ -2737,11 +2737,11 @@ export interface ArtifactFrameDTO {
   expires_at?: string /* RFC3339 */;
 }
 /**
- * AuthSchemeDTO is how a team connects to a service it defined itself: its
+ * AuthProviderDTO is how a team connects to a service it defined itself: its
  * own OAuth app registered against a third party. Secrets never leave the
  * vault; the DTO carries the keys they are stored under.
  */
-export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
+export interface AuthProviderDTO extends BaseModelDTO, PermissionModelDTO {
   scope: CredentialScope;
   slug: string;
   /**
@@ -2755,7 +2755,7 @@ export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
   how_it_works?: string[];
   website?: string;
   connection_scope?: CredentialScope;
-  specs: AuthSchemeSpec[];
+  specs: AuthMethod[];
   /**
    * Where the OAuth app's client id and secret live in the team vault.
    */
@@ -2763,11 +2763,11 @@ export interface AuthSchemeDTO extends BaseModelDTO, PermissionModelDTO {
   client_secret_key: string;
 }
 /**
- * AuthSchemeCreateRequest registers how to connect to a team's own service.
+ * AuthProviderCreateRequest registers how to connect to a team's own service.
  * ClientID and ClientSecret are its OAuth app: they are written to the
  * team's app row (a grant=credentials credential), not to the scheme.
  */
-export interface AuthSchemeCreateRequest {
+export interface AuthProviderCreateRequest {
   slug: string;
   /**
    * Provider is the company the slug belongs to (its providers row).
@@ -2781,7 +2781,7 @@ export interface AuthSchemeCreateRequest {
   how_it_works?: string[];
   website?: string;
   connection_scope?: CredentialScope;
-  specs: AuthSchemeSpec[];
+  specs: AuthMethod[];
   /**
    * The OAuth app, required for a team scheme. A platform scheme's app
    * is managed separately (PUT /credentials/{provider}/app).
@@ -2795,11 +2795,11 @@ export interface AuthSchemeCreateRequest {
   scope?: CredentialScope;
 }
 /**
- * AuthSchemeUpdateRequest changes the display fields and specs; the slug is
+ * AuthProviderUpdateRequest changes the display fields and specs; the slug is
  * the provider key (stored on every credential) and cannot change. Empty
  * secrets leave the stored ones alone.
  */
-export interface AuthSchemeUpdateRequest {
+export interface AuthProviderUpdateRequest {
   /**
    * Provider moves the scheme under another company. Empty keeps the
    * stored one.
@@ -2812,15 +2812,15 @@ export interface AuthSchemeUpdateRequest {
   how_it_works?: string[];
   website?: string;
   connection_scope?: CredentialScope;
-  specs?: AuthSchemeSpec[];
+  specs?: AuthMethod[];
   client_id?: string;
   client_secret?: string;
 }
 /**
- * AuthSchemeHooksDTO lists the registered Go hooks a scheme spec may name
+ * AuthProviderHooksDTO lists the registered Go hooks a scheme spec may name
  * in each slot (GET /auth-schemes/hooks).
  */
-export interface AuthSchemeHooksDTO {
+export interface AuthProviderHooksDTO {
   token_response: string[];
   identity: string[];
   vars: string[];
@@ -2831,20 +2831,20 @@ export interface AuthSchemeHooksDTO {
   auth_server_profiles: string[];
 }
 /**
- * AuthSchemeSeedResult is what POST /admin/auth-schemes/seed did: the
+ * AuthProviderSeedResult is what POST /admin/auth-schemes/seed did: the
  * built-in definitions written as platform rows, and the logos looked up
  * for rows that had none, with the reason for each still without one.
  */
-export interface AuthSchemeSeedResult {
+export interface AuthProviderSeedResult {
   created: number /* int */;
   updated: number /* int */;
   branded: number /* int */;
   unbranded?: { [key: string]: string}; // slug → why no logo
 }
 /**
- * AuthSchemeTypes is a phantom root for gotypegen dependency tracing.
+ * AuthProviderTypes is a phantom root for gotypegen dependency tracing.
  */
-export interface AuthSchemeTypes {
+export interface AuthProviderTypes {
 }
 /**
  * AuthSessionDTO is a safe representation of AuthSession for API responses.
@@ -3667,6 +3667,69 @@ export interface ToolExplanationDTO {
   risk: string;
 }
 /**
+ * CompanyDTO is a company of the catalogue. Its links: docs_url, website
+ * (metadata.website), terms_url and privacy_url (legal.terms_url,
+ * legal.privacy_url); the flat fields read the maps.
+ */
+export interface CompanyDTO {
+  slug: string;
+  display_name: string;
+  description?: string;
+  icon_url?: string;
+  docs_url?: string;
+  website?: string;
+  terms_url?: string;
+  privacy_url?: string;
+  supported_types?: StringSlice;
+  category?: CompanyCategory;
+  status: CompanyStatus;
+  data_residency?: { [key: string]: any};
+  legal?: { [key: string]: any};
+  partner_config?: { [key: string]: any};
+  metadata?: { [key: string]: any};
+  created_at: string /* RFC3339 */;
+  updated_at: string /* RFC3339 */;
+}
+/**
+ * CompanyUpsertRequest is the body of PUT /admin/providers/{slug}. The
+ * fields the admin form shows (display_name, description, icon_url,
+ * category, docs_url, website, terms_url, privacy_url) are written as
+ * sent, so an empty one clears the row's; display_name is the exception,
+ * a company keeps its name when the body has none. The rest keep the
+ * row's value when absent: status, supported_types, data_residency,
+ * partner_config, and the other keys of metadata and legal, which merge
+ * key by key. website, terms_url and privacy_url are the flat spelling of
+ * metadata.website, legal.terms_url and legal.privacy_url and win over
+ * the maps.
+ */
+export interface CompanyUpsertRequest {
+  display_name?: string;
+  description?: string;
+  icon_url?: string;
+  docs_url?: string;
+  website?: string;
+  terms_url?: string;
+  privacy_url?: string;
+  supported_types?: StringSlice;
+  category?: CompanyCategory;
+  status?: CompanyStatus;
+  data_residency?: { [key: string]: any};
+  legal?: { [key: string]: any};
+  partner_config?: { [key: string]: any};
+  metadata?: { [key: string]: any};
+}
+/**
+ * CompanyTreeDTO is a company with everything the platform holds for it
+ * (GET /admin/providers/{slug}/tree): its platform-scoped auth providers, and
+ * every platform-scoped credential row (OAuth apps, keys and logins) for
+ * one of those schemes, each with the keys of its linked secrets.
+ */
+export interface CompanyTreeDTO {
+  provider: CompanyDTO;
+  schemes: AuthProviderDTO[];
+  credentials: CredentialDTO[];
+}
+/**
  * ConnectTokens are tokens a provider minted while connecting, for grants
  * that need no redirect (OAuth client credentials): the credential service
  * saves them on the login it writes. They travel inside the process only.
@@ -3794,10 +3857,10 @@ export interface CredentialScopeRequest {
   scope: CredentialScope;
 }
 /**
- * ProviderSummary is the company a credential slug belongs to: the
+ * CompanySummary is the company a credential slug belongs to: the
  * providers row's identity, for grouping and display.
  */
-export interface ProviderSummary {
+export interface CompanySummary {
   slug: string;
   name: string;
   icon_url?: string;
@@ -3818,9 +3881,14 @@ export interface CredentialConfigDTO {
   provider: string;
   /**
    * ProviderInfo is the company this slug belongs to, for grouping: the
-   * providers row its auth scheme names, else the slug's own identity.
+   * providers row its auth provider names, else the slug's own identity.
    */
-  provider_info?: ProviderSummary;
+  provider_info?: CompanySummary;
+  /**
+   * Company is ProviderInfo under its settled name (INF-1079); provider_info
+   * stays one release.
+   */
+  company?: CompanySummary;
   type: string;
   name: string;
   short_name: string;
@@ -3846,8 +3914,8 @@ export interface CredentialConfigDTO {
    */
   app?: CredentialDTO;
   /**
-   * AuthSchemeID is set when the provider is one the team defined
-   * itself (models.AuthScheme), so the UI can offer edit and remove.
+   * AuthProviderID is set when the provider is one the team defined
+   * itself (models.AuthProvider), so the UI can offer edit and remove.
    */
   auth_scheme_id?: string;
   /**
@@ -6502,69 +6570,6 @@ export interface ProjectDTO extends BaseModelDTO, PermissionModelDTO {
   parent_id?: string;
   parent?: ProjectDTO;
   children: (ProjectDTO | undefined)[];
-}
-/**
- * ProviderDTO is a company of the catalogue. Its links: docs_url, website
- * (metadata.website), terms_url and privacy_url (legal.terms_url,
- * legal.privacy_url); the flat fields read the maps.
- */
-export interface ProviderDTO {
-  slug: string;
-  display_name: string;
-  description?: string;
-  icon_url?: string;
-  docs_url?: string;
-  website?: string;
-  terms_url?: string;
-  privacy_url?: string;
-  supported_types?: StringSlice;
-  category?: ProviderCategory;
-  status: ProviderStatus;
-  data_residency?: { [key: string]: any};
-  legal?: { [key: string]: any};
-  partner_config?: { [key: string]: any};
-  metadata?: { [key: string]: any};
-  created_at: string /* RFC3339 */;
-  updated_at: string /* RFC3339 */;
-}
-/**
- * ProviderUpsertRequest is the body of PUT /admin/providers/{slug}. The
- * fields the admin form shows (display_name, description, icon_url,
- * category, docs_url, website, terms_url, privacy_url) are written as
- * sent, so an empty one clears the row's; display_name is the exception,
- * a company keeps its name when the body has none. The rest keep the
- * row's value when absent: status, supported_types, data_residency,
- * partner_config, and the other keys of metadata and legal, which merge
- * key by key. website, terms_url and privacy_url are the flat spelling of
- * metadata.website, legal.terms_url and legal.privacy_url and win over
- * the maps.
- */
-export interface ProviderUpsertRequest {
-  display_name?: string;
-  description?: string;
-  icon_url?: string;
-  docs_url?: string;
-  website?: string;
-  terms_url?: string;
-  privacy_url?: string;
-  supported_types?: StringSlice;
-  category?: ProviderCategory;
-  status?: ProviderStatus;
-  data_residency?: { [key: string]: any};
-  legal?: { [key: string]: any};
-  partner_config?: { [key: string]: any};
-  metadata?: { [key: string]: any};
-}
-/**
- * ProviderTreeDTO is a company with everything the platform holds for it
- * (GET /admin/providers/{slug}/tree): its platform-scoped auth schemes, and
- * every platform-scoped credential row (OAuth apps, keys and logins) for
- * one of those schemes, each with the keys of its linked secrets.
- */
-export interface ProviderTreeDTO {
-  provider: ProviderDTO;
-  schemes: AuthSchemeDTO[];
-  credentials: CredentialDTO[];
 }
 /**
  * PublicationThemeColors defines the core colors for one mode (light or dark).
@@ -10073,58 +10078,58 @@ export const GPUTypeNvidia: GPUType = "nvidia";
 export const GPUTypeAMD: GPUType = "amd";
 export const GPUTypeApple: GPUType = "apple";
 /**
- * AuthSchemeKind is how a provider authenticates: the kinds of an OpenAPI
+ * AuthMethodKind is how a provider authenticates: the kinds of an OpenAPI
  * Security Scheme Object (oauth2, apiKey, http), named the same so a
  * vendor's spec maps onto a scheme without translation.
  */
-export type AuthSchemeKind = "oauth2" | "api_key" | "http" | "oauth2_authorization_code";
+export type AuthMethodKind = "oauth2" | "api_key" | "http" | "oauth2_authorization_code";
 /**
- * AuthSchemeOAuth2 is OAuth 2.0; Flow says which grant.
+ * AuthMethodOAuth2 is OAuth 2.0; Flow says which grant.
  */
-export const AuthSchemeOAuth2: AuthSchemeKind = "oauth2";
+export const AuthMethodOAuth2: AuthMethodKind = "oauth2";
 /**
- * AuthSchemeAPIKey is one or more keys a person pastes, sent as a
+ * AuthMethodAPIKey is one or more keys a person pastes, sent as a
  * header or query parameter.
  */
-export const AuthSchemeAPIKey: AuthSchemeKind = "api_key";
+export const AuthMethodAPIKey: AuthMethodKind = "api_key";
 /**
- * AuthSchemeHTTP is a pasted secret sent as an HTTP auth scheme
+ * AuthMethodHTTP is a pasted secret sent as an HTTP auth provider
  * (Authorization: Bearer or Basic).
  */
-export const AuthSchemeHTTP: AuthSchemeKind = "http";
+export const AuthMethodHTTP: AuthMethodKind = "http";
 /**
- * Deprecated: the kind is AuthSchemeOAuth2 with AuthSchemeFlowAuthorizationCode.
+ * Deprecated: the kind is AuthMethodOAuth2 with AuthMethodFlowAuthorizationCode.
  * Same value, so comparisons keep working; rows still stored as
  * "oauth2_authorization_code" are read as oauth2 (UnmarshalJSON).
  */
-export const AuthSchemeOAuth2AuthorizationCode = AuthSchemeOAuth2;
+export const AuthMethodOAuth2AuthorizationCode = AuthMethodOAuth2;
 /**
- * AuthSchemeFlow is the OAuth 2.0 grant an oauth2 scheme uses.
+ * AuthMethodFlow is the OAuth 2.0 grant an oauth2 scheme uses.
  */
-export type AuthSchemeFlow = "authorization_code" | "client_credentials";
+export type AuthMethodFlow = "authorization_code" | "client_credentials";
 /**
- * AuthSchemeFlowAuthorizationCode is the user-consent flow: authorization
+ * AuthMethodFlowAuthorizationCode is the user-consent flow: authorization
  * endpoint → code → token endpoint, optionally with PKCE. The default.
  */
-export const AuthSchemeFlowAuthorizationCode: AuthSchemeFlow = "authorization_code";
+export const AuthMethodFlowAuthorizationCode: AuthMethodFlow = "authorization_code";
 /**
- * AuthSchemeFlowClientCredentials is server-to-server: the app's client
+ * AuthMethodFlowClientCredentials is server-to-server: the app's client
  * id and secret are exchanged at the token endpoint, no redirect, no
  * user. The login is the app's own.
  */
-export const AuthSchemeFlowClientCredentials: AuthSchemeFlow = "client_credentials";
+export const AuthMethodFlowClientCredentials: AuthMethodFlow = "client_credentials";
 /**
- * AuthSchemeAPIKeyIn is where an api_key scheme's key travels.
+ * AuthMethodAPIKeyIn is where an api_key scheme's key travels.
  */
-export type AuthSchemeAPIKeyIn = "header" | "query";
-export const AuthSchemeAPIKeyInHeader: AuthSchemeAPIKeyIn = "header";
-export const AuthSchemeAPIKeyInQuery: AuthSchemeAPIKeyIn = "query";
+export type AuthMethodAPIKeyIn = "header" | "query";
+export const AuthMethodAPIKeyInHeader: AuthMethodAPIKeyIn = "header";
+export const AuthMethodAPIKeyInQuery: AuthMethodAPIKeyIn = "query";
 /**
- * AuthSchemeHTTPScheme is the Authorization scheme of an http scheme.
+ * AuthMethodHTTPScheme is the Authorization scheme of an http scheme.
  */
-export type AuthSchemeHTTPScheme = "bearer" | "basic";
-export const AuthSchemeHTTPBearer: AuthSchemeHTTPScheme = "bearer";
-export const AuthSchemeHTTPBasic: AuthSchemeHTTPScheme = "basic";
+export type AuthMethodHTTPScheme = "bearer" | "basic";
+export const AuthMethodHTTPBearer: AuthMethodHTTPScheme = "bearer";
+export const AuthMethodHTTPBasic: AuthMethodHTTPScheme = "basic";
 /**
  * SecretField is one value a person pastes to connect an api_key or http
  * scheme: its vault key and how the form asks for it. Several fields make
@@ -10138,62 +10143,62 @@ export interface SecretField {
   optional?: boolean;
 }
 /**
- * AuthSchemeClientAuth is how client_id/client_secret reach the token
+ * AuthMethodClientAuth is how client_id/client_secret reach the token
  * endpoint. Most providers accept either; a few insist on one.
  */
-export type AuthSchemeClientAuth = "basic" | "body" | "none";
+export type AuthMethodClientAuth = "basic" | "body" | "none";
 /**
- * AuthSchemeClientAuthBasic sends them as an HTTP Basic Authorization
+ * AuthMethodClientAuthBasic sends them as an HTTP Basic Authorization
  * header (RFC 6749 §2.3.1, the default).
  */
-export const AuthSchemeClientAuthBasic: AuthSchemeClientAuth = "basic";
+export const AuthMethodClientAuthBasic: AuthMethodClientAuth = "basic";
 /**
- * AuthSchemeClientAuthBody sends them as form fields in the request body.
+ * AuthMethodClientAuthBody sends them as form fields in the request body.
  */
-export const AuthSchemeClientAuthBody: AuthSchemeClientAuth = "body";
+export const AuthMethodClientAuthBody: AuthMethodClientAuth = "body";
 /**
- * AuthSchemeClientAuthNone is a public client (RFC 8414
+ * AuthMethodClientAuthNone is a public client (RFC 8414
  * token_endpoint_auth_method "none"): the client id goes in the body,
  * there is no secret, and PKCE is what proves the client. Its OAuth app
  * is complete with a client id alone (a dynamically registered client,
  * or a Client ID Metadata Document URL).
  */
-export const AuthSchemeClientAuthNone: AuthSchemeClientAuth = "none";
+export const AuthMethodClientAuthNone: AuthMethodClientAuth = "none";
 /**
- * AuthSchemeTokenRequest is the token request's body encoding.
+ * AuthMethodTokenRequest is the token request's body encoding.
  */
-export type AuthSchemeTokenRequest = "form" | "json";
-export const AuthSchemeTokenRequestForm: AuthSchemeTokenRequest = "form";
-export const AuthSchemeTokenRequestJSON: AuthSchemeTokenRequest = "json";
+export type AuthMethodTokenRequest = "form" | "json";
+export const AuthMethodTokenRequestForm: AuthMethodTokenRequest = "form";
+export const AuthMethodTokenRequestJSON: AuthMethodTokenRequest = "json";
 /**
- * AuthSchemeRefresh is when an access token is refreshed.
+ * AuthMethodRefresh is when an access token is refreshed.
  */
-export type AuthSchemeRefresh = "" | "always";
+export type AuthMethodRefresh = "" | "always";
 /**
- * AuthSchemeRefreshWhenExpiring refreshes within five minutes of the
+ * AuthMethodRefreshWhenExpiring refreshes within five minutes of the
  * reported expiry; a token with no expiry is treated as long-lived
  * (Slack without token rotation, Notion).
  */
-export const AuthSchemeRefreshWhenExpiring: AuthSchemeRefresh = "";
+export const AuthMethodRefreshWhenExpiring: AuthMethodRefresh = "";
 /**
- * AuthSchemeRefreshAlways refreshes on every read: the provider reports
+ * AuthMethodRefreshAlways refreshes on every read: the provider reports
  * no expiry but the token does expire (Salesforce's session timeout is
  * per org and not reported).
  */
-export const AuthSchemeRefreshAlways: AuthSchemeRefresh = "always";
+export const AuthMethodRefreshAlways: AuthMethodRefresh = "always";
 /**
- * AuthSchemeRevokeStyle is how the token reaches the revoke endpoint.
+ * AuthMethodRevokeStyle is how the token reaches the revoke endpoint.
  */
-export type AuthSchemeRevokeStyle = "bearer" | "query" | "form";
-export const AuthSchemeRevokeBearer: AuthSchemeRevokeStyle = "bearer";
-export const AuthSchemeRevokeQuery: AuthSchemeRevokeStyle = "query";
-export const AuthSchemeRevokeForm: AuthSchemeRevokeStyle = "form";
+export type AuthMethodRevokeStyle = "bearer" | "query" | "form";
+export const AuthMethodRevokeBearer: AuthMethodRevokeStyle = "bearer";
+export const AuthMethodRevokeQuery: AuthMethodRevokeStyle = "query";
+export const AuthMethodRevokeForm: AuthMethodRevokeStyle = "form";
 /**
- * AuthSchemeRevoke is the optional token revocation on disconnect.
+ * AuthMethodRevoke is the optional token revocation on disconnect.
  */
-export interface AuthSchemeRevoke {
+export interface AuthMethodRevoke {
   url: string;
-  style: AuthSchemeRevokeStyle;
+  style: AuthMethodRevokeStyle;
   /**
    * ClientAuth also sends client_id and client_secret in the form
    * (Discord).
@@ -10201,13 +10206,13 @@ export interface AuthSchemeRevoke {
   client_auth?: boolean;
 }
 /**
- * AuthSchemeAppKey is one key of the OAuth app a login goes through. The
+ * AuthMethodAppKey is one key of the OAuth app a login goes through. The
  * client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
  * listing them only overrides their label and placeholder. Other keys
  * (bot_token, signing_secret, tenant_id) are optional extras the app holds,
  * read back by name in templates as {app.<name>} and by hooks.
  */
-export interface AuthSchemeAppKey {
+export interface AuthMethodAppKey {
   /**
    * Name is the key's role: client_id, client_secret, bot_token, …
    */
@@ -10225,13 +10230,13 @@ export interface AuthSchemeAppKey {
   optional?: boolean;
 }
 /**
- * AuthSchemeLookup is a call made after the token exchange, with the new
+ * AuthMethodLookup is a call made after the token exchange, with the new
  * access token as bearer; its decoded response becomes a document root of
  * its name for the identity, metadata and later lookups ({user.email},
  * {resources.0.id}). userinfo_url is shorthand for the lookup named user.
  * URL, body and headers are templates.
  */
-export interface AuthSchemeLookup {
+export interface AuthMethodLookup {
   name: string;
   url: string;
   method?: string; // GET (default) or POST
@@ -10244,11 +10249,11 @@ export interface AuthSchemeLookup {
   headers?: { [key: string]: string};
 }
 /**
- * AuthSchemeCapability is something an app can ask for from this provider,
+ * AuthMethodCapability is something an app can ask for from this provider,
  * satisfied by a connection holding its scopes. Scopes are in the scheme's
  * own (friendly) names, the ones a credential stores.
  */
-export interface AuthSchemeCapability {
+export interface AuthMethodCapability {
   key: string; // "google.gmail.send"
   scopes?: string[]; // required scopes; none = any connection
   satisfies?: string[]; // other capability keys this one implies
@@ -10256,10 +10261,10 @@ export interface AuthSchemeCapability {
   description?: string; // "Send emails on your behalf"
 }
 /**
- * AuthSchemeSpec is one way to authenticate against a provider, as data.
+ * AuthMethod is one way to authenticate against a provider, as data.
  * Everything a standard OAuth2 provider needs is a field; where a provider
  * deviates in a way data cannot express, the spec names a hook and Go
- * supplies it (authprovider.RegisterTokenResponseHook and friends).
+ * supplies it (authmethod.RegisterTokenResponseHook and friends).
  * Templates: URLs, headers, lookup bodies, identifier, name, metadata and
  * env values are strings with {{path}} placeholders. A path is read from
  * the flow's document, which grows as the flow goes:
@@ -10277,12 +10282,12 @@ export interface AuthSchemeCapability {
  * path present. A template none of whose placeholders resolve renders "":
  * omitted from env and metadata, blank as identifier or name.
  */
-export interface AuthSchemeSpec {
-  kind: AuthSchemeKind;
+export interface AuthMethod {
+  kind: AuthMethodKind;
   /**
    * Flow is the oauth2 grant; empty means authorization_code.
    */
-  flow?: AuthSchemeFlow;
+  flow?: AuthMethodFlow;
   /**
    * Fields are what a person pastes (api_key and http kinds).
    */
@@ -10292,13 +10297,13 @@ export interface AuthSchemeSpec {
    * header or query parameter of that name. ValuePrefix is prepended to
    * the value ("Bearer "). Not needed to connect; read by injection.
    */
-  in?: AuthSchemeAPIKeyIn;
+  in?: AuthMethodAPIKeyIn;
   param_name?: string;
   value_prefix?: string;
   /**
    * Scheme and BearerFormat describe an http kind's Authorization header.
    */
-  scheme?: AuthSchemeHTTPScheme;
+  scheme?: AuthMethodHTTPScheme;
   bearer_format?: string;
   authorization_endpoint?: string;
   scopes?: string[]; // requested by default; a connect request may override (RequiredScopes stay)
@@ -10382,7 +10387,7 @@ export interface AuthSchemeSpec {
   callback?: string;
   /**
    * Profile names the authorization server's deviations from the specs
-   * (authprovider.AuthServerProfile: endpoints placed by app fields,
+   * (authmethod.AuthServerProfile: endpoints placed by app fields,
    * scopes on refresh, actionable errors, admin consent). Empty = none.
    */
   profile?: string;
@@ -10393,8 +10398,8 @@ export interface AuthSchemeSpec {
    * with a form POST.
    */
   revocation_endpoint?: string;
-  client_auth?: AuthSchemeClientAuth; // empty = basic
-  token_request?: AuthSchemeTokenRequest; // empty = form
+  client_auth?: AuthMethodClientAuth; // empty = basic
+  token_request?: AuthMethodTokenRequest; // empty = form
   /**
    * Headers go on every request to the provider (User-Agent for Reddit,
    * Notion-Version); values are templates ({{client_id}} for Twitch's
@@ -10406,8 +10411,8 @@ export interface AuthSchemeSpec {
    * not the RFC 6749 shape (Slack's nested authed_user). Empty = standard.
    */
   token_response_hook?: string;
-  refresh?: AuthSchemeRefresh;
-  revoke?: AuthSchemeRevoke;
+  refresh?: AuthMethodRefresh;
+  revoke?: AuthMethodRevoke;
   /**
    * UserInfoURL is fetched with the new access token; the response is the
    * identity document (user.*). UserInfoURLPath instead reads that URL
@@ -10417,7 +10422,7 @@ export interface AuthSchemeSpec {
    */
   userinfo_url?: string;
   userinfo_url_path?: string;
-  lookups?: AuthSchemeLookup[];
+  lookups?: AuthMethodLookup[];
   /**
    * Identifier is the connected account's stable, human-readable id
    * ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
@@ -10450,14 +10455,14 @@ export interface AuthSchemeSpec {
    * AppKeys are the OAuth app's keys beyond the implied client id and
    * secret, and label overrides for those.
    */
-  app_keys?: AuthSchemeAppKey[];
+  app_keys?: AuthMethodAppKey[];
   /**
    * VarsHook names Go code that turns the app's extra keys into the
    * {var} values substituted into the URLs (Microsoft's tenant,
    * Salesforce's sandbox host).
    */
   vars_hook?: string;
-  capabilities?: AuthSchemeCapability[];
+  capabilities?: AuthMethodCapability[];
 }
 /**
  * Visibility represents the visibility level of a resource
@@ -11973,23 +11978,23 @@ export const CredentialGrantCredentials: CredentialGrant = "credentials";
  * service account, an MCP authorization.
  */
 export const CredentialGrantToken: CredentialGrant = "token";
-export type ProviderCategory =
+export type CompanyCategory =
   | "ai_ml"
   | "media"
   | "search"
   | "cloud"
   | "social"
   | "tools";
-export const ProviderCategoryAIML: ProviderCategory = "ai_ml";
-export const ProviderCategoryMedia: ProviderCategory = "media";
-export const ProviderCategorySearch: ProviderCategory = "search";
-export const ProviderCategoryCloud: ProviderCategory = "cloud";
-export const ProviderCategorySocial: ProviderCategory = "social";
-export const ProviderCategoryTools: ProviderCategory = "tools";
-export type ProviderStatus = "active" | "beta" | "deprecated";
-export const ProviderStatusActive: ProviderStatus = "active";
-export const ProviderStatusBeta: ProviderStatus = "beta";
-export const ProviderStatusDeprecated: ProviderStatus = "deprecated";
+export const CompanyCategoryAIML: CompanyCategory = "ai_ml";
+export const CompanyCategoryMedia: CompanyCategory = "media";
+export const CompanyCategorySearch: CompanyCategory = "search";
+export const CompanyCategoryCloud: CompanyCategory = "cloud";
+export const CompanyCategorySocial: CompanyCategory = "social";
+export const CompanyCategoryTools: CompanyCategory = "tools";
+export type CompanyStatus = "active" | "beta" | "deprecated";
+export const CompanyStatusActive: CompanyStatus = "active";
+export const CompanyStatusBeta: CompanyStatus = "beta";
+export const CompanyStatusDeprecated: CompanyStatus = "deprecated";
 export type RejectionReason = "worker_busy" | "worker_not_found" | "worker_id_nil" | "engine_draining";
 export const RejectionWorkerBusy: RejectionReason = "worker_busy";
 export const RejectionWorkerNotFound: RejectionReason = "worker_not_found";
