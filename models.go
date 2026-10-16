@@ -1832,7 +1832,7 @@ type AppVersionDTO struct {
 // use.
 type DeployWarning struct {
 	// Code identifies the check: readonly_broad_credential,
-	// unused_credential, missing_annotations.
+	// unused_credential, missing_annotations, unapproved_platform_scope.
 	Code string `json:"code"`
 	// Function is the function the warning is about, when it is about one.
 	Function string `json:"function,omitempty"`
@@ -1979,6 +1979,26 @@ type ArtifactVersionDTO struct {
 	GeneratedBy     string         `json:"generated_by,omitempty"` // "agent:<id>", "human:<email>"
 	Capabilities    map[string]any `json:"capabilities,omitempty"`
 	CreatedByUserID string         `json:"created_by_user_id,omitempty"`
+	// Files are the pages and data served beside the index page.
+	Files []ArtifactVersionFileDTO `json:"files,omitempty"`
+}
+
+// ArtifactVersionFileDTO is one file published beside a version's index.
+type ArtifactVersionFileDTO struct {
+	Path        string `json:"path"`
+	SizeBytes   int64  `json:"size_bytes"`
+	ContentType string `json:"content_type"`
+}
+
+// ArtifactFileInput is one extra file in a publish, served at Path relative
+// to the index page: another page (.html, .md), or css, js, json, svg, txt,
+// xml, csv.
+type ArtifactFileInput struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	// ContentEncoding is "base64" when Content is base64-encoded, as for the
+	// main content.
+	ContentEncoding string `json:"content_encoding,omitempty"`
 }
 
 // ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
@@ -1996,12 +2016,15 @@ type ArtifactCreateRequest struct {
 	Content string `json:"content"`
 	// ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
 	// from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
-	ContentEncoding string         `json:"content_encoding,omitempty"`
-	Label           string         `json:"label,omitempty"`
-	Notes           string         `json:"notes,omitempty"`
-	Origin          string         `json:"origin,omitempty"`
-	GeneratedBy     string         `json:"generated_by,omitempty"`
-	Capabilities    map[string]any `json:"capabilities,omitempty"`
+	ContentEncoding string `json:"content_encoding,omitempty"`
+	// Files are published beside the index page. A publish is the whole
+	// site: files of the previous version are not carried over.
+	Files        []ArtifactFileInput `json:"files,omitempty"`
+	Label        string              `json:"label,omitempty"`
+	Notes        string              `json:"notes,omitempty"`
+	Origin       string              `json:"origin,omitempty"`
+	GeneratedBy  string              `json:"generated_by,omitempty"`
+	Capabilities map[string]any      `json:"capabilities,omitempty"`
 	// BaseVersionID is the version this content was built on. When the
 	// artifact has moved past it, the publish is refused instead of
 	// discarding whatever landed in between. Leave it empty to publish
@@ -2028,12 +2051,15 @@ type ArtifactUpdateRequest struct {
 type ArtifactPublishRequest struct {
 	Content string `json:"content"`
 	// ContentEncoding is "base64" when Content is base64-encoded UTF-8.
-	ContentEncoding string         `json:"content_encoding,omitempty"`
-	Label           string         `json:"label,omitempty"`
-	Notes           string         `json:"notes,omitempty"`
-	Origin          string         `json:"origin,omitempty"`
-	GeneratedBy     string         `json:"generated_by,omitempty"`
-	Capabilities    map[string]any `json:"capabilities,omitempty"`
+	ContentEncoding string `json:"content_encoding,omitempty"`
+	// Files are published beside the index page. A publish is the whole
+	// site: files of the previous version are not carried over.
+	Files        []ArtifactFileInput `json:"files,omitempty"`
+	Label        string              `json:"label,omitempty"`
+	Notes        string              `json:"notes,omitempty"`
+	Origin       string              `json:"origin,omitempty"`
+	GeneratedBy  string              `json:"generated_by,omitempty"`
+	Capabilities map[string]any      `json:"capabilities,omitempty"`
 	// Title/Favicon/Description may be refreshed alongside a publish.
 	Title       string          `json:"title,omitempty"`
 	Description string          `json:"description,omitempty"`
@@ -2489,6 +2515,8 @@ type ChatMessageDTO struct {
 	Tools              *[]Tool              `json:"tools"`
 	ToolCallID         *string              `json:"tool_call_id"`
 	ToolInvocations    *[]ToolInvocationDTO `json:"tool_invocations"`
+	// CompactionMeta is what a compaction (role compaction) retired.
+	CompactionMeta *CompactionMeta `json:"compaction_meta,omitempty"`
 }
 
 // --------------------
@@ -2715,15 +2743,19 @@ type CredentialDTO struct {
 	// AccountID is the provider's own, unchanging id for the account; what
 	// an account is named by when choosing one. AccountIdentifier is its
 	// label (an email, an @handle).
-	AccountID         string         `json:"account_id,omitempty"`
-	AccountIdentifier string         `json:"account_identifier,omitempty"`
-	AccountName       string         `json:"account_name,omitempty"`
-	Scopes            StringSlice    `json:"scopes"`
-	ExpiresAt         *time.Time     `json:"expires_at,omitempty"`
-	VaultID           *string        `json:"vault_id,omitempty"`
-	Metadata          map[string]any `json:"metadata,omitempty"`
-	IsPrimary         bool           `json:"is_primary"`
-	ErrorMessage      string         `json:"error_message,omitempty"`
+	AccountID         string      `json:"account_id,omitempty"`
+	AccountIdentifier string      `json:"account_identifier,omitempty"`
+	AccountName       string      `json:"account_name,omitempty"`
+	Scopes            StringSlice `json:"scopes"`
+	// AllowedScopes, on an OAuth app row (grant credentials), is every
+	// scope a login through it may request; absent when any scope may be
+	// (a team's own client by default). Never set on a login.
+	AllowedScopes StringSlice    `json:"allowed_scopes,omitempty"`
+	ExpiresAt     *time.Time     `json:"expires_at,omitempty"`
+	VaultID       *string        `json:"vault_id,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
+	IsPrimary     bool           `json:"is_primary"`
+	ErrorMessage  string         `json:"error_message,omitempty"`
 	// Secrets are the secret rows linked to the credential (a key's values),
 	// by row and key, never by value. Filled on the vault's api_key configs
 	// and the admin provider tree.
@@ -2754,14 +2786,16 @@ type CompanySummary struct {
 type CredentialConfigDTO struct {
 	Slug string `json:"slug"`
 	// Provider is the credential slug (what Credential.Provider stores):
-	// one way to authenticate. The company it belongs to is ProviderInfo.
+	// one way to authenticate. The company it belongs to is Company.
 	Provider string `json:"provider"`
-	// ProviderInfo is the company this slug belongs to, for grouping: the
-	// providers row its auth provider names, else the slug's own identity.
-	ProviderInfo *CompanySummary `json:"provider_info,omitempty"`
-	// Company is ProviderInfo under its settled name (INF-1079); provider_info
-	// stays one release.
-	Company      *CompanySummary     `json:"company,omitempty"`
+	// Company is the company this slug belongs to, for grouping: the
+	// companies row its auth provider names, else the slug's own identity.
+	Company *CompanySummary `json:"company,omitempty"`
+	// ProviderInfo is Company under its pre-INF-1079 name. Deprecated; it
+	// stays while released belt CLIs (v1.25.x) and the api-key scripts that
+	// read /credentials/configs still use it, and goes once a CLI that reads
+	// Company has shipped.
+	ProviderInfo *CompanySummary     `json:"provider_info,omitempty"`
 	Type         string              `json:"type"`
 	Name         string              `json:"name"`
 	ShortName    string              `json:"short_name"`
@@ -2956,8 +2990,28 @@ type EngineDTO struct {
 	APIURL             string       `json:"api_url"`
 	Status             EngineStatus `json:"status"`
 	EngineVersion      string       `json:"engine_version"`
-	SystemInfo         *SystemInfo  `json:"system_info"`
-	Workers            []*WorkerDTO `json:"workers"`
+	// EnginePin is the version the engine is held on; empty follows stable.
+	EnginePin  string       `json:"engine_pin,omitempty"`
+	SystemInfo *SystemInfo  `json:"system_info"`
+	Workers    []*WorkerDTO `json:"workers"`
+}
+
+// EngineUpdateRequest names the release an engine should install: "stable",
+// "canary", or a version such as v1.9.3. Empty is stable.
+type EngineUpdateRequest struct {
+	Version string `json:"version,omitempty"`
+}
+
+// EngineRelease is one published engine build.
+type EngineRelease struct {
+	Version     string `json:"version"`
+	ReleaseDate string `json:"release_date,omitempty"`
+}
+
+// EngineReleasesResponse is the head of each engine release channel.
+type EngineReleasesResponse struct {
+	Stable *EngineRelease `json:"stable"`
+	Canary *EngineRelease `json:"canary"`
 }
 
 // EngineSummary is a lightweight engine response embedded in tasks.
@@ -5339,6 +5393,8 @@ type SDKTypes struct {
 	_flowRun            FlowRunDTO
 	_flowVer            FlowVersionDTO
 	_engine             EngineDTO
+	_engineUpdateReq    EngineUpdateRequest
+	_engineReleases     EngineReleasesResponse
 	_cursor             CursorListRequest
 	_cursorResp         CursorListResponse[any]
 	_countResp          CountResponse
@@ -5650,6 +5706,7 @@ type EngineTypes struct {
 	_wsHeartbeat       WsEngineHeartbeatPayload
 	_wsTelemetry       EngineTelemetry
 	_wsDeleteCache     WsEngineDeleteHFCacheRepoPayload
+	_wsEngineUpdate    WsEngineUpdatePayload
 	_wsSessionEnd      WsSessionEndPayload
 	// Engine registration + internal API
 	_engineRegReq  EngineRegisterRequest
@@ -6774,11 +6831,13 @@ type WsEngineHeartbeatPayload struct {
 
 // EngineTelemetry is the clean contract for engine→API telemetry.
 type EngineTelemetry struct {
-	EngineID      string            `json:"engine_id"`
-	Status        EngineStatus      `json:"status"`
-	EngineVersion string            `json:"engine_version,omitempty"`
-	SystemInfo    *SystemInfo       `json:"system_info"`
-	Workers       []WorkerTelemetry `json:"workers"`
+	EngineID      string       `json:"engine_id"`
+	Status        EngineStatus `json:"status"`
+	EngineVersion string       `json:"engine_version,omitempty"`
+	// EnginePin is the version the engine is held on; empty follows stable.
+	EnginePin  string            `json:"engine_pin,omitempty"`
+	SystemInfo *SystemInfo       `json:"system_info"`
+	Workers    []WorkerTelemetry `json:"workers"`
 }
 
 // WorkerTelemetry is the minimal telemetry data engine sends per worker.
@@ -6791,6 +6850,13 @@ type WorkerTelemetry struct {
 	ActiveSessionID *string      `json:"active_session_id,omitempty"`
 	SystemInfo      SystemInfo   `json:"system_info"`
 	WarmApps        []string     `json:"warm_apps,omitempty"`
+}
+
+// WsEngineUpdatePayload tells an engine which release to install before it
+// drains and restarts: "stable", "canary", or a version such as v1.9.3.
+// Empty means stable, which is what engines did before the payload existed.
+type WsEngineUpdatePayload struct {
+	Version string `json:"version,omitempty"`
 }
 
 type WsEngineDeleteHFCacheRepoPayload struct {
@@ -10584,6 +10650,15 @@ type ContextInjection struct {
 	// already offered, instead of keeping a ledger somewhere else and hoping
 	// the two stay in step.
 	Items []string `json:"items,omitempty"`
+}
+
+// CompactionMeta is stored on ChatMessage for context compaction markers.
+type CompactionMeta struct {
+	CompactedUpToOrder int    `json:"compacted_up_to_order"`
+	CompactedCount     int    `json:"compacted_count"`
+	EstimatedTokens    int    `json:"estimated_tokens"`
+	Method             string `json:"method,omitempty"` // "extractive" or "llm"
+	Analysis           string `json:"analysis,omitempty"`
 }
 
 // ToolCallEventData is the typed payload for agent.tool_call events.

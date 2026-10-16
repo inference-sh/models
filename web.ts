@@ -2340,7 +2340,7 @@ export interface AppVersionDTO extends BaseModelDTO {
 export interface DeployWarning {
   /**
    * Code identifies the check: readonly_broad_credential,
-   * unused_credential, missing_annotations.
+   * unused_credential, missing_annotations, unapproved_platform_scope.
    */
   code: string;
   /**
@@ -2525,6 +2525,32 @@ export interface ArtifactVersionDTO extends BaseModelDTO {
   generated_by?: string; // "agent:<id>", "human:<email>"
   capabilities?: { [key: string]: any};
   created_by_user_id?: string;
+  /**
+   * Files are the pages and data served beside the index page.
+   */
+  files?: ArtifactVersionFileDTO[];
+}
+/**
+ * ArtifactVersionFileDTO is one file published beside a version's index.
+ */
+export interface ArtifactVersionFileDTO {
+  path: string;
+  size_bytes: number /* int64 */;
+  content_type: string;
+}
+/**
+ * ArtifactFileInput is one extra file in a publish, served at Path relative
+ * to the index page: another page (.html, .md), or css, js, json, svg, txt,
+ * xml, csv.
+ */
+export interface ArtifactFileInput {
+  path: string;
+  content: string;
+  /**
+   * ContentEncoding is "base64" when Content is base64-encoded, as for the
+   * main content.
+   */
+  content_encoding?: string;
 }
 /**
  * ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
@@ -2550,6 +2576,11 @@ export interface ArtifactCreateRequest {
    * from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
    */
   content_encoding?: string;
+  /**
+   * Files are published beside the index page. A publish is the whole
+   * site: files of the previous version are not carried over.
+   */
+  files?: ArtifactFileInput[];
   label?: string;
   notes?: string;
   origin?: string;
@@ -2594,6 +2625,11 @@ export interface ArtifactPublishRequest {
    * ContentEncoding is "base64" when Content is base64-encoded UTF-8.
    */
   content_encoding?: string;
+  /**
+   * Files are published beside the index page. A publish is the whole
+   * site: files of the previous version are not carried over.
+   */
+  files?: ArtifactFileInput[];
   label?: string;
   notes?: string;
   origin?: string;
@@ -3255,6 +3291,10 @@ export interface ChatMessageDTO extends BaseModelDTO, PermissionModelDTO {
   tools?: Tool[];
   tool_call_id?: string;
   tool_invocations?: ToolInvocationDTO[];
+  /**
+   * CompactionMeta is what a compaction (role compaction) retired.
+   */
+  compaction_meta?: CompactionMeta;
 }
 /**
  * PolicyRuleDTO is one rule, typed form Kind[selector](specifier).
@@ -3780,6 +3820,12 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   account_identifier?: string;
   account_name?: string;
   scopes: StringSlice;
+  /**
+   * AllowedScopes, on an OAuth app row (grant credentials), is every
+   * scope a login through it may request; absent when any scope may be
+   * (a team's own client by default). Never set on a login.
+   */
+  allowed_scopes?: StringSlice;
   expires_at?: string /* RFC3339 */;
   vault_id?: string;
   metadata?: { [key: string]: any};
@@ -3808,6 +3854,12 @@ export interface CredentialSecretRef {
  */
 export interface CredentialAppRequest {
   values: { [key: string]: string};
+  /**
+   * AllowedScopes replaces the scopes a login through the app may request
+   * (CredentialDTO.AllowedScopes). An empty list allows any scope; omitted
+   * keeps the stored list.
+   */
+  allowed_scopes?: string[];
 }
 /**
  * OAuthNoticeOutcome is what an authorization server's redirect amounted to.
@@ -3876,19 +3928,21 @@ export interface CredentialConfigDTO {
   slug: string;
   /**
    * Provider is the credential slug (what Credential.Provider stores):
-   * one way to authenticate. The company it belongs to is ProviderInfo.
+   * one way to authenticate. The company it belongs to is Company.
    */
   provider: string;
   /**
-   * ProviderInfo is the company this slug belongs to, for grouping: the
-   * providers row its auth provider names, else the slug's own identity.
-   */
-  provider_info?: CompanySummary;
-  /**
-   * Company is ProviderInfo under its settled name (INF-1079); provider_info
-   * stays one release.
+   * Company is the company this slug belongs to, for grouping: the
+   * companies row its auth provider names, else the slug's own identity.
    */
   company?: CompanySummary;
+  /**
+   * ProviderInfo is Company under its pre-INF-1079 name. Deprecated; it
+   * stays while released belt CLIs (v1.25.x) and the api-key scripts that
+   * read /credentials/configs still use it, and goes once a CLI that reads
+   * Company has shipped.
+   */
+  provider_info?: CompanySummary;
   type: string;
   name: string;
   short_name: string;
@@ -4109,8 +4163,33 @@ export interface EngineDTO extends BaseModelDTO, PermissionModelDTO {
   api_url: string;
   status: EngineStatus;
   engine_version: string;
+  /**
+   * EnginePin is the version the engine is held on; empty follows stable.
+   */
+  engine_pin?: string;
   system_info?: SystemInfo;
   workers: (WorkerDTO | undefined)[];
+}
+/**
+ * EngineUpdateRequest names the release an engine should install: "stable",
+ * "canary", or a version such as v1.9.3. Empty is stable.
+ */
+export interface EngineUpdateRequest {
+  version?: string;
+}
+/**
+ * EngineRelease is one published engine build.
+ */
+export interface EngineRelease {
+  version: string;
+  release_date?: string;
+}
+/**
+ * EngineReleasesResponse is the head of each engine release channel.
+ */
+export interface EngineReleasesResponse {
+  stable?: EngineRelease;
+  canary?: EngineRelease;
 }
 /**
  * EngineSummary is a lightweight engine response embedded in tasks.
@@ -9291,6 +9370,10 @@ export interface EngineTelemetry {
   engine_id: string;
   status: EngineStatus;
   engine_version?: string;
+  /**
+   * EnginePin is the version the engine is held on; empty follows stable.
+   */
+  engine_pin?: string;
   system_info?: SystemInfo;
   workers: WorkerTelemetry[];
 }
@@ -9306,6 +9389,14 @@ export interface WorkerTelemetry {
   active_session_id?: string;
   system_info: SystemInfo;
   warm_apps?: string[];
+}
+/**
+ * WsEngineUpdatePayload tells an engine which release to install before it
+ * drains and restarts: "stable", "canary", or a version such as v1.9.3.
+ * Empty means stable, which is what engines did before the payload existed.
+ */
+export interface WsEngineUpdatePayload {
+  version?: string;
 }
 export interface WsEngineDeleteHFCacheRepoPayload {
   repo_id: string;
@@ -13338,6 +13429,16 @@ export interface ContextInjection {
    * the two stay in step.
    */
   items?: string[];
+}
+/**
+ * CompactionMeta is stored on ChatMessage for context compaction markers.
+ */
+export interface CompactionMeta {
+  compacted_up_to_order: number /* int */;
+  compacted_count: number /* int */;
+  estimated_tokens: number /* int */;
+  method?: string; // "extractive" or "llm"
+  analysis?: string;
 }
 /**
  * ToolCallEventData is the typed payload for agent.tool_call events.

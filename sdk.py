@@ -865,7 +865,7 @@ class AppSandbox(TypedDict, total=False):
 # use.
 class DeployWarning(TypedDict, total=False):
     # Code identifies the check: readonly_broad_credential,
-    # unused_credential, missing_annotations.
+    # unused_credential, missing_annotations, unapproved_platform_scope.
     code: str
     # Function is the function the warning is about, when it is about one.
     function: str
@@ -908,6 +908,22 @@ class PublicAppStoreDTO(TypedDict, total=False):
     page_id: Optional[str]
     pricing_description: str
 
+# ArtifactVersionFileDTO is one file published beside a version's index.
+class ArtifactVersionFileDTO(TypedDict, total=False):
+    path: str
+    size_bytes: int
+    content_type: str
+
+# ArtifactFileInput is one extra file in a publish, served at Path relative
+# to the index page: another page (.html, .md), or css, js, json, svg, txt,
+# xml, csv.
+class ArtifactFileInput(TypedDict, total=False):
+    path: str
+    content: str
+    # ContentEncoding is "base64" when Content is base64-encoded, as for the
+    # main content.
+    content_encoding: str
+
 # ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
 # and its first version. When an artifact with the same name already exists
 # in the caller's namespace a new version is published instead.
@@ -924,6 +940,9 @@ class ArtifactCreateRequest(TypedDict, total=False):
     # ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
     # from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
     content_encoding: str
+    # Files are published beside the index page. A publish is the whole
+    # site: files of the previous version are not carried over.
+    files: List[ArtifactFileInput]
     label: str
     notes: str
     origin: str
@@ -954,6 +973,9 @@ class ArtifactPublishRequest(TypedDict, total=False):
     content: str
     # ContentEncoding is "base64" when Content is base64-encoded UTF-8.
     content_encoding: str
+    # Files are published beside the index page. A publish is the whole
+    # site: files of the previous version are not carried over.
+    files: List[ArtifactFileInput]
     label: str
     notes: str
     origin: str
@@ -1327,14 +1349,16 @@ class CompanySummary(TypedDict, total=False):
 class CredentialConfigDTO(TypedDict, total=False):
     slug: str
     # Provider is the credential slug (what Credential.Provider stores):
-    # one way to authenticate. The company it belongs to is ProviderInfo.
+    # one way to authenticate. The company it belongs to is Company.
     provider: str
-    # ProviderInfo is the company this slug belongs to, for grouping: the
-    # providers row its auth provider names, else the slug's own identity.
-    provider_info: Optional[CompanySummary]
-    # Company is ProviderInfo under its settled name (INF-1079); provider_info
-    # stays one release.
+    # Company is the company this slug belongs to, for grouping: the
+    # companies row its auth provider names, else the slug's own identity.
     company: Optional[CompanySummary]
+    # ProviderInfo is Company under its pre-INF-1079 name. Deprecated; it
+    # stays while released belt CLIs (v1.25.x) and the api-key scripts that
+    # read /credentials/configs still use it, and goes once a CLI that reads
+    # Company has shipped.
+    provider_info: Optional[CompanySummary]
     type: str
     name: str
     short_name: str
@@ -1453,6 +1477,21 @@ class WorkerCPUConfig(TypedDict, total=False):
 class WorkerConfig(TypedDict, total=False):
     gpu: List[WorkerGPUConfig]
     cpu: WorkerCPUConfig
+
+# EngineUpdateRequest names the release an engine should install: "stable",
+# "canary", or a version such as v1.9.3. Empty is stable.
+class EngineUpdateRequest(TypedDict, total=False):
+    version: str
+
+# EngineRelease is one published engine build.
+class EngineRelease(TypedDict, total=False):
+    version: str
+    release_date: str
+
+# EngineReleasesResponse is the head of each engine release channel.
+class EngineReleasesResponse(TypedDict, total=False):
+    stable: Optional[EngineRelease]
+    canary: Optional[EngineRelease]
 
 # WorkerSummary is a lightweight worker response.
 class WorkerSummary(TypedDict, total=False):
@@ -2872,135 +2911,136 @@ class AuthMethodCapability(TypedDict, total=False):
 # Array elements are indexed: {{resources.0.id}}. {{a|b}} takes the first
 # path present. A template none of whose placeholders resolve renders "":
 # omitted from env and metadata, blank as identifier or name.
-class AuthMethod(TypedDict, total=False):
-    kind: AuthMethodKind
+AuthMethod = TypedDict('AuthMethod', {
+    'kind': 'AuthMethodKind',
     # Flow is the oauth2 grant; empty means authorization_code.
-    flow: AuthMethodFlow
+    'flow': 'AuthMethodFlow',
     # Fields are what a person pastes (api_key and http kinds).
-    fields: List[SecretField]
+    'fields': 'List[SecretField]',
     # In and ParamName say where an api_key key goes on a request: the
     # header or query parameter of that name. ValuePrefix is prepended to
     # the value ("Bearer "). Not needed to connect; read by injection.
-    in_: AuthMethodAPIKeyIn
-    param_name: str
-    value_prefix: str
+    'in': 'AuthMethodAPIKeyIn',
+    'param_name': 'str',
+    'value_prefix': 'str',
     # Scheme and BearerFormat describe an http kind's Authorization header.
-    scheme: AuthMethodHTTPScheme
-    bearer_format: str
-    authorization_endpoint: str
-    scopes: List[str]
+    'scheme': 'AuthMethodHTTPScheme',
+    'bearer_format': 'str',
+    'authorization_endpoint': 'str',
+    'scopes': 'List[str]',
     # ScopeAliases map the scheme's own scope names to what the provider
     # wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
     # gmail.send"). Credentials store the alias; the wire form is used only
     # in requests. A scope with no alias is sent as is.
-    scope_aliases: Dict[str, str]
-    scope_param: str
-    scope_separator: str
-    omit_scope_param: bool
-    pkce: bool
+    'scope_aliases': 'Dict[str, str]',
+    'scope_param': 'str',
+    'scope_separator': 'str',
+    'omit_scope_param': 'bool',
+    'pkce': 'bool',
     # ClientIDParam is the name the client id travels under in the
     # authorize URL and the token body; default "client_id" (TikTok:
     # "client_key").
-    client_id_param: str
+    'client_id_param': 'str',
     # ExtraAuthorizeParams are appended to the authorize URL verbatim
     # (Google's access_type=offline). AddScopesParams override them when
     # re-authorizing for more scopes (Google's include_granted_scopes).
-    extra_authorize_params: Dict[str, str]
-    add_scopes_params: Dict[str, str]
+    'extra_authorize_params': 'Dict[str, str]',
+    'add_scopes_params': 'Dict[str, str]',
     # AccountHintParam is the authorize param that names the account to sign
     # in with (Google's and Microsoft's "login_hint"). When re-authorizing
     # for more scopes it carries the login's account identifier, so the
     # provider goes to that account instead of offering a chooser. Empty =
     # no hint sent.
-    account_hint_param: str
+    'account_hint_param': 'str',
     # AnotherAccountParams are authorize params for connecting an account
     # next to one already connected: the provider shows its account chooser
     # instead of signing the user back in to the account it remembers
     # (Google prompt=select_account). They override ExtraAuthorizeParams.
-    another_account_params: Dict[str, str]
+    'another_account_params': 'Dict[str, str]',
     # RequiredScopes are always requested, on a connect and when
     # re-authorizing for more scopes, whatever the caller asked for: the
     # scopes the identity lookup and token refresh need (Google's openid,
     # email and profile; X's users.read and offline.access). In the
     # scheme's own names, like Scopes. Empty = only what was asked for.
-    required_scopes: List[str]
+    'required_scopes': 'List[str]',
     # IncrementalAddScopes: re-authorizing for more scopes asks only for
     # the new ones (plus RequiredScopes), and the provider returns a token
     # that also covers what the login already holds (Google, with
     # include_granted_scopes in AddScopesParams). Without it the full list
     # is asked for again.
-    incremental_add_scopes: bool
+    'incremental_add_scopes': 'bool',
     # Resource is the RFC 8707 resource indicator: the protected resource
     # the token is minted for (an MCP server's URL). Sent on the authorize,
     # code and refresh requests when the profile takes one. Empty = none.
-    resource: str
+    'resource': 'str',
     # Issuer is the authorization server's RFC 8414 issuer. With
     # AuthorizationResponseIssParameterSupported, the callback's iss must
     # name it (RFC 9207, against mix-up); an issuer alone still refuses a
     # callback naming another one.
-    issuer: str
-    authorization_response_iss_parameter_supported: bool
+    'issuer': 'str',
+    'authorization_response_iss_parameter_supported': 'bool',
     # Callback is the name of the redirect URI the app was registered with
     # (<app>/settings/secrets/oauth/<callback>). Empty = the slug. Schemes
     # whose clients are registered once for many slugs share one (an MCP
     # server's dynamically registered client and the Client ID Metadata
     # Document name the "mcp" callback); the flow's provider then comes
     # from the connect intent, never from the callback's path.
-    callback: str
+    'callback': 'str',
     # Profile names the authorization server's deviations from the specs
     # (authmethod.AuthServerProfile: endpoints placed by app fields,
     # scopes on refresh, actionable errors, admin consent). Empty = none.
-    profile: str
-    token_endpoint: str
+    'profile': 'str',
+    'token_endpoint': 'str',
     # RevocationEndpoint is the RFC 7009 endpoint, when the provider has
     # one and Revoke names no style of its own: tokens are revoked there
     # with a form POST.
-    revocation_endpoint: str
-    client_auth: AuthMethodClientAuth
-    token_request: AuthMethodTokenRequest
+    'revocation_endpoint': 'str',
+    'client_auth': 'AuthMethodClientAuth',
+    'token_request': 'AuthMethodTokenRequest',
     # Headers go on every request to the provider (User-Agent for Reddit,
     # Notion-Version); values are templates ({{client_id}} for Twitch's
     # Client-Id).
-    headers: Dict[str, str]
+    'headers': 'Dict[str, str]',
     # TokenResponseHook names the Go reader for a token response that is
     # not the RFC 6749 shape (Slack's nested authed_user). Empty = standard.
-    token_response_hook: str
-    refresh: AuthMethodRefresh
-    revoke: Optional[AuthMethodRevoke]
+    'token_response_hook': 'str',
+    'refresh': 'AuthMethodRefresh',
+    'revoke': 'Optional[AuthMethodRevoke]',
     # UserInfoURL is fetched with the new access token; the response is the
     # identity document (user.*). UserInfoURLPath instead reads that URL
     # from a path within the token response (Salesforce's "id"). Lookups
     # are further calls, each becoming a root of its name, in order, after
     # user. With none of these, the token response is all there is.
-    userinfo_url: str
-    userinfo_url_path: str
-    lookups: List[AuthMethodLookup]
+    'userinfo_url': 'str',
+    'userinfo_url_path': 'str',
+    'lookups': 'List[AuthMethodLookup]',
     # Identifier is the connected account's stable, human-readable id
     # ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
-    identifier: str
-    name: str
+    'identifier': 'str',
+    'name': 'str',
     # AccountID is the account's id as the provider keeps it and never
     # changes it ("{{user.sub}}" for Google, "{{user.data.id}}" for X), as
     # opposed to Identifier, which the user may rename. Logins are matched
     # and chosen by it. Empty = Identifier, for providers whose identifier
     # already is such an id (Slack, Notion).
-    account_id: str
+    'account_id': 'str',
     # IdentityHook names Go code that derives identifier and name when a
     # template cannot (Discord's discriminator rule). It wins over both.
-    identity_hook: str
+    'identity_hook': 'str',
     # Metadata is what the credential stores about the account, by key.
-    metadata: Dict[str, str]
+    'metadata': 'Dict[str, str]',
     # Env is what a run reads, by variable. Empty = PREFIX_ACCESS_TOKEN and
     # PREFIX_ACCESS_TOKEN_EXPIRES_AT.
-    env: Dict[str, str]
+    'env': 'Dict[str, str]',
     # AppKeys are the OAuth app's keys beyond the implied client id and
     # secret, and label overrides for those.
-    app_keys: List[AuthMethodAppKey]
+    'app_keys': 'List[AuthMethodAppKey]',
     # VarsHook names Go code that turns the app's extra keys into the
     # {var} values substituted into the URLs (Microsoft's tenant,
     # Salesforce's sandbox host).
-    vars_hook: str
-    capabilities: List[AuthMethodCapability]
+    'vars_hook': 'str',
+    'capabilities': 'List[AuthMethodCapability]',
+}, total=False)
 
 # ChatData contains agent-specific data for a chat session
 class ChatData(TypedDict, total=False):
@@ -3231,11 +3271,11 @@ class ToolCallDelta(TypedDict, total=False):
     type: Optional[ToolCallType]
     function: Optional[ToolCallFunctionDelta]
 
-    _field_tags = {
-        "id": {"merge": "replace"},
-        "type": {"merge": "replace"},
-        "function": {"merge": "nested"},
-    }
+ToolCallDelta._field_tags = {  # type: ignore[attr-defined]
+    "id": {"merge": "replace"},
+    "type": {"merge": "replace"},
+    "function": {"merge": "nested"},
+}
 
 # ToolCallFunctionDelta carries partial tool call function data.
 # Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
@@ -3243,10 +3283,10 @@ class ToolCallFunctionDelta(TypedDict, total=False):
     name: str
     arguments: str
 
-    _field_tags = {
-        "name": {"merge": "replace"},
-        "arguments": {"merge": "concat"},
-    }
+ToolCallFunctionDelta._field_tags = {  # type: ignore[attr-defined]
+    "name": {"merge": "replace"},
+    "arguments": {"merge": "concat"},
+}
 
 # ToolChoice constrains tool calling for a turn. Providers spell this
 # differently (OpenAI tool_choice, Anthropic tool_choice.type any/tool,
@@ -3476,14 +3516,15 @@ class BuiltinHookDefinition(TypedDict, total=False):
 
 # LifecycleHookConfig registers a handler for an agent lifecycle event.
 # Stored on AgentVersion alongside Tools and Skills.
-class LifecycleHookConfig(TypedDict, total=False):
-    event: HookEvent
-    type: HookHandlerType
-    handler: str
-    async_: bool
-    timeout: int
+LifecycleHookConfig = TypedDict('LifecycleHookConfig', {
+    'event': 'HookEvent',
+    'type': 'HookHandlerType',
+    'handler': 'str',
+    'async': 'bool',
+    'timeout': 'int',
     # Gate-specific fields (type: "gate")
-    default_resolution: InterruptResolution
+    'default_resolution': 'InterruptResolution',
+}, total=False)
 
 # LifecycleHookPayload is sent to hook handlers on lifecycle events.
 class LifecycleHookPayload(TypedDict, total=False):
@@ -3517,6 +3558,14 @@ class ContextInjection(TypedDict, total=False):
     # already offered, instead of keeping a ledger somewhere else and hoping
     # the two stay in step.
     items: List[str]
+
+# CompactionMeta is stored on ChatMessage for context compaction markers.
+class CompactionMeta(TypedDict, total=False):
+    compacted_up_to_order: int
+    compacted_count: int
+    estimated_tokens: int
+    method: str
+    analysis: str
 
 # ToolCallEventData is the typed payload for agent.tool_call events.
 class ToolCallEventData(TypedDict, total=False):
@@ -3664,6 +3713,8 @@ class ArtifactVersionDTO(BaseModelDTO, TypedDict, total=False):
     generated_by: str
     capabilities: Dict[str, Any]
     created_by_user_id: str
+    # Files are the pages and data served beside the index page.
+    files: List[ArtifactVersionFileDTO]
 
 # WorkerDTO is the full API response for a worker.
 class WorkerDTO(BaseModelDTO, TypedDict, total=False):
@@ -4085,6 +4136,8 @@ class ChatMessageDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     tools: Optional[List[Tool]]
     tool_call_id: Optional[str]
     tool_invocations: Optional[List[ToolInvocationDTO]]
+    # CompactionMeta is what a compaction (role compaction) retired.
+    compaction_meta: Optional[CompactionMeta]
 
 # CredentialDTO is the API response for a credential (never exposes secrets).
 class CredentialDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -4103,6 +4156,10 @@ class CredentialDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     account_identifier: str
     account_name: str
     scopes: StringSlice
+    # AllowedScopes, on an OAuth app row (grant credentials), is every
+    # scope a login through it may request; absent when any scope may be
+    # (a team's own client by default). Never set on a login.
+    allowed_scopes: StringSlice
     expires_at: Optional[str]
     vault_id: Optional[str]
     metadata: Dict[str, Any]
@@ -4121,6 +4178,8 @@ class EngineDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     api_url: str
     status: EngineStatus
     engine_version: str
+    # EnginePin is the version the engine is held on; empty follows stable.
+    engine_pin: str
     system_info: Optional[SystemInfo]
     workers: List[Optional[WorkerDTO]]
 
@@ -4551,12 +4610,12 @@ class LLMDelta(StreamDelta, TypedDict, total=False):
     tool_calls: Optional[List[ToolCallDelta]]
     usage: Optional[LLMUsage]
 
-    _field_tags = {
-        "response": {"merge": "concat"},
-        "reasoning": {"merge": "concat"},
-        "tool_calls": {"merge": "indexed"},
-        "usage": {"merge": "replace"},
-    }
+LLMDelta._field_tags = {  # type: ignore[attr-defined]
+    "response": {"merge": "concat"},
+    "reasoning": {"merge": "concat"},
+    "tool_calls": {"merge": "indexed"},
+    "usage": {"merge": "replace"},
+}
 
 # LLMInput is the input envelope for an LLM provider task: the conversation,
 # with the current turn split out of the context, plus the settings.
