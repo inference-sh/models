@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -2105,8 +2106,16 @@ type ArtifactDataRequest struct {
 	DocID      string `json:"doc_id,omitempty"`
 	// Data is the document body for set and update.
 	Data map[string]any `json:"data,omitempty"`
-	// Limit caps a list; the server clamps it.
+	// Limit caps a list; the server clamps it to 200.
 	Limit int `json:"limit,omitempty"`
+	// Cursor continues a list from the next_cursor of the page before.
+	Cursor string `json:"cursor,omitempty"`
+	// Order is the list order: -updated_at (the default), updated_at,
+	// -created_at or created_at.
+	Order string `json:"order,omitempty"`
+	// Where keeps only documents whose top-level fields equal these values
+	// (string, number, boolean, or null for a missing field).
+	Where map[string]any `json:"where,omitempty"`
 }
 
 // ArtifactDataListResponse is a page of documents from one collection.
@@ -2114,6 +2123,8 @@ type ArtifactDataListResponse struct {
 	Collection string            `json:"collection"`
 	Documents  []ArtifactDataDTO `json:"documents"`
 	Count      int               `json:"count"`
+	// NextCursor fetches the page after this one; empty on the last page.
+	NextCursor string `json:"next_cursor,omitempty"`
 }
 
 // ArtifactViewerDTO is what the user capability tells a page about whoever
@@ -2991,9 +3002,11 @@ type EngineDTO struct {
 	Status             EngineStatus `json:"status"`
 	EngineVersion      string       `json:"engine_version"`
 	// EnginePin is the version the engine is held on; empty follows stable.
-	EnginePin  string       `json:"engine_pin,omitempty"`
-	SystemInfo *SystemInfo  `json:"system_info"`
-	Workers    []*WorkerDTO `json:"workers"`
+	EnginePin string `json:"engine_pin,omitempty"`
+	// Capabilities are what the engine last reported it can do.
+	Capabilities EngineCapabilities `json:"capabilities,omitempty"`
+	SystemInfo   *SystemInfo        `json:"system_info"`
+	Workers      []*WorkerDTO       `json:"workers"`
 }
 
 // EngineUpdateRequest names the release an engine should install: "stable",
@@ -3095,6 +3108,45 @@ type WorkerRAM struct {
 	ID       string `json:"id"`
 	WorkerID string `json:"worker_id"`
 	Total    uint64 `json:"total"`
+}
+
+// --------------------
+// source: engine_capabilities.go
+// --------------------
+
+// EngineCapability is something an engine can do beyond the base contract
+// every engine meets. An engine reports the ones it has (EngineTelemetry);
+// a task lists the ones it needs (Task.Requires); the scheduler only sends
+// a task to an engine that has every one it needs.
+type EngineCapability string
+
+const EngineCapabilityEgressGateway EngineCapability = "egress_gateway"
+
+// EngineCapabilities is a set of capabilities, kept as a list. Nil and
+// empty are the same: nothing beyond the base contract.
+type EngineCapabilities []EngineCapability
+
+// Has reports whether c holds capability.
+func (c EngineCapabilities) Has(capability EngineCapability) bool {
+	return slices.Contains(c, capability)
+}
+
+// Missing is what required asks for that c does not have, in required's
+// order; nil when c has all of it.
+func (c EngineCapabilities) Missing(required EngineCapabilities) EngineCapabilities {
+	var missing EngineCapabilities
+	for _, r := range required {
+		if !c.Has(r) && !missing.Has(r) {
+			missing = append(missing, r)
+		}
+	}
+	return missing
+}
+
+// Equal reports whether c and other hold the same capabilities, in any
+// order.
+func (c EngineCapabilities) Equal(other EngineCapabilities) bool {
+	return len(c.Missing(other)) == 0 && len(other.Missing(c)) == 0
 }
 
 // --------------------
@@ -6836,12 +6888,12 @@ type EngineTelemetry struct {
 	EngineVersion string       `json:"engine_version,omitempty"`
 	// EnginePin is the version the engine is held on; empty follows stable.
 	EnginePin string `json:"engine_pin,omitempty"`
-	// Capabilities are what this engine can do beyond the base contract,
-	// e.g. EngineCapabilityEgressGateway. The scheduler only sends a task
-	// that needs one to a worker whose engine reports it.
-	Capabilities StringSlice       `json:"capabilities,omitempty"`
-	SystemInfo   *SystemInfo       `json:"system_info"`
-	Workers      []WorkerTelemetry `json:"workers"`
+	// Capabilities are what the engine can do beyond the base contract
+	// (EngineCapability). Each report states the whole set; the API keeps
+	// the latest, and a registration clears it until the next report.
+	Capabilities EngineCapabilities `json:"capabilities,omitempty"`
+	SystemInfo   *SystemInfo        `json:"system_info"`
+	Workers      []WorkerTelemetry  `json:"workers"`
 }
 
 // WorkerTelemetry is the minimal telemetry data engine sends per worker.
