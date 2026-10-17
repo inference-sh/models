@@ -6835,9 +6835,13 @@ type EngineTelemetry struct {
 	Status        EngineStatus `json:"status"`
 	EngineVersion string       `json:"engine_version,omitempty"`
 	// EnginePin is the version the engine is held on; empty follows stable.
-	EnginePin  string            `json:"engine_pin,omitempty"`
-	SystemInfo *SystemInfo       `json:"system_info"`
-	Workers    []WorkerTelemetry `json:"workers"`
+	EnginePin string `json:"engine_pin,omitempty"`
+	// Capabilities are what this engine can do beyond the base contract,
+	// e.g. EngineCapabilityEgressGateway. The scheduler only sends a task
+	// that needs one to a worker whose engine reports it.
+	Capabilities StringSlice       `json:"capabilities,omitempty"`
+	SystemInfo   *SystemInfo       `json:"system_info"`
+	Workers      []WorkerTelemetry `json:"workers"`
 }
 
 // WorkerTelemetry is the minimal telemetry data engine sends per worker.

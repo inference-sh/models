@@ -9374,6 +9374,12 @@ export interface EngineTelemetry {
    * EnginePin is the version the engine is held on; empty follows stable.
    */
   engine_pin?: string;
+  /**
+   * Capabilities are what this engine can do beyond the base contract,
+   * e.g. EngineCapabilityEgressGateway. The scheduler only sends a task
+   * that needs one to a worker whose engine reports it.
+   */
+  capabilities?: StringSlice;
   system_info?: SystemInfo;
   workers: WorkerTelemetry[];
 }
