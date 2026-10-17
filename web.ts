@@ -2799,9 +2799,9 @@ export interface AuthProviderDTO extends BaseModelDTO, PermissionModelDTO {
   scope: CredentialScope;
   slug: string;
   /**
-   * Provider is the company the slug belongs to (its providers row).
+   * Company is the company the slug belongs to (its companies row).
    */
-  provider: string;
+  company: string;
   display_name: string;
   icon_url?: string;
   description?: string;
@@ -2809,7 +2809,7 @@ export interface AuthProviderDTO extends BaseModelDTO, PermissionModelDTO {
   how_it_works?: string[];
   website?: string;
   connection_scope?: CredentialScope;
-  specs: AuthMethod[];
+  auth_methods: AuthMethod[];
   /**
    * Where the OAuth app's client id and secret live in the team vault.
    */
@@ -2824,10 +2824,10 @@ export interface AuthProviderDTO extends BaseModelDTO, PermissionModelDTO {
 export interface AuthProviderCreateRequest {
   slug: string;
   /**
-   * Provider is the company the slug belongs to (its providers row).
-   * Empty means the scheme is its own company: the slug.
+   * Company is the company the slug belongs to (its companies row).
+   * Empty means the provider is its own company: the slug.
    */
-  provider?: string;
+  company?: string;
   display_name: string;
   icon_url?: string;
   description?: string;
@@ -2835,7 +2835,7 @@ export interface AuthProviderCreateRequest {
   how_it_works?: string[];
   website?: string;
   connection_scope?: CredentialScope;
-  specs: AuthMethod[];
+  auth_methods: AuthMethod[];
   /**
    * The OAuth app, required for a team scheme. A platform scheme's app
    * is managed separately (PUT /credentials/{provider}/app).
@@ -2849,16 +2849,16 @@ export interface AuthProviderCreateRequest {
   scope?: CredentialScope;
 }
 /**
- * AuthProviderUpdateRequest changes the display fields and specs; the slug is
+ * AuthProviderUpdateRequest changes the display fields and auth methods; the slug is
  * the provider key (stored on every credential) and cannot change. Empty
  * secrets leave the stored ones alone.
  */
 export interface AuthProviderUpdateRequest {
   /**
-   * Provider moves the scheme under another company. Empty keeps the
+   * Company moves the provider under another company. Empty keeps the
    * stored one.
    */
-  provider?: string;
+  company?: string;
   display_name?: string;
   icon_url?: string;
   description?: string;
@@ -2866,7 +2866,7 @@ export interface AuthProviderUpdateRequest {
   how_it_works?: string[];
   website?: string;
   connection_scope?: CredentialScope;
-  specs?: AuthMethod[];
+  auth_methods?: AuthMethod[];
   client_id?: string;
   client_secret?: string;
 }
@@ -3749,7 +3749,7 @@ export interface CompanyDTO {
   updated_at: string /* RFC3339 */;
 }
 /**
- * CompanyUpsertRequest is the body of PUT /admin/providers/{slug}. The
+ * CompanyUpsertRequest is the body of PUT /admin/companies/{slug}. The
  * fields the admin form shows (display_name, description, icon_url,
  * category, docs_url, website, terms_url, privacy_url) are written as
  * sent, so an empty one clears the row's; display_name is the exception,
@@ -3778,13 +3778,13 @@ export interface CompanyUpsertRequest {
 }
 /**
  * CompanyTreeDTO is a company with everything the platform holds for it
- * (GET /admin/providers/{slug}/tree): its platform-scoped auth providers, and
+ * (GET /admin/companies/{slug}/tree): its platform-scoped auth providers, and
  * every platform-scoped credential row (OAuth apps, keys and logins) for
  * one of those schemes, each with the keys of its linked secrets.
  */
 export interface CompanyTreeDTO {
-  provider: CompanyDTO;
-  schemes: AuthProviderDTO[];
+  company: CompanyDTO;
+  auth_providers: AuthProviderDTO[];
   credentials: CredentialDTO[];
 }
 /**
@@ -3954,13 +3954,6 @@ export interface CredentialConfigDTO {
    * companies row its auth provider names, else the slug's own identity.
    */
   company?: CompanySummary;
-  /**
-   * ProviderInfo is Company under its pre-INF-1079 name. Deprecated; it
-   * stays while released belt CLIs (v1.25.x) and the api-key scripts that
-   * read /credentials/configs still use it, and goes once a CLI that reads
-   * Company has shipped.
-   */
-  provider_info?: CompanySummary;
   type: string;
   name: string;
   short_name: string;
@@ -3989,7 +3982,7 @@ export interface CredentialConfigDTO {
    * AuthProviderID is set when the provider is one the team defined
    * itself (models.AuthProvider), so the UI can offer edit and remove.
    */
-  auth_scheme_id?: string;
+  auth_provider_id?: string;
   /**
    * Credential is the login used where no account is named: the caller's
    * own, else the workspace's default account.

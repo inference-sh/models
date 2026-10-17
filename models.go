@@ -2194,8 +2194,8 @@ type AuthProviderDTO struct {
 	PermissionModelDTO `tstype:",extends"`
 	Scope              CredentialScope `json:"scope"`
 	Slug               string          `json:"slug"`
-	// Provider is the company the slug belongs to (its providers row).
-	Provider        string          `json:"provider"`
+	// Company is the company the slug belongs to (its companies row).
+	Company         string          `json:"company"`
 	DisplayName     string          `json:"display_name"`
 	IconURL         string          `json:"icon_url,omitempty"`
 	Description     string          `json:"description,omitempty"`
@@ -2203,7 +2203,7 @@ type AuthProviderDTO struct {
 	HowItWorks      []string        `json:"how_it_works,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	Specs           []AuthMethod    `json:"specs"`
+	AuthMethods     []AuthMethod    `json:"auth_methods"`
 	// Where the OAuth app's client id and secret live in the team vault.
 	ClientIDKey     string `json:"client_id_key"`
 	ClientSecretKey string `json:"client_secret_key"`
@@ -2214,9 +2214,9 @@ type AuthProviderDTO struct {
 // team's app row (a grant=credentials credential), not to the scheme.
 type AuthProviderCreateRequest struct {
 	Slug string `json:"slug"`
-	// Provider is the company the slug belongs to (its providers row).
-	// Empty means the scheme is its own company: the slug.
-	Provider        string          `json:"provider,omitempty"`
+	// Company is the company the slug belongs to (its companies row).
+	// Empty means the provider is its own company: the slug.
+	Company         string          `json:"company,omitempty"`
 	DisplayName     string          `json:"display_name"`
 	IconURL         string          `json:"icon_url,omitempty"`
 	Description     string          `json:"description,omitempty"`
@@ -2224,7 +2224,7 @@ type AuthProviderCreateRequest struct {
 	HowItWorks      []string        `json:"how_it_works,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	Specs           []AuthMethod    `json:"specs"`
+	AuthMethods     []AuthMethod    `json:"auth_methods"`
 	// The OAuth app, required for a team scheme. A platform scheme's app
 	// is managed separately (PUT /credentials/{provider}/app).
 	ClientID     string `json:"client_id,omitempty"`
@@ -2234,13 +2234,13 @@ type AuthProviderCreateRequest struct {
 	Scope CredentialScope `json:"scope,omitempty"`
 }
 
-// AuthProviderUpdateRequest changes the display fields and specs; the slug is
+// AuthProviderUpdateRequest changes the display fields and auth methods; the slug is
 // the provider key (stored on every credential) and cannot change. Empty
 // secrets leave the stored ones alone.
 type AuthProviderUpdateRequest struct {
-	// Provider moves the scheme under another company. Empty keeps the
+	// Company moves the provider under another company. Empty keeps the
 	// stored one.
-	Provider        string          `json:"provider,omitempty"`
+	Company         string          `json:"company,omitempty"`
 	DisplayName     string          `json:"display_name,omitempty"`
 	IconURL         string          `json:"icon_url,omitempty"`
 	Description     string          `json:"description,omitempty"`
@@ -2248,7 +2248,7 @@ type AuthProviderUpdateRequest struct {
 	HowItWorks      []string        `json:"how_it_works,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	Specs           []AuthMethod    `json:"specs,omitempty"`
+	AuthMethods     []AuthMethod    `json:"auth_methods,omitempty"`
 	ClientID        string          `json:"client_id,omitempty"`
 	ClientSecret    string          `json:"client_secret,omitempty"`
 }
@@ -2713,13 +2713,13 @@ type CompanyDTO struct {
 }
 
 // CompanyTreeDTO is a company with everything the platform holds for it
-// (GET /admin/providers/{slug}/tree): its platform-scoped auth providers, and
+// (GET /admin/companies/{slug}/tree): its platform-scoped auth providers, and
 // every platform-scoped credential row (OAuth apps, keys and logins) for
 // one of those schemes, each with the keys of its linked secrets.
 type CompanyTreeDTO struct {
-	Company     CompanyDTO        `json:"provider"`
-	Schemes     []AuthProviderDTO `json:"schemes"`
-	Credentials []CredentialDTO   `json:"credentials"`
+	Company       CompanyDTO        `json:"company"`
+	AuthProviders []AuthProviderDTO `json:"auth_providers"`
+	Credentials   []CredentialDTO   `json:"credentials"`
 }
 
 // --------------------
@@ -2801,12 +2801,7 @@ type CredentialConfigDTO struct {
 	Provider string `json:"provider"`
 	// Company is the company this slug belongs to, for grouping: the
 	// companies row its auth provider names, else the slug's own identity.
-	Company *CompanySummary `json:"company,omitempty"`
-	// ProviderInfo is Company under its pre-INF-1079 name. Deprecated; it
-	// stays while released belt CLIs (v1.25.x) and the api-key scripts that
-	// read /credentials/configs still use it, and goes once a CLI that reads
-	// Company has shipped.
-	ProviderInfo *CompanySummary     `json:"provider_info,omitempty"`
+	Company      *CompanySummary     `json:"company,omitempty"`
 	Type         string              `json:"type"`
 	Name         string              `json:"name"`
 	ShortName    string              `json:"short_name"`
@@ -2829,7 +2824,7 @@ type CredentialConfigDTO struct {
 	App *CredentialDTO `json:"app,omitempty"`
 	// AuthProviderID is set when the provider is one the team defined
 	// itself (models.AuthProvider), so the UI can offer edit and remove.
-	AuthProviderID string `json:"auth_scheme_id,omitempty"`
+	AuthProviderID string `json:"auth_provider_id,omitempty"`
 	// Credential is the login used where no account is named: the caller's
 	// own, else the workspace's default account.
 	Credential *CredentialDTO `json:"credential,omitempty"`
