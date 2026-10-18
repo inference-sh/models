@@ -1414,6 +1414,25 @@ type CredentialRequirement struct {
 	Provider *CompanySeed `json:"provider,omitempty" yaml:"provider,omitempty"`
 	// Auth is the credential's auth provider, for a slug no row defines yet.
 	Auth *AuthMethod `json:"auth,omitempty" yaml:"auth,omitempty"`
+	// The rest describe the platform api_key scheme a platform app's deploy
+	// catalogues for the slug: set on the scheme it creates, and filled into
+	// an existing one only where that is still empty (an admin's edit
+	// stands). Any other deploy ignores them.
+	//
+	// DisplayName is the scheme's name ("Claude Code"); at most
+	// MaxCredentialDisplayName characters.
+	DisplayName string `json:"display_name,omitempty" yaml:"display_name,omitempty"`
+	// ConnectionScope is who a connection belongs to: team (empty) or user.
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty" yaml:"connection_scope,omitempty"`
+	// Instructions tell a person how to get the key (markdown, at most
+	// MaxAuthProviderInstructions characters).
+	Instructions string `json:"instructions,omitempty" yaml:"instructions,omitempty"`
+	// DocsURL is the scheme's documentation link.
+	DocsURL string `json:"docs_url,omitempty" yaml:"docs_url,omitempty"`
+	// ExpiresAfterDays is how long a saved key lasts: it counts as expired
+	// this many days after it is saved. 0 is never; at most
+	// MaxExpiresAfterDays.
+	ExpiresAfterDays int `json:"expires_after_days,omitempty" yaml:"expires_after_days,omitempty"`
 }
 
 // UnmarshalJSON reads an entry in the current or the list form.
@@ -1534,23 +1553,28 @@ type CompanySeed struct {
 // generated copy of the type (the models module the CLI reads inf.yml with)
 // carries the same parsing.
 type CredentialRequirementWire struct {
-	Slug         string   `json:"slug" yaml:"slug"`
-	Capabilities []string `json:"capabilities" yaml:"capabilities"`
-	Description  string   `json:"description" yaml:"description"`
-	Optional     bool     `json:"optional" yaml:"optional"`
-	Secrets      []string `json:"secrets" yaml:"secrets"`
-	Scopes       []string `json:"scopes" yaml:"scopes"`
-	Provider     any      `json:"provider" yaml:"provider"`
-	Company      any      `json:"company" yaml:"company"`
-	Auth         any      `json:"auth" yaml:"auth"`
-	Key          string   `json:"key" yaml:"key"`
-	Name         string   `json:"name" yaml:"name"`
-	Website      string   `json:"website" yaml:"website"`
+	Slug             string          `json:"slug" yaml:"slug"`
+	Capabilities     []string        `json:"capabilities" yaml:"capabilities"`
+	Description      string          `json:"description" yaml:"description"`
+	Optional         bool            `json:"optional" yaml:"optional"`
+	Secrets          []string        `json:"secrets" yaml:"secrets"`
+	Scopes           []string        `json:"scopes" yaml:"scopes"`
+	Provider         any             `json:"provider" yaml:"provider"`
+	Company          any             `json:"company" yaml:"company"`
+	Auth             any             `json:"auth" yaml:"auth"`
+	Key              string          `json:"key" yaml:"key"`
+	Name             string          `json:"name" yaml:"name"`
+	Website          string          `json:"website" yaml:"website"`
+	DisplayName      string          `json:"display_name" yaml:"display_name"`
+	ConnectionScope  CredentialScope `json:"connection_scope" yaml:"connection_scope"`
+	Instructions     string          `json:"instructions" yaml:"instructions"`
+	DocsURL          string          `json:"docs_url" yaml:"docs_url"`
+	ExpiresAfterDays int             `json:"expires_after_days" yaml:"expires_after_days"`
 }
 
 // Requirement is the entry the wire form means.
 func (w CredentialRequirementWire) Requirement() (CredentialRequirement, error) {
-	r := CredentialRequirement{Slug: w.Slug, Capabilities: w.Capabilities, Description: w.Description, Optional: w.Optional, Secrets: w.Secrets, Scopes: w.Scopes}
+	r := CredentialRequirement{Slug: w.Slug, Capabilities: w.Capabilities, Description: w.Description, Optional: w.Optional, Secrets: w.Secrets, Scopes: w.Scopes, DisplayName: w.DisplayName, ConnectionScope: w.ConnectionScope, Instructions: w.Instructions, DocsURL: w.DocsURL, ExpiresAfterDays: w.ExpiresAfterDays}
 	switch p := w.Provider.(type) {
 	case nil:
 	case string:
@@ -2195,15 +2219,20 @@ type AuthProviderDTO struct {
 	Scope              CredentialScope `json:"scope"`
 	Slug               string          `json:"slug"`
 	// Company is the company the slug belongs to (its companies row).
-	Company         string          `json:"company"`
-	DisplayName     string          `json:"display_name"`
-	IconURL         string          `json:"icon_url,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	DocsURL         string          `json:"docs_url,omitempty"`
-	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	Company     string   `json:"company"`
+	DisplayName string   `json:"display_name"`
+	IconURL     string   `json:"icon_url,omitempty"`
+	Description string   `json:"description,omitempty"`
+	DocsURL     string   `json:"docs_url,omitempty"`
+	HowItWorks  []string `json:"how_it_works,omitempty"`
+	// Instructions tell a person how to get what the scheme asks for:
+	// markdown, links allowed, at most MaxAuthProviderInstructions chars.
+	Instructions    string          `json:"instructions,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	AuthMethods     []AuthMethod    `json:"auth_methods"`
+	// ExpiresAfterDays is how long a saved key lasts, in days; 0 is never.
+	ExpiresAfterDays int          `json:"expires_after_days"`
+	AuthMethods      []AuthMethod `json:"auth_methods"`
 	// Where the OAuth app's client id and secret live in the team vault.
 	ClientIDKey     string `json:"client_id_key"`
 	ClientSecretKey string `json:"client_secret_key"`
@@ -2216,15 +2245,21 @@ type AuthProviderCreateRequest struct {
 	Slug string `json:"slug"`
 	// Company is the company the slug belongs to (its companies row).
 	// Empty means the provider is its own company: the slug.
-	Company         string          `json:"company,omitempty"`
-	DisplayName     string          `json:"display_name"`
-	IconURL         string          `json:"icon_url,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	DocsURL         string          `json:"docs_url,omitempty"`
-	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	Company     string   `json:"company,omitempty"`
+	DisplayName string   `json:"display_name"`
+	IconURL     string   `json:"icon_url,omitempty"`
+	Description string   `json:"description,omitempty"`
+	DocsURL     string   `json:"docs_url,omitempty"`
+	HowItWorks  []string `json:"how_it_works,omitempty"`
+	// Instructions tell a person how to get what the scheme asks for:
+	// markdown, links allowed, at most MaxAuthProviderInstructions chars.
+	Instructions    string          `json:"instructions,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	AuthMethods     []AuthMethod    `json:"auth_methods"`
+	// ExpiresAfterDays is how long a saved key lasts, in days (0 never, at
+	// most MaxExpiresAfterDays).
+	ExpiresAfterDays int          `json:"expires_after_days,omitempty"`
+	AuthMethods      []AuthMethod `json:"auth_methods"`
 	// The OAuth app, required for a team scheme. A platform scheme's app
 	// is managed separately (PUT /credentials/{provider}/app).
 	ClientID     string `json:"client_id,omitempty"`
@@ -2240,17 +2275,24 @@ type AuthProviderCreateRequest struct {
 type AuthProviderUpdateRequest struct {
 	// Company moves the provider under another company. Empty keeps the
 	// stored one.
-	Company         string          `json:"company,omitempty"`
-	DisplayName     string          `json:"display_name,omitempty"`
-	IconURL         string          `json:"icon_url,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	DocsURL         string          `json:"docs_url,omitempty"`
-	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	Company     string   `json:"company,omitempty"`
+	DisplayName string   `json:"display_name,omitempty"`
+	IconURL     string   `json:"icon_url,omitempty"`
+	Description string   `json:"description,omitempty"`
+	DocsURL     string   `json:"docs_url,omitempty"`
+	HowItWorks  []string `json:"how_it_works,omitempty"`
+	// Instructions replaces the scheme's instructions (markdown, links
+	// allowed, at most MaxAuthProviderInstructions chars): nil keeps
+	// them, "" clears them.
+	Instructions    *string         `json:"instructions,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	AuthMethods     []AuthMethod    `json:"auth_methods,omitempty"`
-	ClientID        string          `json:"client_id,omitempty"`
-	ClientSecret    string          `json:"client_secret,omitempty"`
+	// ExpiresAfterDays replaces the key lifetime in days: nil keeps it, 0
+	// makes saved keys never expire.
+	ExpiresAfterDays *int         `json:"expires_after_days,omitempty"`
+	AuthMethods      []AuthMethod `json:"auth_methods,omitempty"`
+	ClientID         string       `json:"client_id,omitempty"`
+	ClientSecret     string       `json:"client_secret,omitempty"`
 }
 
 // AuthProviderHooksDTO lists the registered Go hooks a scheme spec may name
@@ -2801,18 +2843,25 @@ type CredentialConfigDTO struct {
 	Provider string `json:"provider"`
 	// Company is the company this slug belongs to, for grouping: the
 	// companies row its auth provider names, else the slug's own identity.
-	Company      *CompanySummary     `json:"company,omitempty"`
-	Type         string              `json:"type"`
-	Name         string              `json:"name"`
-	ShortName    string              `json:"short_name"`
-	Description  string              `json:"description"`
-	IconURL      string              `json:"icon_url,omitempty"`
-	HowItWorks   []string            `json:"how_it_works,omitempty"`
+	Company     *CompanySummary `json:"company,omitempty"`
+	Type        string          `json:"type"`
+	Name        string          `json:"name"`
+	ShortName   string          `json:"short_name"`
+	Description string          `json:"description"`
+	IconURL     string          `json:"icon_url,omitempty"`
+	HowItWorks  []string        `json:"how_it_works,omitempty"`
+	// Instructions tell a person how to get what this credential asks for
+	// (markdown, links allowed): the auth scheme's.
+	Instructions string              `json:"instructions,omitempty"`
 	DocsURL      string              `json:"docs_url,omitempty"`
 	SecretFields []SecretFieldConfig `json:"secret_fields,omitempty"`
 	AllowsBYOK   bool                `json:"allows_byok"`
-	Available    bool                `json:"available"`
-	HasManaged   bool                `json:"has_managed"`
+	// ExpiresAfterDays is how long a saved key lasts, in days: a key counts
+	// as expired that long after it is saved (its credential's expires_at).
+	// 0 is never.
+	ExpiresAfterDays int  `json:"expires_after_days,omitempty"`
+	Available        bool `json:"available"`
+	HasManaged       bool `json:"has_managed"`
 	// ConnectionScope is who a new connection belongs to by default: the
 	// team, or each user (their own account).
 	ConnectionScope CredentialScope `json:"connection_scope"`
@@ -3249,6 +3298,10 @@ const (
 	ErrorCodeMethodNotAllowed ErrorCode = "method_not_allowed"
 	ErrorCodeRateLimited      ErrorCode = "rate_limited"
 	ErrorCodeInternalError    ErrorCode = "internal_error"
+	// ErrorCodeRequirementsNotMet (412): the run needs a secret or a
+	// credential the caller has not set up. Meta "errors" lists each
+	// RequirementError, its action saying how to set it up.
+	ErrorCodeRequirementsNotMet ErrorCode = "requirements_not_met"
 	// ErrorCodeTeamRoleRequired: the caller's team role or org-admin status
 	// does not allow the action. Meta is TeamRoleRequiredMeta when a
 	// capability gate refused it.
@@ -5345,6 +5398,9 @@ type SetupAction struct {
 	// ProviderWebsite is where the logo of a provider the platform does not
 	// list comes from; sent back when the keys are saved.
 	ProviderWebsite string `json:"provider_website,omitempty"`
+	// Instructions tell a person how to get what the provider's scheme
+	// asks for (markdown, links allowed).
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // Capability represents a credential capability that can be requested by apps

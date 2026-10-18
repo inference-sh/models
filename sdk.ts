@@ -1544,6 +1544,34 @@ export interface CredentialRequirement {
    * Auth is the credential's auth provider, for a slug no row defines yet.
    */
   auth?: AuthMethod;
+  /**
+   * The rest describe the platform api_key scheme a platform app's deploy
+   * catalogues for the slug: set on the scheme it creates, and filled into
+   * an existing one only where that is still empty (an admin's edit
+   * stands). Any other deploy ignores them.
+   * DisplayName is the scheme's name ("Claude Code"); at most
+   * MaxCredentialDisplayName characters.
+   */
+  display_name?: string;
+  /**
+   * ConnectionScope is who a connection belongs to: team (empty) or user.
+   */
+  connection_scope?: CredentialScope;
+  /**
+   * Instructions tell a person how to get the key (markdown, at most
+   * MaxAuthProviderInstructions characters).
+   */
+  instructions?: string;
+  /**
+   * DocsURL is the scheme's documentation link.
+   */
+  docs_url?: string;
+  /**
+   * ExpiresAfterDays is how long a saved key lasts: it counts as expired
+   * this many days after it is saved. 0 is never; at most
+   * MaxExpiresAfterDays.
+   */
+  expires_after_days?: number /* int */;
 }
 /**
  * CompanySeed is a provider (the company behind a credential) as an app
@@ -2688,9 +2716,20 @@ export interface CredentialConfigDTO {
   description: string;
   icon_url?: string;
   how_it_works?: string[];
+  /**
+   * Instructions tell a person how to get what this credential asks for
+   * (markdown, links allowed): the auth scheme's.
+   */
+  instructions?: string;
   docs_url?: string;
   secret_fields?: SecretFieldConfig[];
   allows_byok: boolean;
+  /**
+   * ExpiresAfterDays is how long a saved key lasts, in days: a key counts
+   * as expired that long after it is saved (its credential's expires_at).
+   * 0 is never.
+   */
+  expires_after_days?: number /* int */;
   available: boolean;
   has_managed: boolean;
   /**
@@ -3066,6 +3105,7 @@ export type ErrorCode =
   | "method_not_allowed"
   | "rate_limited"
   | "internal_error"
+  | "requirements_not_met"
   | "team_role_required"
   | "blocked_by_usage_policy"
   | "last_owner"
@@ -3126,6 +3166,12 @@ export const ErrorCodeNotConfigured: ErrorCode = "not_configured";
 export const ErrorCodeMethodNotAllowed: ErrorCode = "method_not_allowed";
 export const ErrorCodeRateLimited: ErrorCode = "rate_limited";
 export const ErrorCodeInternalError: ErrorCode = "internal_error";
+/**
+ * ErrorCodeRequirementsNotMet (412): the run needs a secret or a
+ * credential the caller has not set up. Meta "errors" lists each
+ * RequirementError, its action saying how to set it up.
+ */
+export const ErrorCodeRequirementsNotMet: ErrorCode = "requirements_not_met";
 /**
  * ErrorCodeTeamRoleRequired: the caller's team role or org-admin status
  * does not allow the action. Meta is TeamRoleRequiredMeta when a
@@ -4809,6 +4855,11 @@ export interface SetupAction {
    * list comes from; sent back when the keys are saved.
    */
   provider_website?: string;
+  /**
+   * Instructions tell a person how to get what the provider's scheme
+   * asks for (markdown, links allowed).
+   */
+  instructions?: string;
 }
 /**
  * CheckRequirementsRequest is the request body for checking requirements
