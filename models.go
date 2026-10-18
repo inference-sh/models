@@ -288,11 +288,10 @@ const (
 
 // ToolAuthConfig declares how a tool authenticates.
 type ToolAuthConfig struct {
-	Type         ToolAuthType `json:"type" yaml:"type"`
-	Provider     string       `json:"provider,omitempty" yaml:"provider,omitempty"`
-	CredentialID string       `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
-	Secret       string       `json:"secret,omitempty" yaml:"secret,omitempty"`
-	Header       string       `json:"header,omitempty" yaml:"header,omitempty"`
+	Type     ToolAuthType `json:"type" yaml:"type"`
+	Provider string       `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Secret   string       `json:"secret,omitempty" yaml:"secret,omitempty"`
+	Header   string       `json:"header,omitempty" yaml:"header,omitempty"`
 }
 
 type HTTPToolConfig struct {
@@ -314,14 +313,11 @@ type HTTPToolConfig struct {
 
 // MCPToolConfig is a tool of an MCP server: the server by its slug (the
 // agent's team's registration, its org's or the directory's) and the tool
-// to call. CredentialID pins the connection the call signs in with; without
-// it the runner's connection to the server's provider is used. A tool
-// written with only a connection is saved with the server that
-// connection's provider is declared by.
+// to call. Each call signs in with the runner's connection to the
+// server's provider (Credential.ToolConnection).
 type MCPToolConfig struct {
-	Server       string `json:"server,omitempty" yaml:"server,omitempty"`
-	ToolName     string `json:"tool_name" yaml:"tool_name"`
-	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
+	Server   string `json:"server,omitempty" yaml:"server,omitempty"`
+	ToolName string `json:"tool_name" yaml:"tool_name"`
 }
 
 type AppToolConfigDTO struct {
@@ -370,9 +366,8 @@ type HTTPToolConfigDTO struct {
 }
 
 type MCPToolConfigDTO struct {
-	Server       string `json:"server"`
-	ToolName     string `json:"tool_name"`
-	CredentialID string `json:"credential_id,omitempty"`
+	Server   string `json:"server"`
+	ToolName string `json:"tool_name"`
 }
 
 // CoreAppConfigDTO references an app used as the agent's core
