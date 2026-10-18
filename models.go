@@ -6312,6 +6312,13 @@ type TaskLog struct {
 }
 
 // TaskDTO is the full API response for a task.
+// TaskEgress is what a task's sandbox sent to and received from the
+// internet through the engine's egress gateway, in bytes.
+type TaskEgress struct {
+	BytesOut int64 `json:"bytes_out"`
+	BytesIn  int64 `json:"bytes_in"`
+}
+
 type TaskDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
@@ -6347,8 +6354,12 @@ type TaskDTO struct {
 	Events             []TaskEvent      `json:"events"`
 	Logs               []TaskLog        `json:"logs"`
 	UsageEvents        []*UsageEventDTO `json:"usage_events"`
-	SessionID          *string          `json:"session_id,omitempty"`
-	SessionTimeout     *int             `json:"session_timeout,omitempty"`
+	// Egress is what the task's sandbox moved through the engine's egress
+	// gateway, reported by the engine when the task ended. Absent for a
+	// task that ran without the gateway.
+	Egress         *TaskEgress `json:"egress,omitempty"`
+	SessionID      *string     `json:"session_id,omitempty"`
+	SessionTimeout *int        `json:"session_timeout,omitempty"`
 }
 
 // TaskDispatchPayload is the minimal task representation sent to engines for
@@ -6861,6 +6872,9 @@ type WsTaskOutputPayload struct {
 type WsTaskFailedPayload struct {
 	TaskID string  `json:"task_id"`
 	Error  *string `json:"error,omitempty"`
+	// Egress is what the task moved through the egress gateway; engines
+	// without one send nothing.
+	Egress *TaskEgress `json:"egress,omitempty"`
 }
 
 type WsTaskAcceptedPayload struct {
@@ -6881,6 +6895,9 @@ type WsTaskLifecyclePayload struct {
 type WsTaskCompletedPayload struct {
 	TaskID string `json:"task_id"`
 	Output []byte `json:"output"`
+	// Egress is what the task moved through the egress gateway; engines
+	// without one send nothing.
+	Egress *TaskEgress `json:"egress,omitempty"`
 }
 
 const (
