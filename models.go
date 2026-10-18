@@ -8774,6 +8774,15 @@ const (
 )
 
 // --------------------
+// source: interrupt.go
+// --------------------
+
+// InterruptResourceTurn is an interrupt that holds a run's next turn before
+// its model call, with nothing in flight; its ResourceID is the run's. An
+// allow starts the turn, a deny ends the run.
+const InterruptResourceTurn InterruptResourceType = "turn"
+
+// --------------------
 // source: llm_types.go
 // --------------------
 
@@ -9860,7 +9869,7 @@ func (ts TaskStatus) StatusOrder() int {
 		return 80
 	case TaskStatusUploading:
 		return 90
-	case TaskStatusCompleted, TaskStatusFailed, TaskStatusCancelled:
+	case TaskStatusCompleted, TaskStatusFailed, TaskStatusCancelled, TaskStatusRejected:
 		return 100
 	default:
 		return 0
@@ -9893,6 +9902,8 @@ func (ts TaskStatus) String() string {
 		return "failed"
 	case TaskStatusCancelled:
 		return "cancelled"
+	case TaskStatusRejected:
+		return "rejected"
 	default:
 		return "unknown"
 	}
@@ -9900,7 +9911,7 @@ func (ts TaskStatus) String() string {
 
 // Parse converts a string status name to a TaskStatus.
 func (TaskStatus) Parse(s string) (TaskStatus, bool) {
-	for i := TaskStatus(0); i <= TaskStatusCancelled; i++ {
+	for i := TaskStatus(0); i <= TaskStatusRejected; i++ {
 		if i.String() == s {
 			return i, true
 		}
@@ -9909,7 +9920,7 @@ func (TaskStatus) Parse(s string) (TaskStatus, bool) {
 }
 
 func (ts TaskStatus) IsTerminal() bool {
-	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled
+	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled || ts == TaskStatusRejected
 }
 
 func (ts TaskStatus) IsQueued() bool {
@@ -9931,7 +9942,7 @@ func (ts TaskStatus) IsCancelling() bool {
 }
 
 func (ts TaskStatus) CanTransitionTo(next TaskStatus) bool {
-	if ts.IsTerminal() {
+	if ts.IsTerminal() || next == TaskStatusRejected {
 		return false
 	}
 	if next.IsTerminal() || next == TaskStatusCancelling {
@@ -9963,6 +9974,10 @@ const (
 	TaskStatusCompleted
 	TaskStatusFailed
 	TaskStatusCancelled
+	// TaskStatusRejected is a run admission refused (no balance, no payment
+	// method). The task is written already ended, keeping what was asked
+	// for; it never ran and no status leads to it.
+	TaskStatusRejected
 )
 
 // Infra defines where a task should run.

@@ -18290,6 +18290,10 @@ public struct TaskStatus: RawRepresentable, Codable, Hashable, Sendable {
     public static let completed = TaskStatus(rawValue: 10)
     public static let failed = TaskStatus(rawValue: 11)
     public static let cancelled = TaskStatus(rawValue: 12)
+    /// TaskStatusRejected is a run admission refused (no balance, no payment
+    /// method). The task is written already ended, keeping what was asked
+    /// for; it never ran and no status leads to it.
+    public static let rejected = TaskStatus(rawValue: 13)
 }
 
 /// Infra defines where a task should run.
@@ -18994,6 +18998,7 @@ public struct InterruptResourceType: RawRepresentable, Codable, Hashable, Sendab
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
+    public static let interruptResourceTurn = InterruptResourceType(rawValue: "turn")
     public static let interruptResourceToolInvocation = InterruptResourceType(rawValue: "tool_invocation")
     public static let interruptResourceHookEvent = InterruptResourceType(rawValue: "hook_event")
 }

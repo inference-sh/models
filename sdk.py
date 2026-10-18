@@ -5386,6 +5386,14 @@ class GraphEdgeType(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
 
+# InterruptResourceTurn is an interrupt that holds a run's next turn before
+# its model call, with nothing in flight; its ResourceID is the run's. An
+# allow starts the turn, a deny ends the run.
+class InterruptResourceType(str, Enum):
+    INTERRUPT_RESOURCE_TURN = "turn"
+    INTERRUPT_RESOURCE_TOOL_INVOCATION = "tool_invocation"
+    INTERRUPT_RESOURCE_HOOK_EVENT = "hook_event"
+
 class MergeStrategy(str, Enum):
     CONCAT = "concat"
     REPLACE = "replace"
@@ -5817,6 +5825,10 @@ class TaskStatus(IntEnum):
     COMPLETED = 10
     FAILED = 11
     CANCELLED = 12
+    # TaskStatusRejected is a run admission refused (no balance, no payment
+    # method). The task is written already ended, keeping what was asked
+    # for; it never ran and no status leads to it.
+    REJECTED = 13
 
 class Infra(str, Enum):
     PRIVATE = "private"
@@ -5965,10 +5977,6 @@ class InterruptStatus(str, Enum):
 class InterruptResolution(str, Enum):
     ALLOW = "allow"
     DENY = "deny"
-
-class InterruptResourceType(str, Enum):
-    INTERRUPT_RESOURCE_TOOL_INVOCATION = "tool_invocation"
-    INTERRUPT_RESOURCE_HOOK_EVENT = "hook_event"
 
 class HookEvent(str, Enum):
     AGENT_START = "agent.start"

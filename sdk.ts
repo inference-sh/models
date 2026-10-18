@@ -6858,6 +6858,12 @@ export const GraphEdgeTypeSupersedes: GraphEdgeType = "supersedes";
 export const GraphEdgeTypeInput: GraphEdgeType = "input";
 export const GraphEdgeTypeOutput: GraphEdgeType = "output";
 /**
+ * InterruptResourceTurn is an interrupt that holds a run's next turn before
+ * its model call, with nothing in flight; its ResourceID is the run's. An
+ * allow starts the turn, a deny ends the run.
+ */
+export const InterruptResourceTurn: InterruptResourceType = "turn";
+/**
  * MergeStrategy defines how a delta field should be merged by consumers.
  */
 export type MergeStrategy = "concat" | "replace" | "indexed" | "nested";
@@ -7830,6 +7836,12 @@ export const TaskStatusCompleted: TaskStatus = 10;
 export const TaskStatusFailed: TaskStatus = 11;
 export const TaskStatusCancelled: TaskStatus = 12;
 /**
+ * TaskStatusRejected is a run admission refused (no balance, no payment
+ * method). The task is written already ended, keeping what was asked
+ * for; it never ran and no status leads to it.
+ */
+export const TaskStatusRejected: TaskStatus = 13;
+/**
  * Infra defines where a task should run.
  */
 export type Infra = "private" | "cloud" | "private_first";
@@ -8223,7 +8235,7 @@ export const InterruptResolutionDeny: InterruptResolution = "deny";
 /**
  * InterruptResourceType identifies the kind of resource an interrupt gates.
  */
-export type InterruptResourceType = "tool_invocation" | "hook_event";
+export type InterruptResourceType = "turn" | "tool_invocation" | "hook_event";
 export const InterruptResourceToolInvocation: InterruptResourceType = "tool_invocation";
 export const InterruptResourceHookEvent: InterruptResourceType = "hook_event";
 /**
