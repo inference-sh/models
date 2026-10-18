@@ -6222,19 +6222,23 @@ public struct SecretFieldConfig: Codable, Sendable {
     public var placeholder: String
     public var sensitive: Bool
     public var optional: Bool
+    /// Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+    public var pattern: String?
 
     public init(
         key: String = "",
         label: String = "",
         placeholder: String = "",
         sensitive: Bool = false,
-        optional: Bool = false
+        optional: Bool = false,
+        pattern: String? = nil
     ) {
         self.key = key
         self.label = label
         self.placeholder = placeholder
         self.sensitive = sensitive
         self.optional = optional
+        self.pattern = pattern
     }
 
     enum CodingKeys: String, CodingKey {
@@ -6243,6 +6247,7 @@ public struct SecretFieldConfig: Codable, Sendable {
         case placeholder = "placeholder"
         case sensitive = "sensitive"
         case optional = "optional"
+        case pattern = "pattern"
     }
 }
 
@@ -15544,19 +15549,25 @@ public struct SecretField: Codable, Sendable {
     public var placeholder: String?
     public var sensitive: Bool?
     public var optional: Bool?
+    /// Pattern, when set, is a regular expression (RE2) a saved value must
+    /// match, so a pasted login link or the wrong key is refused on save
+    /// instead of failing the first run ("^sk-ant-oat01-").
+    public var pattern: String?
 
     public init(
         key: String = "",
         label: String? = nil,
         placeholder: String? = nil,
         sensitive: Bool? = nil,
-        optional: Bool? = nil
+        optional: Bool? = nil,
+        pattern: String? = nil
     ) {
         self.key = key
         self.label = label
         self.placeholder = placeholder
         self.sensitive = sensitive
         self.optional = optional
+        self.pattern = pattern
     }
 
     enum CodingKeys: String, CodingKey {
@@ -15565,6 +15576,7 @@ public struct SecretField: Codable, Sendable {
         case placeholder = "placeholder"
         case sensitive = "sensitive"
         case optional = "optional"
+        case pattern = "pattern"
     }
 }
 

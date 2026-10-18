@@ -4079,6 +4079,10 @@ export interface SecretFieldConfig {
   placeholder: string;
   sensitive: boolean;
   optional: boolean;
+  /**
+   * Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+   */
+  pattern?: string;
 }
 /**
  * CreditGrantDTO is the API response for credit grants
@@ -10347,6 +10351,12 @@ export interface SecretField {
   placeholder?: string;
   sensitive?: boolean;
   optional?: boolean;
+  /**
+   * Pattern, when set, is a regular expression (RE2) a saved value must
+   * match, so a pasted login link or the wrong key is refused on save
+   * instead of failing the first run ("^sk-ant-oat01-").
+   */
+  pattern?: string;
 }
 /**
  * AuthMethodClientAuth is how client_id/client_secret reach the token

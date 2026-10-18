@@ -2898,6 +2898,8 @@ type SecretFieldConfig struct {
 	Placeholder string `json:"placeholder"`
 	Sensitive   bool   `json:"sensitive"`
 	Optional    bool   `json:"optional"`
+	// Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+	Pattern string `json:"pattern,omitempty"`
 }
 
 // --------------------
@@ -7675,6 +7677,10 @@ type SecretField struct {
 	Placeholder string `json:"placeholder,omitempty" yaml:"placeholder,omitempty"`
 	Sensitive   bool   `json:"sensitive,omitempty" yaml:"sensitive,omitempty"`
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
+	// Pattern, when set, is a regular expression (RE2) a saved value must
+	// match, so a pasted login link or the wrong key is refused on save
+	// instead of failing the first run ("^sk-ant-oat01-").
+	Pattern string `json:"pattern,omitempty" yaml:"pattern,omitempty"`
 }
 
 // AuthMethodClientAuth is how client_id/client_secret reach the token

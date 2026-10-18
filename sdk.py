@@ -1432,6 +1432,8 @@ class SecretFieldConfig(TypedDict, total=False):
     placeholder: str
     sensitive: bool
     optional: bool
+    # Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+    pattern: str
 
 # SearchRequest represents a search request.
 # Each model declares its own SearchFields() on the repository.
@@ -2876,6 +2878,10 @@ class SecretField(TypedDict, total=False):
     placeholder: str
     sensitive: bool
     optional: bool
+    # Pattern, when set, is a regular expression (RE2) a saved value must
+    # match, so a pasted login link or the wrong key is refused on save
+    # instead of failing the first run ("^sk-ant-oat01-").
+    pattern: str
 
 # AuthMethodRevoke is the optional token revocation on disconnect.
 class AuthMethodRevoke(TypedDict, total=False):
