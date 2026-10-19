@@ -6,8 +6,6 @@
 /**
  * Type aliases that gotypegen trace mode cannot follow.
  */
-export type PageUpdateRequest = PageCreateRequest;
-export type MenuUpdateRequest = MenuCreateRequest;
 export type SkillFile = KnowledgeFile;
 export type CreateCommentRequest = CommentCreateRequest;
 
@@ -1403,6 +1401,26 @@ export interface EnginesForResourcesResponse {
   cloud: CloudEngineResponse;
   error?: string;
 }
+/**
+ * PageUpdateRequest changes a page. A field left out keeps its stored value;
+ * a slug sent empty is derived from the title again.
+ */
+export interface PageUpdateRequest {
+  title?: string;
+  content?: string;
+  excerpt?: string;
+  status?: PageStatus;
+  type?: PageType;
+  metadata?: PageMetadata;
+  slug?: string;
+  /**
+   * Path is where the page is served under its section. Empty keeps the
+   * current path.
+   */
+  path?: string;
+  visibility?: Visibility;
+  is_featured?: boolean;
+}
 export interface CommentCreateRequest {
   page_id: string;
   content: string;
@@ -1412,6 +1430,16 @@ export interface MenuCreateRequest {
   slug: string;
   description: string;
   items: MenuItem[];
+}
+/**
+ * MenuUpdateRequest changes a menu. A field left out keeps its stored value;
+ * a slug sent empty is derived from the name again.
+ */
+export interface MenuUpdateRequest {
+  name?: string;
+  slug?: string;
+  description?: string;
+  items?: MenuItem[];
 }
 export interface TransactionCreateRequest {
   user_id: string;

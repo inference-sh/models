@@ -1026,11 +1026,37 @@ type CreateApiKeyRequest struct {
 	Scope ApiKeyScope `json:"scope,omitempty"`
 }
 
+// PageUpdateRequest changes a page. A field left out keeps its stored value;
+// a slug sent empty is derived from the title again.
+type PageUpdateRequest struct {
+	Title    *string       `json:"title,omitempty"`
+	Content  *string       `json:"content,omitempty"`
+	Excerpt  *string       `json:"excerpt,omitempty"`
+	Status   *PageStatus   `json:"status,omitempty"`
+	Type     *PageType     `json:"type,omitempty"`
+	Metadata *PageMetadata `json:"metadata,omitempty"`
+	Slug     *string       `json:"slug,omitempty"`
+	// Path is where the page is served under its section. Empty keeps the
+	// current path.
+	Path       *string     `json:"path,omitempty"`
+	Visibility *Visibility `json:"visibility,omitempty"`
+	IsFeatured *bool       `json:"is_featured,omitempty"`
+}
+
 type MenuCreateRequest struct {
 	Name        string     `json:"name"`
 	Slug        string     `json:"slug"`
 	Description string     `json:"description"`
 	Items       []MenuItem `json:"items"`
+}
+
+// MenuUpdateRequest changes a menu. A field left out keeps its stored value;
+// a slug sent empty is derived from the name again.
+type MenuUpdateRequest struct {
+	Name        *string    `json:"name,omitempty"`
+	Slug        *string    `json:"slug,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Items       []MenuItem `json:"items,omitempty"`
 }
 
 // EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
@@ -5849,7 +5875,9 @@ type EngineTypes struct {
 	_hfCache           HFCacheInfo
 	_publicMCP         PublicMCPServerDTO
 	_menuCreate        MenuCreateRequest
+	_menuUpdate        MenuUpdateRequest
 	_pageCreate        PageCreateRequest
+	_pageUpdate        PageUpdateRequest
 	_createApp         CreateAppRequest
 	_listResp          ListResponse[any]
 	_fileCreate        FileCreateRequest
