@@ -121,6 +121,7 @@ public struct InternalToolsConfig: Codable, Sendable {
     public var agent: Bool?
     public var remote: Bool?
     public var knowledge: Bool?
+    public var wait: Bool?
 
     public init(
         plan: Bool? = nil,
@@ -133,7 +134,8 @@ public struct InternalToolsConfig: Codable, Sendable {
         artifact: Bool? = nil,
         agent: Bool? = nil,
         remote: Bool? = nil,
-        knowledge: Bool? = nil
+        knowledge: Bool? = nil,
+        wait: Bool? = nil
     ) {
         self.plan = plan
         self.memory = memory
@@ -146,6 +148,7 @@ public struct InternalToolsConfig: Codable, Sendable {
         self.agent = agent
         self.remote = remote
         self.knowledge = knowledge
+        self.wait = wait
     }
 
     enum CodingKeys: String, CodingKey {
@@ -160,6 +163,7 @@ public struct InternalToolsConfig: Codable, Sendable {
         case agent = "agent"
         case remote = "remote"
         case knowledge = "knowledge"
+        case wait = "wait"
     }
 }
 
@@ -193,6 +197,9 @@ public struct AgentTool: Codable, Sendable {
     public var description: String
     public var type: ToolType
     public var requireApproval: Bool?
+    /// ApprovalTimeout is how many seconds a call of this tool waits for its
+    /// approval before it is refused. 0 waits until someone answers.
+    public var approvalTimeout: Int?
     @Indirect public var app: AppToolConfig?
     @Indirect public var agent: AgentToolConfig?
     @Indirect public var hook: HookToolConfig?
@@ -208,6 +215,7 @@ public struct AgentTool: Codable, Sendable {
         description: String = "",
         type: ToolType,
         requireApproval: Bool? = nil,
+        approvalTimeout: Int? = nil,
         app: AppToolConfig? = nil,
         agent: AgentToolConfig? = nil,
         hook: HookToolConfig? = nil,
@@ -222,6 +230,7 @@ public struct AgentTool: Codable, Sendable {
         self.description = description
         self.type = type
         self.requireApproval = requireApproval
+        self.approvalTimeout = approvalTimeout
         self.app = app
         self.agent = agent
         self.hook = hook
@@ -238,6 +247,7 @@ public struct AgentTool: Codable, Sendable {
         case description = "description"
         case type = "type"
         case requireApproval = "require_approval"
+        case approvalTimeout = "approval_timeout"
         case app = "app"
         case agent = "agent"
         case hook = "hook"
@@ -350,6 +360,7 @@ public struct AgentToolDTO: Codable, Sendable {
     public var description: String
     public var type: ToolType
     public var requireApproval: Bool?
+    public var approvalTimeout: Int?
     @Indirect public var app: AppToolConfigDTO?
     @Indirect public var agent: AgentToolConfigDTO?
     @Indirect public var hook: HookToolConfigDTO?
@@ -364,6 +375,7 @@ public struct AgentToolDTO: Codable, Sendable {
         description: String = "",
         type: ToolType,
         requireApproval: Bool? = nil,
+        approvalTimeout: Int? = nil,
         app: AppToolConfigDTO? = nil,
         agent: AgentToolConfigDTO? = nil,
         hook: HookToolConfigDTO? = nil,
@@ -377,6 +389,7 @@ public struct AgentToolDTO: Codable, Sendable {
         self.description = description
         self.type = type
         self.requireApproval = requireApproval
+        self.approvalTimeout = approvalTimeout
         self.app = app
         self.agent = agent
         self.hook = hook
@@ -392,6 +405,7 @@ public struct AgentToolDTO: Codable, Sendable {
         case description = "description"
         case type = "type"
         case requireApproval = "require_approval"
+        case approvalTimeout = "approval_timeout"
         case app = "app"
         case agent = "agent"
         case hook = "hook"
@@ -13606,26 +13620,6 @@ public struct TaskLog: Codable, Sendable {
 }
 
 /// TaskDTO is the full API response for a task.
-/// TaskEgress is what a task's sandbox sent to and received from the
-/// internet through the engine's egress gateway, in bytes.
-public struct TaskEgress: Codable, Sendable {
-    public var bytesOut: Int
-    public var bytesIn: Int
-
-    public init(
-        bytesOut: Int = 0,
-        bytesIn: Int = 0
-    ) {
-        self.bytesOut = bytesOut
-        self.bytesIn = bytesIn
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case bytesOut = "bytes_out"
-        case bytesIn = "bytes_in"
-    }
-}
-
 public struct TaskDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
@@ -13669,10 +13663,6 @@ public struct TaskDTO: Codable, Sendable {
     public var events: [TaskEvent]?
     public var logs: [TaskLog]?
     public var usageEvents: [UsageEventDTO]?
-    /// Egress is what the task's sandbox moved through the engine's egress
-    /// gateway, reported by the engine when the task ended. Absent for a
-    /// task that ran without the gateway.
-    @Indirect public var egress: TaskEgress?
     public var sessionId: String?
     public var sessionTimeout: Int?
 
@@ -13719,7 +13709,6 @@ public struct TaskDTO: Codable, Sendable {
         events: [TaskEvent]? = nil,
         logs: [TaskLog]? = nil,
         usageEvents: [UsageEventDTO]? = nil,
-        egress: TaskEgress? = nil,
         sessionId: String? = nil,
         sessionTimeout: Int? = nil
     ) {
@@ -13765,7 +13754,6 @@ public struct TaskDTO: Codable, Sendable {
         self.events = events
         self.logs = logs
         self.usageEvents = usageEvents
-        self.egress = egress
         self.sessionId = sessionId
         self.sessionTimeout = sessionTimeout
     }
@@ -13813,7 +13801,6 @@ public struct TaskDTO: Codable, Sendable {
         case events = "events"
         case logs = "logs"
         case usageEvents = "usage_events"
-        case egress = "egress"
         case sessionId = "session_id"
         case sessionTimeout = "session_timeout"
     }
@@ -18976,6 +18963,7 @@ public struct InterruptReason: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
+    public static let wait = InterruptReason(rawValue: "wait")
     public static let toolApproval = InterruptReason(rawValue: "tool_approval")
     public static let clientTool = InterruptReason(rawValue: "client_tool")
     public static let widget = InterruptReason(rawValue: "widget")

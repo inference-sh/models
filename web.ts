@@ -44,6 +44,7 @@ export interface InternalToolsConfig {
   agent?: boolean;
   remote?: boolean;
   knowledge?: boolean;
+  wait?: boolean;
 }
 /**
  * AgentPermissions is what an agent's new chats in its own workspace may do
@@ -87,6 +88,11 @@ export interface AgentTool {
   description: string;
   type: ToolType;
   require_approval?: boolean;
+  /**
+   * ApprovalTimeout is how many seconds a call of this tool waits for its
+   * approval before it is refused. 0 waits until someone answers.
+   */
+  approval_timeout?: number /* int */;
   app?: AppToolConfig;
   agent?: AgentToolConfig;
   hook?: HookToolConfig;
@@ -141,6 +147,7 @@ export interface AgentToolDTO {
   description: string;
   type: ToolType;
   require_approval?: boolean;
+  approval_timeout?: number /* int */;
   app?: AppToolConfigDTO;
   agent?: AgentToolConfigDTO;
   hook?: HookToolConfigDTO;
@@ -8331,13 +8338,7 @@ export interface TaskLog {
 }
 /**
  * TaskDTO is the full API response for a task.
- * TaskEgress is what a task's sandbox sent to and received from the
- * internet through the engine's egress gateway, in bytes.
  */
-export interface TaskEgress {
-  bytes_out: number /* int64 */;
-  bytes_in: number /* int64 */;
-}
 export interface TaskDTO extends BaseModelDTO, PermissionModelDTO {
   graph_id?: string;
   user_public_key: string;
@@ -8371,12 +8372,6 @@ export interface TaskDTO extends BaseModelDTO, PermissionModelDTO {
   events: TaskEvent[];
   logs: TaskLog[];
   usage_events: (UsageEventDTO | undefined)[];
-  /**
-   * Egress is what the task's sandbox moved through the engine's egress
-   * gateway, reported by the engine when the task ended. Absent for a
-   * task that ran without the gateway.
-   */
-  egress?: TaskEgress;
   session_id?: string;
   session_timeout?: number /* int */;
 }
@@ -9427,11 +9422,6 @@ export interface WsTaskOutputPayload {
 export interface WsTaskFailedPayload {
   task_id: string;
   error?: string;
-  /**
-   * Egress is what the task moved through the egress gateway; engines
-   * without one send nothing.
-   */
-  egress?: TaskEgress;
 }
 export interface WsTaskAcceptedPayload {
   task_id: string;
@@ -9450,11 +9440,6 @@ export interface WsTaskLifecyclePayload {
 export interface WsTaskCompletedPayload {
   task_id: string;
   output: string;
-  /**
-   * Egress is what the task moved through the egress gateway; engines
-   * without one send nothing.
-   */
-  egress?: TaskEgress;
 }
 export const WSEventTaskRun: WSEventType = "task_run";
 export const WSEventTaskCancel: WSEventType = "task_cancel";
@@ -11459,6 +11444,13 @@ export const GraphEdgeTypeOutput: GraphEdgeType = "output";
  */
 export const InterruptResourceTurn: InterruptResourceType = "turn";
 /**
+ * InterruptReasonWait is a tool call the agent made to wait: the run is
+ * paused until the interrupt's deadline, when its own expiry trigger settles
+ * it (allow), or until a person ends the wait sooner. Its resource is the
+ * wait call (InterruptResourceToolInvocation).
+ */
+export const InterruptReasonWait: InterruptReason = "wait";
+/**
  * StreamDelta is the marker base for all streaming delta types.
  * Types embedding StreamDelta are routed through the delta channel.
  */
@@ -13283,6 +13275,7 @@ export const AgentRunStateRejected: AgentRunState = "rejected";
  * Aligns with AG-UI interrupt outcome reasons.
  */
 export type InterruptReason =
+  | "wait"
   | "tool_approval"
   | "client_tool"
   | "widget"
