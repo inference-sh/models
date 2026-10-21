@@ -706,14 +706,16 @@ type CheckoutCreateRequest struct {
 }
 
 type AuthResponse struct {
-	User           *UserDTO `json:"user"`
-	SessionID      string   `json:"session_id"`
-	IsNew          bool     `json:"is_new,omitempty"`
-	OTPRequired    bool     `json:"otp_required,omitempty"`
-	OTPMethod      string   `json:"otp_method,omitempty"`      // "email" or "totp"
-	ChallengeToken string   `json:"challenge_token,omitempty"` // pre-session 2FA token
-	RedirectTo     string   `json:"redirect_to,omitempty"`
-	Provider       string   `json:"provider,omitempty"`
+	User        *UserDTO `json:"user"`
+	SessionID   string   `json:"session_id"`
+	IsNew       bool     `json:"is_new,omitempty"`
+	OTPRequired bool     `json:"otp_required,omitempty"`
+	// OTPMethods are the second factors the sign-in may be finished with,
+	// the default first (POST /auth/otp/verify with method).
+	OTPMethods     []SecondFactor `json:"otp_methods,omitempty"`
+	ChallengeToken string         `json:"challenge_token,omitempty"` // pre-session 2FA token
+	RedirectTo     string         `json:"redirect_to,omitempty"`
+	Provider       string         `json:"provider,omitempty"`
 }
 
 // DeviceAuthInitRequest is the optional body for initiating device auth.
@@ -3398,6 +3400,11 @@ const (
 	// works as an ordinary member. An admin who has one but whose session
 	// has not proved it gets otp_required instead: re-authenticate with it.
 	ErrorCodeAdminAuthenticatorRequired ErrorCode = "admin_authenticator_required"
+	// ErrorCodeLastAuthenticator (409): the change would leave two-step
+	// verification on with no method to prove it (removing the last
+	// authenticator app or passkey), or turn it on with none enrolled.
+	// Turn two-step verification off first, or enroll a method.
+	ErrorCodeLastAuthenticator ErrorCode = "last_authenticator"
 	// Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
 	// EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
 	// not be checked and the request is retriable.
@@ -6820,15 +6827,19 @@ type UserDTO struct {
 	ManagedByOrgID string `json:"managed_by_org_id,omitempty"`
 	// ServiceTeamID: set on a workspace's service account, the principal its
 	// workspace API keys act as.
-	ServiceTeamID string           `json:"service_team_id,omitempty"`
-	Email         string           `json:"email"`
-	Name          string           `json:"name"`
-	FullName      string           `json:"full_name"`
-	AvatarURL     string           `json:"avatar_url"`
-	BannedAt      *time.Time       `json:"banned_at,omitempty"`
-	BanNote       string           `json:"ban_note,omitempty"`
-	TOTPEnabled   bool             `json:"totp_enabled"`
-	Metadata      *UserMetadataDTO `json:"metadata"`
+	ServiceTeamID string     `json:"service_team_id,omitempty"`
+	Email         string     `json:"email"`
+	Name          string     `json:"name"`
+	FullName      string     `json:"full_name"`
+	AvatarURL     string     `json:"avatar_url"`
+	BannedAt      *time.Time `json:"banned_at,omitempty"`
+	BanNote       string     `json:"ban_note,omitempty"`
+	// TOTPEnabled mirrors TwoFactorEnabled for clients built before it
+	// (the Swift SDK decodes it as required). Read TwoFactorEnabled.
+	TOTPEnabled bool `json:"totp_enabled"`
+	// TwoFactorEnabled is the account's two-step verification switch.
+	TwoFactorEnabled bool             `json:"two_factor_enabled"`
+	Metadata         *UserMetadataDTO `json:"metadata"`
 }
 
 // UserRelationDTO is a lightweight user reference embedded in other DTOs.
@@ -9302,6 +9313,53 @@ const (
 	MCPServerAuthOAuth  MCPServerAuthType = "oauth"
 	MCPServerAuthAPIKey MCPServerAuthType = "api_key"
 	MCPServerAuthNone   MCPServerAuthType = "none"
+)
+
+// SecondFactor is one way a person proves their second factor. It names
+// what a session proved (AuthSession.SecondFactor), what a login challenge
+// offers, the method a verify request picks, and the kind of an enrolled
+// method (SecondFactorMethod.Kind: the enrollable ones).
+type SecondFactor string
+
+// Valid reports whether f is one of the second factors.
+func (f SecondFactor) Valid() bool {
+	switch f {
+	case SecondFactorTOTP, SecondFactorPasskey, SecondFactorRecovery, SecondFactorEmail:
+		return true
+	}
+	return false
+}
+
+// IsAuthenticator reports whether f is a proof other than an emailed code:
+// the class a platform admin's power needs, and what two-step verification
+// means once it is on.
+func (f SecondFactor) IsAuthenticator() bool {
+	return f == SecondFactorTOTP || f == SecondFactorPasskey || f == SecondFactorRecovery
+}
+
+// IsEnrollable reports whether f is a method a person enrolls (a row in
+// second_factor_methods): an authenticator app or a passkey.
+func (f SecondFactor) IsEnrollable() bool {
+	return f == SecondFactorTOTP || f == SecondFactorPasskey
+}
+
+func (v SecondFactor) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	// SecondFactorTOTP: a code from an enrolled authenticator app.
+	SecondFactorTOTP SecondFactor = "totp"
+	// SecondFactorPasskey: a WebAuthn assertion from an enrolled passkey.
+	SecondFactorPasskey SecondFactor = "passkey"
+	// SecondFactorRecovery: one of the account's single-use recovery codes.
+	// Not enrolled on its own: issued once an authenticator exists.
+	SecondFactorRecovery SecondFactor = "recovery"
+	// SecondFactorEmail: a code emailed to the account. The weakest: the
+	// same mailbox a magic link lands in, so it is offered only to an
+	// account with two-step verification off (a platform admin's first
+	// sign-in, re-auth before they enroll).
+	SecondFactorEmail SecondFactor = "email"
 )
 
 // TeamInviteStatus represents the status of a team invitation

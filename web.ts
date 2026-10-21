@@ -1013,7 +1013,11 @@ export interface AuthResponse {
   session_id: string;
   is_new?: boolean;
   otp_required?: boolean;
-  otp_method?: string; // "email" or "totp"
+  /**
+   * OTPMethods are the second factors the sign-in may be finished with,
+   * the default first (POST /auth/otp/verify with method).
+   */
+  otp_methods?: SecondFactor[];
   challenge_token?: string; // pre-session 2FA token
   redirect_to?: string;
   provider?: string;
@@ -4531,6 +4535,7 @@ export type ErrorCode =
   | "browser_session_required"
   | "invalid_ttl"
   | "admin_authenticator_required"
+  | "last_authenticator"
   | "limit_exceeded"
   | "feature_not_available"
   | "entitlement_unavailable"
@@ -4667,6 +4672,13 @@ export const ErrorCodeInvalidTTL: ErrorCode = "invalid_ttl";
  * has not proved it gets otp_required instead: re-authenticate with it.
  */
 export const ErrorCodeAdminAuthenticatorRequired: ErrorCode = "admin_authenticator_required";
+/**
+ * ErrorCodeLastAuthenticator (409): the change would leave two-step
+ * verification on with no method to prove it (removing the last
+ * authenticator app or passkey), or turn it on with none enrolled.
+ * Turn two-step verification off first, or enroll a method.
+ */
+export const ErrorCodeLastAuthenticator: ErrorCode = "last_authenticator";
 /**
  * Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
  * EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
@@ -7491,6 +7503,150 @@ export interface SearchReconcileStats {
   errors: number /* int */;
 }
 /**
+ * SecondFactorMethodDTO is one enrolled method (an authenticator app or a
+ * passkey) as the settings page lists it.
+ */
+export interface SecondFactorMethodDTO {
+  id: string;
+  kind: SecondFactor;
+  name: string;
+  created_at: string /* RFC3339 */;
+  last_used_at?: string /* RFC3339 */;
+  /**
+   * BackupState: a passkey synced by its provider (iCloud Keychain,
+   * Google Password Manager), so it survives the device.
+   */
+  backup_state?: boolean;
+}
+/**
+ * SecondFactorRecoveryCodesDTO summarizes the account's recovery code set.
+ */
+export interface SecondFactorRecoveryCodesDTO {
+  generated_at: string /* RFC3339 */;
+  remaining: number /* int */;
+}
+/**
+ * SecondFactorOverview is GET /auth/second-factor: the whole two-step
+ * verification state of the signed-in account.
+ */
+export interface SecondFactorOverview {
+  /**
+   * Enabled is the two-step verification switch (UserDTO.TwoFactorEnabled).
+   */
+  enabled: boolean;
+  methods: SecondFactorMethodDTO[];
+  /**
+   * RecoveryCodes is nil until a set has been generated.
+   */
+  recovery_codes?: SecondFactorRecoveryCodesDTO;
+  /**
+   * PasskeysAvailable: the server is configured as a WebAuthn relying
+   * party, so passkeys can be enrolled.
+   */
+  passkeys_available: boolean;
+}
+/**
+ * SecondFactorEnableResponse is POST /auth/second-factor/enable. When the
+ * account had no recovery codes yet a set is issued with the switch and
+ * shown here once.
+ */
+export interface SecondFactorEnableResponse {
+  enabled: boolean;
+  recovery_codes?: string[];
+}
+/**
+ * RecoveryCodesResponse is POST /auth/second-factor/recovery-codes: the new
+ * set, shown once; the previous set is void.
+ */
+export interface RecoveryCodesResponse {
+  codes: string[];
+  generated_at: string /* RFC3339 */;
+}
+/**
+ * SecondFactorMethodRenameRequest is PATCH /auth/second-factor/methods/{id}.
+ */
+export interface SecondFactorMethodRenameRequest {
+  name: string;
+}
+/**
+ * TOTPEnrollResponse is POST /auth/totp/enroll: a fresh secret to scan or
+ * type, and the sealed enrollment the confirm step hands back. Nothing is
+ * stored until the confirm.
+ */
+export interface TOTPEnrollResponse {
+  secret: string;
+  url: string;
+  /**
+   * Enrollment is opaque to the client and expires in ten minutes.
+   */
+  enrollment: string;
+}
+/**
+ * TOTPConfirmRequest is POST /auth/totp/confirm.
+ */
+export interface TOTPConfirmRequest {
+  enrollment: string;
+  code: string;
+  name?: string;
+}
+/**
+ * OTPStatusResponse is GET /auth/otp/status: for a pending sign-in (by
+ * challenge_token) or the session cookie, whether a second factor is
+ * asked for and which ones may answer, the default first.
+ */
+export interface OTPStatusResponse {
+  required: boolean;
+  verified: boolean;
+  methods?: SecondFactor[];
+  reauth_until?: string /* RFC3339 */;
+}
+/**
+ * PasskeyAssertion is a finished WebAuthn assertion: the ceremony it
+ * answers and the credential the browser produced
+ * (PublicKeyCredential.toJSON()).
+ */
+export interface PasskeyAssertion {
+  ceremony_id: string;
+  credential: any;
+}
+/**
+ * VerifySecondFactorRequest is POST /auth/otp/verify: with a challenge
+ * token it finishes a pending sign-in, without one it re-authenticates the
+ * session cookie. Method picks how; empty means the default offered. Code
+ * carries an authenticator, emailed or recovery code; Assertion a passkey.
+ */
+export interface VerifySecondFactorRequest {
+  challenge_token?: string;
+  method?: SecondFactor;
+  code?: string;
+  assertion?: PasskeyAssertion;
+}
+/**
+ * PasskeyAssertBeginRequest is POST /auth/passkey/assert/begin: for a
+ * pending sign-in (challenge_token) or the session cookie.
+ */
+export interface PasskeyAssertBeginRequest {
+  challenge_token?: string;
+}
+/**
+ * PasskeyBeginResponse begins a ceremony: the options for
+ * navigator.credentials.create or .get (PublicKeyCredentialCreationOptions
+ * or RequestOptions in their JSON form) and the ceremony id the finish
+ * step echoes. The ceremony expires in five minutes.
+ */
+export interface PasskeyBeginResponse {
+  ceremony_id: string;
+  options: any;
+}
+/**
+ * PasskeyRegisterFinishRequest is POST /auth/passkey/register/finish.
+ */
+export interface PasskeyRegisterFinishRequest {
+  ceremony_id: string;
+  name?: string;
+  credential: any;
+}
+/**
  * SecretDTO for API responses - VALUE IS NEVER EXPOSED
  */
 export interface SecretDTO extends BaseModelDTO, PermissionModelDTO {
@@ -9223,7 +9379,15 @@ export interface UserDTO extends BaseModelDTO {
   avatar_url: string;
   banned_at?: string /* RFC3339 */;
   ban_note?: string;
+  /**
+   * TOTPEnabled mirrors TwoFactorEnabled for clients built before it
+   * (the Swift SDK decodes it as required). Read TwoFactorEnabled.
+   */
   totp_enabled: boolean;
+  /**
+   * TwoFactorEnabled is the account's two-step verification switch.
+   */
+  two_factor_enabled: boolean;
   metadata?: UserMetadataDTO;
 }
 /**
@@ -11949,6 +12113,33 @@ export const MCPToolCallSourceAgent: MCPToolCallSource = "agent";
  * via the mcp_run tool.
  */
 export const MCPToolCallSourceMCP: MCPToolCallSource = "mcp";
+/**
+ * SecondFactor is one way a person proves their second factor. It names
+ * what a session proved (AuthSession.SecondFactor), what a login challenge
+ * offers, the method a verify request picks, and the kind of an enrolled
+ * method (SecondFactorMethod.Kind: the enrollable ones).
+ */
+export type SecondFactor = "totp" | "passkey" | "recovery" | "email";
+/**
+ * SecondFactorTOTP: a code from an enrolled authenticator app.
+ */
+export const SecondFactorTOTP: SecondFactor = "totp";
+/**
+ * SecondFactorPasskey: a WebAuthn assertion from an enrolled passkey.
+ */
+export const SecondFactorPasskey: SecondFactor = "passkey";
+/**
+ * SecondFactorRecovery: one of the account's single-use recovery codes.
+ * Not enrolled on its own: issued once an authenticator exists.
+ */
+export const SecondFactorRecovery: SecondFactor = "recovery";
+/**
+ * SecondFactorEmail: a code emailed to the account. The weakest: the
+ * same mailbox a magic link lands in, so it is offered only to an
+ * account with two-step verification off (a platform admin's first
+ * sign-in, re-auth before they enroll).
+ */
+export const SecondFactorEmail: SecondFactor = "email";
 /**
  * OrgProvisionOutcome is what adding a person to an org by email did.
  */

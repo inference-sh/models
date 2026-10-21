@@ -424,7 +424,9 @@ class AuthResponse(TypedDict, total=False):
     session_id: str
     is_new: bool
     otp_required: bool
-    otp_method: str
+    # OTPMethods are the second factors the sign-in may be finished with,
+    # the default first (POST /auth/otp/verify with method).
+    otp_methods: List[SecondFactor]
     challenge_token: str
     redirect_to: str
     provider: str
@@ -3986,7 +3988,11 @@ class UserDTO(BaseModelDTO, TypedDict, total=False):
     avatar_url: str
     banned_at: Optional[str]
     ban_note: str
+    # TOTPEnabled mirrors TwoFactorEnabled for clients built before it
+    # (the Swift SDK decodes it as required). Read TwoFactorEnabled.
     totp_enabled: bool
+    # TwoFactorEnabled is the account's two-step verification switch.
+    two_factor_enabled: bool
     metadata: Optional[UserMetadataDTO]
 
 class AgentVersionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -4960,6 +4966,11 @@ class ErrorCode(str, Enum):
     # works as an ordinary member. An admin who has one but whose session
     # has not proved it gets otp_required instead: re-authenticate with it.
     ADMIN_AUTHENTICATOR_REQUIRED = "admin_authenticator_required"
+    # ErrorCodeLastAuthenticator (409): the change would leave two-step
+    # verification on with no method to prove it (removing the last
+    # authenticator app or passkey), or turn it on with none enrolled.
+    # Turn two-step verification off first, or enroll a method.
+    LAST_AUTHENTICATOR = "last_authenticator"
     # Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
     # EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
     # not be checked and the request is retriable.
@@ -5556,6 +5567,20 @@ class MCPServerAuthType(str, Enum):
     MCP_SERVER_AUTH_O_AUTH = "oauth"
     MCP_SERVER_AUTH_API_KEY = "api_key"
     MCP_SERVER_AUTH_NONE = "none"
+
+class SecondFactor(str, Enum):
+    # SecondFactorTOTP: a code from an enrolled authenticator app.
+    TOTP = "totp"
+    # SecondFactorPasskey: a WebAuthn assertion from an enrolled passkey.
+    PASSKEY = "passkey"
+    # SecondFactorRecovery: one of the account's single-use recovery codes.
+    # Not enrolled on its own: issued once an authenticator exists.
+    RECOVERY = "recovery"
+    # SecondFactorEmail: a code emailed to the account. The weakest: the
+    # same mailbox a magic link lands in, so it is offered only to an
+    # account with two-step verification off (a platform admin's first
+    # sign-in, re-auth before they enroll).
+    EMAIL = "email"
 
 class TeamInviteStatus(str, Enum):
     PENDING = "pending"
