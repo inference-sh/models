@@ -5402,6 +5402,29 @@ export interface InstanceTypeBootTime {
   updated_at: string;
   sample_size: number /* int */;
 }
+/**
+ * InstancePriceHistoryPointDTO is one day's cheapest hourly prices, in cents,
+ * for a GPU type. List prices rarely move; the in-stock price does, as stock
+ * comes and goes. A price with no listing (or no stock) that day is omitted.
+ */
+export interface InstancePriceHistoryPointDTO {
+  day: string; // YYYY-MM-DD, UTC
+  /**
+   * OnDemand and Spot are the cheapest listed prices, in stock or not.
+   */
+  on_demand?: number /* int */;
+  spot?: number /* int */;
+  /**
+   * OnDemandInStock and SpotInStock are the cheapest prices that had stock.
+   */
+  on_demand_in_stock?: number /* int */;
+  spot_in_stock?: number /* int */;
+  providers: number /* int */;
+  /**
+   * Regions is the number of provider regions with on-demand stock.
+   */
+  regions: number /* int */;
+}
 export interface InterruptDTO extends BaseModelDTO, PermissionModelDTO {
   run_id: string;
   chat_id: string;
@@ -9391,10 +9414,12 @@ export type WSEventType =
   | "remote_session_ack"
   | "remote_session_replay"
   | "remote_sessions_list"
+  | "remote_session_tool_result"
   | "remote_session_opened"
   | "remote_session_event"
   | "remote_session_closed"
-  | "remote_sessions_listed";
+  | "remote_sessions_listed"
+  | "remote_session_tool_call";
 /**
  * Task WebSocket events (Engine → API)
  */
@@ -9860,6 +9885,15 @@ export const WSEventRemoteSessionReplay: WSEventType = "remote_session_replay";
  */
 export const WSEventRemoteSessionsList: WSEventType = "remote_sessions_list";
 /**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionToolResult: WSEventType = "remote_session_tool_result";
+/**
  * Remote -> server.
  */
 export const WSEventRemoteSessionOpened: WSEventType = "remote_session_opened";
@@ -9891,6 +9925,15 @@ export const WSEventRemoteSessionClosed: WSEventType = "remote_session_closed";
  */
 export const WSEventRemoteSessionsListed: WSEventType = "remote_sessions_listed";
 /**
+ * Harness sessions over the remote socket (INF-831). The api drives an agent
+ * harness — Claude Code, Codex, Gemini and the rest — through a session the
+ * daemon hosts, one per chat. The loop stays here: the daemon launches the
+ * harness in ACP mode, forwards what it says, and applies the decisions sent
+ * back. These are the wire contract with belt's session host; they are
+ * generated into models so belt imports them rather than mirroring them.
+ */
+export const WSEventRemoteSessionToolCall: WSEventType = "remote_session_tool_call";
+/**
  * WsRemoteSessionOpen asks the daemon to start a harness session for a chat,
  * or to reopen one the harness persisted. The chat keys everything after it:
  * one chat, one harness session, for the chat's whole life.
@@ -9907,6 +9950,13 @@ export interface WsRemoteSessionOpen {
    * history (ACP session/load). Empty starts fresh.
    */
   resume_session_id?: string;
+  /**
+   * Tools are the platform's tools the harness may call besides its own
+   * (HarnessCapabilities.Tools). The daemon runs none of them: each call
+   * comes back to the api as a WsRemoteSessionToolCall. A daemon older
+   * than caller tools ignores them.
+   */
+  tools?: Tool[];
 }
 /**
  * WsRemoteSessionPrompt sends a user message into a chat's session. RunID is
@@ -9943,6 +9993,16 @@ export interface WsRemoteSessionResolve {
    */
   scope?: string;
   reason?: string;
+}
+/**
+ * WsRemoteSessionToolResult answers a WsRemoteSessionToolCall with what the
+ * tool returned. IsError marks a failed call; Text then says why.
+ */
+export interface WsRemoteSessionToolResult {
+  chat_id: string;
+  call_id: string;
+  text: string;
+  is_error?: boolean;
 }
 /**
  * WsRemoteSessionClose ends a chat's session and stops its process.
@@ -10012,6 +10072,20 @@ export interface WsRemoteSessionEvent {
 export interface WsRemoteSessionClosed {
   chat_id: string;
   error?: string;
+}
+/**
+ * WsRemoteSessionToolCall asks the api to run one of the session's Tools for
+ * the harness. CallID is the daemon's, unique within the session, and keys
+ * the result; ToolInvocationID is the harness's own call id from its
+ * tool.started event, empty when the harness does not pass it (ACP).
+ */
+export interface WsRemoteSessionToolCall {
+  chat_id: string;
+  run_id: string;
+  call_id: string;
+  tool_invocation_id?: string;
+  name: string;
+  arguments?: { [key: string]: any};
 }
 /**
  * WsRemoteSessionsListed answers a WsRemoteSessionsList.

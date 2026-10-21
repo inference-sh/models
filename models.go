@@ -4061,6 +4061,22 @@ type InstanceTypeBootTime struct {
 	SampleSize     int    `json:"sample_size"`
 }
 
+// InstancePriceHistoryPointDTO is one day's cheapest hourly prices, in cents,
+// for a GPU type. List prices rarely move; the in-stock price does, as stock
+// comes and goes. A price with no listing (or no stock) that day is omitted.
+type InstancePriceHistoryPointDTO struct {
+	Day string `json:"day"` // YYYY-MM-DD, UTC
+	// OnDemand and Spot are the cheapest listed prices, in stock or not.
+	OnDemand int `json:"on_demand,omitempty"`
+	Spot     int `json:"spot,omitempty"`
+	// OnDemandInStock and SpotInStock are the cheapest prices that had stock.
+	OnDemandInStock int `json:"on_demand_in_stock,omitempty"`
+	SpotInStock     int `json:"spot_in_stock,omitempty"`
+	Providers       int `json:"providers"`
+	// Regions is the number of provider regions with on-demand stock.
+	Regions int `json:"regions"`
+}
+
 // --------------------
 // source: interrupt.go
 // --------------------
@@ -5586,6 +5602,7 @@ type SDKTypes struct {
 	_appStoreListing    AppStoreListingDTO
 	_skillStoreListing  SkillStoreListingDTO
 	_instanceType       InstanceTypeDTO
+	_instancePriceHist  InstancePriceHistoryPointDTO
 	// Auth/keys
 	_apiKeyDTO      ApiKeyDTO
 	_createApiKey   CreateApiKeyRequest
@@ -5980,6 +5997,8 @@ type RemoteTypes struct {
 	_sessEvent     WsRemoteSessionEvent
 	_sessClosed    WsRemoteSessionClosed
 	_sessListed    WsRemoteSessionsListed
+	_sessToolCall  WsRemoteSessionToolCall
+	_sessToolRes   WsRemoteSessionToolResult
 	_pathsResolve  WsRemotePathsResolve
 	_pathsResolved WsRemotePathsResolved
 }
@@ -7215,19 +7234,21 @@ type WsRemotePathsResolved struct {
 // generated into models so belt imports them rather than mirroring them.
 const (
 	// Server -> remote.
-	WSEventRemoteSessionOpen      WSEventType = "remote_session_open"
-	WSEventRemoteSessionPrompt    WSEventType = "remote_session_prompt"
-	WSEventRemoteSessionInterrupt WSEventType = "remote_session_interrupt"
-	WSEventRemoteSessionResolve   WSEventType = "remote_session_resolve"
-	WSEventRemoteSessionClose     WSEventType = "remote_session_close"
-	WSEventRemoteSessionAck       WSEventType = "remote_session_ack"
-	WSEventRemoteSessionReplay    WSEventType = "remote_session_replay"
-	WSEventRemoteSessionsList     WSEventType = "remote_sessions_list"
+	WSEventRemoteSessionOpen       WSEventType = "remote_session_open"
+	WSEventRemoteSessionPrompt     WSEventType = "remote_session_prompt"
+	WSEventRemoteSessionInterrupt  WSEventType = "remote_session_interrupt"
+	WSEventRemoteSessionResolve    WSEventType = "remote_session_resolve"
+	WSEventRemoteSessionClose      WSEventType = "remote_session_close"
+	WSEventRemoteSessionAck        WSEventType = "remote_session_ack"
+	WSEventRemoteSessionReplay     WSEventType = "remote_session_replay"
+	WSEventRemoteSessionsList      WSEventType = "remote_sessions_list"
+	WSEventRemoteSessionToolResult WSEventType = "remote_session_tool_result"
 	// Remote -> server.
-	WSEventRemoteSessionOpened  WSEventType = "remote_session_opened"
-	WSEventRemoteSessionEvent   WSEventType = "remote_session_event"
-	WSEventRemoteSessionClosed  WSEventType = "remote_session_closed"
-	WSEventRemoteSessionsListed WSEventType = "remote_sessions_listed"
+	WSEventRemoteSessionOpened   WSEventType = "remote_session_opened"
+	WSEventRemoteSessionEvent    WSEventType = "remote_session_event"
+	WSEventRemoteSessionClosed   WSEventType = "remote_session_closed"
+	WSEventRemoteSessionsListed  WSEventType = "remote_sessions_listed"
+	WSEventRemoteSessionToolCall WSEventType = "remote_session_tool_call"
 )
 
 // WsRemoteSessionOpen asks the daemon to start a harness session for a chat,
@@ -7241,6 +7262,11 @@ type WsRemoteSessionOpen struct {
 	// ResumeSessionID is the harness's own id for a session to reopen with its
 	// history (ACP session/load). Empty starts fresh.
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
+	// Tools are the platform's tools the harness may call besides its own
+	// (HarnessCapabilities.Tools). The daemon runs none of them: each call
+	// comes back to the api as a WsRemoteSessionToolCall. A daemon older
+	// than caller tools ignores them.
+	Tools []Tool `json:"tools,omitempty"`
 }
 
 // WsRemoteSessionPrompt sends a user message into a chat's session. RunID is
@@ -7272,6 +7298,15 @@ type WsRemoteSessionResolve struct {
 	// express it.
 	Scope  string `json:"scope,omitempty"`
 	Reason string `json:"reason,omitempty"`
+}
+
+// WsRemoteSessionToolResult answers a WsRemoteSessionToolCall with what the
+// tool returned. IsError marks a failed call; Text then says why.
+type WsRemoteSessionToolResult struct {
+	ChatID  string `json:"chat_id"`
+	CallID  string `json:"call_id"`
+	Text    string `json:"text"`
+	IsError bool   `json:"is_error,omitempty"`
 }
 
 // WsRemoteSessionClose ends a chat's session and stops its process.
@@ -7330,6 +7365,19 @@ type WsRemoteSessionEvent struct {
 type WsRemoteSessionClosed struct {
 	ChatID string `json:"chat_id"`
 	Error  string `json:"error,omitempty"`
+}
+
+// WsRemoteSessionToolCall asks the api to run one of the session's Tools for
+// the harness. CallID is the daemon's, unique within the session, and keys
+// the result; ToolInvocationID is the harness's own call id from its
+// tool.started event, empty when the harness does not pass it (ACP).
+type WsRemoteSessionToolCall struct {
+	ChatID           string         `json:"chat_id"`
+	RunID            string         `json:"run_id"`
+	CallID           string         `json:"call_id"`
+	ToolInvocationID string         `json:"tool_invocation_id,omitempty"`
+	Name             string         `json:"name"`
+	Arguments        map[string]any `json:"arguments,omitempty"`
 }
 
 // WsRemoteSessionsListed answers a WsRemoteSessionsList.
