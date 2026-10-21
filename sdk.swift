@@ -14873,7 +14873,10 @@ public struct UserDTO: Codable, Sendable {
     public var bannedAt: String?
     public var banNote: String?
     /// TOTPEnabled mirrors TwoFactorEnabled for clients built before it
-    /// (the Swift SDK decodes it as required). Read TwoFactorEnabled.
+    /// (the Swift SDK decodes it as required).
+    /// 
+    /// Deprecated: read TwoFactorEnabled. Kept until no Swift app build older
+    /// than sdk-swift 0.23.0 is in use, since those fail to decode /me without it.
     public var totpEnabled: Bool
     /// TwoFactorEnabled is the account's two-step verification switch.
     public var twoFactorEnabled: Bool

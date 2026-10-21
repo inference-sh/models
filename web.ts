@@ -9381,7 +9381,9 @@ export interface UserDTO extends BaseModelDTO {
   ban_note?: string;
   /**
    * TOTPEnabled mirrors TwoFactorEnabled for clients built before it
-   * (the Swift SDK decodes it as required). Read TwoFactorEnabled.
+   * (the Swift SDK decodes it as required).
+   * Deprecated: read TwoFactorEnabled. Kept until no Swift app build older
+   * than sdk-swift 0.23.0 is in use, since those fail to decode /me without it.
    */
   totp_enabled: boolean;
   /**

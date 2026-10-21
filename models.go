@@ -6835,7 +6835,10 @@ type UserDTO struct {
 	BannedAt      *time.Time `json:"banned_at,omitempty"`
 	BanNote       string     `json:"ban_note,omitempty"`
 	// TOTPEnabled mirrors TwoFactorEnabled for clients built before it
-	// (the Swift SDK decodes it as required). Read TwoFactorEnabled.
+	// (the Swift SDK decodes it as required).
+	//
+	// Deprecated: read TwoFactorEnabled. Kept until no Swift app build older
+	// than sdk-swift 0.23.0 is in use, since those fail to decode /me without it.
 	TOTPEnabled bool `json:"totp_enabled"`
 	// TwoFactorEnabled is the account's two-step verification switch.
 	TwoFactorEnabled bool             `json:"two_factor_enabled"`
