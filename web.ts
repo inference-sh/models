@@ -9047,7 +9047,6 @@ export interface TriggerDTO extends BaseModelDTO, PermissionModelDTO, ProjectMod
   agent_id?: string;
   app_id?: string;
   flow_id?: string;
-  interrupt_id?: string;
   config?: any;
   input?: any;
   input_schema?: any;
@@ -11735,8 +11734,8 @@ export const GraphEdgeTypeOutput: GraphEdgeType = "output";
 export const InterruptResourceTurn: InterruptResourceType = "turn";
 /**
  * InterruptReasonWait is a tool call the agent made to wait: the run is
- * paused until the interrupt's deadline, when its own expiry trigger settles
- * it (allow), or until a person ends the wait sooner. Its resource is the
+ * paused until the interrupt's deadline, when the expiry sweep settles it
+ * (allow), or until a person ends the wait sooner. Its resource is the
  * wait call (InterruptResourceToolInvocation).
  */
 export const InterruptReasonWait: InterruptReason = "wait";
@@ -12242,11 +12241,10 @@ export const TriggerKindScheduled: TriggerKind = "scheduled";
 /**
  * TriggerAction represents what a trigger does when it fires
  */
-export type TriggerAction = "run_agent" | "run_app" | "run_flow" | "resolve_interrupt";
+export type TriggerAction = "run_agent" | "run_app" | "run_flow";
 export const TriggerActionRunAgent: TriggerAction = "run_agent";
 export const TriggerActionRunApp: TriggerAction = "run_app";
 export const TriggerActionRunFlow: TriggerAction = "run_flow";
-export const TriggerActionResolveInterrupt: TriggerAction = "resolve_interrupt";
 /**
  * LinearIssuePriority represents issue priority levels
  */
