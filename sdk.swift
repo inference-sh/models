@@ -16302,6 +16302,9 @@ public struct ChatStatus: RawRepresentable, Codable, Hashable, Sendable {
     public static let busy = ChatStatus(rawValue: "busy")
     public static let idle = ChatStatus(rawValue: "idle")
     public static let awaitingInput = ChatStatus(rawValue: "awaiting_input")
+    /// ChatStatusWaiting: the run is paused on the agent's own wait call. A
+    /// message ends the wait early; nobody has to act on it.
+    public static let waiting = ChatStatus(rawValue: "waiting")
     public static let completed = ChatStatus(rawValue: "completed")
 }
 

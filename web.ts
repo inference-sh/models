@@ -11213,10 +11213,20 @@ export const PaymentRecordTypeBankTransfer: PaymentRecordType = "bank_transfer";
 export type TransactionType = "credit" | "debit";
 export const TransactionTypeCredit: TransactionType = "credit";
 export const TransactionTypeDebit: TransactionType = "debit";
-export type ChatStatus = "busy" | "idle" | "awaiting_input" | "completed";
+export type ChatStatus =
+  | "busy"
+  | "idle"
+  | "awaiting_input"
+  | "waiting"
+  | "completed";
 export const ChatStatusBusy: ChatStatus = "busy";
 export const ChatStatusIdle: ChatStatus = "idle";
 export const ChatStatusAwaitingInput: ChatStatus = "awaiting_input";
+/**
+ * ChatStatusWaiting: the run is paused on the agent's own wait call. A
+ * message ends the wait early; nobody has to act on it.
+ */
+export const ChatStatusWaiting: ChatStatus = "waiting";
 export const ChatStatusCompleted: ChatStatus = "completed";
 export type PlanStepStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export const PlanStepStatusPending: PlanStepStatus = "pending";

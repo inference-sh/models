@@ -8261,7 +8261,10 @@ const (
 	ChatStatusBusy          ChatStatus = "busy"
 	ChatStatusIdle          ChatStatus = "idle"
 	ChatStatusAwaitingInput ChatStatus = "awaiting_input"
-	ChatStatusCompleted     ChatStatus = "completed"
+	// ChatStatusWaiting: the run is paused on the agent's own wait call. A
+	// message ends the wait early; nobody has to act on it.
+	ChatStatusWaiting   ChatStatus = "waiting"
+	ChatStatusCompleted ChatStatus = "completed"
 )
 
 type PlanStepStatus string

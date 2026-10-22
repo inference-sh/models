@@ -5297,6 +5297,9 @@ class ChatStatus(str, Enum):
     BUSY = "busy"
     IDLE = "idle"
     AWAITING_INPUT = "awaiting_input"
+    # ChatStatusWaiting: the run is paused on the agent's own wait call. A
+    # message ends the wait early; nobody has to act on it.
+    WAITING = "waiting"
     COMPLETED = "completed"
 
 class PlanStepStatus(str, Enum):
