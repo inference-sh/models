@@ -5157,6 +5157,12 @@ type ProfileDTO struct {
 	// daemon reported it. Nil means not reported yet (a daemon older than
 	// the field); callers treat that as all false.
 	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
+	// Account is who the harness is signed in as, and Limits its plan's
+	// rate-limit windows, as the daemon last read them. Nil until a daemon
+	// that reads them has probed this harness; a harness with no way to
+	// report them stays nil.
+	Account *AgentAccount `json:"account,omitempty"`
+	Limits  *UsageLimits  `json:"limits,omitempty"`
 }
 
 // HarnessCapabilities says what a harness session can do, so the api decides
@@ -5218,6 +5224,12 @@ type HarnessInfo struct {
 	// Capabilities is what this harness supports. Omitted by daemons older
 	// than the field; the api then keeps whatever it had.
 	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
+	// Account and Limits are what the harness's usage probe read: who it is
+	// signed in as and its plan's rate-limit windows. Omitted for a harness
+	// with no probe, and by daemons older than the fields; the api then
+	// keeps what it had.
+	Account *AgentAccount `json:"account,omitempty"`
+	Limits  *UsageLimits  `json:"limits,omitempty"`
 }
 
 // RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
@@ -7089,10 +7101,14 @@ const (
 // healthy daemon reports running; the server uses the beat to revive a remote
 // it had marked disconnected. Every few beats the daemon also sends a fresh
 // system snapshot with live CPU, RAM and disk usage, the way engines send
-// telemetry; the server stores it on the remote.
+// telemetry; the server stores it on the remote. Every few minutes a beat
+// also carries the harnesses rediscovered, with each one's account and plan
+// limits freshly probed; the server reconciles them into profiles as at
+// registration.
 type WsRemoteHeartbeatPayload struct {
-	Status     RemoteStatus `json:"status"`
-	SystemInfo *SystemInfo  `json:"system_info,omitempty"`
+	Status     RemoteStatus  `json:"status"`
+	SystemInfo *SystemInfo   `json:"system_info,omitempty"`
+	Harnesses  []HarnessInfo `json:"harnesses,omitempty"`
 }
 
 // WsRemoteExecStart asks the remote to start a command as a durable exec run,
@@ -11225,6 +11241,87 @@ const (
 	// (interrupted, failed).
 	TurnUsagePartial TurnUsageStatus = "partial"
 )
+
+// UsageWindowKind is the period a rate-limit window covers.
+type UsageWindowKind string
+
+const (
+	UsageWindowSession UsageWindowKind = "session"
+	UsageWindowWeekly  UsageWindowKind = "weekly"
+	UsageWindowMonthly UsageWindowKind = "monthly"
+	UsageWindowOther   UsageWindowKind = "other"
+)
+
+// UsageWindow is one rate limit of a plan and how much of it is used.
+type UsageWindow struct {
+	// ID is stable per agent ("five_hour", "seven_day", "primary"), so a
+	// pushed update lands on the window a probe reported.
+	ID          string          `json:"id"`
+	Kind        UsageWindowKind `json:"kind"`
+	Label       string          `json:"label"`
+	UsedPercent float64         `json:"used_percent"` // 0 to 100
+	// ResetsAt is when the window resets; zero when the agent does not say.
+	ResetsAt time.Time `json:"resets_at,omitzero"`
+	// DurationMinutes is the window's length; 0 when unknown.
+	DurationMinutes int `json:"duration_minutes,omitempty"`
+}
+
+// UsageUnavailableReason says why an agent has no rate limits to show.
+type UsageUnavailableReason string
+
+const (
+	// UsageUnsupported: the account has no plan limits to read (an API key
+	// bills per token) or the agent exposes none.
+	UsageUnsupported UsageUnavailableReason = "unsupported"
+	// UsageProbeFailed: reading them failed this time.
+	UsageProbeFailed UsageUnavailableReason = "probe_failed"
+)
+
+// UsageLimits is an agent's rate-limit windows at CheckedAt.
+type UsageLimits struct {
+	CheckedAt time.Time     `json:"checked_at"`
+	Windows   []UsageWindow `json:"windows"`
+	// Unavailable is set when there are no windows to show, and why.
+	Unavailable *UsageUnavailable `json:"unavailable,omitempty"`
+}
+
+// UsageUnavailable explains an empty UsageLimits.
+type UsageUnavailable struct {
+	Reason  UsageUnavailableReason `json:"reason"`
+	Message string                 `json:"message,omitempty"`
+}
+
+// AccountStatus is whether an agent is signed in.
+type AccountStatus string
+
+const (
+	AccountAuthenticated   AccountStatus = "authenticated"
+	AccountUnauthenticated AccountStatus = "unauthenticated"
+	AccountUnknown         AccountStatus = "unknown"
+)
+
+// AccountType is how an agent is signed in.
+type AccountType string
+
+const (
+	AccountSubscription AccountType = "subscription"
+	AccountAPIKey       AccountType = "api_key"
+	AccountCloud        AccountType = "cloud"
+)
+
+// AgentAccount is the account an agent runs as, without its credential.
+type AgentAccount struct {
+	Status AccountStatus `json:"status"`
+	Type   AccountType   `json:"type,omitempty"`
+	// Plan is the vendor's plan id as the agent reports it ("max",
+	// "claude_max_20x", "plus"); PlanLabel is its display name ("Max 20x").
+	Plan      string `json:"plan,omitempty"`
+	PlanLabel string `json:"plan_label,omitempty"`
+	Email     string `json:"email,omitempty"`
+	// Workspace is the organization or workspace the account belongs to,
+	// when the agent says.
+	Workspace string `json:"workspace,omitempty"`
+}
 
 // --------------------
 // companion functions

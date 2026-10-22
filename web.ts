@@ -6967,6 +6967,14 @@ export interface ProfileDTO extends BaseModelDTO, PermissionModelDTO {
    * the field); callers treat that as all false.
    */
   capabilities?: HarnessCapabilities;
+  /**
+   * Account is who the harness is signed in as, and Limits its plan's
+   * rate-limit windows, as the daemon last read them. Nil until a daemon
+   * that reads them has probed this harness; a harness with no way to
+   * report them stays nil.
+   */
+  account?: AgentAccount;
+  limits?: UsageLimits;
 }
 /**
  * HarnessCapabilities says what a harness session can do, so the api decides
@@ -7055,6 +7063,14 @@ export interface HarnessInfo {
    * than the field; the api then keeps whatever it had.
    */
   capabilities?: HarnessCapabilities;
+  /**
+   * Account and Limits are what the harness's usage probe read: who it is
+   * signed in as and its plan's rate-limit windows. Omitted for a harness
+   * with no probe, and by daemons older than the fields; the api then
+   * keeps what it had.
+   */
+  account?: AgentAccount;
+  limits?: UsageLimits;
 }
 /**
  * RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
@@ -9847,11 +9863,15 @@ export const WSEventRemoteTerminalExit: WSEventType = "remote_terminal_exit";
  * healthy daemon reports running; the server uses the beat to revive a remote
  * it had marked disconnected. Every few beats the daemon also sends a fresh
  * system snapshot with live CPU, RAM and disk usage, the way engines send
- * telemetry; the server stores it on the remote.
+ * telemetry; the server stores it on the remote. Every few minutes a beat
+ * also carries the harnesses rediscovered, with each one's account and plan
+ * limits freshly probed; the server reconciles them into profiles as at
+ * registration.
  */
 export interface WsRemoteHeartbeatPayload {
   status: RemoteStatus;
   system_info?: SystemInfo;
+  harnesses?: HarnessInfo[];
 }
 /**
  * WsRemoteExecStart asks the remote to start a command as a durable exec run,
@@ -14154,3 +14174,96 @@ export const TurnUsageComplete: TurnUsageStatus = "complete";
  * (interrupted, failed).
  */
 export const TurnUsagePartial: TurnUsageStatus = "partial";
+/**
+ * UsageWindowKind is the period a rate-limit window covers.
+ */
+export type UsageWindowKind = "session" | "weekly" | "monthly" | "other";
+export const UsageWindowSession: UsageWindowKind = "session";
+export const UsageWindowWeekly: UsageWindowKind = "weekly";
+export const UsageWindowMonthly: UsageWindowKind = "monthly";
+export const UsageWindowOther: UsageWindowKind = "other";
+/**
+ * UsageWindow is one rate limit of a plan and how much of it is used.
+ */
+export interface UsageWindow {
+  /**
+   * ID is stable per agent ("five_hour", "seven_day", "primary"), so a
+   * pushed update lands on the window a probe reported.
+   */
+  id: string;
+  kind: UsageWindowKind;
+  label: string;
+  used_percent: number /* float64 */; // 0 to 100
+  /**
+   * ResetsAt is when the window resets; zero when the agent does not say.
+   */
+  resets_at?: string /* RFC3339 */;
+  /**
+   * DurationMinutes is the window's length; 0 when unknown.
+   */
+  duration_minutes?: number /* int */;
+}
+/**
+ * UsageUnavailableReason says why an agent has no rate limits to show.
+ */
+export type UsageUnavailableReason = "unsupported" | "probe_failed";
+/**
+ * UsageUnsupported: the account has no plan limits to read (an API key
+ * bills per token) or the agent exposes none.
+ */
+export const UsageUnsupported: UsageUnavailableReason = "unsupported";
+/**
+ * UsageProbeFailed: reading them failed this time.
+ */
+export const UsageProbeFailed: UsageUnavailableReason = "probe_failed";
+/**
+ * UsageLimits is an agent's rate-limit windows at CheckedAt.
+ */
+export interface UsageLimits {
+  checked_at: string /* RFC3339 */;
+  windows: UsageWindow[];
+  /**
+   * Unavailable is set when there are no windows to show, and why.
+   */
+  unavailable?: UsageUnavailable;
+}
+/**
+ * UsageUnavailable explains an empty UsageLimits.
+ */
+export interface UsageUnavailable {
+  reason: UsageUnavailableReason;
+  message?: string;
+}
+/**
+ * AccountStatus is whether an agent is signed in.
+ */
+export type AccountStatus = "authenticated" | "unauthenticated" | "unknown";
+export const AccountAuthenticated: AccountStatus = "authenticated";
+export const AccountUnauthenticated: AccountStatus = "unauthenticated";
+export const AccountUnknown: AccountStatus = "unknown";
+/**
+ * AccountType is how an agent is signed in.
+ */
+export type AccountType = "subscription" | "api_key" | "cloud";
+export const AccountSubscription: AccountType = "subscription";
+export const AccountAPIKey: AccountType = "api_key";
+export const AccountCloud: AccountType = "cloud";
+/**
+ * AgentAccount is the account an agent runs as, without its credential.
+ */
+export interface AgentAccount {
+  status: AccountStatus;
+  type?: AccountType;
+  /**
+   * Plan is the vendor's plan id as the agent reports it ("max",
+   * "claude_max_20x", "plus"); PlanLabel is its display name ("Max 20x").
+   */
+  plan?: string;
+  plan_label?: string;
+  email?: string;
+  /**
+   * Workspace is the organization or workspace the account belongs to,
+   * when the agent says.
+   */
+  workspace?: string;
+}

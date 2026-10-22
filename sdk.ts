@@ -6924,8 +6924,8 @@ export const GraphEdgeTypeOutput: GraphEdgeType = "output";
 export const InterruptResourceTurn: InterruptResourceType = "turn";
 /**
  * InterruptReasonWait is a tool call the agent made to wait: the run is
- * paused until the interrupt's deadline, when its own expiry trigger settles
- * it (allow), or until a person ends the wait sooner. Its resource is the
+ * paused until the interrupt's deadline, when the expiry sweep settles it
+ * (allow), or until a person ends the wait sooner. Its resource is the
  * wait call (InterruptResourceToolInvocation).
  */
 export const InterruptReasonWait: InterruptReason = "wait";
