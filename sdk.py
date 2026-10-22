@@ -4835,6 +4835,12 @@ class Scope(str, Enum):
     # ScopeStoreSubmit submits a resource version to the store on its
     # publisher's behalf. Held like ScopeStorePricing.
     STORE_SUBMIT = "store:submit"
+    # ScopeContentWrite writes the site's content (/content): blog and docs
+    # pages, menus and the platform media library. Held like
+    # ScopeStorePricing: only in the platform's workspace, by its members,
+    # their keys and runs, and its own keys. Reads of published content take
+    # no scope.
+    CONTENT_WRITE = "content:write"
 
 class ScopeGroup(str, Enum):
     AGENTS = "agents"
@@ -4858,6 +4864,7 @@ class ScopeGroup(str, Enum):
     APPROVALS = "approvals"
     ADMIN = "admin"
     STORE = "store"
+    CONTENT = "content"
 
 class AlwaysAllowScope(str, Enum):
     # AlwaysAllowScopeExact: this call exactly (each piece of the command,

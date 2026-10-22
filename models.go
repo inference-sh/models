@@ -1192,6 +1192,12 @@ const (
 	// ScopeStoreSubmit submits a resource version to the store on its
 	// publisher's behalf. Held like ScopeStorePricing.
 	ScopeStoreSubmit Scope = "store:submit"
+	// ScopeContentWrite writes the site's content (/content): blog and docs
+	// pages, menus and the platform media library. Held like
+	// ScopeStorePricing: only in the platform's workspace, by its members,
+	// their keys and runs, and its own keys. Reads of published content take
+	// no scope.
+	ScopeContentWrite Scope = "content:write"
 )
 
 // ScopeGroup identifies a category of scopes for UI grouping
@@ -1219,6 +1225,7 @@ const (
 	ScopeGroupApprovals     ScopeGroup = "approvals"
 	ScopeGroupAdmin         ScopeGroup = "admin"
 	ScopeGroupStore         ScopeGroup = "store"
+	ScopeGroupContent       ScopeGroup = "content"
 )
 
 // ScopeDefinition describes a single scope for UI rendering
