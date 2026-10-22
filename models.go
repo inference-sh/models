@@ -11018,8 +11018,9 @@ func (s ToolInvocationStatus) IsTerminal() bool {
 // CanTransitionTo defines the allowed status transitions for tool invocations.
 //
 //	pending → in_progress, awaiting_approval, completed, failed, cancelled
-//	in_progress → awaiting_input, completed, failed, cancelled
+//	in_progress → awaiting_input, waiting, completed, failed, cancelled
 //	awaiting_input → in_progress, completed, failed, cancelled
+//	waiting → completed, failed, cancelled
 //	awaiting_approval → in_progress, failed, cancelled
 //	terminal → (nothing)
 func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
@@ -11036,7 +11037,7 @@ func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
 	case ToolInvocationStatusPending:
 		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusAwaitingApproval
 	case ToolInvocationStatusInProgress:
-		return next == ToolInvocationStatusAwaitingInput
+		return next == ToolInvocationStatusAwaitingInput || next == ToolInvocationStatusWaiting
 	case ToolInvocationStatusAwaitingInput:
 		return next == ToolInvocationStatusInProgress
 	case ToolInvocationStatusAwaitingApproval:
@@ -11051,6 +11052,7 @@ const (
 	ToolInvocationStatusInProgress       ToolInvocationStatus = "in_progress"
 	ToolInvocationStatusAwaitingInput    ToolInvocationStatus = "awaiting_input"
 	ToolInvocationStatusAwaitingApproval ToolInvocationStatus = "awaiting_approval"
+	ToolInvocationStatusWaiting          ToolInvocationStatus = "waiting"
 	ToolInvocationStatusCompleted        ToolInvocationStatus = "completed"
 	ToolInvocationStatusFailed           ToolInvocationStatus = "failed"
 	ToolInvocationStatusCancelled        ToolInvocationStatus = "cancelled"

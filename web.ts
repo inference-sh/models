@@ -13970,6 +13970,7 @@ export type ToolInvocationStatus =
   | "in_progress"
   | "awaiting_input"
   | "awaiting_approval"
+  | "waiting"
   | "completed"
   | "failed"
   | "cancelled";
@@ -13977,6 +13978,7 @@ export const ToolInvocationStatusPending: ToolInvocationStatus = "pending";
 export const ToolInvocationStatusInProgress: ToolInvocationStatus = "in_progress";
 export const ToolInvocationStatusAwaitingInput: ToolInvocationStatus = "awaiting_input";
 export const ToolInvocationStatusAwaitingApproval: ToolInvocationStatus = "awaiting_approval";
+export const ToolInvocationStatusWaiting: ToolInvocationStatus = "waiting";
 export const ToolInvocationStatusCompleted: ToolInvocationStatus = "completed";
 export const ToolInvocationStatusFailed: ToolInvocationStatus = "failed";
 export const ToolInvocationStatusCancelled: ToolInvocationStatus = "cancelled";

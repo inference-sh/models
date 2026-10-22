@@ -6084,6 +6084,7 @@ class ToolInvocationStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     AWAITING_INPUT = "awaiting_input"
     AWAITING_APPROVAL = "awaiting_approval"
+    WAITING = "waiting"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"

@@ -19483,6 +19483,7 @@ public struct ToolInvocationStatus: RawRepresentable, Codable, Hashable, Sendabl
     public static let inProgress = ToolInvocationStatus(rawValue: "in_progress")
     public static let awaitingInput = ToolInvocationStatus(rawValue: "awaiting_input")
     public static let awaitingApproval = ToolInvocationStatus(rawValue: "awaiting_approval")
+    public static let waiting = ToolInvocationStatus(rawValue: "waiting")
     public static let completed = ToolInvocationStatus(rawValue: "completed")
     public static let failed = ToolInvocationStatus(rawValue: "failed")
     public static let cancelled = ToolInvocationStatus(rawValue: "cancelled")
