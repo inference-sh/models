@@ -6027,6 +6027,8 @@ type RemoteTypes struct {
 	_sessToolRes   WsRemoteSessionToolResult
 	_pathsResolve  WsRemotePathsResolve
 	_pathsResolved WsRemotePathsResolved
+	_update        WsRemoteUpdate
+	_updating      WsRemoteUpdating
 }
 
 // --------------------
@@ -7102,7 +7104,46 @@ const (
 	// Remote -> server: a PTY session's output and its exit.
 	WSEventRemoteTerminalOutput WSEventType = "remote_terminal_output"
 	WSEventRemoteTerminalExit   WSEventType = "remote_terminal_exit"
+	// Update: server -> remote asks the daemon to update belt in place;
+	// remote -> server answers with what it is doing about it.
+	WSEventRemoteUpdate   WSEventType = "remote_update"
+	WSEventRemoteUpdating WSEventType = "remote_updating"
 )
+
+// RemoteUpdateState is a daemon's answer to an update request.
+type RemoteUpdateState string
+
+const (
+	// RemoteUpdateStarted: a newer belt is available. The daemon stops taking
+	// new work, waits for running commands and agent turns to finish,
+	// installs it and restarts in place; it reconnects on the new version.
+	RemoteUpdateStarted RemoteUpdateState = "updating"
+	// RemoteUpdateCurrent: the daemon already runs the latest belt.
+	RemoteUpdateCurrent RemoteUpdateState = "current"
+	// RemoteUpdateUnsupported: belt was installed by a package manager (or
+	// is a dev build) and updates through it, not in place.
+	RemoteUpdateUnsupported RemoteUpdateState = "unsupported"
+	// RemoteUpdateFailed: the release could not be checked.
+	RemoteUpdateFailed RemoteUpdateState = "failed"
+)
+
+// WsRemoteUpdate asks a remote's daemon to update belt to the latest release.
+// The daemon fetches the release itself from the CLI release manifest; the
+// server never names a binary.
+type WsRemoteUpdate struct {
+	RequestID string `json:"request_id"`
+}
+
+// WsRemoteUpdating answers a WsRemoteUpdate once the daemon has checked the
+// release, before it drains: From is the version it runs, To the one it will
+// run (empty unless State is updating).
+type WsRemoteUpdating struct {
+	RequestID string            `json:"request_id"`
+	State     RemoteUpdateState `json:"state"`
+	From      string            `json:"from,omitempty"`
+	To        string            `json:"to,omitempty"`
+	Error     string            `json:"error,omitempty"`
+}
 
 // WsRemoteHeartbeatPayload is the periodic liveness beat over the socket. A
 // healthy daemon reports running; the server uses the beat to revive a remote

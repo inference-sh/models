@@ -9596,6 +9596,8 @@ export type WSEventType =
   | "remote_terminal_close"
   | "remote_terminal_output"
   | "remote_terminal_exit"
+  | "remote_update"
+  | "remote_updating"
   | "remote_paths_resolve"
   | "remote_paths_resolved"
   | "remote_session_open"
@@ -9869,6 +9871,61 @@ export const WSEventRemoteTerminalOutput: WSEventType = "remote_terminal_output"
  * both ends share one definition.
  */
 export const WSEventRemoteTerminalExit: WSEventType = "remote_terminal_exit";
+/**
+ * Update: server -> remote asks the daemon to update belt in place;
+ * remote -> server answers with what it is doing about it.
+ */
+export const WSEventRemoteUpdate: WSEventType = "remote_update";
+/**
+ * Remote WebSocket contract. A remote's daemon dials /ws/remotes/{id}, beats to
+ * stay alive, and hosts terminal sessions the server drives over the same
+ * connection. Generated into models (RemoteTypes); belt aliases these, so
+ * both ends share one definition.
+ */
+export const WSEventRemoteUpdating: WSEventType = "remote_updating";
+/**
+ * RemoteUpdateState is a daemon's answer to an update request.
+ */
+export type RemoteUpdateState = "updating" | "current" | "unsupported" | "failed";
+/**
+ * RemoteUpdateStarted: a newer belt is available. The daemon stops taking
+ * new work, waits for running commands and agent turns to finish,
+ * installs it and restarts in place; it reconnects on the new version.
+ */
+export const RemoteUpdateStarted: RemoteUpdateState = "updating";
+/**
+ * RemoteUpdateCurrent: the daemon already runs the latest belt.
+ */
+export const RemoteUpdateCurrent: RemoteUpdateState = "current";
+/**
+ * RemoteUpdateUnsupported: belt was installed by a package manager (or
+ * is a dev build) and updates through it, not in place.
+ */
+export const RemoteUpdateUnsupported: RemoteUpdateState = "unsupported";
+/**
+ * RemoteUpdateFailed: the release could not be checked.
+ */
+export const RemoteUpdateFailed: RemoteUpdateState = "failed";
+/**
+ * WsRemoteUpdate asks a remote's daemon to update belt to the latest release.
+ * The daemon fetches the release itself from the CLI release manifest; the
+ * server never names a binary.
+ */
+export interface WsRemoteUpdate {
+  request_id: string;
+}
+/**
+ * WsRemoteUpdating answers a WsRemoteUpdate once the daemon has checked the
+ * release, before it drains: From is the version it runs, To the one it will
+ * run (empty unless State is updating).
+ */
+export interface WsRemoteUpdating {
+  request_id: string;
+  state: RemoteUpdateState;
+  from?: string;
+  to?: string;
+  error?: string;
+}
 /**
  * WsRemoteHeartbeatPayload is the periodic liveness beat over the socket. A
  * healthy daemon reports running; the server uses the beat to revive a remote
