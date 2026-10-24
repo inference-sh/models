@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -126,6 +127,7 @@ type InternalToolsConfig struct {
 	Agent       *bool `json:"agent,omitempty" yaml:"agent,omitempty"`
 	Remote      *bool `json:"remote,omitempty" yaml:"remote,omitempty"`
 	Knowledge   *bool `json:"knowledge,omitempty" yaml:"knowledge,omitempty"`
+	Wait        *bool `json:"wait,omitempty" yaml:"wait,omitempty"`
 }
 
 // UnmarshalJSON reads the pre-rename "spawn" key as "agent", so stored agent
@@ -161,11 +163,14 @@ type AgentPermissions struct {
 
 // AgentTool represents a unified tool that can be used by an agent
 type AgentTool struct {
-	Name            string              `json:"name" yaml:"name"`
-	DisplayName     string              `json:"display_name,omitempty" yaml:"display_name,omitempty"`
-	Description     string              `json:"description" yaml:"description"`
-	Type            ToolType            `json:"type" yaml:"type"`
-	RequireApproval bool                `json:"require_approval,omitempty" yaml:"require_approval,omitempty"`
+	Name            string   `json:"name" yaml:"name"`
+	DisplayName     string   `json:"display_name,omitempty" yaml:"display_name,omitempty"`
+	Description     string   `json:"description" yaml:"description"`
+	Type            ToolType `json:"type" yaml:"type"`
+	RequireApproval bool     `json:"require_approval,omitempty" yaml:"require_approval,omitempty"`
+	// ApprovalTimeout is how many seconds a call of this tool waits for its
+	// approval before it is refused. 0 waits until someone answers.
+	ApprovalTimeout int                 `json:"approval_timeout,omitempty" yaml:"approval_timeout,omitempty"`
 	App             *AppToolConfig      `json:"app,omitempty" yaml:"app,omitempty"`
 	Agent           *AgentToolConfig    `json:"agent,omitempty" yaml:"agent,omitempty"`
 	Hook            *HookToolConfig     `json:"hook,omitempty" yaml:"hook,omitempty"`
@@ -214,6 +219,7 @@ type AgentToolDTO struct {
 	Description     string               `json:"description"`
 	Type            ToolType             `json:"type"`
 	RequireApproval bool                 `json:"require_approval,omitempty"`
+	ApprovalTimeout int                  `json:"approval_timeout,omitempty"`
 	App             *AppToolConfigDTO    `json:"app,omitempty"`
 	Agent           *AgentToolConfigDTO  `json:"agent,omitempty"`
 	Hook            *HookToolConfigDTO   `json:"hook,omitempty"`
@@ -287,11 +293,10 @@ const (
 
 // ToolAuthConfig declares how a tool authenticates.
 type ToolAuthConfig struct {
-	Type         ToolAuthType `json:"type" yaml:"type"`
-	Provider     string       `json:"provider,omitempty" yaml:"provider,omitempty"`
-	CredentialID string       `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
-	Secret       string       `json:"secret,omitempty" yaml:"secret,omitempty"`
-	Header       string       `json:"header,omitempty" yaml:"header,omitempty"`
+	Type     ToolAuthType `json:"type" yaml:"type"`
+	Provider string       `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Secret   string       `json:"secret,omitempty" yaml:"secret,omitempty"`
+	Header   string       `json:"header,omitempty" yaml:"header,omitempty"`
 }
 
 type HTTPToolConfig struct {
@@ -313,14 +318,11 @@ type HTTPToolConfig struct {
 
 // MCPToolConfig is a tool of an MCP server: the server by its slug (the
 // agent's team's registration, its org's or the directory's) and the tool
-// to call. CredentialID pins the connection the call signs in with; without
-// it the runner's connection to the server's provider is used. A tool
-// written with only a connection is saved with the server that
-// connection's provider is declared by.
+// to call. Each call signs in with the runner's connection to the
+// server's provider (Credential.ToolConnection).
 type MCPToolConfig struct {
-	Server       string `json:"server,omitempty" yaml:"server,omitempty"`
-	ToolName     string `json:"tool_name" yaml:"tool_name"`
-	CredentialID string `json:"credential_id,omitempty" yaml:"credential_id,omitempty"`
+	Server   string `json:"server,omitempty" yaml:"server,omitempty"`
+	ToolName string `json:"tool_name" yaml:"tool_name"`
 }
 
 type AppToolConfigDTO struct {
@@ -369,9 +371,8 @@ type HTTPToolConfigDTO struct {
 }
 
 type MCPToolConfigDTO struct {
-	Server       string `json:"server"`
-	ToolName     string `json:"tool_name"`
-	CredentialID string `json:"credential_id,omitempty"`
+	Server   string `json:"server"`
+	ToolName string `json:"tool_name"`
 }
 
 // CoreAppConfigDTO references an app used as the agent's core
@@ -705,14 +706,16 @@ type CheckoutCreateRequest struct {
 }
 
 type AuthResponse struct {
-	User           *UserDTO `json:"user"`
-	SessionID      string   `json:"session_id"`
-	IsNew          bool     `json:"is_new,omitempty"`
-	OTPRequired    bool     `json:"otp_required,omitempty"`
-	OTPMethod      string   `json:"otp_method,omitempty"`      // "email" or "totp"
-	ChallengeToken string   `json:"challenge_token,omitempty"` // pre-session 2FA token
-	RedirectTo     string   `json:"redirect_to,omitempty"`
-	Provider       string   `json:"provider,omitempty"`
+	User        *UserDTO `json:"user"`
+	SessionID   string   `json:"session_id"`
+	IsNew       bool     `json:"is_new,omitempty"`
+	OTPRequired bool     `json:"otp_required,omitempty"`
+	// OTPMethods are the second factors the sign-in may be finished with,
+	// the default first (POST /auth/otp/verify with method).
+	OTPMethods     []SecondFactor `json:"otp_methods,omitempty"`
+	ChallengeToken string         `json:"challenge_token,omitempty"` // pre-session 2FA token
+	RedirectTo     string         `json:"redirect_to,omitempty"`
+	Provider       string         `json:"provider,omitempty"`
 }
 
 // DeviceAuthInitRequest is the optional body for initiating device auth.
@@ -1025,11 +1028,37 @@ type CreateApiKeyRequest struct {
 	Scope ApiKeyScope `json:"scope,omitempty"`
 }
 
+// PageUpdateRequest changes a page. A field left out keeps its stored value;
+// a slug sent empty is derived from the title again.
+type PageUpdateRequest struct {
+	Title    *string       `json:"title,omitempty"`
+	Content  *string       `json:"content,omitempty"`
+	Excerpt  *string       `json:"excerpt,omitempty"`
+	Status   *PageStatus   `json:"status,omitempty"`
+	Type     *PageType     `json:"type,omitempty"`
+	Metadata *PageMetadata `json:"metadata,omitempty"`
+	Slug     *string       `json:"slug,omitempty"`
+	// Path is where the page is served under its section. Empty keeps the
+	// current path.
+	Path       *string     `json:"path,omitempty"`
+	Visibility *Visibility `json:"visibility,omitempty"`
+	IsFeatured *bool       `json:"is_featured,omitempty"`
+}
+
 type MenuCreateRequest struct {
 	Name        string     `json:"name"`
 	Slug        string     `json:"slug"`
 	Description string     `json:"description"`
 	Items       []MenuItem `json:"items"`
+}
+
+// MenuUpdateRequest changes a menu. A field left out keeps its stored value;
+// a slug sent empty is derived from the name again.
+type MenuUpdateRequest struct {
+	Name        *string    `json:"name,omitempty"`
+	Slug        *string    `json:"slug,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Items       []MenuItem `json:"items,omitempty"`
 }
 
 // EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
@@ -1163,6 +1192,12 @@ const (
 	// ScopeStoreSubmit submits a resource version to the store on its
 	// publisher's behalf. Held like ScopeStorePricing.
 	ScopeStoreSubmit Scope = "store:submit"
+	// ScopeContentWrite writes the site's content (/content): blog and docs
+	// pages, menus and the platform media library. Held like
+	// ScopeStorePricing: only in the platform's workspace, by its members,
+	// their keys and runs, and its own keys. Reads of published content take
+	// no scope.
+	ScopeContentWrite Scope = "content:write"
 )
 
 // ScopeGroup identifies a category of scopes for UI grouping
@@ -1190,6 +1225,7 @@ const (
 	ScopeGroupApprovals     ScopeGroup = "approvals"
 	ScopeGroupAdmin         ScopeGroup = "admin"
 	ScopeGroupStore         ScopeGroup = "store"
+	ScopeGroupContent       ScopeGroup = "content"
 )
 
 // ScopeDefinition describes a single scope for UI rendering
@@ -1331,7 +1367,6 @@ func (p *AppPricing) Sanitize() {
 	p.Description = normalize(p.Description)
 }
 
-// AppFunction represents a callable entry point within an app version.
 type AppFunction struct {
 	Name         string          `json:"name"`
 	Description  string          `json:"description,omitempty"`
@@ -1413,6 +1448,25 @@ type CredentialRequirement struct {
 	Provider *CompanySeed `json:"provider,omitempty" yaml:"provider,omitempty"`
 	// Auth is the credential's auth provider, for a slug no row defines yet.
 	Auth *AuthMethod `json:"auth,omitempty" yaml:"auth,omitempty"`
+	// The rest describe the platform api_key scheme a platform app's deploy
+	// catalogues for the slug: set on the scheme it creates, and filled into
+	// an existing one only where that is still empty (an admin's edit
+	// stands). Any other deploy ignores them.
+	//
+	// DisplayName is the scheme's name ("Claude Code"); at most
+	// MaxCredentialDisplayName characters.
+	DisplayName string `json:"display_name,omitempty" yaml:"display_name,omitempty"`
+	// ConnectionScope is who a connection belongs to: team (empty) or user.
+	ConnectionScope CredentialScope `json:"connection_scope,omitempty" yaml:"connection_scope,omitempty"`
+	// Instructions tell a person how to get the key (markdown, at most
+	// MaxAuthProviderInstructions characters).
+	Instructions string `json:"instructions,omitempty" yaml:"instructions,omitempty"`
+	// DocsURL is the scheme's documentation link.
+	DocsURL string `json:"docs_url,omitempty" yaml:"docs_url,omitempty"`
+	// ExpiresAfterDays is how long a saved key lasts: it counts as expired
+	// this many days after it is saved. 0 is never; at most
+	// MaxExpiresAfterDays.
+	ExpiresAfterDays int `json:"expires_after_days,omitempty" yaml:"expires_after_days,omitempty"`
 }
 
 // UnmarshalJSON reads an entry in the current or the list form.
@@ -1533,23 +1587,28 @@ type CompanySeed struct {
 // generated copy of the type (the models module the CLI reads inf.yml with)
 // carries the same parsing.
 type CredentialRequirementWire struct {
-	Slug         string   `json:"slug" yaml:"slug"`
-	Capabilities []string `json:"capabilities" yaml:"capabilities"`
-	Description  string   `json:"description" yaml:"description"`
-	Optional     bool     `json:"optional" yaml:"optional"`
-	Secrets      []string `json:"secrets" yaml:"secrets"`
-	Scopes       []string `json:"scopes" yaml:"scopes"`
-	Provider     any      `json:"provider" yaml:"provider"`
-	Company      any      `json:"company" yaml:"company"`
-	Auth         any      `json:"auth" yaml:"auth"`
-	Key          string   `json:"key" yaml:"key"`
-	Name         string   `json:"name" yaml:"name"`
-	Website      string   `json:"website" yaml:"website"`
+	Slug             string          `json:"slug" yaml:"slug"`
+	Capabilities     []string        `json:"capabilities" yaml:"capabilities"`
+	Description      string          `json:"description" yaml:"description"`
+	Optional         bool            `json:"optional" yaml:"optional"`
+	Secrets          []string        `json:"secrets" yaml:"secrets"`
+	Scopes           []string        `json:"scopes" yaml:"scopes"`
+	Provider         any             `json:"provider" yaml:"provider"`
+	Company          any             `json:"company" yaml:"company"`
+	Auth             any             `json:"auth" yaml:"auth"`
+	Key              string          `json:"key" yaml:"key"`
+	Name             string          `json:"name" yaml:"name"`
+	Website          string          `json:"website" yaml:"website"`
+	DisplayName      string          `json:"display_name" yaml:"display_name"`
+	ConnectionScope  CredentialScope `json:"connection_scope" yaml:"connection_scope"`
+	Instructions     string          `json:"instructions" yaml:"instructions"`
+	DocsURL          string          `json:"docs_url" yaml:"docs_url"`
+	ExpiresAfterDays int             `json:"expires_after_days" yaml:"expires_after_days"`
 }
 
 // Requirement is the entry the wire form means.
 func (w CredentialRequirementWire) Requirement() (CredentialRequirement, error) {
-	r := CredentialRequirement{Slug: w.Slug, Capabilities: w.Capabilities, Description: w.Description, Optional: w.Optional, Secrets: w.Secrets, Scopes: w.Scopes}
+	r := CredentialRequirement{Slug: w.Slug, Capabilities: w.Capabilities, Description: w.Description, Optional: w.Optional, Secrets: w.Secrets, Scopes: w.Scopes, DisplayName: w.DisplayName, ConnectionScope: w.ConnectionScope, Instructions: w.Instructions, DocsURL: w.DocsURL, ExpiresAfterDays: w.ExpiresAfterDays}
 	switch p := w.Provider.(type) {
 	case nil:
 	case string:
@@ -1832,7 +1891,7 @@ type AppVersionDTO struct {
 // use.
 type DeployWarning struct {
 	// Code identifies the check: readonly_broad_credential,
-	// unused_credential, missing_annotations.
+	// unused_credential, missing_annotations, unapproved_platform_scope.
 	Code string `json:"code"`
 	// Function is the function the warning is about, when it is about one.
 	Function string `json:"function,omitempty"`
@@ -1979,6 +2038,26 @@ type ArtifactVersionDTO struct {
 	GeneratedBy     string         `json:"generated_by,omitempty"` // "agent:<id>", "human:<email>"
 	Capabilities    map[string]any `json:"capabilities,omitempty"`
 	CreatedByUserID string         `json:"created_by_user_id,omitempty"`
+	// Files are the pages and data served beside the index page.
+	Files []ArtifactVersionFileDTO `json:"files,omitempty"`
+}
+
+// ArtifactVersionFileDTO is one file published beside a version's index.
+type ArtifactVersionFileDTO struct {
+	Path        string `json:"path"`
+	SizeBytes   int64  `json:"size_bytes"`
+	ContentType string `json:"content_type"`
+}
+
+// ArtifactFileInput is one extra file in a publish, served at Path relative
+// to the index page: another page (.html, .md), or css, js, json, svg, txt,
+// xml, csv.
+type ArtifactFileInput struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	// ContentEncoding is "base64" when Content is base64-encoded, as for the
+	// main content.
+	ContentEncoding string `json:"content_encoding,omitempty"`
 }
 
 // ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
@@ -1996,12 +2075,15 @@ type ArtifactCreateRequest struct {
 	Content string `json:"content"`
 	// ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
 	// from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
-	ContentEncoding string         `json:"content_encoding,omitempty"`
-	Label           string         `json:"label,omitempty"`
-	Notes           string         `json:"notes,omitempty"`
-	Origin          string         `json:"origin,omitempty"`
-	GeneratedBy     string         `json:"generated_by,omitempty"`
-	Capabilities    map[string]any `json:"capabilities,omitempty"`
+	ContentEncoding string `json:"content_encoding,omitempty"`
+	// Files are published beside the index page. A publish is the whole
+	// site: files of the previous version are not carried over.
+	Files        []ArtifactFileInput `json:"files,omitempty"`
+	Label        string              `json:"label,omitempty"`
+	Notes        string              `json:"notes,omitempty"`
+	Origin       string              `json:"origin,omitempty"`
+	GeneratedBy  string              `json:"generated_by,omitempty"`
+	Capabilities map[string]any      `json:"capabilities,omitempty"`
 	// BaseVersionID is the version this content was built on. When the
 	// artifact has moved past it, the publish is refused instead of
 	// discarding whatever landed in between. Leave it empty to publish
@@ -2028,12 +2110,15 @@ type ArtifactUpdateRequest struct {
 type ArtifactPublishRequest struct {
 	Content string `json:"content"`
 	// ContentEncoding is "base64" when Content is base64-encoded UTF-8.
-	ContentEncoding string         `json:"content_encoding,omitempty"`
-	Label           string         `json:"label,omitempty"`
-	Notes           string         `json:"notes,omitempty"`
-	Origin          string         `json:"origin,omitempty"`
-	GeneratedBy     string         `json:"generated_by,omitempty"`
-	Capabilities    map[string]any `json:"capabilities,omitempty"`
+	ContentEncoding string `json:"content_encoding,omitempty"`
+	// Files are published beside the index page. A publish is the whole
+	// site: files of the previous version are not carried over.
+	Files        []ArtifactFileInput `json:"files,omitempty"`
+	Label        string              `json:"label,omitempty"`
+	Notes        string              `json:"notes,omitempty"`
+	Origin       string              `json:"origin,omitempty"`
+	GeneratedBy  string              `json:"generated_by,omitempty"`
+	Capabilities map[string]any      `json:"capabilities,omitempty"`
 	// Title/Favicon/Description may be refreshed alongside a publish.
 	Title       string          `json:"title,omitempty"`
 	Description string          `json:"description,omitempty"`
@@ -2079,8 +2164,16 @@ type ArtifactDataRequest struct {
 	DocID      string `json:"doc_id,omitempty"`
 	// Data is the document body for set and update.
 	Data map[string]any `json:"data,omitempty"`
-	// Limit caps a list; the server clamps it.
+	// Limit caps a list; the server clamps it to 200.
 	Limit int `json:"limit,omitempty"`
+	// Cursor continues a list from the next_cursor of the page before.
+	Cursor string `json:"cursor,omitempty"`
+	// Order is the list order: -updated_at (the default), updated_at,
+	// -created_at or created_at.
+	Order string `json:"order,omitempty"`
+	// Where keeps only documents whose top-level fields equal these values
+	// (string, number, boolean, or null for a missing field).
+	Where map[string]any `json:"where,omitempty"`
 }
 
 // ArtifactDataListResponse is a page of documents from one collection.
@@ -2088,6 +2181,8 @@ type ArtifactDataListResponse struct {
 	Collection string            `json:"collection"`
 	Documents  []ArtifactDataDTO `json:"documents"`
 	Count      int               `json:"count"`
+	// NextCursor fetches the page after this one; empty on the last page.
+	NextCursor string `json:"next_cursor,omitempty"`
 }
 
 // ArtifactViewerDTO is what the user capability tells a page about whoever
@@ -2157,16 +2252,21 @@ type AuthProviderDTO struct {
 	PermissionModelDTO `tstype:",extends"`
 	Scope              CredentialScope `json:"scope"`
 	Slug               string          `json:"slug"`
-	// Provider is the company the slug belongs to (its providers row).
-	Provider        string          `json:"provider"`
-	DisplayName     string          `json:"display_name"`
-	IconURL         string          `json:"icon_url,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	DocsURL         string          `json:"docs_url,omitempty"`
-	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	// Company is the company the slug belongs to (its companies row).
+	Company     string   `json:"company"`
+	DisplayName string   `json:"display_name"`
+	IconURL     string   `json:"icon_url,omitempty"`
+	Description string   `json:"description,omitempty"`
+	DocsURL     string   `json:"docs_url,omitempty"`
+	HowItWorks  []string `json:"how_it_works,omitempty"`
+	// Instructions tell a person how to get what the scheme asks for:
+	// markdown, links allowed, at most MaxAuthProviderInstructions chars.
+	Instructions    string          `json:"instructions,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	Specs           []AuthMethod    `json:"specs"`
+	// ExpiresAfterDays is how long a saved key lasts, in days; 0 is never.
+	ExpiresAfterDays int          `json:"expires_after_days"`
+	AuthMethods      []AuthMethod `json:"auth_methods"`
 	// Where the OAuth app's client id and secret live in the team vault.
 	ClientIDKey     string `json:"client_id_key"`
 	ClientSecretKey string `json:"client_secret_key"`
@@ -2177,17 +2277,23 @@ type AuthProviderDTO struct {
 // team's app row (a grant=credentials credential), not to the scheme.
 type AuthProviderCreateRequest struct {
 	Slug string `json:"slug"`
-	// Provider is the company the slug belongs to (its providers row).
-	// Empty means the scheme is its own company: the slug.
-	Provider        string          `json:"provider,omitempty"`
-	DisplayName     string          `json:"display_name"`
-	IconURL         string          `json:"icon_url,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	DocsURL         string          `json:"docs_url,omitempty"`
-	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	// Company is the company the slug belongs to (its companies row).
+	// Empty means the provider is its own company: the slug.
+	Company     string   `json:"company,omitempty"`
+	DisplayName string   `json:"display_name"`
+	IconURL     string   `json:"icon_url,omitempty"`
+	Description string   `json:"description,omitempty"`
+	DocsURL     string   `json:"docs_url,omitempty"`
+	HowItWorks  []string `json:"how_it_works,omitempty"`
+	// Instructions tell a person how to get what the scheme asks for:
+	// markdown, links allowed, at most MaxAuthProviderInstructions chars.
+	Instructions    string          `json:"instructions,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	Specs           []AuthMethod    `json:"specs"`
+	// ExpiresAfterDays is how long a saved key lasts, in days (0 never, at
+	// most MaxExpiresAfterDays).
+	ExpiresAfterDays int          `json:"expires_after_days,omitempty"`
+	AuthMethods      []AuthMethod `json:"auth_methods"`
 	// The OAuth app, required for a team scheme. A platform scheme's app
 	// is managed separately (PUT /credentials/{provider}/app).
 	ClientID     string `json:"client_id,omitempty"`
@@ -2197,23 +2303,30 @@ type AuthProviderCreateRequest struct {
 	Scope CredentialScope `json:"scope,omitempty"`
 }
 
-// AuthProviderUpdateRequest changes the display fields and specs; the slug is
+// AuthProviderUpdateRequest changes the display fields and auth methods; the slug is
 // the provider key (stored on every credential) and cannot change. Empty
 // secrets leave the stored ones alone.
 type AuthProviderUpdateRequest struct {
-	// Provider moves the scheme under another company. Empty keeps the
+	// Company moves the provider under another company. Empty keeps the
 	// stored one.
-	Provider        string          `json:"provider,omitempty"`
-	DisplayName     string          `json:"display_name,omitempty"`
-	IconURL         string          `json:"icon_url,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	DocsURL         string          `json:"docs_url,omitempty"`
-	HowItWorks      []string        `json:"how_it_works,omitempty"`
+	Company     string   `json:"company,omitempty"`
+	DisplayName string   `json:"display_name,omitempty"`
+	IconURL     string   `json:"icon_url,omitempty"`
+	Description string   `json:"description,omitempty"`
+	DocsURL     string   `json:"docs_url,omitempty"`
+	HowItWorks  []string `json:"how_it_works,omitempty"`
+	// Instructions replaces the scheme's instructions (markdown, links
+	// allowed, at most MaxAuthProviderInstructions chars): nil keeps
+	// them, "" clears them.
+	Instructions    *string         `json:"instructions,omitempty"`
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
-	Specs           []AuthMethod    `json:"specs,omitempty"`
-	ClientID        string          `json:"client_id,omitempty"`
-	ClientSecret    string          `json:"client_secret,omitempty"`
+	// ExpiresAfterDays replaces the key lifetime in days: nil keeps it, 0
+	// makes saved keys never expire.
+	ExpiresAfterDays *int         `json:"expires_after_days,omitempty"`
+	AuthMethods      []AuthMethod `json:"auth_methods,omitempty"`
+	ClientID         string       `json:"client_id,omitempty"`
+	ClientSecret     string       `json:"client_secret,omitempty"`
 }
 
 // AuthProviderHooksDTO lists the registered Go hooks a scheme spec may name
@@ -2489,6 +2602,8 @@ type ChatMessageDTO struct {
 	Tools              *[]Tool              `json:"tools"`
 	ToolCallID         *string              `json:"tool_call_id"`
 	ToolInvocations    *[]ToolInvocationDTO `json:"tool_invocations"`
+	// CompactionMeta is what a compaction (role compaction) retired.
+	CompactionMeta *CompactionMeta `json:"compaction_meta,omitempty"`
 }
 
 // --------------------
@@ -2674,13 +2789,13 @@ type CompanyDTO struct {
 }
 
 // CompanyTreeDTO is a company with everything the platform holds for it
-// (GET /admin/providers/{slug}/tree): its platform-scoped auth providers, and
+// (GET /admin/companies/{slug}/tree): its platform-scoped auth providers, and
 // every platform-scoped credential row (OAuth apps, keys and logins) for
 // one of those schemes, each with the keys of its linked secrets.
 type CompanyTreeDTO struct {
-	Company     CompanyDTO        `json:"provider"`
-	Schemes     []AuthProviderDTO `json:"schemes"`
-	Credentials []CredentialDTO   `json:"credentials"`
+	Company       CompanyDTO        `json:"company"`
+	AuthProviders []AuthProviderDTO `json:"auth_providers"`
+	Credentials   []CredentialDTO   `json:"credentials"`
 }
 
 // --------------------
@@ -2715,15 +2830,19 @@ type CredentialDTO struct {
 	// AccountID is the provider's own, unchanging id for the account; what
 	// an account is named by when choosing one. AccountIdentifier is its
 	// label (an email, an @handle).
-	AccountID         string         `json:"account_id,omitempty"`
-	AccountIdentifier string         `json:"account_identifier,omitempty"`
-	AccountName       string         `json:"account_name,omitempty"`
-	Scopes            StringSlice    `json:"scopes"`
-	ExpiresAt         *time.Time     `json:"expires_at,omitempty"`
-	VaultID           *string        `json:"vault_id,omitempty"`
-	Metadata          map[string]any `json:"metadata,omitempty"`
-	IsPrimary         bool           `json:"is_primary"`
-	ErrorMessage      string         `json:"error_message,omitempty"`
+	AccountID         string      `json:"account_id,omitempty"`
+	AccountIdentifier string      `json:"account_identifier,omitempty"`
+	AccountName       string      `json:"account_name,omitempty"`
+	Scopes            StringSlice `json:"scopes"`
+	// AllowedScopes, on an OAuth app row (grant credentials), is every
+	// scope a login through it may request; absent when any scope may be
+	// (a team's own client by default). Never set on a login.
+	AllowedScopes StringSlice    `json:"allowed_scopes,omitempty"`
+	ExpiresAt     *time.Time     `json:"expires_at,omitempty"`
+	VaultID       *string        `json:"vault_id,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
+	IsPrimary     bool           `json:"is_primary"`
+	ErrorMessage  string         `json:"error_message,omitempty"`
 	// Secrets are the secret rows linked to the credential (a key's values),
 	// by row and key, never by value. Filled on the vault's api_key configs
 	// and the admin provider tree.
@@ -2754,25 +2873,29 @@ type CompanySummary struct {
 type CredentialConfigDTO struct {
 	Slug string `json:"slug"`
 	// Provider is the credential slug (what Credential.Provider stores):
-	// one way to authenticate. The company it belongs to is ProviderInfo.
+	// one way to authenticate. The company it belongs to is Company.
 	Provider string `json:"provider"`
-	// ProviderInfo is the company this slug belongs to, for grouping: the
-	// providers row its auth provider names, else the slug's own identity.
-	ProviderInfo *CompanySummary `json:"provider_info,omitempty"`
-	// Company is ProviderInfo under its settled name (INF-1079); provider_info
-	// stays one release.
-	Company      *CompanySummary     `json:"company,omitempty"`
-	Type         string              `json:"type"`
-	Name         string              `json:"name"`
-	ShortName    string              `json:"short_name"`
-	Description  string              `json:"description"`
-	IconURL      string              `json:"icon_url,omitempty"`
-	HowItWorks   []string            `json:"how_it_works,omitempty"`
+	// Company is the company this slug belongs to, for grouping: the
+	// companies row its auth provider names, else the slug's own identity.
+	Company     *CompanySummary `json:"company,omitempty"`
+	Type        string          `json:"type"`
+	Name        string          `json:"name"`
+	ShortName   string          `json:"short_name"`
+	Description string          `json:"description"`
+	IconURL     string          `json:"icon_url,omitempty"`
+	HowItWorks  []string        `json:"how_it_works,omitempty"`
+	// Instructions tell a person how to get what this credential asks for
+	// (markdown, links allowed): the auth scheme's.
+	Instructions string              `json:"instructions,omitempty"`
 	DocsURL      string              `json:"docs_url,omitempty"`
 	SecretFields []SecretFieldConfig `json:"secret_fields,omitempty"`
 	AllowsBYOK   bool                `json:"allows_byok"`
-	Available    bool                `json:"available"`
-	HasManaged   bool                `json:"has_managed"`
+	// ExpiresAfterDays is how long a saved key lasts, in days: a key counts
+	// as expired that long after it is saved (its credential's expires_at).
+	// 0 is never.
+	ExpiresAfterDays int  `json:"expires_after_days,omitempty"`
+	Available        bool `json:"available"`
+	HasManaged       bool `json:"has_managed"`
 	// ConnectionScope is who a new connection belongs to by default: the
 	// team, or each user (their own account).
 	ConnectionScope CredentialScope `json:"connection_scope"`
@@ -2784,7 +2907,7 @@ type CredentialConfigDTO struct {
 	App *CredentialDTO `json:"app,omitempty"`
 	// AuthProviderID is set when the provider is one the team defined
 	// itself (models.AuthProvider), so the UI can offer edit and remove.
-	AuthProviderID string `json:"auth_scheme_id,omitempty"`
+	AuthProviderID string `json:"auth_provider_id,omitempty"`
 	// Credential is the login used where no account is named: the caller's
 	// own, else the workspace's default account.
 	Credential *CredentialDTO `json:"credential,omitempty"`
@@ -2809,6 +2932,8 @@ type SecretFieldConfig struct {
 	Placeholder string `json:"placeholder"`
 	Sensitive   bool   `json:"sensitive"`
 	Optional    bool   `json:"optional"`
+	// Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+	Pattern string `json:"pattern,omitempty"`
 }
 
 // --------------------
@@ -2956,8 +3081,30 @@ type EngineDTO struct {
 	APIURL             string       `json:"api_url"`
 	Status             EngineStatus `json:"status"`
 	EngineVersion      string       `json:"engine_version"`
-	SystemInfo         *SystemInfo  `json:"system_info"`
-	Workers            []*WorkerDTO `json:"workers"`
+	// EnginePin is the version the engine is held on; empty follows stable.
+	EnginePin string `json:"engine_pin,omitempty"`
+	// Capabilities are what the engine last reported it can do.
+	Capabilities EngineCapabilities `json:"capabilities,omitempty"`
+	SystemInfo   *SystemInfo        `json:"system_info"`
+	Workers      []*WorkerDTO       `json:"workers"`
+}
+
+// EngineUpdateRequest names the release an engine should install: "stable",
+// "canary", or a version such as v1.9.3. Empty is stable.
+type EngineUpdateRequest struct {
+	Version string `json:"version,omitempty"`
+}
+
+// EngineRelease is one published engine build.
+type EngineRelease struct {
+	Version     string `json:"version"`
+	ReleaseDate string `json:"release_date,omitempty"`
+}
+
+// EngineReleasesResponse is the head of each engine release channel.
+type EngineReleasesResponse struct {
+	Stable *EngineRelease `json:"stable"`
+	Canary *EngineRelease `json:"canary"`
 }
 
 // EngineSummary is a lightweight engine response embedded in tasks.
@@ -3041,6 +3188,45 @@ type WorkerRAM struct {
 	ID       string `json:"id"`
 	WorkerID string `json:"worker_id"`
 	Total    uint64 `json:"total"`
+}
+
+// --------------------
+// source: engine_capabilities.go
+// --------------------
+
+// EngineCapability is something an engine can do beyond the base contract
+// every engine meets. An engine reports the ones it has (EngineTelemetry);
+// a task lists the ones it needs (Task.Requires); the scheduler only sends
+// a task to an engine that has every one it needs.
+type EngineCapability string
+
+const EngineCapabilityEgressGateway EngineCapability = "egress_gateway"
+
+// EngineCapabilities is a set of capabilities, kept as a list. Nil and
+// empty are the same: nothing beyond the base contract.
+type EngineCapabilities []EngineCapability
+
+// Has reports whether c holds capability.
+func (c EngineCapabilities) Has(capability EngineCapability) bool {
+	return slices.Contains(c, capability)
+}
+
+// Missing is what required asks for that c does not have, in required's
+// order; nil when c has all of it.
+func (c EngineCapabilities) Missing(required EngineCapabilities) EngineCapabilities {
+	var missing EngineCapabilities
+	for _, r := range required {
+		if !c.Has(r) && !missing.Has(r) {
+			missing = append(missing, r)
+		}
+	}
+	return missing
+}
+
+// Equal reports whether c and other hold the same capabilities, in any
+// order.
+func (c EngineCapabilities) Equal(other EngineCapabilities) bool {
+	return len(c.Missing(other)) == 0 && len(other.Missing(c)) == 0
 }
 
 // --------------------
@@ -3148,6 +3334,10 @@ const (
 	ErrorCodeMethodNotAllowed ErrorCode = "method_not_allowed"
 	ErrorCodeRateLimited      ErrorCode = "rate_limited"
 	ErrorCodeInternalError    ErrorCode = "internal_error"
+	// ErrorCodeRequirementsNotMet (412): the run needs a secret or a
+	// credential the caller has not set up. Meta "errors" lists each
+	// RequirementError, its action saying how to set it up.
+	ErrorCodeRequirementsNotMet ErrorCode = "requirements_not_met"
 	// ErrorCodeTeamRoleRequired: the caller's team role or org-admin status
 	// does not allow the action. Meta is TeamRoleRequiredMeta when a
 	// capability gate refused it.
@@ -3216,6 +3406,11 @@ const (
 	// works as an ordinary member. An admin who has one but whose session
 	// has not proved it gets otp_required instead: re-authenticate with it.
 	ErrorCodeAdminAuthenticatorRequired ErrorCode = "admin_authenticator_required"
+	// ErrorCodeLastAuthenticator (409): the change would leave two-step
+	// verification on with no method to prove it (removing the last
+	// authenticator app or passkey), or turn it on with none enrolled.
+	// Turn two-step verification off first, or enroll a method.
+	ErrorCodeLastAuthenticator ErrorCode = "last_authenticator"
 	// Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
 	// EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
 	// not be checked and the request is retriable.
@@ -3877,6 +4072,22 @@ type InstanceTypeBootTime struct {
 	AverageSeconds int    `json:"average_seconds"`
 	UpdatedAt      string `json:"updated_at"`
 	SampleSize     int    `json:"sample_size"`
+}
+
+// InstancePriceHistoryPointDTO is one day's cheapest hourly prices, in cents,
+// for a GPU type. List prices rarely move; the in-stock price does, as stock
+// comes and goes. A price with no listing (or no stock) that day is omitted.
+type InstancePriceHistoryPointDTO struct {
+	Day string `json:"day"` // YYYY-MM-DD, UTC
+	// OnDemand and Spot are the cheapest listed prices, in stock or not.
+	OnDemand int `json:"on_demand,omitempty"`
+	Spot     int `json:"spot,omitempty"`
+	// OnDemandInStock and SpotInStock are the cheapest prices that had stock.
+	OnDemandInStock int `json:"on_demand_in_stock,omitempty"`
+	SpotInStock     int `json:"spot_in_stock,omitempty"`
+	Providers       int `json:"providers"`
+	// Regions is the number of provider regions with on-demand stock.
+	Regions int `json:"regions"`
 }
 
 // --------------------
@@ -4952,6 +5163,12 @@ type ProfileDTO struct {
 	// daemon reported it. Nil means not reported yet (a daemon older than
 	// the field); callers treat that as all false.
 	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
+	// Account is who the harness is signed in as, and Limits its plan's
+	// rate-limit windows, as the daemon last read them. Nil until a daemon
+	// that reads them has probed this harness; a harness with no way to
+	// report them stays nil.
+	Account *AgentAccount `json:"account,omitempty"`
+	Limits  *UsageLimits  `json:"limits,omitempty"`
 }
 
 // HarnessCapabilities says what a harness session can do, so the api decides
@@ -4979,6 +5196,22 @@ type HarnessCapabilities struct {
 	// images or as paths on the remote. A daemon older than this reads only
 	// the prompt's text, so the server writes the files' URLs into it.
 	Files bool `json:"files"`
+	// Direct is what the harness supports as a model in direct mode, where
+	// the api's loop calls it like an LLM app. Nil means it has no direct
+	// mode, which is also how a daemon older than the field reads.
+	Direct *DirectCapabilities `json:"direct,omitempty"`
+}
+
+// DirectCapabilities say which LLMInput settings a harness honours in direct
+// mode. It mirrors agentprotocol's llm.Capabilities.
+type DirectCapabilities struct {
+	Images    bool `json:"images"`
+	Reasoning bool `json:"reasoning"`
+	Effort    bool `json:"effort"`
+	MaxTokens bool `json:"max_tokens"`
+	// ContextWindow is the model's context size in tokens, where the
+	// harness reports one; 0 when unknown.
+	ContextWindow int `json:"context_window,omitempty"`
 }
 
 // RemoteRegisterRequest creates a remote from a connecting daemon.
@@ -5013,6 +5246,12 @@ type HarnessInfo struct {
 	// Capabilities is what this harness supports. Omitted by daemons older
 	// than the field; the api then keeps whatever it had.
 	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
+	// Account and Limits are what the harness's usage probe read: who it is
+	// signed in as and its plan's rate-limit windows. Omitted for a harness
+	// with no probe, and by daemons older than the fields; the api then
+	// keeps what it had.
+	Account *AgentAccount `json:"account,omitempty"`
+	Limits  *UsageLimits  `json:"limits,omitempty"`
 }
 
 // RemoteHeartbeatRequest is the periodic liveness ping from a remote's daemon.
@@ -5244,6 +5483,9 @@ type SetupAction struct {
 	// ProviderWebsite is where the logo of a provider the platform does not
 	// list comes from; sent back when the keys are saved.
 	ProviderWebsite string `json:"provider_website,omitempty"`
+	// Instructions tell a person how to get what the provider's scheme
+	// asks for (markdown, links allowed).
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // Capability represents a credential capability that can be requested by apps
@@ -5339,6 +5581,8 @@ type SDKTypes struct {
 	_flowRun            FlowRunDTO
 	_flowVer            FlowVersionDTO
 	_engine             EngineDTO
+	_engineUpdateReq    EngineUpdateRequest
+	_engineReleases     EngineReleasesResponse
 	_cursor             CursorListRequest
 	_cursorResp         CursorListResponse[any]
 	_countResp          CountResponse
@@ -5399,6 +5643,7 @@ type SDKTypes struct {
 	_appStoreListing    AppStoreListingDTO
 	_skillStoreListing  SkillStoreListingDTO
 	_instanceType       InstanceTypeDTO
+	_instancePriceHist  InstancePriceHistoryPointDTO
 	// Auth/keys
 	_apiKeyDTO      ApiKeyDTO
 	_createApiKey   CreateApiKeyRequest
@@ -5650,6 +5895,7 @@ type EngineTypes struct {
 	_wsHeartbeat       WsEngineHeartbeatPayload
 	_wsTelemetry       EngineTelemetry
 	_wsDeleteCache     WsEngineDeleteHFCacheRepoPayload
+	_wsEngineUpdate    WsEngineUpdatePayload
 	_wsSessionEnd      WsSessionEndPayload
 	// Engine registration + internal API
 	_engineRegReq  EngineRegisterRequest
@@ -5687,7 +5933,9 @@ type EngineTypes struct {
 	_hfCache           HFCacheInfo
 	_publicMCP         PublicMCPServerDTO
 	_menuCreate        MenuCreateRequest
+	_menuUpdate        MenuUpdateRequest
 	_pageCreate        PageCreateRequest
+	_pageUpdate        PageUpdateRequest
 	_createApp         CreateAppRequest
 	_listResp          ListResponse[any]
 	_fileCreate        FileCreateRequest
@@ -5790,8 +6038,17 @@ type RemoteTypes struct {
 	_sessEvent     WsRemoteSessionEvent
 	_sessClosed    WsRemoteSessionClosed
 	_sessListed    WsRemoteSessionsListed
+	_sessToolCall  WsRemoteSessionToolCall
+	_sessToolRes   WsRemoteSessionToolResult
 	_pathsResolve  WsRemotePathsResolve
 	_pathsResolved WsRemotePathsResolved
+	_update        WsRemoteUpdate
+	_updating      WsRemoteUpdating
+	_llmCall       WsRemoteLLMCall
+	_llmCancel     WsRemoteLLMCancel
+	_llmDelta      WsRemoteLLMDelta
+	_llmResult     WsRemoteLLMResult
+	_direct        DirectCapabilities
 }
 
 // --------------------
@@ -6155,6 +6412,13 @@ type TaskLog struct {
 }
 
 // TaskDTO is the full API response for a task.
+// TaskEgress is what a task's sandbox sent to and received from the
+// internet through the engine's egress gateway, in bytes.
+type TaskEgress struct {
+	BytesOut int64 `json:"bytes_out"`
+	BytesIn  int64 `json:"bytes_in"`
+}
+
 type TaskDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
@@ -6190,8 +6454,12 @@ type TaskDTO struct {
 	Events             []TaskEvent      `json:"events"`
 	Logs               []TaskLog        `json:"logs"`
 	UsageEvents        []*UsageEventDTO `json:"usage_events"`
-	SessionID          *string          `json:"session_id,omitempty"`
-	SessionTimeout     *int             `json:"session_timeout,omitempty"`
+	// Egress is what the task's sandbox moved through the engine's egress
+	// gateway, reported by the engine when the task ended. Absent for a
+	// task that ran without the gateway.
+	Egress         *TaskEgress `json:"egress,omitempty"`
+	SessionID      *string     `json:"session_id,omitempty"`
+	SessionTimeout *int        `json:"session_timeout,omitempty"`
 }
 
 // TaskDispatchPayload is the minimal task representation sent to engines for
@@ -6600,15 +6868,22 @@ type UserDTO struct {
 	ManagedByOrgID string `json:"managed_by_org_id,omitempty"`
 	// ServiceTeamID: set on a workspace's service account, the principal its
 	// workspace API keys act as.
-	ServiceTeamID string           `json:"service_team_id,omitempty"`
-	Email         string           `json:"email"`
-	Name          string           `json:"name"`
-	FullName      string           `json:"full_name"`
-	AvatarURL     string           `json:"avatar_url"`
-	BannedAt      *time.Time       `json:"banned_at,omitempty"`
-	BanNote       string           `json:"ban_note,omitempty"`
-	TOTPEnabled   bool             `json:"totp_enabled"`
-	Metadata      *UserMetadataDTO `json:"metadata"`
+	ServiceTeamID string     `json:"service_team_id,omitempty"`
+	Email         string     `json:"email"`
+	Name          string     `json:"name"`
+	FullName      string     `json:"full_name"`
+	AvatarURL     string     `json:"avatar_url"`
+	BannedAt      *time.Time `json:"banned_at,omitempty"`
+	BanNote       string     `json:"ban_note,omitempty"`
+	// TOTPEnabled mirrors TwoFactorEnabled for clients built before it
+	// (the Swift SDK decodes it as required).
+	//
+	// Deprecated: read TwoFactorEnabled. Kept until no Swift app build older
+	// than sdk-swift 0.23.0 is in use, since those fail to decode /me without it.
+	TOTPEnabled bool `json:"totp_enabled"`
+	// TwoFactorEnabled is the account's two-step verification switch.
+	TwoFactorEnabled bool             `json:"two_factor_enabled"`
+	Metadata         *UserMetadataDTO `json:"metadata"`
 }
 
 // UserRelationDTO is a lightweight user reference embedded in other DTOs.
@@ -6704,6 +6979,9 @@ type WsTaskOutputPayload struct {
 type WsTaskFailedPayload struct {
 	TaskID string  `json:"task_id"`
 	Error  *string `json:"error,omitempty"`
+	// Egress is what the task moved through the egress gateway; engines
+	// without one send nothing.
+	Egress *TaskEgress `json:"egress,omitempty"`
 }
 
 type WsTaskAcceptedPayload struct {
@@ -6724,6 +7002,9 @@ type WsTaskLifecyclePayload struct {
 type WsTaskCompletedPayload struct {
 	TaskID string `json:"task_id"`
 	Output []byte `json:"output"`
+	// Egress is what the task moved through the egress gateway; engines
+	// without one send nothing.
+	Egress *TaskEgress `json:"egress,omitempty"`
 }
 
 const (
@@ -6774,11 +7055,17 @@ type WsEngineHeartbeatPayload struct {
 
 // EngineTelemetry is the clean contract for engine→API telemetry.
 type EngineTelemetry struct {
-	EngineID      string            `json:"engine_id"`
-	Status        EngineStatus      `json:"status"`
-	EngineVersion string            `json:"engine_version,omitempty"`
-	SystemInfo    *SystemInfo       `json:"system_info"`
-	Workers       []WorkerTelemetry `json:"workers"`
+	EngineID      string       `json:"engine_id"`
+	Status        EngineStatus `json:"status"`
+	EngineVersion string       `json:"engine_version,omitempty"`
+	// EnginePin is the version the engine is held on; empty follows stable.
+	EnginePin string `json:"engine_pin,omitempty"`
+	// Capabilities are what the engine can do beyond the base contract
+	// (EngineCapability). Each report states the whole set; the API keeps
+	// the latest, and a registration clears it until the next report.
+	Capabilities EngineCapabilities `json:"capabilities,omitempty"`
+	SystemInfo   *SystemInfo        `json:"system_info"`
+	Workers      []WorkerTelemetry  `json:"workers"`
 }
 
 // WorkerTelemetry is the minimal telemetry data engine sends per worker.
@@ -6791,6 +7078,13 @@ type WorkerTelemetry struct {
 	ActiveSessionID *string      `json:"active_session_id,omitempty"`
 	SystemInfo      SystemInfo   `json:"system_info"`
 	WarmApps        []string     `json:"warm_apps,omitempty"`
+}
+
+// WsEngineUpdatePayload tells an engine which release to install before it
+// drains and restarts: "stable", "canary", or a version such as v1.9.3.
+// Empty means stable, which is what engines did before the payload existed.
+type WsEngineUpdatePayload struct {
+	Version string `json:"version,omitempty"`
 }
 
 type WsEngineDeleteHFCacheRepoPayload struct {
@@ -6830,16 +7124,59 @@ const (
 	// Remote -> server: a PTY session's output and its exit.
 	WSEventRemoteTerminalOutput WSEventType = "remote_terminal_output"
 	WSEventRemoteTerminalExit   WSEventType = "remote_terminal_exit"
+	// Update: server -> remote asks the daemon to update belt in place;
+	// remote -> server answers with what it is doing about it.
+	WSEventRemoteUpdate   WSEventType = "remote_update"
+	WSEventRemoteUpdating WSEventType = "remote_updating"
 )
+
+// RemoteUpdateState is a daemon's answer to an update request.
+type RemoteUpdateState string
+
+const (
+	// RemoteUpdateStarted: a newer belt is available. The daemon stops taking
+	// new work, waits for running commands and agent turns to finish,
+	// installs it and restarts in place; it reconnects on the new version.
+	RemoteUpdateStarted RemoteUpdateState = "updating"
+	// RemoteUpdateCurrent: the daemon already runs the latest belt.
+	RemoteUpdateCurrent RemoteUpdateState = "current"
+	// RemoteUpdateUnsupported: belt was installed by a package manager (or
+	// is a dev build) and updates through it, not in place.
+	RemoteUpdateUnsupported RemoteUpdateState = "unsupported"
+	// RemoteUpdateFailed: the release could not be checked.
+	RemoteUpdateFailed RemoteUpdateState = "failed"
+)
+
+// WsRemoteUpdate asks a remote's daemon to update belt to the latest release.
+// The daemon fetches the release itself from the CLI release manifest; the
+// server never names a binary.
+type WsRemoteUpdate struct {
+	RequestID string `json:"request_id"`
+}
+
+// WsRemoteUpdating answers a WsRemoteUpdate once the daemon has checked the
+// release, before it drains: From is the version it runs, To the one it will
+// run (empty unless State is updating).
+type WsRemoteUpdating struct {
+	RequestID string            `json:"request_id"`
+	State     RemoteUpdateState `json:"state"`
+	From      string            `json:"from,omitempty"`
+	To        string            `json:"to,omitempty"`
+	Error     string            `json:"error,omitempty"`
+}
 
 // WsRemoteHeartbeatPayload is the periodic liveness beat over the socket. A
 // healthy daemon reports running; the server uses the beat to revive a remote
 // it had marked disconnected. Every few beats the daemon also sends a fresh
 // system snapshot with live CPU, RAM and disk usage, the way engines send
-// telemetry; the server stores it on the remote.
+// telemetry; the server stores it on the remote. Every few minutes a beat
+// also carries the harnesses rediscovered, with each one's account and plan
+// limits freshly probed; the server reconciles them into profiles as at
+// registration.
 type WsRemoteHeartbeatPayload struct {
-	Status     RemoteStatus `json:"status"`
-	SystemInfo *SystemInfo  `json:"system_info,omitempty"`
+	Status     RemoteStatus  `json:"status"`
+	SystemInfo *SystemInfo   `json:"system_info,omitempty"`
+	Harnesses  []HarnessInfo `json:"harnesses,omitempty"`
 }
 
 // WsRemoteExecStart asks the remote to start a command as a durable exec run,
@@ -6954,6 +7291,71 @@ func (WsRemoteLane) OrderingKey(data json.RawMessage) string {
 }
 
 // --------------------
+// source: ws_remote_llm.go
+// --------------------
+
+// Direct-mode model calls over the remote socket. An agent whose model app
+// is a harness model app (claude-code/opus-5-5 and the rest) keeps the api's own
+// loop, tools and context; only each LLM call goes to the running user's
+// daemon, which serves it with the profile's harness as the model
+// (agentprotocol package llm) and returns what an LLM app task would. The call is a task row like any model call (Infra remote): CallID
+// is the task's id, and the frames complete it.
+//
+// Every frame carries the chat, so a call rides the chat's lane: its deltas
+// are handled in order and before its result.
+const (
+	// Server -> remote.
+	WSEventRemoteLLMCall   WSEventType = "remote_llm_call"
+	WSEventRemoteLLMCancel WSEventType = "remote_llm_cancel"
+	// Remote -> server.
+	WSEventRemoteLLMDelta  WSEventType = "remote_llm_delta"
+	WSEventRemoteLLMResult WSEventType = "remote_llm_result"
+)
+
+// WsRemoteLLMCall asks the daemon to answer one model call with a harness.
+type WsRemoteLLMCall struct {
+	CallID  string    `json:"call_id"`
+	ChatID  string    `json:"chat_id"`
+	Harness HarnessID `json:"harness"`
+	// Key names the conversation the daemon keeps a harness process for
+	// between calls, so the next call on it continues rather than restarts.
+	// Empty is the chat; a call that is not the chat's own turn (a review, a
+	// compaction summary) names its own.
+	Key string `json:"key,omitempty"`
+	// Model is the model the harness answers as (the agent's app input
+	// "model"); empty is the harness's default.
+	Model string   `json:"model,omitempty"`
+	Input LLMInput `json:"input"`
+}
+
+// WsRemoteLLMCancel abandons a call. The daemon ends it and sends nothing
+// more for it; a result already on its way is ignored.
+type WsRemoteLLMCancel struct {
+	CallID string `json:"call_id"`
+	ChatID string `json:"chat_id"`
+}
+
+// WsRemoteLLMDelta is a piece of a call's response as it streams. Seq orders
+// a call's deltas from 1.
+type WsRemoteLLMDelta struct {
+	CallID string   `json:"call_id"`
+	ChatID string   `json:"chat_id"`
+	Seq    int64    `json:"seq"`
+	Delta  LLMDelta `json:"delta"`
+}
+
+// WsRemoteLLMResult ends a call with its output, or with Error.
+type WsRemoteLLMResult struct {
+	CallID string     `json:"call_id"`
+	ChatID string     `json:"chat_id"`
+	Output *LLMOutput `json:"output,omitempty"`
+	Error  string     `json:"error,omitempty"`
+	// Restarted reports that the harness was restarted from the written
+	// conversation to answer, rather than continuing its live process.
+	Restarted bool `json:"restarted,omitempty"`
+}
+
+// --------------------
 // source: ws_remote_paths.go
 // --------------------
 
@@ -6995,19 +7397,21 @@ type WsRemotePathsResolved struct {
 // generated into models so belt imports them rather than mirroring them.
 const (
 	// Server -> remote.
-	WSEventRemoteSessionOpen      WSEventType = "remote_session_open"
-	WSEventRemoteSessionPrompt    WSEventType = "remote_session_prompt"
-	WSEventRemoteSessionInterrupt WSEventType = "remote_session_interrupt"
-	WSEventRemoteSessionResolve   WSEventType = "remote_session_resolve"
-	WSEventRemoteSessionClose     WSEventType = "remote_session_close"
-	WSEventRemoteSessionAck       WSEventType = "remote_session_ack"
-	WSEventRemoteSessionReplay    WSEventType = "remote_session_replay"
-	WSEventRemoteSessionsList     WSEventType = "remote_sessions_list"
+	WSEventRemoteSessionOpen       WSEventType = "remote_session_open"
+	WSEventRemoteSessionPrompt     WSEventType = "remote_session_prompt"
+	WSEventRemoteSessionInterrupt  WSEventType = "remote_session_interrupt"
+	WSEventRemoteSessionResolve    WSEventType = "remote_session_resolve"
+	WSEventRemoteSessionClose      WSEventType = "remote_session_close"
+	WSEventRemoteSessionAck        WSEventType = "remote_session_ack"
+	WSEventRemoteSessionReplay     WSEventType = "remote_session_replay"
+	WSEventRemoteSessionsList      WSEventType = "remote_sessions_list"
+	WSEventRemoteSessionToolResult WSEventType = "remote_session_tool_result"
 	// Remote -> server.
-	WSEventRemoteSessionOpened  WSEventType = "remote_session_opened"
-	WSEventRemoteSessionEvent   WSEventType = "remote_session_event"
-	WSEventRemoteSessionClosed  WSEventType = "remote_session_closed"
-	WSEventRemoteSessionsListed WSEventType = "remote_sessions_listed"
+	WSEventRemoteSessionOpened   WSEventType = "remote_session_opened"
+	WSEventRemoteSessionEvent    WSEventType = "remote_session_event"
+	WSEventRemoteSessionClosed   WSEventType = "remote_session_closed"
+	WSEventRemoteSessionsListed  WSEventType = "remote_sessions_listed"
+	WSEventRemoteSessionToolCall WSEventType = "remote_session_tool_call"
 )
 
 // WsRemoteSessionOpen asks the daemon to start a harness session for a chat,
@@ -7021,6 +7425,11 @@ type WsRemoteSessionOpen struct {
 	// ResumeSessionID is the harness's own id for a session to reopen with its
 	// history (ACP session/load). Empty starts fresh.
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
+	// Tools are the platform's tools the harness may call besides its own
+	// (HarnessCapabilities.Tools). The daemon runs none of them: each call
+	// comes back to the api as a WsRemoteSessionToolCall. A daemon older
+	// than caller tools ignores them.
+	Tools []Tool `json:"tools,omitempty"`
 }
 
 // WsRemoteSessionPrompt sends a user message into a chat's session. RunID is
@@ -7052,6 +7461,15 @@ type WsRemoteSessionResolve struct {
 	// express it.
 	Scope  string `json:"scope,omitempty"`
 	Reason string `json:"reason,omitempty"`
+}
+
+// WsRemoteSessionToolResult answers a WsRemoteSessionToolCall with what the
+// tool returned. IsError marks a failed call; Text then says why.
+type WsRemoteSessionToolResult struct {
+	ChatID  string `json:"chat_id"`
+	CallID  string `json:"call_id"`
+	Text    string `json:"text"`
+	IsError bool   `json:"is_error,omitempty"`
 }
 
 // WsRemoteSessionClose ends a chat's session and stops its process.
@@ -7110,6 +7528,19 @@ type WsRemoteSessionEvent struct {
 type WsRemoteSessionClosed struct {
 	ChatID string `json:"chat_id"`
 	Error  string `json:"error,omitempty"`
+}
+
+// WsRemoteSessionToolCall asks the api to run one of the session's Tools for
+// the harness. CallID is the daemon's, unique within the session, and keys
+// the result; ToolInvocationID is the harness's own call id from its
+// tool.started event, empty when the harness does not pass it (ACP).
+type WsRemoteSessionToolCall struct {
+	ChatID           string         `json:"chat_id"`
+	RunID            string         `json:"run_id"`
+	CallID           string         `json:"call_id"`
+	ToolInvocationID string         `json:"tool_invocation_id,omitempty"`
+	Name             string         `json:"name"`
+	Arguments        map[string]any `json:"arguments,omitempty"`
 }
 
 // WsRemoteSessionsListed answers a WsRemoteSessionsList.
@@ -7502,6 +7933,10 @@ type SecretField struct {
 	Placeholder string `json:"placeholder,omitempty" yaml:"placeholder,omitempty"`
 	Sensitive   bool   `json:"sensitive,omitempty" yaml:"sensitive,omitempty"`
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
+	// Pattern, when set, is a regular expression (RE2) a saved value must
+	// match, so a pasted login link or the wrong key is refused on save
+	// instead of failing the first run ("^sk-ant-oat01-").
+	Pattern string `json:"pattern,omitempty" yaml:"pattern,omitempty"`
 }
 
 // AuthMethodClientAuth is how client_id/client_secret reach the token
@@ -7952,7 +8387,10 @@ const (
 	ChatStatusBusy          ChatStatus = "busy"
 	ChatStatusIdle          ChatStatus = "idle"
 	ChatStatusAwaitingInput ChatStatus = "awaiting_input"
-	ChatStatusCompleted     ChatStatus = "completed"
+	// ChatStatusWaiting: the run is paused on the agent's own wait call. A
+	// message ends the wait early; nobody has to act on it.
+	ChatStatusWaiting   ChatStatus = "waiting"
+	ChatStatusCompleted ChatStatus = "completed"
 )
 
 type PlanStepStatus string
@@ -8084,13 +8522,42 @@ type ChatMessageContent struct {
 
 type ChatEventType string
 
-const ChatEventTypeHook ChatEventType = "hook"
+const (
+	ChatEventTypeHook ChatEventType = "hook"
+	// ChatEventTypeRunFailed marks the point a run ended in failure; the
+	// content's text is the run's error.
+	ChatEventTypeRunFailed ChatEventType = "run_failed"
+	// ChatEventTypeRunEnded marks the point a run completed or was stopped;
+	// the event's run says how, and the content's text, when set, why.
+	ChatEventTypeRunEnded ChatEventType = "run_ended"
+)
+
+// RunEndReason is why a run that completed ended the way it did, when its
+// last turn did not end with a reply.
+type RunEndReason string
+
+const (
+	// RunEndReasonOutputLimit: the model's last turn hit its output limit
+	// (max_tokens) before it replied or called a tool.
+	RunEndReasonOutputLimit RunEndReason = "output_limit"
+	// RunEndReasonNoReply: the model ended its last turn with no reply and
+	// no tool call.
+	RunEndReasonNoReply RunEndReason = "no_reply"
+)
+
+// ChatRunEvent is how a run ended, on a run_ended event.
+type ChatRunEvent struct {
+	RunID  string        `json:"run_id"`
+	State  AgentRunState `json:"state"`
+	Reason RunEndReason  `json:"reason,omitempty"`
+}
 
 // ChatEvent is the payload of an event-role message: system info shown in the
 // chat but never sent to the model.
 type ChatEvent struct {
 	Type ChatEventType  `json:"type"`
 	Hook *ChatHookEvent `json:"hook,omitempty"`
+	Run  *ChatRunEvent  `json:"run,omitempty"`
 }
 
 // ChatHookEvent records one lifecycle hook handler run.
@@ -8595,6 +9062,21 @@ const (
 )
 
 // --------------------
+// source: interrupt.go
+// --------------------
+
+// InterruptResourceTurn is an interrupt that holds a run's next turn before
+// its model call, with nothing in flight; its ResourceID is the run's. An
+// allow starts the turn, a deny ends the run.
+const InterruptResourceTurn InterruptResourceType = "turn"
+
+// InterruptReasonWait is a tool call the agent made to wait: the run is
+// paused until the interrupt's deadline, when the expiry sweep settles it
+// (allow), or until a person ends the wait sooner. Its resource is the
+// wait call (InterruptResourceToolInvocation).
+const InterruptReasonWait InterruptReason = "wait"
+
+// --------------------
 // source: llm_types.go
 // --------------------
 
@@ -8621,6 +9103,19 @@ type LLMOutput struct {
 	ReasoningState ReasoningState `json:"reasoning_state,omitempty"`
 	ToolCalls      *[]ToolCall    `json:"tool_calls"`
 	Usage          *LLMUsage      `json:"usage"`
+}
+
+// HitOutputLimit reports that the model stopped on its output limit
+// (max_tokens), by the stop reason providers give for it.
+func (o *LLMOutput) HitOutputLimit() bool {
+	if o == nil || o.Usage == nil {
+		return false
+	}
+	switch o.Usage.StopReason {
+	case "length", "max_tokens":
+		return true
+	}
+	return false
 }
 
 // ReasoningState is the opaque state a model hands back with a response for
@@ -9015,6 +9510,53 @@ const (
 	MCPServerAuthOAuth  MCPServerAuthType = "oauth"
 	MCPServerAuthAPIKey MCPServerAuthType = "api_key"
 	MCPServerAuthNone   MCPServerAuthType = "none"
+)
+
+// SecondFactor is one way a person proves their second factor. It names
+// what a session proved (AuthSession.SecondFactor), what a login challenge
+// offers, the method a verify request picks, and the kind of an enrolled
+// method (SecondFactorMethod.Kind: the enrollable ones).
+type SecondFactor string
+
+// Valid reports whether f is one of the second factors.
+func (f SecondFactor) Valid() bool {
+	switch f {
+	case SecondFactorTOTP, SecondFactorPasskey, SecondFactorRecovery, SecondFactorEmail:
+		return true
+	}
+	return false
+}
+
+// IsAuthenticator reports whether f is a proof other than an emailed code:
+// the class a platform admin's power needs, and what two-step verification
+// means once it is on.
+func (f SecondFactor) IsAuthenticator() bool {
+	return f == SecondFactorTOTP || f == SecondFactorPasskey || f == SecondFactorRecovery
+}
+
+// IsEnrollable reports whether f is a method a person enrolls (a row in
+// second_factor_methods): an authenticator app or a passkey.
+func (f SecondFactor) IsEnrollable() bool {
+	return f == SecondFactorTOTP || f == SecondFactorPasskey
+}
+
+func (v SecondFactor) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+const (
+	// SecondFactorTOTP: a code from an enrolled authenticator app.
+	SecondFactorTOTP SecondFactor = "totp"
+	// SecondFactorPasskey: a WebAuthn assertion from an enrolled passkey.
+	SecondFactorPasskey SecondFactor = "passkey"
+	// SecondFactorRecovery: one of the account's single-use recovery codes.
+	// Not enrolled on its own: issued once an authenticator exists.
+	SecondFactorRecovery SecondFactor = "recovery"
+	// SecondFactorEmail: a code emailed to the account. The weakest: the
+	// same mailbox a magic link lands in, so it is offered only to an
+	// account with two-step verification off (a platform admin's first
+	// sign-in, re-auth before they enroll).
+	SecondFactorEmail SecondFactor = "email"
 )
 
 // TeamInviteStatus represents the status of a team invitation
@@ -9681,7 +10223,7 @@ func (ts TaskStatus) StatusOrder() int {
 		return 80
 	case TaskStatusUploading:
 		return 90
-	case TaskStatusCompleted, TaskStatusFailed, TaskStatusCancelled:
+	case TaskStatusCompleted, TaskStatusFailed, TaskStatusCancelled, TaskStatusRejected:
 		return 100
 	default:
 		return 0
@@ -9714,6 +10256,8 @@ func (ts TaskStatus) String() string {
 		return "failed"
 	case TaskStatusCancelled:
 		return "cancelled"
+	case TaskStatusRejected:
+		return "rejected"
 	default:
 		return "unknown"
 	}
@@ -9721,7 +10265,7 @@ func (ts TaskStatus) String() string {
 
 // Parse converts a string status name to a TaskStatus.
 func (TaskStatus) Parse(s string) (TaskStatus, bool) {
-	for i := TaskStatus(0); i <= TaskStatusCancelled; i++ {
+	for i := TaskStatus(0); i <= TaskStatusRejected; i++ {
 		if i.String() == s {
 			return i, true
 		}
@@ -9730,7 +10274,7 @@ func (TaskStatus) Parse(s string) (TaskStatus, bool) {
 }
 
 func (ts TaskStatus) IsTerminal() bool {
-	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled
+	return ts == TaskStatusCompleted || ts == TaskStatusFailed || ts == TaskStatusCancelled || ts == TaskStatusRejected
 }
 
 func (ts TaskStatus) IsQueued() bool {
@@ -9752,7 +10296,7 @@ func (ts TaskStatus) IsCancelling() bool {
 }
 
 func (ts TaskStatus) CanTransitionTo(next TaskStatus) bool {
-	if ts.IsTerminal() {
+	if ts.IsTerminal() || next == TaskStatusRejected {
 		return false
 	}
 	if next.IsTerminal() || next == TaskStatusCancelling {
@@ -9784,6 +10328,10 @@ const (
 	TaskStatusCompleted
 	TaskStatusFailed
 	TaskStatusCancelled
+	// TaskStatusRejected is a run admission refused (no balance, no payment
+	// method). The task is written already ended, keeping what was asked
+	// for; it never ran and no status leads to it.
+	TaskStatusRejected
 )
 
 // Infra defines where a task should run.
@@ -9797,6 +10345,11 @@ const (
 	InfraPrivate      Infra = "private"
 	InfraCloud        Infra = "cloud"
 	InfraPrivateFirst Infra = "private_first"
+	// InfraRemote is a model call a harness on the caller's own remote
+	// answers (an agent whose model app is a harness model app). The
+	// scheduler never takes it: the remote model service sends it to the
+	// remote's daemon, whose frames end it.
+	InfraRemote Infra = "remote"
 )
 
 // TaskLogType defines the type of task log.
@@ -10586,6 +11139,15 @@ type ContextInjection struct {
 	Items []string `json:"items,omitempty"`
 }
 
+// CompactionMeta is stored on ChatMessage for context compaction markers.
+type CompactionMeta struct {
+	CompactedUpToOrder int    `json:"compacted_up_to_order"`
+	CompactedCount     int    `json:"compacted_count"`
+	EstimatedTokens    int    `json:"estimated_tokens"`
+	Method             string `json:"method,omitempty"` // "extractive" or "llm"
+	Analysis           string `json:"analysis,omitempty"`
+}
+
 // ToolCallEventData is the typed payload for agent.tool_call events.
 type ToolCallEventData struct {
 	Tool      string         `json:"tool"`
@@ -10632,8 +11194,9 @@ func (s ToolInvocationStatus) IsTerminal() bool {
 // CanTransitionTo defines the allowed status transitions for tool invocations.
 //
 //	pending → in_progress, awaiting_approval, completed, failed, cancelled
-//	in_progress → awaiting_input, completed, failed, cancelled
+//	in_progress → awaiting_input, waiting, completed, failed, cancelled
 //	awaiting_input → in_progress, completed, failed, cancelled
+//	waiting → completed, failed, cancelled
 //	awaiting_approval → in_progress, failed, cancelled
 //	terminal → (nothing)
 func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
@@ -10650,7 +11213,7 @@ func (s ToolInvocationStatus) CanTransitionTo(next ToolInvocationStatus) bool {
 	case ToolInvocationStatusPending:
 		return next == ToolInvocationStatusInProgress || next == ToolInvocationStatusAwaitingApproval
 	case ToolInvocationStatusInProgress:
-		return next == ToolInvocationStatusAwaitingInput
+		return next == ToolInvocationStatusAwaitingInput || next == ToolInvocationStatusWaiting
 	case ToolInvocationStatusAwaitingInput:
 		return next == ToolInvocationStatusInProgress
 	case ToolInvocationStatusAwaitingApproval:
@@ -10665,6 +11228,7 @@ const (
 	ToolInvocationStatusInProgress       ToolInvocationStatus = "in_progress"
 	ToolInvocationStatusAwaitingInput    ToolInvocationStatus = "awaiting_input"
 	ToolInvocationStatusAwaitingApproval ToolInvocationStatus = "awaiting_approval"
+	ToolInvocationStatusWaiting          ToolInvocationStatus = "waiting"
 	ToolInvocationStatusCompleted        ToolInvocationStatus = "completed"
 	ToolInvocationStatusFailed           ToolInvocationStatus = "failed"
 	ToolInvocationStatusCancelled        ToolInvocationStatus = "cancelled"
@@ -10862,6 +11426,87 @@ const (
 	// (interrupted, failed).
 	TurnUsagePartial TurnUsageStatus = "partial"
 )
+
+// UsageWindowKind is the period a rate-limit window covers.
+type UsageWindowKind string
+
+const (
+	UsageWindowSession UsageWindowKind = "session"
+	UsageWindowWeekly  UsageWindowKind = "weekly"
+	UsageWindowMonthly UsageWindowKind = "monthly"
+	UsageWindowOther   UsageWindowKind = "other"
+)
+
+// UsageWindow is one rate limit of a plan and how much of it is used.
+type UsageWindow struct {
+	// ID is stable per agent ("five_hour", "seven_day", "primary"), so a
+	// pushed update lands on the window a probe reported.
+	ID          string          `json:"id"`
+	Kind        UsageWindowKind `json:"kind"`
+	Label       string          `json:"label"`
+	UsedPercent float64         `json:"used_percent"` // 0 to 100
+	// ResetsAt is when the window resets; zero when the agent does not say.
+	ResetsAt time.Time `json:"resets_at,omitzero"`
+	// DurationMinutes is the window's length; 0 when unknown.
+	DurationMinutes int `json:"duration_minutes,omitempty"`
+}
+
+// UsageUnavailableReason says why an agent has no rate limits to show.
+type UsageUnavailableReason string
+
+const (
+	// UsageUnsupported: the account has no plan limits to read (an API key
+	// bills per token) or the agent exposes none.
+	UsageUnsupported UsageUnavailableReason = "unsupported"
+	// UsageProbeFailed: reading them failed this time.
+	UsageProbeFailed UsageUnavailableReason = "probe_failed"
+)
+
+// UsageLimits is an agent's rate-limit windows at CheckedAt.
+type UsageLimits struct {
+	CheckedAt time.Time     `json:"checked_at"`
+	Windows   []UsageWindow `json:"windows"`
+	// Unavailable is set when there are no windows to show, and why.
+	Unavailable *UsageUnavailable `json:"unavailable,omitempty"`
+}
+
+// UsageUnavailable explains an empty UsageLimits.
+type UsageUnavailable struct {
+	Reason  UsageUnavailableReason `json:"reason"`
+	Message string                 `json:"message,omitempty"`
+}
+
+// AccountStatus is whether an agent is signed in.
+type AccountStatus string
+
+const (
+	AccountAuthenticated   AccountStatus = "authenticated"
+	AccountUnauthenticated AccountStatus = "unauthenticated"
+	AccountUnknown         AccountStatus = "unknown"
+)
+
+// AccountType is how an agent is signed in.
+type AccountType string
+
+const (
+	AccountSubscription AccountType = "subscription"
+	AccountAPIKey       AccountType = "api_key"
+	AccountCloud        AccountType = "cloud"
+)
+
+// AgentAccount is the account an agent runs as, without its credential.
+type AgentAccount struct {
+	Status AccountStatus `json:"status"`
+	Type   AccountType   `json:"type,omitempty"`
+	// Plan is the vendor's plan id as the agent reports it ("max",
+	// "claude_max_20x", "plus"); PlanLabel is its display name ("Max 20x").
+	Plan      string `json:"plan,omitempty"`
+	PlanLabel string `json:"plan_label,omitempty"`
+	Email     string `json:"email,omitempty"`
+	// Workspace is the organization or workspace the account belongs to,
+	// when the agent says.
+	Workspace string `json:"workspace,omitempty"`
+}
 
 // --------------------
 // companion functions

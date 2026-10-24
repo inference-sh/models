@@ -121,6 +121,7 @@ public struct InternalToolsConfig: Codable, Sendable {
     public var agent: Bool?
     public var remote: Bool?
     public var knowledge: Bool?
+    public var wait: Bool?
 
     public init(
         plan: Bool? = nil,
@@ -133,7 +134,8 @@ public struct InternalToolsConfig: Codable, Sendable {
         artifact: Bool? = nil,
         agent: Bool? = nil,
         remote: Bool? = nil,
-        knowledge: Bool? = nil
+        knowledge: Bool? = nil,
+        wait: Bool? = nil
     ) {
         self.plan = plan
         self.memory = memory
@@ -146,6 +148,7 @@ public struct InternalToolsConfig: Codable, Sendable {
         self.agent = agent
         self.remote = remote
         self.knowledge = knowledge
+        self.wait = wait
     }
 
     enum CodingKeys: String, CodingKey {
@@ -160,6 +163,7 @@ public struct InternalToolsConfig: Codable, Sendable {
         case agent = "agent"
         case remote = "remote"
         case knowledge = "knowledge"
+        case wait = "wait"
     }
 }
 
@@ -193,6 +197,9 @@ public struct AgentTool: Codable, Sendable {
     public var description: String
     public var type: ToolType
     public var requireApproval: Bool?
+    /// ApprovalTimeout is how many seconds a call of this tool waits for its
+    /// approval before it is refused. 0 waits until someone answers.
+    public var approvalTimeout: Int?
     @Indirect public var app: AppToolConfig?
     @Indirect public var agent: AgentToolConfig?
     @Indirect public var hook: HookToolConfig?
@@ -208,6 +215,7 @@ public struct AgentTool: Codable, Sendable {
         description: String = "",
         type: ToolType,
         requireApproval: Bool? = nil,
+        approvalTimeout: Int? = nil,
         app: AppToolConfig? = nil,
         agent: AgentToolConfig? = nil,
         hook: HookToolConfig? = nil,
@@ -222,6 +230,7 @@ public struct AgentTool: Codable, Sendable {
         self.description = description
         self.type = type
         self.requireApproval = requireApproval
+        self.approvalTimeout = approvalTimeout
         self.app = app
         self.agent = agent
         self.hook = hook
@@ -238,6 +247,7 @@ public struct AgentTool: Codable, Sendable {
         case description = "description"
         case type = "type"
         case requireApproval = "require_approval"
+        case approvalTimeout = "approval_timeout"
         case app = "app"
         case agent = "agent"
         case hook = "hook"
@@ -350,6 +360,7 @@ public struct AgentToolDTO: Codable, Sendable {
     public var description: String
     public var type: ToolType
     public var requireApproval: Bool?
+    public var approvalTimeout: Int?
     @Indirect public var app: AppToolConfigDTO?
     @Indirect public var agent: AgentToolConfigDTO?
     @Indirect public var hook: HookToolConfigDTO?
@@ -364,6 +375,7 @@ public struct AgentToolDTO: Codable, Sendable {
         description: String = "",
         type: ToolType,
         requireApproval: Bool? = nil,
+        approvalTimeout: Int? = nil,
         app: AppToolConfigDTO? = nil,
         agent: AgentToolConfigDTO? = nil,
         hook: HookToolConfigDTO? = nil,
@@ -377,6 +389,7 @@ public struct AgentToolDTO: Codable, Sendable {
         self.description = description
         self.type = type
         self.requireApproval = requireApproval
+        self.approvalTimeout = approvalTimeout
         self.app = app
         self.agent = agent
         self.hook = hook
@@ -392,6 +405,7 @@ public struct AgentToolDTO: Codable, Sendable {
         case description = "description"
         case type = "type"
         case requireApproval = "require_approval"
+        case approvalTimeout = "approval_timeout"
         case app = "app"
         case agent = "agent"
         case hook = "hook"
@@ -542,20 +556,17 @@ public struct ToolAuthType: RawRepresentable, Codable, Hashable, Sendable {
 public struct ToolAuthConfig: Codable, Sendable {
     public var type: ToolAuthType
     public var provider: String?
-    public var credentialId: String?
     public var secret: String?
     public var header: String?
 
     public init(
         type: ToolAuthType,
         provider: String? = nil,
-        credentialId: String? = nil,
         secret: String? = nil,
         header: String? = nil
     ) {
         self.type = type
         self.provider = provider
-        self.credentialId = credentialId
         self.secret = secret
         self.header = header
     }
@@ -563,7 +574,6 @@ public struct ToolAuthConfig: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case type = "type"
         case provider = "provider"
-        case credentialId = "credential_id"
         case secret = "secret"
         case header = "header"
     }
@@ -616,29 +626,23 @@ public struct HTTPToolConfig: Codable, Sendable {
 
 /// MCPToolConfig is a tool of an MCP server: the server by its slug (the
 /// agent's team's registration, its org's or the directory's) and the tool
-/// to call. CredentialID pins the connection the call signs in with; without
-/// it the runner's connection to the server's provider is used. A tool
-/// written with only a connection is saved with the server that
-/// connection's provider is declared by.
+/// to call. Each call signs in with the runner's connection to the
+/// server's provider (Credential.ToolConnection).
 public struct MCPToolConfig: Codable, Sendable {
     public var server: String?
     public var toolName: String
-    public var credentialId: String?
 
     public init(
         server: String? = nil,
-        toolName: String = "",
-        credentialId: String? = nil
+        toolName: String = ""
     ) {
         self.server = server
         self.toolName = toolName
-        self.credentialId = credentialId
     }
 
     enum CodingKeys: String, CodingKey {
         case server = "server"
         case toolName = "tool_name"
-        case credentialId = "credential_id"
     }
 }
 
@@ -806,22 +810,18 @@ public struct HTTPToolConfigDTO: Codable, Sendable {
 public struct MCPToolConfigDTO: Codable, Sendable {
     public var server: String
     public var toolName: String
-    public var credentialId: String?
 
     public init(
         server: String = "",
-        toolName: String = "",
-        credentialId: String? = nil
+        toolName: String = ""
     ) {
         self.server = server
         self.toolName = toolName
-        self.credentialId = credentialId
     }
 
     enum CodingKeys: String, CodingKey {
         case server = "server"
         case toolName = "tool_name"
-        case credentialId = "credential_id"
     }
 }
 
@@ -1890,8 +1890,9 @@ public struct AuthResponse: Codable, Sendable {
     public var sessionId: String
     public var isNew: Bool?
     public var otpRequired: Bool?
-    /// "email" or "totp"
-    public var otpMethod: String?
+    /// OTPMethods are the second factors the sign-in may be finished with,
+    /// the default first (POST /auth/otp/verify with method).
+    public var otpMethods: [SecondFactor]?
     /// pre-session 2FA token
     public var challengeToken: String?
     public var redirectTo: String?
@@ -1902,7 +1903,7 @@ public struct AuthResponse: Codable, Sendable {
         sessionId: String = "",
         isNew: Bool? = nil,
         otpRequired: Bool? = nil,
-        otpMethod: String? = nil,
+        otpMethods: [SecondFactor]? = nil,
         challengeToken: String? = nil,
         redirectTo: String? = nil,
         provider: String? = nil
@@ -1911,7 +1912,7 @@ public struct AuthResponse: Codable, Sendable {
         self.sessionId = sessionId
         self.isNew = isNew
         self.otpRequired = otpRequired
-        self.otpMethod = otpMethod
+        self.otpMethods = otpMethods
         self.challengeToken = challengeToken
         self.redirectTo = redirectTo
         self.provider = provider
@@ -1922,7 +1923,7 @@ public struct AuthResponse: Codable, Sendable {
         case sessionId = "session_id"
         case isNew = "is_new"
         case otpRequired = "otp_required"
-        case otpMethod = "otp_method"
+        case otpMethods = "otp_methods"
         case challengeToken = "challenge_token"
         case redirectTo = "redirect_to"
         case provider = "provider"
@@ -2754,6 +2755,12 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     /// ScopeStoreSubmit submits a resource version to the store on its
     /// publisher's behalf. Held like ScopeStorePricing.
     public static let storeSubmit = Scope(rawValue: "store:submit")
+    /// ScopeContentWrite writes the site's content (/content): blog and docs
+    /// pages, menus and the platform media library. Held like
+    /// ScopeStorePricing: only in the platform's workspace, by its members,
+    /// their keys and runs, and its own keys. Reads of published content take
+    /// no scope.
+    public static let contentWrite = Scope(rawValue: "content:write")
 }
 
 /// ScopeGroup identifies a category of scopes for UI grouping
@@ -2782,6 +2789,7 @@ public struct ScopeGroup: RawRepresentable, Codable, Hashable, Sendable {
     public static let approvals = ScopeGroup(rawValue: "approvals")
     public static let admin = ScopeGroup(rawValue: "admin")
     public static let store = ScopeGroup(rawValue: "store")
+    public static let content = ScopeGroup(rawValue: "content")
 }
 
 /// ScopeDefinition describes a single scope for UI rendering
@@ -3126,7 +3134,6 @@ public struct AppPricing: Codable, Sendable {
     }
 }
 
-/// AppFunction represents a callable entry point within an app version.
 public struct AppFunction: Codable, Sendable {
     public var name: String
     public var description: String?
@@ -3279,6 +3286,25 @@ public struct CredentialRequirement: Codable, Sendable {
     @Indirect public var provider: CompanySeed?
     /// Auth is the credential's auth provider, for a slug no row defines yet.
     @Indirect public var auth: AuthMethod?
+    /// The rest describe the platform api_key scheme a platform app's deploy
+    /// catalogues for the slug: set on the scheme it creates, and filled into
+    /// an existing one only where that is still empty (an admin's edit
+    /// stands). Any other deploy ignores them.
+    /// 
+    /// DisplayName is the scheme's name ("Claude Code"); at most
+    /// MaxCredentialDisplayName characters.
+    public var displayName: String?
+    /// ConnectionScope is who a connection belongs to: team (empty) or user.
+    public var connectionScope: CredentialScope?
+    /// Instructions tell a person how to get the key (markdown, at most
+    /// MaxAuthProviderInstructions characters).
+    public var instructions: String?
+    /// DocsURL is the scheme's documentation link.
+    public var docsUrl: String?
+    /// ExpiresAfterDays is how long a saved key lasts: it counts as expired
+    /// this many days after it is saved. 0 is never; at most
+    /// MaxExpiresAfterDays.
+    public var expiresAfterDays: Int?
 
     public init(
         slug: String? = nil,
@@ -3288,7 +3314,12 @@ public struct CredentialRequirement: Codable, Sendable {
         secrets: [String]? = nil,
         scopes: [String]? = nil,
         provider: CompanySeed? = nil,
-        auth: AuthMethod? = nil
+        auth: AuthMethod? = nil,
+        displayName: String? = nil,
+        connectionScope: CredentialScope? = nil,
+        instructions: String? = nil,
+        docsUrl: String? = nil,
+        expiresAfterDays: Int? = nil
     ) {
         self.slug = slug
         self.capabilities = capabilities
@@ -3298,6 +3329,11 @@ public struct CredentialRequirement: Codable, Sendable {
         self.scopes = scopes
         self.provider = provider
         self.auth = auth
+        self.displayName = displayName
+        self.connectionScope = connectionScope
+        self.instructions = instructions
+        self.docsUrl = docsUrl
+        self.expiresAfterDays = expiresAfterDays
     }
 
     enum CodingKeys: String, CodingKey {
@@ -3309,6 +3345,11 @@ public struct CredentialRequirement: Codable, Sendable {
         case scopes = "scopes"
         case provider = "provider"
         case auth = "auth"
+        case displayName = "display_name"
+        case connectionScope = "connection_scope"
+        case instructions = "instructions"
+        case docsUrl = "docs_url"
+        case expiresAfterDays = "expires_after_days"
     }
 }
 
@@ -3646,7 +3687,7 @@ public struct AppVersionDTO: Codable, Sendable {
 /// use.
 public struct DeployWarning: Codable, Sendable {
     /// Code identifies the check: readonly_broad_credential,
-    /// unused_credential, missing_annotations.
+    /// unused_credential, missing_annotations, unapproved_platform_scope.
     public var code: String
     /// Function is the function the warning is about, when it is about one.
     public var function: String?
@@ -4099,6 +4140,8 @@ public struct ArtifactVersionDTO: Codable, Sendable {
     public var generatedBy: String?
     public var capabilities: [String: JSONValue]?
     public var createdByUserId: String?
+    /// Files are the pages and data served beside the index page.
+    public var files: [ArtifactVersionFileDTO]?
 
     public init(
         id: String = "",
@@ -4117,7 +4160,8 @@ public struct ArtifactVersionDTO: Codable, Sendable {
         origin: String? = nil,
         generatedBy: String? = nil,
         capabilities: [String: JSONValue]? = nil,
-        createdByUserId: String? = nil
+        createdByUserId: String? = nil,
+        files: [ArtifactVersionFileDTO]? = nil
     ) {
         self.id = id
         self.shortId = shortId
@@ -4136,6 +4180,7 @@ public struct ArtifactVersionDTO: Codable, Sendable {
         self.generatedBy = generatedBy
         self.capabilities = capabilities
         self.createdByUserId = createdByUserId
+        self.files = files
     }
 
     enum CodingKeys: String, CodingKey {
@@ -4156,6 +4201,57 @@ public struct ArtifactVersionDTO: Codable, Sendable {
         case generatedBy = "generated_by"
         case capabilities = "capabilities"
         case createdByUserId = "created_by_user_id"
+        case files = "files"
+    }
+}
+
+/// ArtifactVersionFileDTO is one file published beside a version's index.
+public struct ArtifactVersionFileDTO: Codable, Sendable {
+    public var path: String
+    public var sizeBytes: Int
+    public var contentType: String
+
+    public init(
+        path: String = "",
+        sizeBytes: Int = 0,
+        contentType: String = ""
+    ) {
+        self.path = path
+        self.sizeBytes = sizeBytes
+        self.contentType = contentType
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case path = "path"
+        case sizeBytes = "size_bytes"
+        case contentType = "content_type"
+    }
+}
+
+/// ArtifactFileInput is one extra file in a publish, served at Path relative
+/// to the index page: another page (.html, .md), or css, js, json, svg, txt,
+/// xml, csv.
+public struct ArtifactFileInput: Codable, Sendable {
+    public var path: String
+    public var content: String
+    /// ContentEncoding is "base64" when Content is base64-encoded, as for the
+    /// main content.
+    public var contentEncoding: String?
+
+    public init(
+        path: String = "",
+        content: String = "",
+        contentEncoding: String? = nil
+    ) {
+        self.path = path
+        self.content = content
+        self.contentEncoding = contentEncoding
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case path = "path"
+        case content = "content"
+        case contentEncoding = "content_encoding"
     }
 }
 
@@ -4176,6 +4272,9 @@ public struct ArtifactCreateRequest: Codable, Sendable {
     /// ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
     /// from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
     public var contentEncoding: String?
+    /// Files are published beside the index page. A publish is the whole
+    /// site: files of the previous version are not carried over.
+    public var files: [ArtifactFileInput]?
     public var label: String?
     public var notes: String?
     public var origin: String?
@@ -4199,6 +4298,7 @@ public struct ArtifactCreateRequest: Codable, Sendable {
         images: ResourceImages? = nil,
         content: String = "",
         contentEncoding: String? = nil,
+        files: [ArtifactFileInput]? = nil,
         label: String? = nil,
         notes: String? = nil,
         origin: String? = nil,
@@ -4215,6 +4315,7 @@ public struct ArtifactCreateRequest: Codable, Sendable {
         self.images = images
         self.content = content
         self.contentEncoding = contentEncoding
+        self.files = files
         self.label = label
         self.notes = notes
         self.origin = origin
@@ -4233,6 +4334,7 @@ public struct ArtifactCreateRequest: Codable, Sendable {
         case images = "images"
         case content = "content"
         case contentEncoding = "content_encoding"
+        case files = "files"
         case label = "label"
         case notes = "notes"
         case origin = "origin"
@@ -4282,6 +4384,9 @@ public struct ArtifactPublishRequest: Codable, Sendable {
     public var content: String
     /// ContentEncoding is "base64" when Content is base64-encoded UTF-8.
     public var contentEncoding: String?
+    /// Files are published beside the index page. A publish is the whole
+    /// site: files of the previous version are not carried over.
+    public var files: [ArtifactFileInput]?
     public var label: String?
     public var notes: String?
     public var origin: String?
@@ -4304,6 +4409,7 @@ public struct ArtifactPublishRequest: Codable, Sendable {
     public init(
         content: String = "",
         contentEncoding: String? = nil,
+        files: [ArtifactFileInput]? = nil,
         label: String? = nil,
         notes: String? = nil,
         origin: String? = nil,
@@ -4318,6 +4424,7 @@ public struct ArtifactPublishRequest: Codable, Sendable {
     ) {
         self.content = content
         self.contentEncoding = contentEncoding
+        self.files = files
         self.label = label
         self.notes = notes
         self.origin = origin
@@ -4334,6 +4441,7 @@ public struct ArtifactPublishRequest: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case content = "content"
         case contentEncoding = "content_encoding"
+        case files = "files"
         case label = "label"
         case notes = "notes"
         case origin = "origin"
@@ -4434,19 +4542,33 @@ public struct ArtifactDataRequest: Codable, Sendable {
     public var docId: String?
     /// Data is the document body for set and update.
     public var data: [String: JSONValue]?
-    /// Limit caps a list; the server clamps it.
+    /// Limit caps a list; the server clamps it to 200.
     public var limit: Int?
+    /// Cursor continues a list from the next_cursor of the page before.
+    public var cursor: String?
+    /// Order is the list order: -updated_at (the default), updated_at,
+    /// -created_at or created_at.
+    public var order: String?
+    /// Where keeps only documents whose top-level fields equal these values
+    /// (string, number, boolean, or null for a missing field).
+    public var `where`: [String: JSONValue]?
 
     public init(
         collection: String = "",
         docId: String? = nil,
         data: [String: JSONValue]? = nil,
-        limit: Int? = nil
+        limit: Int? = nil,
+        cursor: String? = nil,
+        order: String? = nil,
+        `where`: [String: JSONValue]? = nil
     ) {
         self.collection = collection
         self.docId = docId
         self.data = data
         self.limit = limit
+        self.cursor = cursor
+        self.order = order
+        self.`where` = `where`
     }
 
     enum CodingKeys: String, CodingKey {
@@ -4454,6 +4576,9 @@ public struct ArtifactDataRequest: Codable, Sendable {
         case docId = "doc_id"
         case data = "data"
         case limit = "limit"
+        case cursor = "cursor"
+        case order = "order"
+        case `where` = "where"
     }
 }
 
@@ -4462,21 +4587,26 @@ public struct ArtifactDataListResponse: Codable, Sendable {
     public var collection: String
     public var documents: [ArtifactDataDTO]?
     public var count: Int
+    /// NextCursor fetches the page after this one; empty on the last page.
+    public var nextCursor: String?
 
     public init(
         collection: String = "",
         documents: [ArtifactDataDTO]? = nil,
-        count: Int = 0
+        count: Int = 0,
+        nextCursor: String? = nil
     ) {
         self.collection = collection
         self.documents = documents
         self.count = count
+        self.nextCursor = nextCursor
     }
 
     enum CodingKeys: String, CodingKey {
         case collection = "collection"
         case documents = "documents"
         case count = "count"
+        case nextCursor = "next_cursor"
     }
 }
 
@@ -5370,6 +5500,8 @@ public struct ChatMessageDTO: Codable, Sendable {
     public var tools: [Tool]?
     public var toolCallId: String?
     public var toolInvocations: [ToolInvocationDTO]?
+    /// CompactionMeta is what a compaction (role compaction) retired.
+    @Indirect public var compactionMeta: CompactionMeta?
 
     public init(
         id: String = "",
@@ -5392,7 +5524,8 @@ public struct ChatMessageDTO: Codable, Sendable {
         content: [ChatMessageContent]? = nil,
         tools: [Tool]? = nil,
         toolCallId: String? = nil,
-        toolInvocations: [ToolInvocationDTO]? = nil
+        toolInvocations: [ToolInvocationDTO]? = nil,
+        compactionMeta: CompactionMeta? = nil
     ) {
         self.id = id
         self.shortId = shortId
@@ -5415,6 +5548,7 @@ public struct ChatMessageDTO: Codable, Sendable {
         self.tools = tools
         self.toolCallId = toolCallId
         self.toolInvocations = toolInvocations
+        self.compactionMeta = compactionMeta
     }
 
     enum CodingKeys: String, CodingKey {
@@ -5439,6 +5573,7 @@ public struct ChatMessageDTO: Codable, Sendable {
         case tools = "tools"
         case toolCallId = "tool_call_id"
         case toolInvocations = "tool_invocations"
+        case compactionMeta = "compaction_meta"
     }
 }
 
@@ -5789,6 +5924,10 @@ public struct CredentialDTO: Codable, Sendable {
     public var accountIdentifier: String?
     public var accountName: String?
     public var scopes: StringSlice?
+    /// AllowedScopes, on an OAuth app row (grant credentials), is every
+    /// scope a login through it may request; absent when any scope may be
+    /// (a team's own client by default). Never set on a login.
+    public var allowedScopes: StringSlice?
     public var expiresAt: String?
     public var vaultId: String?
     public var metadata: [String: JSONValue]?
@@ -5822,6 +5961,7 @@ public struct CredentialDTO: Codable, Sendable {
         accountIdentifier: String? = nil,
         accountName: String? = nil,
         scopes: StringSlice? = nil,
+        allowedScopes: StringSlice? = nil,
         expiresAt: String? = nil,
         vaultId: String? = nil,
         metadata: [String: JSONValue]? = nil,
@@ -5851,6 +5991,7 @@ public struct CredentialDTO: Codable, Sendable {
         self.accountIdentifier = accountIdentifier
         self.accountName = accountName
         self.scopes = scopes
+        self.allowedScopes = allowedScopes
         self.expiresAt = expiresAt
         self.vaultId = vaultId
         self.metadata = metadata
@@ -5882,6 +6023,7 @@ public struct CredentialDTO: Codable, Sendable {
         case accountIdentifier = "account_identifier"
         case accountName = "account_name"
         case scopes = "scopes"
+        case allowedScopes = "allowed_scopes"
         case expiresAt = "expires_at"
         case vaultId = "vault_id"
         case metadata = "metadata"
@@ -5959,13 +6101,10 @@ public struct CompanySummary: Codable, Sendable {
 public struct CredentialConfigDTO: Codable, Sendable {
     public var slug: String
     /// Provider is the credential slug (what Credential.Provider stores):
-    /// one way to authenticate. The company it belongs to is ProviderInfo.
+    /// one way to authenticate. The company it belongs to is Company.
     public var provider: String
-    /// ProviderInfo is the company this slug belongs to, for grouping: the
-    /// providers row its auth provider names, else the slug's own identity.
-    @Indirect public var providerInfo: CompanySummary?
-    /// Company is ProviderInfo under its settled name (INF-1079); provider_info
-    /// stays one release.
+    /// Company is the company this slug belongs to, for grouping: the
+    /// companies row its auth provider names, else the slug's own identity.
     @Indirect public var company: CompanySummary?
     public var type: String
     public var name: String
@@ -5973,9 +6112,16 @@ public struct CredentialConfigDTO: Codable, Sendable {
     public var description: String
     public var iconUrl: String?
     public var howItWorks: [String]?
+    /// Instructions tell a person how to get what this credential asks for
+    /// (markdown, links allowed): the auth scheme's.
+    public var instructions: String?
     public var docsUrl: String?
     public var secretFields: [SecretFieldConfig]?
     public var allowsByok: Bool
+    /// ExpiresAfterDays is how long a saved key lasts, in days: a key counts
+    /// as expired that long after it is saved (its credential's expires_at).
+    /// 0 is never.
+    public var expiresAfterDays: Int?
     public var available: Bool
     public var hasManaged: Bool
     /// ConnectionScope is who a new connection belongs to by default: the
@@ -5989,7 +6135,7 @@ public struct CredentialConfigDTO: Codable, Sendable {
     @Indirect public var app: CredentialDTO?
     /// AuthProviderID is set when the provider is one the team defined
     /// itself (models.AuthProvider), so the UI can offer edit and remove.
-    public var authSchemeId: String?
+    public var authProviderId: String?
     /// Credential is the login used where no account is named: the caller's
     /// own, else the workspace's default account.
     @Indirect public var credential: CredentialDTO?
@@ -6005,7 +6151,6 @@ public struct CredentialConfigDTO: Codable, Sendable {
     public init(
         slug: String = "",
         provider: String = "",
-        providerInfo: CompanySummary? = nil,
         company: CompanySummary? = nil,
         type: String = "",
         name: String = "",
@@ -6013,21 +6158,22 @@ public struct CredentialConfigDTO: Codable, Sendable {
         description: String = "",
         iconUrl: String? = nil,
         howItWorks: [String]? = nil,
+        instructions: String? = nil,
         docsUrl: String? = nil,
         secretFields: [SecretFieldConfig]? = nil,
         allowsByok: Bool = false,
+        expiresAfterDays: Int? = nil,
         available: Bool = false,
         hasManaged: Bool = false,
         connectionScope: CredentialScope,
         app: CredentialDTO? = nil,
-        authSchemeId: String? = nil,
+        authProviderId: String? = nil,
         credential: CredentialDTO? = nil,
         accounts: [CredentialDTO]? = nil,
         multiAccount: Bool = false
     ) {
         self.slug = slug
         self.provider = provider
-        self.providerInfo = providerInfo
         self.company = company
         self.type = type
         self.name = name
@@ -6035,14 +6181,16 @@ public struct CredentialConfigDTO: Codable, Sendable {
         self.description = description
         self.iconUrl = iconUrl
         self.howItWorks = howItWorks
+        self.instructions = instructions
         self.docsUrl = docsUrl
         self.secretFields = secretFields
         self.allowsByok = allowsByok
+        self.expiresAfterDays = expiresAfterDays
         self.available = available
         self.hasManaged = hasManaged
         self.connectionScope = connectionScope
         self.app = app
-        self.authSchemeId = authSchemeId
+        self.authProviderId = authProviderId
         self.credential = credential
         self.accounts = accounts
         self.multiAccount = multiAccount
@@ -6051,7 +6199,6 @@ public struct CredentialConfigDTO: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case slug = "slug"
         case provider = "provider"
-        case providerInfo = "provider_info"
         case company = "company"
         case type = "type"
         case name = "name"
@@ -6059,14 +6206,16 @@ public struct CredentialConfigDTO: Codable, Sendable {
         case description = "description"
         case iconUrl = "icon_url"
         case howItWorks = "how_it_works"
+        case instructions = "instructions"
         case docsUrl = "docs_url"
         case secretFields = "secret_fields"
         case allowsByok = "allows_byok"
+        case expiresAfterDays = "expires_after_days"
         case available = "available"
         case hasManaged = "has_managed"
         case connectionScope = "connection_scope"
         case app = "app"
-        case authSchemeId = "auth_scheme_id"
+        case authProviderId = "auth_provider_id"
         case credential = "credential"
         case accounts = "accounts"
         case multiAccount = "multi_account"
@@ -6080,19 +6229,23 @@ public struct SecretFieldConfig: Codable, Sendable {
     public var placeholder: String
     public var sensitive: Bool
     public var optional: Bool
+    /// Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+    public var pattern: String?
 
     public init(
         key: String = "",
         label: String = "",
         placeholder: String = "",
         sensitive: Bool = false,
-        optional: Bool = false
+        optional: Bool = false,
+        pattern: String? = nil
     ) {
         self.key = key
         self.label = label
         self.placeholder = placeholder
         self.sensitive = sensitive
         self.optional = optional
+        self.pattern = pattern
     }
 
     enum CodingKeys: String, CodingKey {
@@ -6101,6 +6254,7 @@ public struct SecretFieldConfig: Codable, Sendable {
         case placeholder = "placeholder"
         case sensitive = "sensitive"
         case optional = "optional"
+        case pattern = "pattern"
     }
 }
 
@@ -6414,6 +6568,10 @@ public struct EngineDTO: Codable, Sendable {
     public var apiUrl: String
     public var status: EngineStatus
     public var engineVersion: String
+    /// EnginePin is the version the engine is held on; empty follows stable.
+    public var enginePin: String?
+    /// Capabilities are what the engine last reported it can do.
+    public var capabilities: EngineCapabilities?
     @Indirect public var systemInfo: SystemInfo?
     public var workers: [WorkerDTO]?
 
@@ -6434,6 +6592,8 @@ public struct EngineDTO: Codable, Sendable {
         apiUrl: String = "",
         status: EngineStatus,
         engineVersion: String = "",
+        enginePin: String? = nil,
+        capabilities: EngineCapabilities? = nil,
         systemInfo: SystemInfo? = nil,
         workers: [WorkerDTO]? = nil
     ) {
@@ -6453,6 +6613,8 @@ public struct EngineDTO: Codable, Sendable {
         self.apiUrl = apiUrl
         self.status = status
         self.engineVersion = engineVersion
+        self.enginePin = enginePin
+        self.capabilities = capabilities
         self.systemInfo = systemInfo
         self.workers = workers
     }
@@ -6474,8 +6636,64 @@ public struct EngineDTO: Codable, Sendable {
         case apiUrl = "api_url"
         case status = "status"
         case engineVersion = "engine_version"
+        case enginePin = "engine_pin"
+        case capabilities = "capabilities"
         case systemInfo = "system_info"
         case workers = "workers"
+    }
+}
+
+/// EngineUpdateRequest names the release an engine should install: "stable",
+/// "canary", or a version such as v1.9.3. Empty is stable.
+public struct EngineUpdateRequest: Codable, Sendable {
+    public var version: String?
+
+    public init(
+        version: String? = nil
+    ) {
+        self.version = version
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case version = "version"
+    }
+}
+
+/// EngineRelease is one published engine build.
+public struct EngineRelease: Codable, Sendable {
+    public var version: String
+    public var releaseDate: String?
+
+    public init(
+        version: String = "",
+        releaseDate: String? = nil
+    ) {
+        self.version = version
+        self.releaseDate = releaseDate
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case version = "version"
+        case releaseDate = "release_date"
+    }
+}
+
+/// EngineReleasesResponse is the head of each engine release channel.
+public struct EngineReleasesResponse: Codable, Sendable {
+    @Indirect public var stable: EngineRelease?
+    @Indirect public var canary: EngineRelease?
+
+    public init(
+        stable: EngineRelease? = nil,
+        canary: EngineRelease? = nil
+    ) {
+        self.stable = stable
+        self.canary = canary
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case stable = "stable"
+        case canary = "canary"
     }
 }
 
@@ -6797,6 +7015,21 @@ public struct WorkerRAM: Codable, Sendable {
     }
 }
 
+/// EngineCapability is something an engine can do beyond the base contract
+/// every engine meets. An engine reports the ones it has (EngineTelemetry);
+/// a task lists the ones it needs (Task.Requires); the scheduler only sends
+/// a task to an engine that has every one it needs.
+public struct EngineCapability: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let egressGateway = EngineCapability(rawValue: "egress_gateway")
+}
+
+/// EngineCapabilities is a set of capabilities, kept as a list. Nil and
+/// empty are the same: nothing beyond the base contract.
+public typealias EngineCapabilities = [EngineCapability]
+
 /// EntitlementDTO for API responses
 public struct EntitlementDTO: Codable, Sendable {
     public var id: String
@@ -7110,6 +7343,10 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     public static let methodNotAllowed = ErrorCode(rawValue: "method_not_allowed")
     public static let rateLimited = ErrorCode(rawValue: "rate_limited")
     public static let internalError = ErrorCode(rawValue: "internal_error")
+    /// ErrorCodeRequirementsNotMet (412): the run needs a secret or a
+    /// credential the caller has not set up. Meta "errors" lists each
+    /// RequirementError, its action saying how to set it up.
+    public static let requirementsNotMet = ErrorCode(rawValue: "requirements_not_met")
     /// ErrorCodeTeamRoleRequired: the caller's team role or org-admin status
     /// does not allow the action. Meta is TeamRoleRequiredMeta when a
     /// capability gate refused it.
@@ -7178,6 +7415,11 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     /// works as an ordinary member. An admin who has one but whose session
     /// has not proved it gets otp_required instead: re-authenticate with it.
     public static let adminAuthenticatorRequired = ErrorCode(rawValue: "admin_authenticator_required")
+    /// ErrorCodeLastAuthenticator (409): the change would leave two-step
+    /// verification on with no method to prove it (removing the last
+    /// authenticator app or passkey), or turn it on with none enrolled.
+    /// Turn two-step verification off first, or enroll a method.
+    public static let lastAuthenticator = ErrorCode(rawValue: "last_authenticator")
     /// Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
     /// EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
     /// not be checked and the request is retriable.
@@ -9287,6 +9529,51 @@ public struct InstanceTypeBootTime: Codable, Sendable {
         case averageSeconds = "average_seconds"
         case updatedAt = "updated_at"
         case sampleSize = "sample_size"
+    }
+}
+
+/// InstancePriceHistoryPointDTO is one day's cheapest hourly prices, in cents,
+/// for a GPU type. List prices rarely move; the in-stock price does, as stock
+/// comes and goes. A price with no listing (or no stock) that day is omitted.
+public struct InstancePriceHistoryPointDTO: Codable, Sendable {
+    /// YYYY-MM-DD, UTC
+    public var day: String
+    /// OnDemand and Spot are the cheapest listed prices, in stock or not.
+    public var onDemand: Int?
+    public var spot: Int?
+    /// OnDemandInStock and SpotInStock are the cheapest prices that had stock.
+    public var onDemandInStock: Int?
+    public var spotInStock: Int?
+    public var providers: Int
+    /// Regions is the number of provider regions with on-demand stock.
+    public var regions: Int
+
+    public init(
+        day: String = "",
+        onDemand: Int? = nil,
+        spot: Int? = nil,
+        onDemandInStock: Int? = nil,
+        spotInStock: Int? = nil,
+        providers: Int = 0,
+        regions: Int = 0
+    ) {
+        self.day = day
+        self.onDemand = onDemand
+        self.spot = spot
+        self.onDemandInStock = onDemandInStock
+        self.spotInStock = spotInStock
+        self.providers = providers
+        self.regions = regions
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case day = "day"
+        case onDemand = "on_demand"
+        case spot = "spot"
+        case onDemandInStock = "on_demand_in_stock"
+        case spotInStock = "spot_in_stock"
+        case providers = "providers"
+        case regions = "regions"
     }
 }
 
@@ -12321,6 +12608,9 @@ public struct SetupAction: Codable, Sendable {
     /// ProviderWebsite is where the logo of a provider the platform does not
     /// list comes from; sent back when the keys are saved.
     public var providerWebsite: String?
+    /// Instructions tell a person how to get what the provider's scheme
+    /// asks for (markdown, links allowed).
+    public var instructions: String?
 
     public init(
         type: SetupActionType,
@@ -12329,7 +12619,8 @@ public struct SetupAction: Codable, Sendable {
         scopes: [String]? = nil,
         scopeDescriptions: [String: String]? = nil,
         secrets: [String]? = nil,
-        providerWebsite: String? = nil
+        providerWebsite: String? = nil,
+        instructions: String? = nil
     ) {
         self.type = type
         self.provider = provider
@@ -12338,6 +12629,7 @@ public struct SetupAction: Codable, Sendable {
         self.scopeDescriptions = scopeDescriptions
         self.secrets = secrets
         self.providerWebsite = providerWebsite
+        self.instructions = instructions
     }
 
     enum CodingKeys: String, CodingKey {
@@ -12348,6 +12640,7 @@ public struct SetupAction: Codable, Sendable {
         case scopeDescriptions = "scope_descriptions"
         case secrets = "secrets"
         case providerWebsite = "provider_website"
+        case instructions = "instructions"
     }
 }
 
@@ -13384,6 +13677,26 @@ public struct TaskLog: Codable, Sendable {
 }
 
 /// TaskDTO is the full API response for a task.
+/// TaskEgress is what a task's sandbox sent to and received from the
+/// internet through the engine's egress gateway, in bytes.
+public struct TaskEgress: Codable, Sendable {
+    public var bytesOut: Int
+    public var bytesIn: Int
+
+    public init(
+        bytesOut: Int = 0,
+        bytesIn: Int = 0
+    ) {
+        self.bytesOut = bytesOut
+        self.bytesIn = bytesIn
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case bytesOut = "bytes_out"
+        case bytesIn = "bytes_in"
+    }
+}
+
 public struct TaskDTO: Codable, Sendable {
     public var id: String
     public var shortId: String
@@ -13427,6 +13740,10 @@ public struct TaskDTO: Codable, Sendable {
     public var events: [TaskEvent]?
     public var logs: [TaskLog]?
     public var usageEvents: [UsageEventDTO]?
+    /// Egress is what the task's sandbox moved through the engine's egress
+    /// gateway, reported by the engine when the task ended. Absent for a
+    /// task that ran without the gateway.
+    @Indirect public var egress: TaskEgress?
     public var sessionId: String?
     public var sessionTimeout: Int?
 
@@ -13473,6 +13790,7 @@ public struct TaskDTO: Codable, Sendable {
         events: [TaskEvent]? = nil,
         logs: [TaskLog]? = nil,
         usageEvents: [UsageEventDTO]? = nil,
+        egress: TaskEgress? = nil,
         sessionId: String? = nil,
         sessionTimeout: Int? = nil
     ) {
@@ -13518,6 +13836,7 @@ public struct TaskDTO: Codable, Sendable {
         self.events = events
         self.logs = logs
         self.usageEvents = usageEvents
+        self.egress = egress
         self.sessionId = sessionId
         self.sessionTimeout = sessionTimeout
     }
@@ -13565,6 +13884,7 @@ public struct TaskDTO: Codable, Sendable {
         case events = "events"
         case logs = "logs"
         case usageEvents = "usage_events"
+        case egress = "egress"
         case sessionId = "session_id"
         case sessionTimeout = "session_timeout"
     }
@@ -14558,7 +14878,14 @@ public struct UserDTO: Codable, Sendable {
     public var avatarUrl: String
     public var bannedAt: String?
     public var banNote: String?
+    /// TOTPEnabled mirrors TwoFactorEnabled for clients built before it
+    /// (the Swift SDK decodes it as required).
+    /// 
+    /// Deprecated: read TwoFactorEnabled. Kept until no Swift app build older
+    /// than sdk-swift 0.23.0 is in use, since those fail to decode /me without it.
     public var totpEnabled: Bool
+    /// TwoFactorEnabled is the account's two-step verification switch.
+    public var twoFactorEnabled: Bool
     @Indirect public var metadata: UserMetadataDTO?
 
     public init(
@@ -14578,6 +14905,7 @@ public struct UserDTO: Codable, Sendable {
         bannedAt: String? = nil,
         banNote: String? = nil,
         totpEnabled: Bool = false,
+        twoFactorEnabled: Bool = false,
         metadata: UserMetadataDTO? = nil
     ) {
         self.id = id
@@ -14596,6 +14924,7 @@ public struct UserDTO: Codable, Sendable {
         self.bannedAt = bannedAt
         self.banNote = banNote
         self.totpEnabled = totpEnabled
+        self.twoFactorEnabled = twoFactorEnabled
         self.metadata = metadata
     }
 
@@ -14616,6 +14945,7 @@ public struct UserDTO: Codable, Sendable {
         case bannedAt = "banned_at"
         case banNote = "ban_note"
         case totpEnabled = "totp_enabled"
+        case twoFactorEnabled = "two_factor_enabled"
         case metadata = "metadata"
     }
 }
@@ -15313,19 +15643,25 @@ public struct SecretField: Codable, Sendable {
     public var placeholder: String?
     public var sensitive: Bool?
     public var optional: Bool?
+    /// Pattern, when set, is a regular expression (RE2) a saved value must
+    /// match, so a pasted login link or the wrong key is refused on save
+    /// instead of failing the first run ("^sk-ant-oat01-").
+    public var pattern: String?
 
     public init(
         key: String = "",
         label: String? = nil,
         placeholder: String? = nil,
         sensitive: Bool? = nil,
-        optional: Bool? = nil
+        optional: Bool? = nil,
+        pattern: String? = nil
     ) {
         self.key = key
         self.label = label
         self.placeholder = placeholder
         self.sensitive = sensitive
         self.optional = optional
+        self.pattern = pattern
     }
 
     enum CodingKeys: String, CodingKey {
@@ -15334,6 +15670,7 @@ public struct SecretField: Codable, Sendable {
         case placeholder = "placeholder"
         case sensitive = "sensitive"
         case optional = "optional"
+        case pattern = "pattern"
     }
 }
 
@@ -15964,6 +16301,9 @@ public struct ChatStatus: RawRepresentable, Codable, Hashable, Sendable {
     public static let busy = ChatStatus(rawValue: "busy")
     public static let idle = ChatStatus(rawValue: "idle")
     public static let awaitingInput = ChatStatus(rawValue: "awaiting_input")
+    /// ChatStatusWaiting: the run is paused on the agent's own wait call. A
+    /// message ends the wait early; nobody has to act on it.
+    public static let waiting = ChatStatus(rawValue: "waiting")
     public static let completed = ChatStatus(rawValue: "completed")
 }
 
@@ -16135,6 +16475,49 @@ public struct ChatEventType: RawRepresentable, Codable, Hashable, Sendable {
     public init(rawValue: String) { self.rawValue = rawValue }
 
     public static let hook = ChatEventType(rawValue: "hook")
+    /// ChatEventTypeRunFailed marks the point a run ended in failure; the
+    /// content's text is the run's error.
+    public static let runFailed = ChatEventType(rawValue: "run_failed")
+    /// ChatEventTypeRunEnded marks the point a run completed or was stopped;
+    /// the event's run says how, and the content's text, when set, why.
+    public static let runEnded = ChatEventType(rawValue: "run_ended")
+}
+
+/// RunEndReason is why a run that completed ended the way it did, when its
+/// last turn did not end with a reply.
+public struct RunEndReason: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// RunEndReasonOutputLimit: the model's last turn hit its output limit
+    /// (max_tokens) before it replied or called a tool.
+    public static let outputLimit = RunEndReason(rawValue: "output_limit")
+    /// RunEndReasonNoReply: the model ended its last turn with no reply and
+    /// no tool call.
+    public static let noReply = RunEndReason(rawValue: "no_reply")
+}
+
+/// ChatRunEvent is how a run ended, on a run_ended event.
+public struct ChatRunEvent: Codable, Sendable {
+    public var runId: String
+    public var state: AgentRunState
+    public var reason: RunEndReason?
+
+    public init(
+        runId: String = "",
+        state: AgentRunState,
+        reason: RunEndReason? = nil
+    ) {
+        self.runId = runId
+        self.state = state
+        self.reason = reason
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case runId = "run_id"
+        case state = "state"
+        case reason = "reason"
+    }
 }
 
 /// ChatEvent is the payload of an event-role message: system info shown in the
@@ -16142,18 +16525,22 @@ public struct ChatEventType: RawRepresentable, Codable, Hashable, Sendable {
 public struct ChatEvent: Codable, Sendable {
     public var type: ChatEventType
     @Indirect public var hook: ChatHookEvent?
+    @Indirect public var run: ChatRunEvent?
 
     public init(
         type: ChatEventType,
-        hook: ChatHookEvent? = nil
+        hook: ChatHookEvent? = nil,
+        run: ChatRunEvent? = nil
     ) {
         self.type = type
         self.hook = hook
+        self.run = run
     }
 
     enum CodingKeys: String, CodingKey {
         case type = "type"
         case hook = "hook"
+        case run = "run"
     }
 }
 
@@ -17562,6 +17949,28 @@ public struct MCPServerAuthType: RawRepresentable, Codable, Hashable, Sendable {
     public static let mcpServerAuthNone = MCPServerAuthType(rawValue: "none")
 }
 
+/// SecondFactor is one way a person proves their second factor. It names
+/// what a session proved (AuthSession.SecondFactor), what a login challenge
+/// offers, the method a verify request picks, and the kind of an enrolled
+/// method (SecondFactorMethod.Kind: the enrollable ones).
+public struct SecondFactor: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// SecondFactorTOTP: a code from an enrolled authenticator app.
+    public static let totp = SecondFactor(rawValue: "totp")
+    /// SecondFactorPasskey: a WebAuthn assertion from an enrolled passkey.
+    public static let passkey = SecondFactor(rawValue: "passkey")
+    /// SecondFactorRecovery: one of the account's single-use recovery codes.
+    /// Not enrolled on its own: issued once an authenticator exists.
+    public static let recovery = SecondFactor(rawValue: "recovery")
+    /// SecondFactorEmail: a code emailed to the account. The weakest: the
+    /// same mailbox a magic link lands in, so it is offered only to an
+    /// account with two-step verification off (a platform admin's first
+    /// sign-in, re-auth before they enroll).
+    public static let email = SecondFactor(rawValue: "email")
+}
+
 /// TeamInviteStatus represents the status of a team invitation
 public struct TeamInviteStatus: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
@@ -18047,6 +18456,10 @@ public struct TaskStatus: RawRepresentable, Codable, Hashable, Sendable {
     public static let completed = TaskStatus(rawValue: 10)
     public static let failed = TaskStatus(rawValue: 11)
     public static let cancelled = TaskStatus(rawValue: 12)
+    /// TaskStatusRejected is a run admission refused (no balance, no payment
+    /// method). The task is written already ended, keeping what was asked
+    /// for; it never ran and no status leads to it.
+    public static let rejected = TaskStatus(rawValue: 13)
 }
 
 /// Infra defines where a task should run.
@@ -18057,6 +18470,11 @@ public struct Infra: RawRepresentable, Codable, Hashable, Sendable {
     public static let `private` = Infra(rawValue: "private")
     public static let cloud = Infra(rawValue: "cloud")
     public static let privateFirst = Infra(rawValue: "private_first")
+    /// InfraRemote is a model call a harness on the caller's own remote
+    /// answers (an agent whose model app is a harness model app). The
+    /// scheduler never takes it: the remote model service sends it to the
+    /// remote's daemon, whose frames end it.
+    public static let remote = Infra(rawValue: "remote")
 }
 
 /// TaskLogType defines the type of task log.
@@ -18716,6 +19134,7 @@ public struct InterruptReason: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
+    public static let wait = InterruptReason(rawValue: "wait")
     public static let toolApproval = InterruptReason(rawValue: "tool_approval")
     public static let clientTool = InterruptReason(rawValue: "client_tool")
     public static let widget = InterruptReason(rawValue: "widget")
@@ -18751,6 +19170,7 @@ public struct InterruptResourceType: RawRepresentable, Codable, Hashable, Sendab
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
+    public static let interruptResourceTurn = InterruptResourceType(rawValue: "turn")
     public static let interruptResourceToolInvocation = InterruptResourceType(rawValue: "tool_invocation")
     public static let interruptResourceHookEvent = InterruptResourceType(rawValue: "hook_event")
 }
@@ -19019,6 +19439,38 @@ public struct ContextInjection: Codable, Sendable {
     }
 }
 
+/// CompactionMeta is stored on ChatMessage for context compaction markers.
+public struct CompactionMeta: Codable, Sendable {
+    public var compactedUpToOrder: Int
+    public var compactedCount: Int
+    public var estimatedTokens: Int
+    /// "extractive" or "llm"
+    public var method: String?
+    public var analysis: String?
+
+    public init(
+        compactedUpToOrder: Int = 0,
+        compactedCount: Int = 0,
+        estimatedTokens: Int = 0,
+        method: String? = nil,
+        analysis: String? = nil
+    ) {
+        self.compactedUpToOrder = compactedUpToOrder
+        self.compactedCount = compactedCount
+        self.estimatedTokens = estimatedTokens
+        self.method = method
+        self.analysis = analysis
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case compactedUpToOrder = "compacted_up_to_order"
+        case compactedCount = "compacted_count"
+        case estimatedTokens = "estimated_tokens"
+        case method = "method"
+        case analysis = "analysis"
+    }
+}
+
 /// ToolCallEventData is the typed payload for agent.tool_call events.
 public struct ToolCallEventData: Codable, Sendable {
     public var tool: String
@@ -19085,6 +19537,7 @@ public struct ToolInvocationStatus: RawRepresentable, Codable, Hashable, Sendabl
     public static let inProgress = ToolInvocationStatus(rawValue: "in_progress")
     public static let awaitingInput = ToolInvocationStatus(rawValue: "awaiting_input")
     public static let awaitingApproval = ToolInvocationStatus(rawValue: "awaiting_approval")
+    public static let waiting = ToolInvocationStatus(rawValue: "waiting")
     public static let completed = ToolInvocationStatus(rawValue: "completed")
     public static let failed = ToolInvocationStatus(rawValue: "failed")
     public static let cancelled = ToolInvocationStatus(rawValue: "cancelled")

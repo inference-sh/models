@@ -22,6 +22,7 @@ export interface InternalToolsConfig {
   agent?: boolean;
   remote?: boolean;
   knowledge?: boolean;
+  wait?: boolean;
 }
 /**
  * AgentPermissions is what an agent's new chats in its own workspace may do
@@ -48,6 +49,11 @@ export interface AgentTool {
   description: string;
   type: ToolType;
   require_approval?: boolean;
+  /**
+   * ApprovalTimeout is how many seconds a call of this tool waits for its
+   * approval before it is refused. 0 waits until someone answers.
+   */
+  approval_timeout?: number /* int */;
   app?: AppToolConfig;
   agent?: AgentToolConfig;
   hook?: HookToolConfig;
@@ -102,6 +108,7 @@ export interface AgentToolDTO {
   description: string;
   type: ToolType;
   require_approval?: boolean;
+  approval_timeout?: number /* int */;
   app?: AppToolConfigDTO;
   agent?: AgentToolConfigDTO;
   hook?: HookToolConfigDTO;
@@ -177,7 +184,6 @@ export const ToolAuthTypeBearer: ToolAuthType = "bearer";
 export interface ToolAuthConfig {
   type: ToolAuthType;
   provider?: string;
-  credential_id?: string;
   secret?: string;
   header?: string;
 }
@@ -204,15 +210,12 @@ export interface HTTPToolConfig {
 /**
  * MCPToolConfig is a tool of an MCP server: the server by its slug (the
  * agent's team's registration, its org's or the directory's) and the tool
- * to call. CredentialID pins the connection the call signs in with; without
- * it the runner's connection to the server's provider is used. A tool
- * written with only a connection is saved with the server that
- * connection's provider is declared by.
+ * to call. Each call signs in with the runner's connection to the
+ * server's provider (Credential.ToolConnection).
  */
 export interface MCPToolConfig {
   server?: string;
   tool_name: string;
-  credential_id?: string;
 }
 export interface AppToolConfigDTO {
   ref: string;
@@ -261,7 +264,6 @@ export interface HTTPToolConfigDTO {
 export interface MCPToolConfigDTO {
   server: string;
   tool_name: string;
-  credential_id?: string;
 }
 /**
  * CoreAppConfigDTO references an app used as the agent's core
@@ -589,7 +591,11 @@ export interface AuthResponse {
   session_id: string;
   is_new?: boolean;
   otp_required?: boolean;
-  otp_method?: string; // "email" or "totp"
+  /**
+   * OTPMethods are the second factors the sign-in may be finished with,
+   * the default first (POST /auth/otp/verify with method).
+   */
+  otp_methods?: SecondFactor[];
   challenge_token?: string; // pre-session 2FA token
   redirect_to?: string;
   provider?: string;
@@ -945,7 +951,8 @@ export type Scope =
   | "admin:read"
   | "admin:write"
   | "store:pricing"
-  | "store:submit";
+  | "store:submit"
+  | "content:write";
 /**
  * API Key Scopes - hierarchical permission system.
  * Resource-level scopes (e.g., "agents") imply all action-level scopes (e.g., "agents:read").
@@ -1253,6 +1260,14 @@ export const ScopeStorePricing: Scope = "store:pricing";
  */
 export const ScopeStoreSubmit: Scope = "store:submit";
 /**
+ * ScopeContentWrite writes the site's content (/content): blog and docs
+ * pages, menus and the platform media library. Held like
+ * ScopeStorePricing: only in the platform's workspace, by its members,
+ * their keys and runs, and its own keys. Reads of published content take
+ * no scope.
+ */
+export const ScopeContentWrite: Scope = "content:write";
+/**
  * ScopeGroup identifies a category of scopes for UI grouping
  */
 export type ScopeGroup =
@@ -1276,7 +1291,8 @@ export type ScopeGroup =
   | "settings"
   | "approvals"
   | "admin"
-  | "store";
+  | "store"
+  | "content";
 export const ScopeGroupAgents: ScopeGroup = "agents";
 export const ScopeGroupApps: ScopeGroup = "apps";
 export const ScopeGroupConversations: ScopeGroup = "conversations";
@@ -1298,6 +1314,7 @@ export const ScopeGroupSettings: ScopeGroup = "settings";
 export const ScopeGroupApprovals: ScopeGroup = "approvals";
 export const ScopeGroupAdmin: ScopeGroup = "admin";
 export const ScopeGroupStore: ScopeGroup = "store";
+export const ScopeGroupContent: ScopeGroup = "content";
 /**
  * ScopeDefinition describes a single scope for UI rendering
  */
@@ -1451,9 +1468,6 @@ export interface AppPricing {
   description: string;
   description_rendered?: string;
 }
-/**
- * AppFunction represents a callable entry point within an app version.
- */
 export interface AppFunction {
   name: string;
   description?: string;
@@ -1544,6 +1558,34 @@ export interface CredentialRequirement {
    * Auth is the credential's auth provider, for a slug no row defines yet.
    */
   auth?: AuthMethod;
+  /**
+   * The rest describe the platform api_key scheme a platform app's deploy
+   * catalogues for the slug: set on the scheme it creates, and filled into
+   * an existing one only where that is still empty (an admin's edit
+   * stands). Any other deploy ignores them.
+   * DisplayName is the scheme's name ("Claude Code"); at most
+   * MaxCredentialDisplayName characters.
+   */
+  display_name?: string;
+  /**
+   * ConnectionScope is who a connection belongs to: team (empty) or user.
+   */
+  connection_scope?: CredentialScope;
+  /**
+   * Instructions tell a person how to get the key (markdown, at most
+   * MaxAuthProviderInstructions characters).
+   */
+  instructions?: string;
+  /**
+   * DocsURL is the scheme's documentation link.
+   */
+  docs_url?: string;
+  /**
+   * ExpiresAfterDays is how long a saved key lasts: it counts as expired
+   * this many days after it is saved. 0 is never; at most
+   * MaxExpiresAfterDays.
+   */
+  expires_after_days?: number /* int */;
 }
 /**
  * CompanySeed is a provider (the company behind a credential) as an app
@@ -1678,7 +1720,7 @@ export interface AppVersionDTO extends BaseModelDTO {
 export interface DeployWarning {
   /**
    * Code identifies the check: readonly_broad_credential,
-   * unused_credential, missing_annotations.
+   * unused_credential, missing_annotations, unapproved_platform_scope.
    */
   code: string;
   /**
@@ -1836,6 +1878,32 @@ export interface ArtifactVersionDTO extends BaseModelDTO {
   generated_by?: string; // "agent:<id>", "human:<email>"
   capabilities?: { [key: string]: any};
   created_by_user_id?: string;
+  /**
+   * Files are the pages and data served beside the index page.
+   */
+  files?: ArtifactVersionFileDTO[];
+}
+/**
+ * ArtifactVersionFileDTO is one file published beside a version's index.
+ */
+export interface ArtifactVersionFileDTO {
+  path: string;
+  size_bytes: number /* int64 */;
+  content_type: string;
+}
+/**
+ * ArtifactFileInput is one extra file in a publish, served at Path relative
+ * to the index page: another page (.html, .md), or css, js, json, svg, txt,
+ * xml, csv.
+ */
+export interface ArtifactFileInput {
+  path: string;
+  content: string;
+  /**
+   * ContentEncoding is "base64" when Content is base64-encoded, as for the
+   * main content.
+   */
+  content_encoding?: string;
 }
 /**
  * ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
@@ -1861,6 +1929,11 @@ export interface ArtifactCreateRequest {
    * from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
    */
   content_encoding?: string;
+  /**
+   * Files are published beside the index page. A publish is the whole
+   * site: files of the previous version are not carried over.
+   */
+  files?: ArtifactFileInput[];
   label?: string;
   notes?: string;
   origin?: string;
@@ -1905,6 +1978,11 @@ export interface ArtifactPublishRequest {
    * ContentEncoding is "base64" when Content is base64-encoded UTF-8.
    */
   content_encoding?: string;
+  /**
+   * Files are published beside the index page. A publish is the whole
+   * site: files of the previous version are not carried over.
+   */
+  files?: ArtifactFileInput[];
   label?: string;
   notes?: string;
   origin?: string;
@@ -1969,9 +2047,23 @@ export interface ArtifactDataRequest {
    */
   data?: { [key: string]: any};
   /**
-   * Limit caps a list; the server clamps it.
+   * Limit caps a list; the server clamps it to 200.
    */
   limit?: number /* int */;
+  /**
+   * Cursor continues a list from the next_cursor of the page before.
+   */
+  cursor?: string;
+  /**
+   * Order is the list order: -updated_at (the default), updated_at,
+   * -created_at or created_at.
+   */
+  order?: string;
+  /**
+   * Where keeps only documents whose top-level fields equal these values
+   * (string, number, boolean, or null for a missing field).
+   */
+  where?: { [key: string]: any};
 }
 /**
  * ArtifactDataListResponse is a page of documents from one collection.
@@ -1980,6 +2072,10 @@ export interface ArtifactDataListResponse {
   collection: string;
   documents: ArtifactDataDTO[];
   count: number /* int */;
+  /**
+   * NextCursor fetches the page after this one; empty on the last page.
+   */
+  next_cursor?: string;
 }
 /**
  * ArtifactViewerDTO is what the user capability tells a page about whoever
@@ -2312,6 +2408,10 @@ export interface ChatMessageDTO extends BaseModelDTO, PermissionModelDTO {
   tools?: Tool[];
   tool_call_id?: string;
   tool_invocations?: ToolInvocationDTO[];
+  /**
+   * CompactionMeta is what a compaction (role compaction) retired.
+   */
+  compaction_meta?: CompactionMeta;
 }
 /**
  * PolicyRuleDTO is one rule, typed form Kind[selector](specifier).
@@ -2569,6 +2669,12 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   account_identifier?: string;
   account_name?: string;
   scopes: StringSlice;
+  /**
+   * AllowedScopes, on an OAuth app row (grant credentials), is every
+   * scope a login through it may request; absent when any scope may be
+   * (a team's own client by default). Never set on a login.
+   */
+  allowed_scopes?: StringSlice;
   expires_at?: string /* RFC3339 */;
   vault_id?: string;
   metadata?: { [key: string]: any};
@@ -2610,17 +2716,12 @@ export interface CredentialConfigDTO {
   slug: string;
   /**
    * Provider is the credential slug (what Credential.Provider stores):
-   * one way to authenticate. The company it belongs to is ProviderInfo.
+   * one way to authenticate. The company it belongs to is Company.
    */
   provider: string;
   /**
-   * ProviderInfo is the company this slug belongs to, for grouping: the
-   * providers row its auth provider names, else the slug's own identity.
-   */
-  provider_info?: CompanySummary;
-  /**
-   * Company is ProviderInfo under its settled name (INF-1079); provider_info
-   * stays one release.
+   * Company is the company this slug belongs to, for grouping: the
+   * companies row its auth provider names, else the slug's own identity.
    */
   company?: CompanySummary;
   type: string;
@@ -2629,9 +2730,20 @@ export interface CredentialConfigDTO {
   description: string;
   icon_url?: string;
   how_it_works?: string[];
+  /**
+   * Instructions tell a person how to get what this credential asks for
+   * (markdown, links allowed): the auth scheme's.
+   */
+  instructions?: string;
   docs_url?: string;
   secret_fields?: SecretFieldConfig[];
   allows_byok: boolean;
+  /**
+   * ExpiresAfterDays is how long a saved key lasts, in days: a key counts
+   * as expired that long after it is saved (its credential's expires_at).
+   * 0 is never.
+   */
+  expires_after_days?: number /* int */;
   available: boolean;
   has_managed: boolean;
   /**
@@ -2651,7 +2763,7 @@ export interface CredentialConfigDTO {
    * AuthProviderID is set when the provider is one the team defined
    * itself (models.AuthProvider), so the UI can offer edit and remove.
    */
-  auth_scheme_id?: string;
+  auth_provider_id?: string;
   /**
    * Credential is the login used where no account is named: the caller's
    * own, else the workspace's default account.
@@ -2679,6 +2791,10 @@ export interface SecretFieldConfig {
   placeholder: string;
   sensitive: boolean;
   optional: boolean;
+  /**
+   * Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+   */
+  pattern?: string;
 }
 /**
  * SearchRequest represents a search request.
@@ -2788,8 +2904,37 @@ export interface EngineDTO extends BaseModelDTO, PermissionModelDTO {
   api_url: string;
   status: EngineStatus;
   engine_version: string;
+  /**
+   * EnginePin is the version the engine is held on; empty follows stable.
+   */
+  engine_pin?: string;
+  /**
+   * Capabilities are what the engine last reported it can do.
+   */
+  capabilities?: EngineCapabilities;
   system_info?: SystemInfo;
   workers: (WorkerDTO | undefined)[];
+}
+/**
+ * EngineUpdateRequest names the release an engine should install: "stable",
+ * "canary", or a version such as v1.9.3. Empty is stable.
+ */
+export interface EngineUpdateRequest {
+  version?: string;
+}
+/**
+ * EngineRelease is one published engine build.
+ */
+export interface EngineRelease {
+  version: string;
+  release_date?: string;
+}
+/**
+ * EngineReleasesResponse is the head of each engine release channel.
+ */
+export interface EngineReleasesResponse {
+  stable?: EngineRelease;
+  canary?: EngineRelease;
 }
 /**
  * EngineSummary is a lightweight engine response embedded in tasks.
@@ -2869,6 +3014,19 @@ export interface WorkerRAM {
   worker_id: string;
   total: number /* uint64 */;
 }
+/**
+ * EngineCapability is something an engine can do beyond the base contract
+ * every engine meets. An engine reports the ones it has (EngineTelemetry);
+ * a task lists the ones it needs (Task.Requires); the scheduler only sends
+ * a task to an engine that has every one it needs.
+ */
+export type EngineCapability = "egress_gateway";
+export const EngineCapabilityEgressGateway: EngineCapability = "egress_gateway";
+/**
+ * EngineCapabilities is a set of capabilities, kept as a list. Nil and
+ * empty are the same: nothing beyond the base contract.
+ */
+export type EngineCapabilities = EngineCapability[];
 /**
  * EntitlementDTO for API responses
  */
@@ -2965,6 +3123,7 @@ export type ErrorCode =
   | "method_not_allowed"
   | "rate_limited"
   | "internal_error"
+  | "requirements_not_met"
   | "team_role_required"
   | "blocked_by_usage_policy"
   | "last_owner"
@@ -2985,6 +3144,7 @@ export type ErrorCode =
   | "browser_session_required"
   | "invalid_ttl"
   | "admin_authenticator_required"
+  | "last_authenticator"
   | "limit_exceeded"
   | "feature_not_available"
   | "entitlement_unavailable"
@@ -3025,6 +3185,12 @@ export const ErrorCodeNotConfigured: ErrorCode = "not_configured";
 export const ErrorCodeMethodNotAllowed: ErrorCode = "method_not_allowed";
 export const ErrorCodeRateLimited: ErrorCode = "rate_limited";
 export const ErrorCodeInternalError: ErrorCode = "internal_error";
+/**
+ * ErrorCodeRequirementsNotMet (412): the run needs a secret or a
+ * credential the caller has not set up. Meta "errors" lists each
+ * RequirementError, its action saying how to set it up.
+ */
+export const ErrorCodeRequirementsNotMet: ErrorCode = "requirements_not_met";
 /**
  * ErrorCodeTeamRoleRequired: the caller's team role or org-admin status
  * does not allow the action. Meta is TeamRoleRequiredMeta when a
@@ -3115,6 +3281,13 @@ export const ErrorCodeInvalidTTL: ErrorCode = "invalid_ttl";
  * has not proved it gets otp_required instead: re-authenticate with it.
  */
 export const ErrorCodeAdminAuthenticatorRequired: ErrorCode = "admin_authenticator_required";
+/**
+ * ErrorCodeLastAuthenticator (409): the change would leave two-step
+ * verification on with no method to prove it (removing the last
+ * authenticator app or passkey), or turn it on with none enrolled.
+ * Turn two-step verification off first, or enroll a method.
+ */
+export const ErrorCodeLastAuthenticator: ErrorCode = "last_authenticator";
 /**
  * Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
  * EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
@@ -3798,6 +3971,29 @@ export interface InstanceTypeBootTime {
   average_seconds: number /* int */;
   updated_at: string;
   sample_size: number /* int */;
+}
+/**
+ * InstancePriceHistoryPointDTO is one day's cheapest hourly prices, in cents,
+ * for a GPU type. List prices rarely move; the in-stock price does, as stock
+ * comes and goes. A price with no listing (or no stock) that day is omitted.
+ */
+export interface InstancePriceHistoryPointDTO {
+  day: string; // YYYY-MM-DD, UTC
+  /**
+   * OnDemand and Spot are the cheapest listed prices, in stock or not.
+   */
+  on_demand?: number /* int */;
+  spot?: number /* int */;
+  /**
+   * OnDemandInStock and SpotInStock are the cheapest prices that had stock.
+   */
+  on_demand_in_stock?: number /* int */;
+  spot_in_stock?: number /* int */;
+  providers: number /* int */;
+  /**
+   * Regions is the number of provider regions with on-demand stock.
+   */
+  regions: number /* int */;
 }
 export interface InterruptDTO extends BaseModelDTO, PermissionModelDTO {
   run_id: string;
@@ -4708,6 +4904,11 @@ export interface SetupAction {
    * list comes from; sent back when the keys are saved.
    */
   provider_website?: string;
+  /**
+   * Instructions tell a person how to get what the provider's scheme
+   * asks for (markdown, links allowed).
+   */
+  instructions?: string;
 }
 /**
  * CheckRequirementsRequest is the request body for checking requirements
@@ -5016,7 +5217,13 @@ export interface TaskLog {
 }
 /**
  * TaskDTO is the full API response for a task.
+ * TaskEgress is what a task's sandbox sent to and received from the
+ * internet through the engine's egress gateway, in bytes.
  */
+export interface TaskEgress {
+  bytes_out: number /* int64 */;
+  bytes_in: number /* int64 */;
+}
 export interface TaskDTO extends BaseModelDTO, PermissionModelDTO {
   graph_id?: string;
   user_public_key: string;
@@ -5050,6 +5257,12 @@ export interface TaskDTO extends BaseModelDTO, PermissionModelDTO {
   events: TaskEvent[];
   logs: TaskLog[];
   usage_events: (UsageEventDTO | undefined)[];
+  /**
+   * Egress is what the task's sandbox moved through the engine's egress
+   * gateway, reported by the engine when the task ended. Absent for a
+   * task that ran without the gateway.
+   */
+  egress?: TaskEgress;
   session_id?: string;
   session_timeout?: number /* int */;
 }
@@ -5365,7 +5578,17 @@ export interface UserDTO extends BaseModelDTO {
   avatar_url: string;
   banned_at?: string /* RFC3339 */;
   ban_note?: string;
+  /**
+   * TOTPEnabled mirrors TwoFactorEnabled for clients built before it
+   * (the Swift SDK decodes it as required).
+   * Deprecated: read TwoFactorEnabled. Kept until no Swift app build older
+   * than sdk-swift 0.23.0 is in use, since those fail to decode /me without it.
+   */
   totp_enabled: boolean;
+  /**
+   * TwoFactorEnabled is the account's two-step verification switch.
+   */
+  two_factor_enabled: boolean;
   metadata?: UserMetadataDTO;
 }
 /**
@@ -5769,6 +5992,12 @@ export interface SecretField {
   placeholder?: string;
   sensitive?: boolean;
   optional?: boolean;
+  /**
+   * Pattern, when set, is a regular expression (RE2) a saved value must
+   * match, so a pasted login link or the wrong key is refused on save
+   * instead of failing the first run ("^sk-ant-oat01-").
+   */
+  pattern?: string;
 }
 /**
  * AuthMethodClientAuth is how client_id/client_secret reach the token
@@ -6183,10 +6412,20 @@ export const EntitlementRequestOpen: EntitlementRequestState = "open";
 export const EntitlementRequestAccepted: EntitlementRequestState = "accepted";
 export const EntitlementRequestDeclined: EntitlementRequestState = "declined";
 export const EntitlementRequestWithdrawn: EntitlementRequestState = "withdrawn";
-export type ChatStatus = "busy" | "idle" | "awaiting_input" | "completed";
+export type ChatStatus =
+  | "busy"
+  | "idle"
+  | "awaiting_input"
+  | "waiting"
+  | "completed";
 export const ChatStatusBusy: ChatStatus = "busy";
 export const ChatStatusIdle: ChatStatus = "idle";
 export const ChatStatusAwaitingInput: ChatStatus = "awaiting_input";
+/**
+ * ChatStatusWaiting: the run is paused on the agent's own wait call. A
+ * message ends the wait early; nobody has to act on it.
+ */
+export const ChatStatusWaiting: ChatStatus = "waiting";
 export const ChatStatusCompleted: ChatStatus = "completed";
 export type PlanStepStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export const PlanStepStatusPending: PlanStepStatus = "pending";
@@ -6286,8 +6525,41 @@ export interface ChatMessageContent {
   tool_calls?: ToolCall[];
   event?: ChatEvent;
 }
-export type ChatEventType = "hook";
+export type ChatEventType = "hook" | "run_failed" | "run_ended";
 export const ChatEventTypeHook: ChatEventType = "hook";
+/**
+ * ChatEventTypeRunFailed marks the point a run ended in failure; the
+ * content's text is the run's error.
+ */
+export const ChatEventTypeRunFailed: ChatEventType = "run_failed";
+/**
+ * ChatEventTypeRunEnded marks the point a run completed or was stopped;
+ * the event's run says how, and the content's text, when set, why.
+ */
+export const ChatEventTypeRunEnded: ChatEventType = "run_ended";
+/**
+ * RunEndReason is why a run that completed ended the way it did, when its
+ * last turn did not end with a reply.
+ */
+export type RunEndReason = "output_limit" | "no_reply";
+/**
+ * RunEndReasonOutputLimit: the model's last turn hit its output limit
+ * (max_tokens) before it replied or called a tool.
+ */
+export const RunEndReasonOutputLimit: RunEndReason = "output_limit";
+/**
+ * RunEndReasonNoReply: the model ended its last turn with no reply and
+ * no tool call.
+ */
+export const RunEndReasonNoReply: RunEndReason = "no_reply";
+/**
+ * ChatRunEvent is how a run ended, on a run_ended event.
+ */
+export interface ChatRunEvent {
+  run_id: string;
+  state: AgentRunState;
+  reason?: RunEndReason;
+}
 /**
  * ChatEvent is the payload of an event-role message: system info shown in the
  * chat but never sent to the model.
@@ -6295,6 +6567,7 @@ export const ChatEventTypeHook: ChatEventType = "hook";
 export interface ChatEvent {
   type: ChatEventType;
   hook?: ChatHookEvent;
+  run?: ChatRunEvent;
 }
 /**
  * ChatHookEvent records one lifecycle hook handler run.
@@ -6696,6 +6969,19 @@ export const GraphEdgeTypeSupersedes: GraphEdgeType = "supersedes";
 export const GraphEdgeTypeInput: GraphEdgeType = "input";
 export const GraphEdgeTypeOutput: GraphEdgeType = "output";
 /**
+ * InterruptResourceTurn is an interrupt that holds a run's next turn before
+ * its model call, with nothing in flight; its ResourceID is the run's. An
+ * allow starts the turn, a deny ends the run.
+ */
+export const InterruptResourceTurn: InterruptResourceType = "turn";
+/**
+ * InterruptReasonWait is a tool call the agent made to wait: the run is
+ * paused until the interrupt's deadline, when the expiry sweep settles it
+ * (allow), or until a person ends the wait sooner. Its resource is the
+ * wait call (InterruptResourceToolInvocation).
+ */
+export const InterruptReasonWait: InterruptReason = "wait";
+/**
  * MergeStrategy defines how a delta field should be merged by consumers.
  */
 export type MergeStrategy = "concat" | "replace" | "indexed" | "nested";
@@ -7043,6 +7329,33 @@ export type MCPServerAuthType = "oauth" | "api_key" | "none";
 export const MCPServerAuthOAuth: MCPServerAuthType = "oauth";
 export const MCPServerAuthAPIKey: MCPServerAuthType = "api_key";
 export const MCPServerAuthNone: MCPServerAuthType = "none";
+/**
+ * SecondFactor is one way a person proves their second factor. It names
+ * what a session proved (AuthSession.SecondFactor), what a login challenge
+ * offers, the method a verify request picks, and the kind of an enrolled
+ * method (SecondFactorMethod.Kind: the enrollable ones).
+ */
+export type SecondFactor = "totp" | "passkey" | "recovery" | "email";
+/**
+ * SecondFactorTOTP: a code from an enrolled authenticator app.
+ */
+export const SecondFactorTOTP: SecondFactor = "totp";
+/**
+ * SecondFactorPasskey: a WebAuthn assertion from an enrolled passkey.
+ */
+export const SecondFactorPasskey: SecondFactor = "passkey";
+/**
+ * SecondFactorRecovery: one of the account's single-use recovery codes.
+ * Not enrolled on its own: issued once an authenticator exists.
+ */
+export const SecondFactorRecovery: SecondFactor = "recovery";
+/**
+ * SecondFactorEmail: a code emailed to the account. The weakest: the
+ * same mailbox a magic link lands in, so it is offered only to an
+ * account with two-step verification off (a platform admin's first
+ * sign-in, re-auth before they enroll).
+ */
+export const SecondFactorEmail: SecondFactor = "email";
 /**
  * TeamInviteStatus represents the status of a team invitation
  */
@@ -7668,12 +7981,25 @@ export const TaskStatusCompleted: TaskStatus = 10;
 export const TaskStatusFailed: TaskStatus = 11;
 export const TaskStatusCancelled: TaskStatus = 12;
 /**
+ * TaskStatusRejected is a run admission refused (no balance, no payment
+ * method). The task is written already ended, keeping what was asked
+ * for; it never ran and no status leads to it.
+ */
+export const TaskStatusRejected: TaskStatus = 13;
+/**
  * Infra defines where a task should run.
  */
-export type Infra = "private" | "cloud" | "private_first";
+export type Infra = "private" | "cloud" | "private_first" | "remote";
 export const InfraPrivate: Infra = "private";
 export const InfraCloud: Infra = "cloud";
 export const InfraPrivateFirst: Infra = "private_first";
+/**
+ * InfraRemote is a model call a harness on the caller's own remote
+ * answers (an agent whose model app is a harness model app). The
+ * scheduler never takes it: the remote model service sends it to the
+ * remote's daemon, whose frames end it.
+ */
+export const InfraRemote: Infra = "remote";
 /**
  * TaskLogType defines the type of task log.
  */
@@ -8031,6 +8357,7 @@ export const AgentRunStateRejected: AgentRunState = "rejected";
  * Aligns with AG-UI interrupt outcome reasons.
  */
 export type InterruptReason =
+  | "wait"
   | "tool_approval"
   | "client_tool"
   | "widget"
@@ -8061,7 +8388,7 @@ export const InterruptResolutionDeny: InterruptResolution = "deny";
 /**
  * InterruptResourceType identifies the kind of resource an interrupt gates.
  */
-export type InterruptResourceType = "tool_invocation" | "hook_event";
+export type InterruptResourceType = "turn" | "tool_invocation" | "hook_event";
 export const InterruptResourceToolInvocation: InterruptResourceType = "tool_invocation";
 export const InterruptResourceHookEvent: InterruptResourceType = "hook_event";
 /**
@@ -8209,6 +8536,16 @@ export interface ContextInjection {
   items?: string[];
 }
 /**
+ * CompactionMeta is stored on ChatMessage for context compaction markers.
+ */
+export interface CompactionMeta {
+  compacted_up_to_order: number /* int */;
+  compacted_count: number /* int */;
+  estimated_tokens: number /* int */;
+  method?: string; // "extractive" or "llm"
+  analysis?: string;
+}
+/**
  * ToolCallEventData is the typed payload for agent.tool_call events.
  */
 export interface ToolCallEventData {
@@ -8240,6 +8577,7 @@ export type ToolInvocationStatus =
   | "in_progress"
   | "awaiting_input"
   | "awaiting_approval"
+  | "waiting"
   | "completed"
   | "failed"
   | "cancelled";
@@ -8247,6 +8585,7 @@ export const ToolInvocationStatusPending: ToolInvocationStatus = "pending";
 export const ToolInvocationStatusInProgress: ToolInvocationStatus = "in_progress";
 export const ToolInvocationStatusAwaitingInput: ToolInvocationStatus = "awaiting_input";
 export const ToolInvocationStatusAwaitingApproval: ToolInvocationStatus = "awaiting_approval";
+export const ToolInvocationStatusWaiting: ToolInvocationStatus = "waiting";
 export const ToolInvocationStatusCompleted: ToolInvocationStatus = "completed";
 export const ToolInvocationStatusFailed: ToolInvocationStatus = "failed";
 export const ToolInvocationStatusCancelled: ToolInvocationStatus = "cancelled";

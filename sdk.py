@@ -25,6 +25,7 @@ class InternalToolsConfig(TypedDict, total=False):
     agent: Optional[bool]
     remote: Optional[bool]
     knowledge: Optional[bool]
+    wait: Optional[bool]
 
 # AgentPermissions is what an agent's new chats in its own workspace may do
 # without asking (INF-906). Each is copied into such a chat when it is
@@ -45,6 +46,9 @@ class AgentTool(TypedDict, total=False):
     description: str
     type: ToolType
     require_approval: bool
+    # ApprovalTimeout is how many seconds a call of this tool waits for its
+    # approval before it is refused. 0 waits until someone answers.
+    approval_timeout: int
     app: Optional[AppToolConfig]
     agent: Optional[AgentToolConfig]
     hook: Optional[HookToolConfig]
@@ -89,6 +93,7 @@ class AgentToolDTO(TypedDict, total=False):
     description: str
     type: ToolType
     require_approval: bool
+    approval_timeout: int
     app: Optional[AppToolConfigDTO]
     agent: Optional[AgentToolConfigDTO]
     hook: Optional[HookToolConfigDTO]
@@ -136,7 +141,6 @@ class ClientToolConfig(TypedDict, total=False):
 class ToolAuthConfig(TypedDict, total=False):
     type: ToolAuthType
     provider: str
-    credential_id: str
     secret: str
     header: str
 
@@ -158,14 +162,11 @@ class HTTPToolConfig(TypedDict, total=False):
 
 # MCPToolConfig is a tool of an MCP server: the server by its slug (the
 # agent's team's registration, its org's or the directory's) and the tool
-# to call. CredentialID pins the connection the call signs in with; without
-# it the runner's connection to the server's provider is used. A tool
-# written with only a connection is saved with the server that
-# connection's provider is declared by.
+# to call. Each call signs in with the runner's connection to the
+# server's provider (Credential.ToolConnection).
 class MCPToolConfig(TypedDict, total=False):
     server: str
     tool_name: str
-    credential_id: str
 
 class AppToolConfigDTO(TypedDict, total=False):
     ref: str
@@ -210,7 +211,6 @@ class HTTPToolConfigDTO(TypedDict, total=False):
 class MCPToolConfigDTO(TypedDict, total=False):
     server: str
     tool_name: str
-    credential_id: str
 
 # CoreAppConfigDTO references an app used as the agent's core
 class CoreAppConfigDTO(TypedDict, total=False):
@@ -424,7 +424,9 @@ class AuthResponse(TypedDict, total=False):
     session_id: str
     is_new: bool
     otp_required: bool
-    otp_method: str
+    # OTPMethods are the second factors the sign-in may be finished with,
+    # the default first (POST /auth/otp/verify with method).
+    otp_methods: List[SecondFactor]
     challenge_token: str
     redirect_to: str
     provider: str
@@ -742,7 +744,6 @@ class AppPricing(TypedDict, total=False):
     description: str
     description_rendered: str
 
-# AppFunction represents a callable entry point within an app version.
 class AppFunction(TypedDict, total=False):
     name: str
     description: str
@@ -815,6 +816,25 @@ class CredentialRequirement(TypedDict, total=False):
     provider: Optional[CompanySeed]
     # Auth is the credential's auth provider, for a slug no row defines yet.
     auth: Optional[AuthMethod]
+    # The rest describe the platform api_key scheme a platform app's deploy
+    # catalogues for the slug: set on the scheme it creates, and filled into
+    # an existing one only where that is still empty (an admin's edit
+    # stands). Any other deploy ignores them.
+    # 
+    # DisplayName is the scheme's name ("Claude Code"); at most
+    # MaxCredentialDisplayName characters.
+    display_name: str
+    # ConnectionScope is who a connection belongs to: team (empty) or user.
+    connection_scope: CredentialScope
+    # Instructions tell a person how to get the key (markdown, at most
+    # MaxAuthProviderInstructions characters).
+    instructions: str
+    # DocsURL is the scheme's documentation link.
+    docs_url: str
+    # ExpiresAfterDays is how long a saved key lasts: it counts as expired
+    # this many days after it is saved. 0 is never; at most
+    # MaxExpiresAfterDays.
+    expires_after_days: int
 
 # CompanySeed is a provider (the company behind a credential) as an app
 # declares it: enough to create its catalog row when none exists.
@@ -865,7 +885,7 @@ class AppSandbox(TypedDict, total=False):
 # use.
 class DeployWarning(TypedDict, total=False):
     # Code identifies the check: readonly_broad_credential,
-    # unused_credential, missing_annotations.
+    # unused_credential, missing_annotations, unapproved_platform_scope.
     code: str
     # Function is the function the warning is about, when it is about one.
     function: str
@@ -908,6 +928,22 @@ class PublicAppStoreDTO(TypedDict, total=False):
     page_id: Optional[str]
     pricing_description: str
 
+# ArtifactVersionFileDTO is one file published beside a version's index.
+class ArtifactVersionFileDTO(TypedDict, total=False):
+    path: str
+    size_bytes: int
+    content_type: str
+
+# ArtifactFileInput is one extra file in a publish, served at Path relative
+# to the index page: another page (.html, .md), or css, js, json, svg, txt,
+# xml, csv.
+class ArtifactFileInput(TypedDict, total=False):
+    path: str
+    content: str
+    # ContentEncoding is "base64" when Content is base64-encoded, as for the
+    # main content.
+    content_encoding: str
+
 # ArtifactCreateRequest is the body for POST /artifacts. Creates the entry
 # and its first version. When an artifact with the same name already exists
 # in the caller's namespace a new version is published instead.
@@ -924,6 +960,9 @@ class ArtifactCreateRequest(TypedDict, total=False):
     # ContentEncoding is "base64" when Content is base64-encoded UTF-8. Use it
     # from browsers and CLIs: edge firewalls reject raw <script> in JSON bodies.
     content_encoding: str
+    # Files are published beside the index page. A publish is the whole
+    # site: files of the previous version are not carried over.
+    files: List[ArtifactFileInput]
     label: str
     notes: str
     origin: str
@@ -954,6 +993,9 @@ class ArtifactPublishRequest(TypedDict, total=False):
     content: str
     # ContentEncoding is "base64" when Content is base64-encoded UTF-8.
     content_encoding: str
+    # Files are published beside the index page. A publish is the whole
+    # site: files of the previous version are not carried over.
+    files: List[ArtifactFileInput]
     label: str
     notes: str
     origin: str
@@ -1001,14 +1043,24 @@ class ArtifactDataRequest(TypedDict, total=False):
     doc_id: str
     # Data is the document body for set and update.
     data: Dict[str, Any]
-    # Limit caps a list; the server clamps it.
+    # Limit caps a list; the server clamps it to 200.
     limit: int
+    # Cursor continues a list from the next_cursor of the page before.
+    cursor: str
+    # Order is the list order: -updated_at (the default), updated_at,
+    # -created_at or created_at.
+    order: str
+    # Where keeps only documents whose top-level fields equal these values
+    # (string, number, boolean, or null for a missing field).
+    where: Dict[str, Any]
 
 # ArtifactDataListResponse is a page of documents from one collection.
 class ArtifactDataListResponse(TypedDict, total=False):
     collection: str
     documents: List[ArtifactDataDTO]
     count: int
+    # NextCursor fetches the page after this one; empty on the last page.
+    next_cursor: str
 
 # ArtifactViewerDTO is what the user capability tells a page about whoever
 # has it open. It carries no credential and no email.
@@ -1327,13 +1379,10 @@ class CompanySummary(TypedDict, total=False):
 class CredentialConfigDTO(TypedDict, total=False):
     slug: str
     # Provider is the credential slug (what Credential.Provider stores):
-    # one way to authenticate. The company it belongs to is ProviderInfo.
+    # one way to authenticate. The company it belongs to is Company.
     provider: str
-    # ProviderInfo is the company this slug belongs to, for grouping: the
-    # providers row its auth provider names, else the slug's own identity.
-    provider_info: Optional[CompanySummary]
-    # Company is ProviderInfo under its settled name (INF-1079); provider_info
-    # stays one release.
+    # Company is the company this slug belongs to, for grouping: the
+    # companies row its auth provider names, else the slug's own identity.
     company: Optional[CompanySummary]
     type: str
     name: str
@@ -1341,9 +1390,16 @@ class CredentialConfigDTO(TypedDict, total=False):
     description: str
     icon_url: str
     how_it_works: List[str]
+    # Instructions tell a person how to get what this credential asks for
+    # (markdown, links allowed): the auth scheme's.
+    instructions: str
     docs_url: str
     secret_fields: List[SecretFieldConfig]
     allows_byok: bool
+    # ExpiresAfterDays is how long a saved key lasts, in days: a key counts
+    # as expired that long after it is saved (its credential's expires_at).
+    # 0 is never.
+    expires_after_days: int
     available: bool
     has_managed: bool
     # ConnectionScope is who a new connection belongs to by default: the
@@ -1357,7 +1413,7 @@ class CredentialConfigDTO(TypedDict, total=False):
     app: Optional[CredentialDTO]
     # AuthProviderID is set when the provider is one the team defined
     # itself (models.AuthProvider), so the UI can offer edit and remove.
-    auth_scheme_id: str
+    auth_provider_id: str
     # Credential is the login used where no account is named: the caller's
     # own, else the workspace's default account.
     credential: Optional[CredentialDTO]
@@ -1377,6 +1433,8 @@ class SecretFieldConfig(TypedDict, total=False):
     placeholder: str
     sensitive: bool
     optional: bool
+    # Pattern is the scheme field's pattern (shared.SecretField.Pattern).
+    pattern: str
 
 # SearchRequest represents a search request.
 # Each model declares its own SearchFields() on the repository.
@@ -1454,6 +1512,21 @@ class WorkerConfig(TypedDict, total=False):
     gpu: List[WorkerGPUConfig]
     cpu: WorkerCPUConfig
 
+# EngineUpdateRequest names the release an engine should install: "stable",
+# "canary", or a version such as v1.9.3. Empty is stable.
+class EngineUpdateRequest(TypedDict, total=False):
+    version: str
+
+# EngineRelease is one published engine build.
+class EngineRelease(TypedDict, total=False):
+    version: str
+    release_date: str
+
+# EngineReleasesResponse is the head of each engine release channel.
+class EngineReleasesResponse(TypedDict, total=False):
+    stable: Optional[EngineRelease]
+    canary: Optional[EngineRelease]
+
 # WorkerSummary is a lightweight worker response.
 class WorkerSummary(TypedDict, total=False):
     id: str
@@ -1495,6 +1568,10 @@ class WorkerRAM(TypedDict, total=False):
     id: str
     worker_id: str
     total: int
+
+# EngineCapabilities is a set of capabilities, kept as a list. Nil and
+# empty are the same: nothing beyond the base contract.
+EngineCapabilities = List["EngineCapability"]
 
 # EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
 class EntitlementErrorMeta(TypedDict, total=False):
@@ -1796,6 +1873,21 @@ class InstanceTypeBootTime(TypedDict, total=False):
     average_seconds: int
     updated_at: str
     sample_size: int
+
+# InstancePriceHistoryPointDTO is one day's cheapest hourly prices, in cents,
+# for a GPU type. List prices rarely move; the in-stock price does, as stock
+# comes and goes. A price with no listing (or no stock) that day is omitted.
+class InstancePriceHistoryPointDTO(TypedDict, total=False):
+    day: str
+    # OnDemand and Spot are the cheapest listed prices, in stock or not.
+    on_demand: int
+    spot: int
+    # OnDemandInStock and SpotInStock are the cheapest prices that had stock.
+    on_demand_in_stock: int
+    spot_in_stock: int
+    providers: int
+    # Regions is the number of provider regions with on-demand stock.
+    regions: int
 
 # KnowledgeFile represents a file in a knowledge entry
 class KnowledgeFile(TypedDict, total=False):
@@ -2242,6 +2334,9 @@ class SetupAction(TypedDict, total=False):
     # ProviderWebsite is where the logo of a provider the platform does not
     # list comes from; sent back when the keys are saved.
     provider_website: str
+    # Instructions tell a person how to get what the provider's scheme
+    # asks for (markdown, links allowed).
+    instructions: str
 
 # CheckRequirementsRequest is the request body for checking requirements
 class CheckRequirementsRequest(TypedDict, total=False):
@@ -2446,6 +2541,13 @@ class TaskLog(TypedDict, total=False):
     task_id: str
     log_type: TaskLogType
     content: bytes
+
+# TaskDTO is the full API response for a task.
+# TaskEgress is what a task's sandbox sent to and received from the
+# internet through the engine's egress gateway, in bytes.
+class TaskEgress(TypedDict, total=False):
+    bytes_out: int
+    bytes_in: int
 
 # TaskResultDTO is a slim response for task run/result endpoints.
 class TaskResultDTO(TypedDict, total=False):
@@ -2799,6 +2901,10 @@ class SecretField(TypedDict, total=False):
     placeholder: str
     sensitive: bool
     optional: bool
+    # Pattern, when set, is a regular expression (RE2) a saved value must
+    # match, so a pasted login link or the wrong key is refused on save
+    # instead of failing the first run ("^sk-ant-oat01-").
+    pattern: str
 
 # AuthMethodRevoke is the optional token revocation on disconnect.
 class AuthMethodRevoke(TypedDict, total=False):
@@ -2872,135 +2978,136 @@ class AuthMethodCapability(TypedDict, total=False):
 # Array elements are indexed: {{resources.0.id}}. {{a|b}} takes the first
 # path present. A template none of whose placeholders resolve renders "":
 # omitted from env and metadata, blank as identifier or name.
-class AuthMethod(TypedDict, total=False):
-    kind: AuthMethodKind
+AuthMethod = TypedDict('AuthMethod', {
+    'kind': 'AuthMethodKind',
     # Flow is the oauth2 grant; empty means authorization_code.
-    flow: AuthMethodFlow
+    'flow': 'AuthMethodFlow',
     # Fields are what a person pastes (api_key and http kinds).
-    fields: List[SecretField]
+    'fields': 'List[SecretField]',
     # In and ParamName say where an api_key key goes on a request: the
     # header or query parameter of that name. ValuePrefix is prepended to
     # the value ("Bearer "). Not needed to connect; read by injection.
-    in_: AuthMethodAPIKeyIn
-    param_name: str
-    value_prefix: str
+    'in': 'AuthMethodAPIKeyIn',
+    'param_name': 'str',
+    'value_prefix': 'str',
     # Scheme and BearerFormat describe an http kind's Authorization header.
-    scheme: AuthMethodHTTPScheme
-    bearer_format: str
-    authorization_endpoint: str
-    scopes: List[str]
+    'scheme': 'AuthMethodHTTPScheme',
+    'bearer_format': 'str',
+    'authorization_endpoint': 'str',
+    'scopes': 'List[str]',
     # ScopeAliases map the scheme's own scope names to what the provider
     # wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
     # gmail.send"). Credentials store the alias; the wire form is used only
     # in requests. A scope with no alias is sent as is.
-    scope_aliases: Dict[str, str]
-    scope_param: str
-    scope_separator: str
-    omit_scope_param: bool
-    pkce: bool
+    'scope_aliases': 'Dict[str, str]',
+    'scope_param': 'str',
+    'scope_separator': 'str',
+    'omit_scope_param': 'bool',
+    'pkce': 'bool',
     # ClientIDParam is the name the client id travels under in the
     # authorize URL and the token body; default "client_id" (TikTok:
     # "client_key").
-    client_id_param: str
+    'client_id_param': 'str',
     # ExtraAuthorizeParams are appended to the authorize URL verbatim
     # (Google's access_type=offline). AddScopesParams override them when
     # re-authorizing for more scopes (Google's include_granted_scopes).
-    extra_authorize_params: Dict[str, str]
-    add_scopes_params: Dict[str, str]
+    'extra_authorize_params': 'Dict[str, str]',
+    'add_scopes_params': 'Dict[str, str]',
     # AccountHintParam is the authorize param that names the account to sign
     # in with (Google's and Microsoft's "login_hint"). When re-authorizing
     # for more scopes it carries the login's account identifier, so the
     # provider goes to that account instead of offering a chooser. Empty =
     # no hint sent.
-    account_hint_param: str
+    'account_hint_param': 'str',
     # AnotherAccountParams are authorize params for connecting an account
     # next to one already connected: the provider shows its account chooser
     # instead of signing the user back in to the account it remembers
     # (Google prompt=select_account). They override ExtraAuthorizeParams.
-    another_account_params: Dict[str, str]
+    'another_account_params': 'Dict[str, str]',
     # RequiredScopes are always requested, on a connect and when
     # re-authorizing for more scopes, whatever the caller asked for: the
     # scopes the identity lookup and token refresh need (Google's openid,
     # email and profile; X's users.read and offline.access). In the
     # scheme's own names, like Scopes. Empty = only what was asked for.
-    required_scopes: List[str]
+    'required_scopes': 'List[str]',
     # IncrementalAddScopes: re-authorizing for more scopes asks only for
     # the new ones (plus RequiredScopes), and the provider returns a token
     # that also covers what the login already holds (Google, with
     # include_granted_scopes in AddScopesParams). Without it the full list
     # is asked for again.
-    incremental_add_scopes: bool
+    'incremental_add_scopes': 'bool',
     # Resource is the RFC 8707 resource indicator: the protected resource
     # the token is minted for (an MCP server's URL). Sent on the authorize,
     # code and refresh requests when the profile takes one. Empty = none.
-    resource: str
+    'resource': 'str',
     # Issuer is the authorization server's RFC 8414 issuer. With
     # AuthorizationResponseIssParameterSupported, the callback's iss must
     # name it (RFC 9207, against mix-up); an issuer alone still refuses a
     # callback naming another one.
-    issuer: str
-    authorization_response_iss_parameter_supported: bool
+    'issuer': 'str',
+    'authorization_response_iss_parameter_supported': 'bool',
     # Callback is the name of the redirect URI the app was registered with
     # (<app>/settings/secrets/oauth/<callback>). Empty = the slug. Schemes
     # whose clients are registered once for many slugs share one (an MCP
     # server's dynamically registered client and the Client ID Metadata
     # Document name the "mcp" callback); the flow's provider then comes
     # from the connect intent, never from the callback's path.
-    callback: str
+    'callback': 'str',
     # Profile names the authorization server's deviations from the specs
     # (authmethod.AuthServerProfile: endpoints placed by app fields,
     # scopes on refresh, actionable errors, admin consent). Empty = none.
-    profile: str
-    token_endpoint: str
+    'profile': 'str',
+    'token_endpoint': 'str',
     # RevocationEndpoint is the RFC 7009 endpoint, when the provider has
     # one and Revoke names no style of its own: tokens are revoked there
     # with a form POST.
-    revocation_endpoint: str
-    client_auth: AuthMethodClientAuth
-    token_request: AuthMethodTokenRequest
+    'revocation_endpoint': 'str',
+    'client_auth': 'AuthMethodClientAuth',
+    'token_request': 'AuthMethodTokenRequest',
     # Headers go on every request to the provider (User-Agent for Reddit,
     # Notion-Version); values are templates ({{client_id}} for Twitch's
     # Client-Id).
-    headers: Dict[str, str]
+    'headers': 'Dict[str, str]',
     # TokenResponseHook names the Go reader for a token response that is
     # not the RFC 6749 shape (Slack's nested authed_user). Empty = standard.
-    token_response_hook: str
-    refresh: AuthMethodRefresh
-    revoke: Optional[AuthMethodRevoke]
+    'token_response_hook': 'str',
+    'refresh': 'AuthMethodRefresh',
+    'revoke': 'Optional[AuthMethodRevoke]',
     # UserInfoURL is fetched with the new access token; the response is the
     # identity document (user.*). UserInfoURLPath instead reads that URL
     # from a path within the token response (Salesforce's "id"). Lookups
     # are further calls, each becoming a root of its name, in order, after
     # user. With none of these, the token response is all there is.
-    userinfo_url: str
-    userinfo_url_path: str
-    lookups: List[AuthMethodLookup]
+    'userinfo_url': 'str',
+    'userinfo_url_path': 'str',
+    'lookups': 'List[AuthMethodLookup]',
     # Identifier is the connected account's stable, human-readable id
     # ("{{user.email}}", "@{{user.data.username}}"); Name its display name.
-    identifier: str
-    name: str
+    'identifier': 'str',
+    'name': 'str',
     # AccountID is the account's id as the provider keeps it and never
     # changes it ("{{user.sub}}" for Google, "{{user.data.id}}" for X), as
     # opposed to Identifier, which the user may rename. Logins are matched
     # and chosen by it. Empty = Identifier, for providers whose identifier
     # already is such an id (Slack, Notion).
-    account_id: str
+    'account_id': 'str',
     # IdentityHook names Go code that derives identifier and name when a
     # template cannot (Discord's discriminator rule). It wins over both.
-    identity_hook: str
+    'identity_hook': 'str',
     # Metadata is what the credential stores about the account, by key.
-    metadata: Dict[str, str]
+    'metadata': 'Dict[str, str]',
     # Env is what a run reads, by variable. Empty = PREFIX_ACCESS_TOKEN and
     # PREFIX_ACCESS_TOKEN_EXPIRES_AT.
-    env: Dict[str, str]
+    'env': 'Dict[str, str]',
     # AppKeys are the OAuth app's keys beyond the implied client id and
     # secret, and label overrides for those.
-    app_keys: List[AuthMethodAppKey]
+    'app_keys': 'List[AuthMethodAppKey]',
     # VarsHook names Go code that turns the app's extra keys into the
     # {var} values substituted into the URLs (Microsoft's tenant,
     # Salesforce's sandbox host).
-    vars_hook: str
-    capabilities: List[AuthMethodCapability]
+    'vars_hook': 'str',
+    'capabilities': 'List[AuthMethodCapability]',
+}, total=False)
 
 # ChatData contains agent-specific data for a chat session
 class ChatData(TypedDict, total=False):
@@ -3032,11 +3139,18 @@ class ChatMessageContent(TypedDict, total=False):
     tool_calls: Optional[List[ToolCall]]
     event: Optional[ChatEvent]
 
+# ChatRunEvent is how a run ended, on a run_ended event.
+class ChatRunEvent(TypedDict, total=False):
+    run_id: str
+    state: AgentRunState
+    reason: RunEndReason
+
 # ChatEvent is the payload of an event-role message: system info shown in the
 # chat but never sent to the model.
 class ChatEvent(TypedDict, total=False):
     type: ChatEventType
     hook: Optional[ChatHookEvent]
+    run: Optional[ChatRunEvent]
 
 # ChatHookEvent records one lifecycle hook handler run.
 class ChatHookEvent(TypedDict, total=False):
@@ -3231,11 +3345,11 @@ class ToolCallDelta(TypedDict, total=False):
     type: Optional[ToolCallType]
     function: Optional[ToolCallFunctionDelta]
 
-    _field_tags = {
-        "id": {"merge": "replace"},
-        "type": {"merge": "replace"},
-        "function": {"merge": "nested"},
-    }
+ToolCallDelta._field_tags = {  # type: ignore[attr-defined]
+    "id": {"merge": "replace"},
+    "type": {"merge": "replace"},
+    "function": {"merge": "nested"},
+}
 
 # ToolCallFunctionDelta carries partial tool call function data.
 # Arguments is a raw JSON string fragment — concatenate by index, parse on completion.
@@ -3243,10 +3357,10 @@ class ToolCallFunctionDelta(TypedDict, total=False):
     name: str
     arguments: str
 
-    _field_tags = {
-        "name": {"merge": "replace"},
-        "arguments": {"merge": "concat"},
-    }
+ToolCallFunctionDelta._field_tags = {  # type: ignore[attr-defined]
+    "name": {"merge": "replace"},
+    "arguments": {"merge": "concat"},
+}
 
 # ToolChoice constrains tool calling for a turn. Providers spell this
 # differently (OpenAI tool_choice, Anthropic tool_choice.type any/tool,
@@ -3476,14 +3590,15 @@ class BuiltinHookDefinition(TypedDict, total=False):
 
 # LifecycleHookConfig registers a handler for an agent lifecycle event.
 # Stored on AgentVersion alongside Tools and Skills.
-class LifecycleHookConfig(TypedDict, total=False):
-    event: HookEvent
-    type: HookHandlerType
-    handler: str
-    async_: bool
-    timeout: int
+LifecycleHookConfig = TypedDict('LifecycleHookConfig', {
+    'event': 'HookEvent',
+    'type': 'HookHandlerType',
+    'handler': 'str',
+    'async': 'bool',
+    'timeout': 'int',
     # Gate-specific fields (type: "gate")
-    default_resolution: InterruptResolution
+    'default_resolution': 'InterruptResolution',
+}, total=False)
 
 # LifecycleHookPayload is sent to hook handlers on lifecycle events.
 class LifecycleHookPayload(TypedDict, total=False):
@@ -3517,6 +3632,14 @@ class ContextInjection(TypedDict, total=False):
     # already offered, instead of keeping a ledger somewhere else and hoping
     # the two stay in step.
     items: List[str]
+
+# CompactionMeta is stored on ChatMessage for context compaction markers.
+class CompactionMeta(TypedDict, total=False):
+    compacted_up_to_order: int
+    compacted_count: int
+    estimated_tokens: int
+    method: str
+    analysis: str
 
 # ToolCallEventData is the typed payload for agent.tool_call events.
 class ToolCallEventData(TypedDict, total=False):
@@ -3664,6 +3787,8 @@ class ArtifactVersionDTO(BaseModelDTO, TypedDict, total=False):
     generated_by: str
     capabilities: Dict[str, Any]
     created_by_user_id: str
+    # Files are the pages and data served beside the index page.
+    files: List[ArtifactVersionFileDTO]
 
 # WorkerDTO is the full API response for a worker.
 class WorkerDTO(BaseModelDTO, TypedDict, total=False):
@@ -3869,7 +3994,14 @@ class UserDTO(BaseModelDTO, TypedDict, total=False):
     avatar_url: str
     banned_at: Optional[str]
     ban_note: str
+    # TOTPEnabled mirrors TwoFactorEnabled for clients built before it
+    # (the Swift SDK decodes it as required).
+    # 
+    # Deprecated: read TwoFactorEnabled. Kept until no Swift app build older
+    # than sdk-swift 0.23.0 is in use, since those fail to decode /me without it.
     totp_enabled: bool
+    # TwoFactorEnabled is the account's two-step verification switch.
+    two_factor_enabled: bool
     metadata: Optional[UserMetadataDTO]
 
 class AgentVersionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -4085,6 +4217,8 @@ class ChatMessageDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     tools: Optional[List[Tool]]
     tool_call_id: Optional[str]
     tool_invocations: Optional[List[ToolInvocationDTO]]
+    # CompactionMeta is what a compaction (role compaction) retired.
+    compaction_meta: Optional[CompactionMeta]
 
 # CredentialDTO is the API response for a credential (never exposes secrets).
 class CredentialDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -4103,6 +4237,10 @@ class CredentialDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     account_identifier: str
     account_name: str
     scopes: StringSlice
+    # AllowedScopes, on an OAuth app row (grant credentials), is every
+    # scope a login through it may request; absent when any scope may be
+    # (a team's own client by default). Never set on a login.
+    allowed_scopes: StringSlice
     expires_at: Optional[str]
     vault_id: Optional[str]
     metadata: Dict[str, Any]
@@ -4121,6 +4259,10 @@ class EngineDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     api_url: str
     status: EngineStatus
     engine_version: str
+    # EnginePin is the version the engine is held on; empty follows stable.
+    engine_pin: str
+    # Capabilities are what the engine last reported it can do.
+    capabilities: EngineCapabilities
     system_info: Optional[SystemInfo]
     workers: List[Optional[WorkerDTO]]
 
@@ -4440,7 +4582,6 @@ class SocketDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     worker_frames: int
     worker_bytes: int
 
-# TaskDTO is the full API response for a task.
 class TaskDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     graph_id: Optional[str]
     user_public_key: bytes
@@ -4474,6 +4615,10 @@ class TaskDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     events: List[TaskEvent]
     logs: List[TaskLog]
     usage_events: List[Optional[UsageEventDTO]]
+    # Egress is what the task's sandbox moved through the engine's egress
+    # gateway, reported by the engine when the task ended. Absent for a
+    # task that ran without the gateway.
+    egress: Optional[TaskEgress]
     session_id: Optional[str]
     session_timeout: Optional[int]
 
@@ -4551,12 +4696,12 @@ class LLMDelta(StreamDelta, TypedDict, total=False):
     tool_calls: Optional[List[ToolCallDelta]]
     usage: Optional[LLMUsage]
 
-    _field_tags = {
-        "response": {"merge": "concat"},
-        "reasoning": {"merge": "concat"},
-        "tool_calls": {"merge": "indexed"},
-        "usage": {"merge": "replace"},
-    }
+LLMDelta._field_tags = {  # type: ignore[attr-defined]
+    "response": {"merge": "concat"},
+    "reasoning": {"merge": "concat"},
+    "tool_calls": {"merge": "indexed"},
+    "usage": {"merge": "replace"},
+}
 
 # LLMInput is the input envelope for an LLM provider task: the conversation,
 # with the current turn split out of the context, plus the settings.
@@ -4696,6 +4841,12 @@ class Scope(str, Enum):
     # ScopeStoreSubmit submits a resource version to the store on its
     # publisher's behalf. Held like ScopeStorePricing.
     STORE_SUBMIT = "store:submit"
+    # ScopeContentWrite writes the site's content (/content): blog and docs
+    # pages, menus and the platform media library. Held like
+    # ScopeStorePricing: only in the platform's workspace, by its members,
+    # their keys and runs, and its own keys. Reads of published content take
+    # no scope.
+    CONTENT_WRITE = "content:write"
 
 class ScopeGroup(str, Enum):
     AGENTS = "agents"
@@ -4719,6 +4870,7 @@ class ScopeGroup(str, Enum):
     APPROVALS = "approvals"
     ADMIN = "admin"
     STORE = "store"
+    CONTENT = "content"
 
 class AlwaysAllowScope(str, Enum):
     # AlwaysAllowScopeExact: this call exactly (each piece of the command,
@@ -4742,6 +4894,9 @@ class ToolRiskLevel(str, Enum):
     # ToolRiskHigh: dangerous or irreversible changes.
     TOOL_RISK_HIGH = "high"
 
+class EngineCapability(str, Enum):
+    EGRESS_GATEWAY = "egress_gateway"
+
 class ErrorCode(str, Enum):
     INVALID_REQUEST = "invalid_request"
     VALIDATION_ERROR = "validation_error"
@@ -4755,6 +4910,10 @@ class ErrorCode(str, Enum):
     METHOD_NOT_ALLOWED = "method_not_allowed"
     RATE_LIMITED = "rate_limited"
     INTERNAL_ERROR = "internal_error"
+    # ErrorCodeRequirementsNotMet (412): the run needs a secret or a
+    # credential the caller has not set up. Meta "errors" lists each
+    # RequirementError, its action saying how to set it up.
+    REQUIREMENTS_NOT_MET = "requirements_not_met"
     # ErrorCodeTeamRoleRequired: the caller's team role or org-admin status
     # does not allow the action. Meta is TeamRoleRequiredMeta when a
     # capability gate refused it.
@@ -4823,6 +4982,11 @@ class ErrorCode(str, Enum):
     # works as an ordinary member. An admin who has one but whose session
     # has not proved it gets otp_required instead: re-authenticate with it.
     ADMIN_AUTHENTICATOR_REQUIRED = "admin_authenticator_required"
+    # ErrorCodeLastAuthenticator (409): the change would leave two-step
+    # verification on with no method to prove it (removing the last
+    # authenticator app or passkey), or turn it on with none enrolled.
+    # Turn two-step verification off first, or enroll a method.
+    LAST_AUTHENTICATOR = "last_authenticator"
     # Entitlements. LimitExceeded (402) and FeatureNotAvailable (403) carry
     # EntitlementErrorMeta. EntitlementUnavailable (500) means the plan could
     # not be checked and the request is retriable.
@@ -5139,6 +5303,9 @@ class ChatStatus(str, Enum):
     BUSY = "busy"
     IDLE = "idle"
     AWAITING_INPUT = "awaiting_input"
+    # ChatStatusWaiting: the run is paused on the agent's own wait call. A
+    # message ends the wait early; nobody has to act on it.
+    WAITING = "waiting"
     COMPLETED = "completed"
 
 class PlanStepStatus(str, Enum):
@@ -5184,6 +5351,20 @@ class ChannelType(str, Enum):
 
 class ChatEventType(str, Enum):
     HOOK = "hook"
+    # ChatEventTypeRunFailed marks the point a run ended in failure; the
+    # content's text is the run's error.
+    RUN_FAILED = "run_failed"
+    # ChatEventTypeRunEnded marks the point a run completed or was stopped;
+    # the event's run says how, and the content's text, when set, why.
+    RUN_ENDED = "run_ended"
+
+class RunEndReason(str, Enum):
+    # RunEndReasonOutputLimit: the model's last turn hit its output limit
+    # (max_tokens) before it replied or called a tool.
+    OUTPUT_LIMIT = "output_limit"
+    # RunEndReasonNoReply: the model ended its last turn with no reply and
+    # no tool call.
+    NO_REPLY = "no_reply"
 
 class DescriptionLimit(IntEnum):
     # DescriptionLimitListing bounds the description of an app, agent, flow,
@@ -5273,6 +5454,27 @@ class GraphEdgeType(str, Enum):
     SUPERSEDES = "supersedes"
     INPUT = "input"
     OUTPUT = "output"
+
+# InterruptResourceTurn is an interrupt that holds a run's next turn before
+# its model call, with nothing in flight; its ResourceID is the run's. An
+# allow starts the turn, a deny ends the run.
+class InterruptResourceType(str, Enum):
+    INTERRUPT_RESOURCE_TURN = "turn"
+    INTERRUPT_RESOURCE_TOOL_INVOCATION = "tool_invocation"
+    INTERRUPT_RESOURCE_HOOK_EVENT = "hook_event"
+
+# InterruptReasonWait is a tool call the agent made to wait: the run is
+# paused until the interrupt's deadline, when the expiry sweep settles it
+# (allow), or until a person ends the wait sooner. Its resource is the
+# wait call (InterruptResourceToolInvocation).
+class InterruptReason(str, Enum):
+    WAIT = "wait"
+    TOOL_APPROVAL = "tool_approval"
+    CLIENT_TOOL = "client_tool"
+    WIDGET = "widget"
+    AUTH = "auth"
+    CONFIRMATION = "confirmation"
+    HOOK_GATE = "hook_gate"
 
 class MergeStrategy(str, Enum):
     CONCAT = "concat"
@@ -5398,6 +5600,20 @@ class MCPServerAuthType(str, Enum):
     MCP_SERVER_AUTH_O_AUTH = "oauth"
     MCP_SERVER_AUTH_API_KEY = "api_key"
     MCP_SERVER_AUTH_NONE = "none"
+
+class SecondFactor(str, Enum):
+    # SecondFactorTOTP: a code from an enrolled authenticator app.
+    TOTP = "totp"
+    # SecondFactorPasskey: a WebAuthn assertion from an enrolled passkey.
+    PASSKEY = "passkey"
+    # SecondFactorRecovery: one of the account's single-use recovery codes.
+    # Not enrolled on its own: issued once an authenticator exists.
+    RECOVERY = "recovery"
+    # SecondFactorEmail: a code emailed to the account. The weakest: the
+    # same mailbox a magic link lands in, so it is offered only to an
+    # account with two-step verification off (a platform admin's first
+    # sign-in, re-auth before they enroll).
+    EMAIL = "email"
 
 class TeamInviteStatus(str, Enum):
     PENDING = "pending"
@@ -5705,11 +5921,20 @@ class TaskStatus(IntEnum):
     COMPLETED = 10
     FAILED = 11
     CANCELLED = 12
+    # TaskStatusRejected is a run admission refused (no balance, no payment
+    # method). The task is written already ended, keeping what was asked
+    # for; it never ran and no status leads to it.
+    REJECTED = 13
 
 class Infra(str, Enum):
     PRIVATE = "private"
     CLOUD = "cloud"
     PRIVATE_FIRST = "private_first"
+    # InfraRemote is a model call a harness on the caller's own remote
+    # answers (an agent whose model app is a harness model app). The
+    # scheduler never takes it: the remote model service sends it to the
+    # remote's daemon, whose frames end it.
+    REMOTE = "remote"
 
 class TaskLogType(IntEnum):
     BUILD = 0
@@ -5836,14 +6061,6 @@ class AgentRunState(str, Enum):
     CANCELED = "canceled"
     REJECTED = "rejected"
 
-class InterruptReason(str, Enum):
-    TOOL_APPROVAL = "tool_approval"
-    CLIENT_TOOL = "client_tool"
-    WIDGET = "widget"
-    AUTH = "auth"
-    CONFIRMATION = "confirmation"
-    HOOK_GATE = "hook_gate"
-
 class InterruptStatus(str, Enum):
     PENDING = "pending"
     RESOLVED = "resolved"
@@ -5853,10 +6070,6 @@ class InterruptStatus(str, Enum):
 class InterruptResolution(str, Enum):
     ALLOW = "allow"
     DENY = "deny"
-
-class InterruptResourceType(str, Enum):
-    INTERRUPT_RESOURCE_TOOL_INVOCATION = "tool_invocation"
-    INTERRUPT_RESOURCE_HOOK_EVENT = "hook_event"
 
 class HookEvent(str, Enum):
     AGENT_START = "agent.start"
@@ -5899,6 +6112,7 @@ class ToolInvocationStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     AWAITING_INPUT = "awaiting_input"
     AWAITING_APPROVAL = "awaiting_approval"
+    WAITING = "waiting"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
