@@ -8437,7 +8437,12 @@ type ChatMessageContent struct {
 
 type ChatEventType string
 
-const ChatEventTypeHook ChatEventType = "hook"
+const (
+	ChatEventTypeHook ChatEventType = "hook"
+	// ChatEventTypeRunFailed marks the point a run ended in failure; the
+	// content's text is the run's error.
+	ChatEventTypeRunFailed ChatEventType = "run_failed"
+)
 
 // ChatEvent is the payload of an event-role message: system info shown in the
 // chat but never sent to the model.
