@@ -500,12 +500,14 @@ type AgentRunDTO struct {
 	State              AgentRunState    `json:"state"`
 	Error              *string          `json:"error,omitempty"`
 	Output             *json.RawMessage `json:"output,omitempty"`
-	InterruptReason    *InterruptReason `json:"interrupt_reason,omitempty"`
-	InterruptToolID    *string          `json:"interrupt_tool_id,omitempty"`
-	InterruptMeta      json.RawMessage  `json:"interrupt_meta,omitempty"`
-	ToolInvocationID   *string          `json:"tool_invocation_id,omitempty"`
-	TriggerID          *string          `json:"trigger_id,omitempty"`
-	Metadata           json.RawMessage  `json:"metadata,omitempty"`
+	// FinishedAt is when the run reached a terminal state; nil while it runs.
+	FinishedAt       *time.Time       `json:"finished_at,omitempty"`
+	InterruptReason  *InterruptReason `json:"interrupt_reason,omitempty"`
+	InterruptToolID  *string          `json:"interrupt_tool_id,omitempty"`
+	InterruptMeta    json.RawMessage  `json:"interrupt_meta,omitempty"`
+	ToolInvocationID *string          `json:"tool_invocation_id,omitempty"`
+	TriggerID        *string          `json:"trigger_id,omitempty"`
+	Metadata         json.RawMessage  `json:"metadata,omitempty"`
 	// ProfileID is the harness profile that thought for this run; nil when it
 	// was our own loop. RemoteID is the machine it ran on, if any.
 	ProfileID *string `json:"profile_id,omitempty"`

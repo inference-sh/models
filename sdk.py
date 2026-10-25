@@ -4034,6 +4034,8 @@ class AgentRunDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     state: AgentRunState
     error: Optional[str]
     output: Optional[Any]
+    # FinishedAt is when the run reached a terminal state; nil while it runs.
+    finished_at: Optional[str]
     interrupt_reason: Optional[InterruptReason]
     interrupt_tool_id: Optional[str]
     interrupt_meta: Any
