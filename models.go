@@ -2947,14 +2947,6 @@ type SearchRequest struct {
 	Exact bool   `json:"exact"`
 }
 
-type ListResponse[T any] struct {
-	Items      []T `json:"items"`
-	Total      int `json:"total"`
-	Page       int `json:"page"`
-	PageSize   int `json:"page_size"`
-	TotalPages int `json:"total_pages"`
-}
-
 // Filter represents a single filter condition
 type Filter struct {
 	Field    string         `json:"field"`
@@ -2971,7 +2963,6 @@ type SortOrder struct {
 // CursorListRequest represents a cursor-based list request with all options
 type CursorListRequest struct {
 	Cursor        string         `json:"cursor"`
-	Page          *int           `json:"page,omitempty"` // Page number for offset-based pagination (used when Cursor is empty)
 	Limit         int            `json:"limit"`
 	Direction     string         `json:"direction"`
 	Search        *SearchRequest `json:"search"`
@@ -2994,7 +2985,6 @@ type CursorListResponse[T any] struct {
 	HasNext      bool   `json:"has_next"`
 	HasPrevious  bool   `json:"has_previous"`
 	ItemsPerPage int    `json:"items_per_page"`
-	TotalItems   int    `json:"total_items"`
 }
 
 // CountResponse is the response for count endpoints.
@@ -5937,7 +5927,6 @@ type EngineTypes struct {
 	_pageCreate        PageCreateRequest
 	_pageUpdate        PageUpdateRequest
 	_createApp         CreateAppRequest
-	_listResp          ListResponse[any]
 	_fileCreate        FileCreateRequest
 	_mcpTool           MCPTool
 	_mcpClientCaps     ClientCapabilities

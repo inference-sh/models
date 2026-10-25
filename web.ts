@@ -4207,13 +4207,6 @@ export interface SearchRequest {
   term: string;
   exact: boolean;
 }
-export interface ListResponse<T extends any> {
-  items: T[];
-  total: number /* int */;
-  page: number /* int */;
-  page_size: number /* int */;
-  total_pages: number /* int */;
-}
 /**
  * Filter represents a single filter condition
  */
@@ -4234,7 +4227,6 @@ export interface SortOrder {
  */
 export interface CursorListRequest {
   cursor: string;
-  page?: number /* int */; // Page number for offset-based pagination (used when Cursor is empty)
   limit: number /* int */;
   direction: string;
   search?: SearchRequest;
@@ -4260,7 +4252,6 @@ export interface CursorListResponse<T extends any> {
   has_next: boolean;
   has_previous: boolean;
   items_per_page: number /* int */;
-  total_items: number /* int */;
 }
 /**
  * CountResponse is the response for count endpoints.
@@ -8264,6 +8255,11 @@ export interface RuntimePolicyDTO {
    * MinConcurrency protects this many of the app's workers from displacement; it preloads none.
    */
   min_concurrency: number /* int */;
+  /**
+   * UpstreamProxy names the proxy pool the app's traffic goes through on
+   * cloud workers; empty is none. Apps only.
+   */
+  upstream_proxy: string;
 }
 /**
  * RuntimePolicyRequest changes a resource's runtime policy; fields left out
@@ -8276,6 +8272,10 @@ export interface RuntimePolicyRequest {
   allows_private_workers?: boolean;
   allows_cloud_workers?: boolean;
   min_concurrency?: number /* int */;
+  /**
+   * UpstreamProxy is a pool name, or "" for none.
+   */
+  upstream_proxy?: string;
 }
 /**
  * PublisherDTO is a team's publisher profile as the team sees it.
