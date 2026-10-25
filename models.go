@@ -8031,8 +8031,8 @@ type AuthMethodLookup struct {
 }
 
 // AuthMethodCapability is something an app can ask for from this provider,
-// satisfied by a connection holding its scopes. Scopes are in the scheme's
-// own (friendly) names, the ones a credential stores.
+// satisfied by a connection holding its scopes. Scopes are the provider's
+// own names (Wire form), the ones a credential stores.
 type AuthMethodCapability struct {
 	Key         string   `json:"key"`                   // "google.gmail.send"
 	Scopes      []string `json:"scopes,omitempty"`      // required scopes; none = any connection
@@ -8081,10 +8081,11 @@ type AuthMethod struct {
 	BearerFormat          string               `json:"bearer_format,omitempty" yaml:"bearer_format,omitempty"`
 	AuthorizationEndpoint string               `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
 	Scopes                []string             `json:"scopes,omitempty" yaml:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
-	// ScopeAliases map the scheme's own scope names to what the provider
-	// wants on the wire ("gmail.send" → "https://www.googleapis.com/auth/
-	// gmail.send"). Credentials store the alias; the wire form is used only
-	// in requests. A scope with no alias is sent as is.
+	// ScopeAliases are shorthand a caller may write for a provider scope
+	// ("gmail.send" → "https://www.googleapis.com/auth/gmail.send"). They
+	// are accepted on input only: credentials, capabilities and allowed
+	// lists hold the provider's own name (Wire), and every comparison is
+	// in that form. A scope with no alias is the provider's name as is.
 	ScopeAliases   map[string]string `json:"scope_aliases,omitempty" yaml:"scope_aliases,omitempty"`
 	ScopeParam     string            `json:"scope_param,omitempty" yaml:"scope_param,omitempty"`           // default "scope" (Slack: "user_scope")
 	ScopeSeparator string            `json:"scope_separator,omitempty" yaml:"scope_separator,omitempty"`   // default " " (Slack: ",")
@@ -8114,7 +8115,7 @@ type AuthMethod struct {
 	// re-authorizing for more scopes, whatever the caller asked for: the
 	// scopes the identity lookup and token refresh need (Google's openid,
 	// email and profile; X's users.read and offline.access). In the
-	// scheme's own names, like Scopes. Empty = only what was asked for.
+	// provider's own names, like Scopes. Empty = only what was asked for.
 	RequiredScopes []string `json:"required_scopes,omitempty" yaml:"required_scopes,omitempty"`
 	// IncrementalAddScopes: re-authorizing for more scopes asks only for
 	// the new ones (plus RequiredScopes), and the provider returns a token
@@ -8195,7 +8196,9 @@ type AuthMethod struct {
 	Capabilities []AuthMethodCapability `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
 }
 
-// Wire returns the provider's form of one of the scheme's scope names.
+// Wire returns the provider's own name for a scope: an alias resolved to
+// what it stands for, any other scope as is. It is the form credentials
+// store and every scope comparison uses.
 func (s *AuthMethod) Wire(scope string) string {
 	if full, ok := s.ScopeAliases[scope]; ok {
 		return full
@@ -8203,14 +8206,20 @@ func (s *AuthMethod) Wire(scope string) string {
 	return scope
 }
 
-// Alias returns the scheme's own name for a scope the provider reported.
-func (s *AuthMethod) Alias(wire string) string {
-	for alias, full := range s.ScopeAliases {
-		if full == wire {
-			return alias
+// WireScopes is scopes in the provider's own names (Wire), blanks and
+// duplicates dropped, order kept.
+func (s *AuthMethod) WireScopes(scopes []string) []string {
+	out := make([]string, 0, len(scopes))
+	seen := make(map[string]bool, len(scopes))
+	for _, sc := range scopes {
+		sc = s.Wire(strings.TrimSpace(sc))
+		if sc == "" || seen[sc] {
+			continue
 		}
+		seen[sc] = true
+		out = append(out, sc)
 	}
-	return wire
+	return out
 }
 
 // FlowOrDefault is the oauth2 grant: authorization_code unless the spec
