@@ -8548,6 +8548,9 @@ type ChatRunEvent struct {
 	RunID  string        `json:"run_id"`
 	State  AgentRunState `json:"state"`
 	Reason RunEndReason  `json:"reason,omitempty"`
+	// DurationMs is how long the run took, from its start to its end. The
+	// event message's created_at is when it ended.
+	DurationMs int64 `json:"duration_ms,omitempty"`
 }
 
 // ChatEvent is the payload of an event-role message: system info shown in the
