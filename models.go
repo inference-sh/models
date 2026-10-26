@@ -6749,16 +6749,19 @@ func (t *ToolInvocationFunction) UnmarshalJSON(data []byte) error {
 type ToolInvocationDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	ChatMessageID      string                 `json:"chat_message_id"`
-	ToolInvocationID   string                 `json:"tool_invocation_id"`
-	Type               ToolType               `json:"type"`
-	DisplayName        string                 `json:"display_name,omitempty"`
-	ExecutionID        *string                `json:"execution_id"`
-	Function           ToolInvocationFunction `json:"function"`
-	Status             ToolInvocationStatus   `json:"status"`
-	Result             *string                `json:"result"`
-	Data               *json.RawMessage       `json:"data,omitempty"`
-	Widget             *Widget                `json:"widget,omitempty"`
+	ChatMessageID      string   `json:"chat_message_id"`
+	ToolInvocationID   string   `json:"tool_invocation_id"`
+	Type               ToolType `json:"type"`
+	DisplayName        string   `json:"display_name,omitempty"`
+	// Action is what the model said the call does, as an imperative phrase
+	// ("Fetch unread emails from alice@x.com"). Empty when it left it out.
+	Action      string                 `json:"action,omitempty"`
+	ExecutionID *string                `json:"execution_id"`
+	Function    ToolInvocationFunction `json:"function"`
+	Status      ToolInvocationStatus   `json:"status"`
+	Result      *string                `json:"result"`
+	Data        *json.RawMessage       `json:"data,omitempty"`
+	Widget      *Widget                `json:"widget,omitempty"`
 }
 
 // --------------------
