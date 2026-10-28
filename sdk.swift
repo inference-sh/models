@@ -12861,6 +12861,12 @@ public struct SandboxDTO: Codable, Sendable {
     public var desiredState: SandboxDesiredState
     public var status: SandboxStatus
     public var statusReason: String?
+    /// Generation counts starts, restarts included.
+    public var generation: Int
+    /// EngineID and WorkerID place the current generation; empty while
+    /// pending or stopped.
+    public var engineId: String?
+    public var workerId: String?
     /// RemoteID is the Remote the box connects as; the same across restarts.
     public var remoteId: String?
     public var startedAt: String?
@@ -12885,6 +12891,9 @@ public struct SandboxDTO: Codable, Sendable {
         desiredState: SandboxDesiredState,
         status: SandboxStatus,
         statusReason: String? = nil,
+        generation: Int = 0,
+        engineId: String? = nil,
+        workerId: String? = nil,
         remoteId: String? = nil,
         startedAt: String? = nil,
         stoppedAt: String? = nil
@@ -12907,6 +12916,9 @@ public struct SandboxDTO: Codable, Sendable {
         self.desiredState = desiredState
         self.status = status
         self.statusReason = statusReason
+        self.generation = generation
+        self.engineId = engineId
+        self.workerId = workerId
         self.remoteId = remoteId
         self.startedAt = startedAt
         self.stoppedAt = stoppedAt
@@ -12931,6 +12943,9 @@ public struct SandboxDTO: Codable, Sendable {
         case desiredState = "desired_state"
         case status = "status"
         case statusReason = "status_reason"
+        case generation = "generation"
+        case engineId = "engine_id"
+        case workerId = "worker_id"
         case remoteId = "remote_id"
         case startedAt = "started_at"
         case stoppedAt = "stopped_at"

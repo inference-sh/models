@@ -5655,6 +5655,12 @@ type SandboxDTO struct {
 	DesiredState       SandboxDesiredState `json:"desired_state"`
 	Status             SandboxStatus       `json:"status"`
 	StatusReason       string              `json:"status_reason,omitempty"`
+	// Generation counts starts, restarts included.
+	Generation int64 `json:"generation"`
+	// EngineID and WorkerID place the current generation; empty while
+	// pending or stopped.
+	EngineID *string `json:"engine_id,omitempty"`
+	WorkerID *string `json:"worker_id,omitempty"`
 	// RemoteID is the Remote the box connects as; the same across restarts.
 	RemoteID  *string    `json:"remote_id,omitempty"`
 	StartedAt *time.Time `json:"started_at,omitempty"`

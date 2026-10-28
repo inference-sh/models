@@ -4540,6 +4540,12 @@ class SandboxDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     desired_state: SandboxDesiredState
     status: SandboxStatus
     status_reason: str
+    # Generation counts starts, restarts included.
+    generation: int
+    # EngineID and WorkerID place the current generation; empty while
+    # pending or stopped.
+    engine_id: Optional[str]
+    worker_id: Optional[str]
     # RemoteID is the Remote the box connects as; the same across restarts.
     remote_id: Optional[str]
     started_at: Optional[str]
