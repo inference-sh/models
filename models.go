@@ -8572,12 +8572,15 @@ type ChatHookEvent struct {
 	HandlerType HookHandlerType `json:"handler_type"`
 	// Handler names what ran: the builtin or agent ref, or a webhook's host
 	// (never its full URL, which can carry credentials).
-	Handler    string       `json:"handler"`
-	Decision   HookDecision `json:"decision,omitempty"`
-	Reason     string       `json:"reason,omitempty"`
-	Injected   bool         `json:"injected,omitempty"`
-	Error      string       `json:"error,omitempty"`
-	DurationMs int64        `json:"duration_ms"`
+	Handler  string       `json:"handler"`
+	Decision HookDecision `json:"decision,omitempty"`
+	Reason   string       `json:"reason,omitempty"`
+	Injected bool         `json:"injected,omitempty"`
+	// InjectionIDs are the injection messages the run wrote, so a reader
+	// shows what the hook added with the run instead of as rows of its own.
+	InjectionIDs []string `json:"injection_ids,omitempty"`
+	Error        string   `json:"error,omitempty"`
+	DurationMs   int64    `json:"duration_ms"`
 }
 
 // ChannelContext records which channel a chat or message came through
@@ -11071,16 +11074,16 @@ const (
 type BuiltinHook string
 
 const (
-	// BuiltinHookBeltSuggest searches the team's skills, knowledge and apps
+	// BuiltinHookSuggest searches the team's skills, knowledge and apps
 	// for what the turn is about and injects the matches, so an agent picks up
 	// procedural knowledge it was never prompted with.
-	BuiltinHookBeltSuggest BuiltinHook = "belt:suggest"
-	// BuiltinHookBeltExtract reviews the conversation for reusable knowledge
+	BuiltinHookSuggest BuiltinHook = "suggest"
+	// BuiltinHookExtract reviews the conversation for reusable knowledge
 	// and saves it to the team's registry, deduplicated against what is
-	// there, so belt:suggest can hand it back later. It runs in the
+	// there, so suggest can hand it back later. It runs in the
 	// background: on agent.complete every tenth user turn, and before
 	// compaction drops the turns it would have learned from.
-	BuiltinHookBeltExtract BuiltinHook = "belt:extract"
+	BuiltinHookExtract BuiltinHook = "extract"
 )
 
 // BuiltinHookDefinition describes a builtin hook and where it may be used.
