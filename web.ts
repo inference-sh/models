@@ -932,6 +932,12 @@ export interface ToolResultRequest {
    * when it accepts images.
    */
   attachments?: FileRef[];
+  /**
+   * Error, when set, says the call failed: it completes as failed and the
+   * model reads Error in place of Result. A client sets it when it has no
+   * handler for the tool or the handler failed.
+   */
+  error?: string;
 }
 /**
  * PartialFile is the clean DTO version (no gorm tags).
@@ -8270,6 +8276,10 @@ export interface RuntimePolicyDTO {
    * cloud workers; empty is none. Apps only.
    */
   upstream_proxy: string;
+  /**
+   * UpstreamProxyOptions are where that traffic comes from.
+   */
+  upstream_proxy_options: UpstreamProxyOptions;
 }
 /**
  * RuntimePolicyRequest changes a resource's runtime policy; fields left out
@@ -8286,6 +8296,48 @@ export interface RuntimePolicyRequest {
    * UpstreamProxy is a pool name, or "" for none.
    */
   upstream_proxy?: string;
+  /**
+   * UpstreamProxyOptions replace the policy's options whole.
+   */
+  upstream_proxy_options?: UpstreamProxyOptions;
+}
+/**
+ * UpstreamProxyOptions are where an app's proxied traffic comes from, in
+ * our names: the pool's provider is handed them its own way
+ * (models.UpstreamProxyURL). Empty fields leave the choice to the provider.
+ */
+export interface UpstreamProxyOptions {
+  /**
+   * Country is an ISO 3166-1 alpha-2 code, lowercase ("us").
+   */
+  country?: string;
+  /**
+   * State is a state or province of Country, as the provider names it ("texas").
+   */
+  state?: string;
+  /**
+   * City is a city of Country, as the provider names it ("chicago").
+   */
+  city?: string;
+  /**
+   * SessionMinutes is how long a task keeps its exit IP; 0 is the
+   * provider's default.
+   */
+  session_minutes?: number /* int */;
+}
+/**
+ * UpstreamProxyPoolsResponse lists the proxy pools a runtime policy can
+ * name: the ones that have a URL.
+ */
+export interface UpstreamProxyPoolsResponse {
+  pools: UpstreamProxyPoolDTO[];
+}
+/**
+ * UpstreamProxyPoolDTO is a proxy pool, by name. Its URL is a secret and
+ * never listed.
+ */
+export interface UpstreamProxyPoolDTO {
+  name: string;
 }
 /**
  * PublisherDTO is a team's publisher profile as the team sees it.
