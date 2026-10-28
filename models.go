@@ -614,6 +614,10 @@ type ApiAgentRunRequest struct {
 	Input          MessageInput      `json:"input" validate:"required"`
 	Context        map[string]string `json:"context,omitempty"`
 	Stream         bool              `json:"stream,omitempty"`
+	// ProjectID files the chat this message starts in a project. Ignored
+	// when the message posts into an existing chat (chat_id): a chat moves
+	// with POST /chats/{id}/project.
+	ProjectID *string `json:"project_id,omitempty"`
 }
 
 type CreateAgentMessageResponse struct {
@@ -2558,6 +2562,7 @@ type ChatAgentDTO struct {
 type ChatDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
+	ProjectModelDTO    `tstype:",extends"`
 	ParentID           *string           `json:"parent_id"`
 	Parent             *ChatDTO          `json:"parent"`
 	Children           []*ChatDTO        `json:"children"`
@@ -7130,12 +7135,14 @@ type RemoteUpdateState string
 const (
 	// RemoteUpdateStarted: a newer belt is available. The daemon stops taking
 	// new work, waits for running commands and agent turns to finish,
-	// installs it and restarts in place; it reconnects on the new version.
+	// installs it and restarts; it reconnects on the new version. A failed
+	// install leaves it working on the version it has.
 	RemoteUpdateStarted RemoteUpdateState = "updating"
 	// RemoteUpdateCurrent: the daemon already runs the latest belt.
 	RemoteUpdateCurrent RemoteUpdateState = "current"
-	// RemoteUpdateUnsupported: belt was installed by a package manager (or
-	// is a dev build) and updates through it, not in place.
+	// RemoteUpdateUnsupported: belt cannot replace itself: a package manager
+	// installed it, it is a dev build, or the daemon's user cannot write to
+	// its directory. Error says what to do on the machine.
 	RemoteUpdateUnsupported RemoteUpdateState = "unsupported"
 	// RemoteUpdateFailed: the release could not be checked.
 	RemoteUpdateFailed RemoteUpdateState = "failed"

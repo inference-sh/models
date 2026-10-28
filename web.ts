@@ -909,6 +909,12 @@ export interface ApiAgentRunRequest {
   input: MessageInput;
   context?: { [key: string]: string};
   stream?: boolean;
+  /**
+   * ProjectID files the chat this message starts in a project. Ignored
+   * when the message posts into an existing chat (chat_id): a chat moves
+   * with POST /chats/{id}/project.
+   */
+  project_id?: string;
 }
 export interface CreateAgentMessageResponse {
   user_message?: ChatMessageDTO;
@@ -3382,7 +3388,7 @@ export interface ChatAgentDTO {
 /**
  * ChatDTO for API responses
  */
-export interface ChatDTO extends BaseModelDTO, PermissionModelDTO {
+export interface ChatDTO extends BaseModelDTO, PermissionModelDTO, ProjectModelDTO {
   parent_id?: string;
   parent?: ChatDTO;
   children: (ChatDTO | undefined)[];
@@ -9941,7 +9947,8 @@ export type RemoteUpdateState = "updating" | "current" | "unsupported" | "failed
 /**
  * RemoteUpdateStarted: a newer belt is available. The daemon stops taking
  * new work, waits for running commands and agent turns to finish,
- * installs it and restarts in place; it reconnects on the new version.
+ * installs it and restarts; it reconnects on the new version. A failed
+ * install leaves it working on the version it has.
  */
 export const RemoteUpdateStarted: RemoteUpdateState = "updating";
 /**
@@ -9949,8 +9956,9 @@ export const RemoteUpdateStarted: RemoteUpdateState = "updating";
  */
 export const RemoteUpdateCurrent: RemoteUpdateState = "current";
 /**
- * RemoteUpdateUnsupported: belt was installed by a package manager (or
- * is a dev build) and updates through it, not in place.
+ * RemoteUpdateUnsupported: belt cannot replace itself: a package manager
+ * installed it, it is a dev build, or the daemon's user cannot write to
+ * its directory. Error says what to do on the machine.
  */
 export const RemoteUpdateUnsupported: RemoteUpdateState = "unsupported";
 /**
