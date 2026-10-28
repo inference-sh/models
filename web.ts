@@ -7567,7 +7567,7 @@ export interface WsSandboxStartPayload {
   disk_mib: number /* int64 */;
   /**
    * Config is the box's plain settings (INFSH_SANDBOX_ID, INFSH_SANDBOX_NAME,
-   * INFERENCE_API_URL). Never a secret.
+   * INFSH_API_URL). Never a secret.
    */
   config?: { [key: string]: string};
   /**
