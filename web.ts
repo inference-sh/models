@@ -1626,6 +1626,8 @@ export type Scope =
   | "engines:write"
   | "remotes:read"
   | "remotes:write"
+  | "sandboxes:read"
+  | "sandboxes:write"
   | "apikeys:read"
   | "apikeys:write"
   | "knowledge:read"
@@ -1868,6 +1870,16 @@ export const ScopeRemotesRead: Scope = "remotes:read";
  */
 export const ScopeRemotesWrite: Scope = "remotes:write";
 /**
+ * Action-level scopes for Sandboxes (managed boxes that run a remote)
+ */
+export const ScopeSandboxesRead: Scope = "sandboxes:read";
+/**
+ * API Key Scopes - hierarchical permission system.
+ * Resource-level scopes (e.g., "agents") imply all action-level scopes (e.g., "agents:read").
+ * Empty scopes = full access (for backwards compatibility with existing keys).
+ */
+export const ScopeSandboxesWrite: Scope = "sandboxes:write";
+/**
  * Action-level scopes for API Keys
  */
 export const ScopeApiKeysRead: Scope = "apikeys:read";
@@ -1973,6 +1985,7 @@ export type ScopeGroup =
   | "credentials"
   | "engines"
   | "remotes"
+  | "sandboxes"
   | "apikeys"
   | "knowledge"
   | "artifacts"
@@ -1995,6 +2008,7 @@ export const ScopeGroupSecrets: ScopeGroup = "secrets";
 export const ScopeGroupCredentials: ScopeGroup = "credentials";
 export const ScopeGroupEngines: ScopeGroup = "engines";
 export const ScopeGroupRemotes: ScopeGroup = "remotes";
+export const ScopeGroupSandboxes: ScopeGroup = "sandboxes";
 export const ScopeGroupApiKeys: ScopeGroup = "apikeys";
 export const ScopeGroupKnowledge: ScopeGroup = "knowledge";
 export const ScopeGroupArtifacts: ScopeGroup = "artifacts";
@@ -4440,8 +4454,18 @@ export interface WorkerRAM {
  * a task lists the ones it needs (Task.Requires); the scheduler only sends
  * a task to an engine that has every one it needs.
  */
-export type EngineCapability = "egress_gateway";
+export type EngineCapability = "egress_gateway" | "sandboxes";
+/**
+ * EngineCapabilityEgressGateway: the engine runs its sandboxes behind
+ * the egress gateway, so it can take bound secrets (the v2 secrets
+ * envelope) and place each value only toward its hosts (INF-1076).
+ */
 export const EngineCapabilityEgressGateway: EngineCapability = "egress_gateway";
+/**
+ * EngineCapabilitySandboxes: the engine has boxd connected and a VM
+ * space up, so it can take sandbox_start (INF-833).
+ */
+export const EngineCapabilitySandboxes: EngineCapability = "sandboxes";
 /**
  * EngineCapabilities is a set of capabilities, kept as a list. Nil and
  * empty are the same: nothing beyond the base contract.
@@ -7490,6 +7514,127 @@ export interface ShareRequest {
   permission: Permission;
 }
 /**
+ * SandboxStatus is where the API's record of a sandbox stands. A sandbox is
+ * a Firecracker box on one of our engines that runs `belt remote start` and
+ * connects back as an ordinary Remote.
+ */
+export type SandboxStatus =
+  | "pending"
+  | "starting"
+  | "running"
+  | "stopping"
+  | "stopped"
+  | "failed";
+export const SandboxStatusPending: SandboxStatus = "pending";
+export const SandboxStatusStarting: SandboxStatus = "starting";
+export const SandboxStatusRunning: SandboxStatus = "running";
+export const SandboxStatusStopping: SandboxStatus = "stopping";
+export const SandboxStatusStopped: SandboxStatus = "stopped";
+export const SandboxStatusFailed: SandboxStatus = "failed";
+/**
+ * SandboxDesiredState is what the owner asked for; the reconciler moves the
+ * status toward it.
+ */
+export type SandboxDesiredState = "running" | "stopped" | "deleted";
+export const SandboxDesiredRunning: SandboxDesiredState = "running";
+export const SandboxDesiredStopped: SandboxDesiredState = "stopped";
+export const SandboxDesiredDeleted: SandboxDesiredState = "deleted";
+/**
+ * SandboxBoxState is what the engine says of one box.
+ */
+export type SandboxBoxState =
+  | "starting"
+  | "running"
+  | "exited"
+  | "stopped"
+  | "failed";
+export const SandboxBoxStarting: SandboxBoxState = "starting";
+export const SandboxBoxRunning: SandboxBoxState = "running";
+export const SandboxBoxExited: SandboxBoxState = "exited";
+export const SandboxBoxStopped: SandboxBoxState = "stopped";
+export const SandboxBoxFailed: SandboxBoxState = "failed";
+/**
+ * WsSandboxStartPayload is sandbox_start, API to engine: boot one box on a
+ * worker the API has leased for it.
+ */
+export interface WsSandboxStartPayload {
+  sandbox_id: string;
+  worker_id: string;
+  generation: number /* int64 */; // one per start; stale events are dropped by it
+  image: string; // registry ref, allowlisted by the API
+  vcpus: number /* int */;
+  memory_mib: number /* int64 */;
+  disk_mib: number /* int64 */;
+  /**
+   * Config is the box's plain settings (INFSH_SANDBOX_ID, INFSH_SANDBOX_NAME,
+   * INFERENCE_API_URL). Never a secret.
+   */
+  config?: { [key: string]: string};
+  /**
+   * Secrets is the ECIES SecretsPayload v2, the same form as task_run: Bound
+   * carries INFERENCE_API_KEY for the API host, so the box holds a placeholder.
+   */
+  secrets: string;
+}
+/**
+ * WsSandboxStopPayload is sandbox_stop, API to engine.
+ */
+export interface WsSandboxStopPayload {
+  sandbox_id: string;
+  generation: number /* int64 */; // 0 stops whatever generation runs (orphan sweep)
+  grace_seconds: number /* int */;
+}
+/**
+ * WsSandboxStatusPayload is sandbox_status, engine to API, sent on every
+ * transition of a box.
+ */
+export interface WsSandboxStatusPayload {
+  sandbox_id: string;
+  generation: number /* int64 */;
+  state: SandboxBoxState;
+  exit_code?: number /* int */;
+  error?: string; // redacted, short
+}
+/**
+ * SandboxReport is one box in EngineTelemetry.Sandboxes: the whole set each
+ * report, so the API can find lost and orphaned boxes.
+ */
+export interface SandboxReport {
+  sandbox_id: string;
+  generation: number /* int64 */;
+  worker_id: string;
+  state: SandboxBoxState;
+}
+/**
+ * CreateSandboxRequest is POST /sandboxes. Sizes left at zero take the
+ * defaults.
+ */
+export interface CreateSandboxRequest {
+  name: string;
+  vcpus?: number /* int */; // default 2, max 8
+  memory_mib?: number /* int64 */; // default 4096, max 16384
+  disk_mib?: number /* int64 */; // default 10240, max 51200
+}
+/**
+ * SandboxDTO is the API response for a sandbox.
+ */
+export interface SandboxDTO extends BaseModelDTO, PermissionModelDTO {
+  name: string;
+  image: string;
+  vcpus: number /* int */;
+  memory_mib: number /* int64 */;
+  disk_mib: number /* int64 */;
+  desired_state: SandboxDesiredState;
+  status: SandboxStatus;
+  status_reason?: string;
+  /**
+   * RemoteID is the Remote the box connects as; the same across restarts.
+   */
+  remote_id?: string;
+  started_at?: string /* RFC3339 */;
+  stopped_at?: string /* RFC3339 */;
+}
+/**
  * SDKTypes is a phantom type for gotypegen dependency tracing.
  * Types listed here (and their transitive dependencies) are included
  * in the generated SDK output (TypeScript, Python, Go).
@@ -8270,6 +8415,10 @@ export interface RuntimePolicyDTO {
    * cloud workers; empty is none. Apps only.
    */
   upstream_proxy: string;
+  /**
+   * UpstreamProxyOptions are where that traffic comes from.
+   */
+  upstream_proxy_options: UpstreamProxyOptions;
 }
 /**
  * RuntimePolicyRequest changes a resource's runtime policy; fields left out
@@ -8286,6 +8435,48 @@ export interface RuntimePolicyRequest {
    * UpstreamProxy is a pool name, or "" for none.
    */
   upstream_proxy?: string;
+  /**
+   * UpstreamProxyOptions replace the policy's options whole.
+   */
+  upstream_proxy_options?: UpstreamProxyOptions;
+}
+/**
+ * UpstreamProxyOptions are where an app's proxied traffic comes from, in
+ * our names: the pool's provider is handed them its own way
+ * (models.UpstreamProxyURL). Empty fields leave the choice to the provider.
+ */
+export interface UpstreamProxyOptions {
+  /**
+   * Country is an ISO 3166-1 alpha-2 code, lowercase ("us").
+   */
+  country?: string;
+  /**
+   * State is a state or province of Country, as the provider names it ("texas").
+   */
+  state?: string;
+  /**
+   * City is a city of Country, as the provider names it ("chicago").
+   */
+  city?: string;
+  /**
+   * SessionMinutes is how long a task keeps its exit IP; 0 is the
+   * provider's default.
+   */
+  session_minutes?: number /* int */;
+}
+/**
+ * UpstreamProxyPoolsResponse lists the proxy pools a runtime policy can
+ * name: the ones that have a URL.
+ */
+export interface UpstreamProxyPoolsResponse {
+  pools: UpstreamProxyPoolDTO[];
+}
+/**
+ * UpstreamProxyPoolDTO is a proxy pool, by name. Its URL is a secret and
+ * never listed.
+ */
+export interface UpstreamProxyPoolDTO {
+  name: string;
 }
 /**
  * PublisherDTO is a team's publisher profile as the team sees it.
@@ -9636,6 +9827,9 @@ export type WSEventType =
   | "engine_update"
   | "engine_delete_hfcache_repo"
   | "session_end"
+  | "sandbox_start"
+  | "sandbox_stop"
+  | "sandbox_status"
   | "engine_heartbeat"
   | "engine_telemetry"
   | "remote_heartbeat"
@@ -9776,6 +9970,12 @@ export const WSEventEngineDrain: WSEventType = "engine_drain";
 export const WSEventEngineUpdate: WSEventType = "engine_update";
 export const WSEventEngineDeleteHFCacheRepo: WSEventType = "engine_delete_hfcache_repo";
 export const WSEventSessionEnd: WSEventType = "session_end";
+export const WSEventSandboxStart: WSEventType = "sandbox_start";
+export const WSEventSandboxStop: WSEventType = "sandbox_stop";
+/**
+ * WSEventSandboxStatus is engine → API, sent on every transition of a box.
+ */
+export const WSEventSandboxStatus: WSEventType = "sandbox_status";
 export interface WsTaskRunPayload {
   task: TaskDispatchPayload;
   secrets: string;
@@ -9828,6 +10028,10 @@ export interface EngineTelemetry {
   capabilities?: EngineCapabilities;
   system_info?: SystemInfo;
   workers: WorkerTelemetry[];
+  /**
+   * Sandboxes is every box the engine holds, the whole set each report.
+   */
+  sandboxes?: SandboxReport[];
 }
 /**
  * WorkerTelemetry is the minimal telemetry data engine sends per worker.
@@ -9839,6 +10043,10 @@ export interface WorkerTelemetry {
   app_id: string;
   app_version_id: string;
   active_session_id?: string;
+  /**
+   * ActiveSandboxID is the sandbox whose box holds this worker.
+   */
+  active_sandbox_id?: string;
   system_info: SystemInfo;
   warm_apps?: string[];
 }
@@ -12637,6 +12845,7 @@ export type EntitlementResource =
   | "feature:seedance"
   | "feature:marketplace_publish"
   | "feature:forms"
+  | "feature:sandboxes"
   | "feature:scopes"
   | "feature:webhooks"
   | "feature:team_billing"
@@ -12673,6 +12882,10 @@ export const ResourceFeatureMarketplacePublish: EntitlementResource = "feature:m
  * Granted per team: creating forms is by invitation for now.
  */
 export const ResourceFeatureForms: EntitlementResource = "feature:forms";
+/**
+ * Granted per team: managed sandboxes are by invitation for now (INF-833).
+ */
+export const ResourceFeatureSandboxes: EntitlementResource = "feature:sandboxes";
 /**
  * Legacy feature gates — kept for DB compatibility, no longer gated
  */
