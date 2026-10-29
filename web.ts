@@ -13,6 +13,49 @@ export type CreateCommentRequest = CommentCreateRequest;
 // source: types.go
 
 /**
+ * ACLConditionsDTO limits an ACL entry (models.ACLConditions). Every
+ * condition must hold; an empty list limits nothing.
+ */
+export interface ACLConditionsDTO {
+  /**
+   * Reviewed: only store-reviewed app versions.
+   */
+  reviewed: boolean;
+  /**
+   * Apps, when non-empty, are the only apps admitted.
+   */
+  apps: ACLAppDTO[];
+}
+/**
+ * ACLAppDTO is one admitted app by stable id. Functions empty admits all of
+ * its functions.
+ */
+export interface ACLAppDTO {
+  id: string;
+  functions?: string[];
+  /**
+   * Name is the app's namespace/name, filled on reads for display.
+   */
+  name?: string;
+}
+/**
+ * PlatformAccessDTO is who may use a platform credential beyond the
+ * platform team: its everyone entry, or none (Everyone nil: no other team's
+ * run is offered the key).
+ */
+export interface PlatformAccessDTO {
+  credential_id: string;
+  provider: string;
+  everyone?: ACLConditionsDTO;
+}
+/**
+ * PlatformAccessSetRequest replaces a platform credential's everyone
+ * entry. Everyone nil removes it.
+ */
+export interface PlatformAccessSetRequest {
+  everyone?: ACLConditionsDTO;
+}
+/**
  * AffinityKey represents the fingerprint for task-to-worker matching.
  * Combines session binding (strict) with warm container matching (soft).
  * Format: AppID:VersionID@Setup#SessionID
@@ -6436,6 +6479,17 @@ export interface OrgTeamDTO extends TeamDTO {
   usage_policy_id?: string;
 }
 /**
+ * OrgDirectoryTeamDTO is one of an org's teams as any member of the org
+ * sees it (GET /orgs/{id}/teams/directory): what a share picker shows.
+ */
+export interface OrgDirectoryTeamDTO {
+  id: string;
+  type: TeamType;
+  name: string;
+  username: string;
+  avatar_url?: string;
+}
+/**
  * OrgAdminDTO is one entry of the org admin grant list.
  */
 export interface OrgAdminDTO {
@@ -7489,26 +7543,33 @@ export interface CheckRequirementsResponse {
   satisfied: boolean;
   errors?: RequirementError[];
 }
+/**
+ * ResourceShareDTO is one share: an acl_entries row naming a person, a team
+ * or an org (INF-1133). UserID, TeamID or OrgID repeats the grantee for
+ * clients that read those.
+ */
 export interface ResourceShareDTO extends BaseModelDTO {
   resource_id: string;
   resource_type: string;
-  /**
-   * UserID names the person a share is to; TeamID, with UserID empty,
-   * the resource's whole team.
-   */
+  grantee_type: ACLGrantee;
+  grantee_id: string;
   user_id: string;
   team_id?: string;
+  org_id?: string;
   user?: UserRelationDTO;
   permission: Permission;
 }
 /**
  * ShareRequest is POST /{resource}/{id}/share: a share to one person
- * (user_id) or to the resource's whole team (team: true), at a permission
- * (read when empty).
+ * (user_id), to a team (team: true for the resource's own team, or team_id
+ * for another team of its org) or to the resource's whole org (org: true),
+ * at a permission (read when empty).
  */
 export interface ShareRequest {
   user_id?: string;
   team?: boolean;
+  team_id?: string;
+  org?: boolean;
   permission: Permission;
 }
 /**
@@ -10552,6 +10613,11 @@ export interface WsRemoteSessionResolve {
    */
   scope?: string;
   reason?: string;
+  /**
+   * Values answer a question (the request's Input): one value per field
+   * of its form. With a deny, the question was declined.
+   */
+  values?: { [key: string]: any};
 }
 /**
  * WsRemoteSessionToolResult answers a WsRemoteSessionToolCall with what the
@@ -11409,6 +11475,18 @@ export const PermInteract: Permission = "interact";
  */
 export const PermUse: Permission = "use";
 /**
+ * ACLGrantee is who an ACL entry is for (models.ACLEntry, INF-1130).
+ */
+export type ACLGrantee = "user" | "team" | "org" | "everyone";
+export const ACLGranteeUser: ACLGrantee = "user";
+export const ACLGranteeTeam: ACLGrantee = "team";
+export const ACLGranteeOrg: ACLGrantee = "org";
+/**
+ * ACLGranteeEveryone: every caller. Only a platform-scope credential
+ * may carry one (the acl service's rule).
+ */
+export const ACLGranteeEveryone: ACLGrantee = "everyone";
+/**
  * PaymentProvider represents the payment provider being used
  */
 export type PaymentProvider = "" | "stripe" | "manual";
@@ -11751,7 +11829,7 @@ export interface ChatMessageContent {
   tool_calls?: ToolCall[];
   event?: ChatEvent;
 }
-export type ChatEventType = "hook" | "run_failed" | "run_ended";
+export type ChatEventType = "hook" | "run_failed" | "run_ended" | "background";
 export const ChatEventTypeHook: ChatEventType = "hook";
 /**
  * ChatEventTypeRunFailed marks the point a run ended in failure; the
@@ -11763,6 +11841,26 @@ export const ChatEventTypeRunFailed: ChatEventType = "run_failed";
  * the event's run says how, and the content's text, when set, why.
  */
 export const ChatEventTypeRunEnded: ChatEventType = "run_ended";
+/**
+ * ChatEventTypeBackground marks background work a harness left running
+ * ending; the event's background says what and how. A turn the harness
+ * then starts about it answers this message.
+ */
+export const ChatEventTypeBackground: ChatEventType = "background";
+/**
+ * ChatBackgroundEvent is background work ending, on a background event.
+ */
+export interface ChatBackgroundEvent {
+  task_id: string;
+  kind?: BackgroundKind;
+  command?: string;
+  status: BackgroundStatus;
+  exit_code?: number /* int */;
+  /**
+   * ToolInvocationID is the tool call that started it.
+   */
+  tool_invocation_id?: string;
+}
 /**
  * RunEndReason is why a run that completed ended the way it did, when its
  * last turn did not end with a reply.
@@ -11799,6 +11897,10 @@ export interface ChatEvent {
   type: ChatEventType;
   hook?: ChatHookEvent;
   run?: ChatRunEvent;
+  /**
+   * Background is set on a background event.
+   */
+  background?: ChatBackgroundEvent;
 }
 /**
  * ChatHookEvent records one lifecycle hook handler run.
@@ -13010,23 +13112,18 @@ export const CredentialStatusError: CredentialStatus = "error";
 /**
  * CredentialScope controls resolution priority and ownership.
  */
-export type CredentialScope =
-  | "platform"
-  | "org"
-  | "team"
-  | "user"
-  | "agent";
+export type CredentialScope = "platform" | "org" | "team" | "user";
 export const CredentialScopePlatform: CredentialScope = "platform";
 /**
  * CredentialScopeOrg: shared across all teams of an org. In the enum for
  * end-to-end typing (connect-level pickers); connects with it are refused
  * until the org domain lands (INF-795 Phase 2). Resolution order once
- * live: agent > user > team > org > platform.
+ * live: user > team > org > platform. Credentials an agent uses are
+ * composed by vaults (INF-737), not by a scope.
  */
 export const CredentialScopeOrg: CredentialScope = "org";
 export const CredentialScopeTeam: CredentialScope = "team";
 export const CredentialScopeUser: CredentialScope = "user";
-export const CredentialScopeAgent: CredentialScope = "agent";
 /**
  * CredentialGrant is which layer a credential row is. OAuth has two: the
  * app (client id and secret, owned by the platform, an org or a team) and
@@ -13359,7 +13456,7 @@ export const PolicyLintOverridden: PolicyLintCode = "overridden";
  * reach admits the resource. The ladder deliberately reuses the visibility
  * values so the two read as one system.
  */
-export type Reach = "public" | "org" | "team" | "private";
+export type Reach = "public" | "org" | "team";
 /**
  * ReachPublic: every resource the caller can see is eligible.
  */
@@ -13372,11 +13469,6 @@ export const ReachOrg: Reach = "org";
  * ReachTeam: nothing outside the caller's own team is eligible.
  */
 export const ReachTeam: Reach = "team";
-/**
- * ReachPrivate: nothing outside is eligible. Kept for enum symmetry with
- * visibility; it evaluates exactly like team.
- */
-export const ReachPrivate: Reach = "private";
 /**
  * PolicyReach is a governance layer's usage default as the API carries it:
  * usage kind (App, Agent, Knowledge, Mcp, Flow) → reach. An absent kind is
@@ -13921,6 +14013,8 @@ export type AgentEventType =
   | "account.updated"
   | "context.compacted"
   | "error"
+  | "background.started"
+  | "background.completed"
   | "subagent.started"
   | "subagent.updated"
   | "subagent.completed";
@@ -13996,7 +14090,23 @@ export interface RunStateChangedPayload {
 export interface TurnStartedPayload {
   turn_index: number /* int */;
   model?: string;
+  /**
+   * Origin is what started the turn: empty for a prompt, TurnOriginBackground
+   * for one the agent started itself when background work it left running
+   * finished (TaskID names it).
+   */
+  origin?: TurnOrigin;
+  task_id?: string;
 }
+/**
+ * TurnOrigin is what started a turn.
+ */
+export type TurnOrigin = "background";
+/**
+ * TurnOriginBackground is a turn the agent started on its own, with no
+ * prompt, because background work it left running finished.
+ */
+export const TurnOriginBackground: TurnOrigin = "background";
 export interface TurnCompletedPayload {
   turn_index: number /* int */;
   tool_count: number /* int */;
@@ -14041,6 +14151,12 @@ export interface ApprovalRequiredPayload {
   tool_name: string;
   arguments?: StringEncodedMap;
   reason: InterruptReason;
+  /**
+   * Input is set when the agent asks the person questions rather than
+   * for permission (Reason is then input). The answer is the resolution's
+   * values, one per Input.Schema property; a deny declines to answer.
+   */
+  input?: InputForm;
   /**
    * SubagentID is set when a subagent asks: its tool call, not the
    * agent's.
@@ -14117,13 +14233,38 @@ export type InterruptReason =
   | "widget"
   | "auth"
   | "confirmation"
-  | "hook_gate";
+  | "hook_gate"
+  | "input";
 export const InterruptReasonToolApproval: InterruptReason = "tool_approval";
 export const InterruptReasonClientTool: InterruptReason = "client_tool";
 export const InterruptReasonWidget: InterruptReason = "widget";
 export const InterruptReasonAuth: InterruptReason = "auth";
 export const InterruptReasonConfirmation: InterruptReason = "confirmation";
 export const InterruptReasonHookGate: InterruptReason = "hook_gate";
+export const InterruptReasonInput: InterruptReason = "input";
+export const AgentEventBackgroundStarted: AgentEventType = "background.started";
+export const AgentEventBackgroundCompleted: AgentEventType = "background.completed";
+/**
+ * BackgroundKind is what kind of background work a task is.
+ */
+export type BackgroundKind = "command" | "monitor";
+/**
+ * BackgroundCommand is a shell command left running.
+ */
+export const BackgroundCommand: BackgroundKind = "command";
+/**
+ * BackgroundMonitor watches something (a command's output, a file) and
+ * reports what it sees until it is stopped or times out.
+ */
+export const BackgroundMonitor: BackgroundKind = "monitor";
+/**
+ * BackgroundStatus is how background work ended.
+ */
+export type BackgroundStatus = "completed" | "failed" | "cancelled" | "timed_out";
+export const BackgroundCompleted: BackgroundStatus = "completed";
+export const BackgroundFailed: BackgroundStatus = "failed";
+export const BackgroundCancelled: BackgroundStatus = "cancelled";
+export const BackgroundTimedOut: BackgroundStatus = "timed_out";
 export type StringEncodedMap = { [key: string]: any};
 /**
  * HarnessID is a harness registry id: a key of harness.All and a
@@ -14253,6 +14394,26 @@ export interface SessionLiveness {
    */
   pid?: number /* int */;
   detail?: string;
+}
+/**
+ * InputForm is a set of questions an agent asks the person, as a form:
+ * form-mode elicitation as MCP and ACP define it. Schema is a flat JSON
+ * object schema whose properties are the questions:
+ *   - a string, number, integer or boolean field;
+ *   - a single choice: a string with enum (and enumNames) or oneOf
+ *     ({const, title}) for the choices;
+ *   - several choices: an array whose items have enum or anyOf.
+ * A property's title is the question's short label and its description the
+ * question itself. The answer is an object with a value per property; one
+ * left out was not answered.
+ * Agents ask in their own shapes (Claude Code's AskUserQuestion, Grok's
+ * x.ai/ask_user_question, ACP's elicitation/create); a driver turns each into
+ * an InputForm and the answer back into the agent's shape, so a person
+ * answers every agent the same way.
+ */
+export interface InputForm {
+  message?: string;
+  requested_schema: any;
 }
 /**
  * InterruptStatus tracks the lifecycle of an interrupt gate.

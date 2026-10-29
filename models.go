@@ -5536,24 +5536,31 @@ type CheckRequirementsResponse struct {
 // source: resource_share.go
 // --------------------
 
+// ResourceShareDTO is one share: an acl_entries row naming a person, a team
+// or an org (INF-1133). UserID, TeamID or OrgID repeats the grantee for
+// clients that read those.
 type ResourceShareDTO struct {
 	BaseModelDTO `tstype:",extends"`
-	ResourceID   string `json:"resource_id"`
-	ResourceType string `json:"resource_type"`
-	// UserID names the person a share is to; TeamID, with UserID empty,
-	// the resource's whole team.
-	UserID     string           `json:"user_id"`
-	TeamID     string           `json:"team_id,omitempty"`
-	User       *UserRelationDTO `json:"user,omitempty"`
-	Permission Permission       `json:"permission"`
+	ResourceID   string           `json:"resource_id"`
+	ResourceType string           `json:"resource_type"`
+	GranteeType  ACLGrantee       `json:"grantee_type"`
+	GranteeID    string           `json:"grantee_id"`
+	UserID       string           `json:"user_id"`
+	TeamID       string           `json:"team_id,omitempty"`
+	OrgID        string           `json:"org_id,omitempty"`
+	User         *UserRelationDTO `json:"user,omitempty"`
+	Permission   Permission       `json:"permission"`
 }
 
 // ShareRequest is POST /{resource}/{id}/share: a share to one person
-// (user_id) or to the resource's whole team (team: true), at a permission
-// (read when empty).
+// (user_id), to a team (team: true for the resource's own team, or team_id
+// for another team of its org) or to the resource's whole org (org: true),
+// at a permission (read when empty).
 type ShareRequest struct {
 	UserID     string     `json:"user_id,omitempty"`
 	Team       bool       `json:"team,omitempty"`
+	TeamID     string     `json:"team_id,omitempty"`
+	Org        bool       `json:"org,omitempty"`
 	Permission Permission `json:"permission"`
 }
 
@@ -7547,6 +7554,9 @@ type WsRemoteSessionResolve struct {
 	// express it.
 	Scope  string `json:"scope,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	// Values answer a question (the request's Input): one value per field
+	// of its form. With a deny, the question was declined.
+	Values map[string]any `json:"values,omitempty"`
 }
 
 // WsRemoteSessionToolResult answers a WsRemoteSessionToolCall with what the
@@ -8372,6 +8382,18 @@ const (
 	PermUse Permission = "use"
 )
 
+// ACLGrantee is who an ACL entry is for (models.ACLEntry, INF-1130).
+type ACLGrantee string
+
+const (
+	ACLGranteeUser ACLGrantee = "user"
+	ACLGranteeTeam ACLGrantee = "team"
+	ACLGranteeOrg  ACLGrantee = "org"
+	// ACLGranteeEveryone: every caller. Only a platform-scope credential
+	// may carry one (the acl service's rule).
+	ACLGranteeEveryone ACLGrantee = "everyone"
+)
+
 // --------------------
 // source: billing.go
 // --------------------
@@ -8659,7 +8681,22 @@ const (
 	// ChatEventTypeRunEnded marks the point a run completed or was stopped;
 	// the event's run says how, and the content's text, when set, why.
 	ChatEventTypeRunEnded ChatEventType = "run_ended"
+	// ChatEventTypeBackground marks background work a harness left running
+	// ending; the event's background says what and how. A turn the harness
+	// then starts about it answers this message.
+	ChatEventTypeBackground ChatEventType = "background"
 )
+
+// ChatBackgroundEvent is background work ending, on a background event.
+type ChatBackgroundEvent struct {
+	TaskID   string           `json:"task_id"`
+	Kind     BackgroundKind   `json:"kind,omitempty"`
+	Command  string           `json:"command,omitempty"`
+	Status   BackgroundStatus `json:"status"`
+	ExitCode *int             `json:"exit_code,omitempty"`
+	// ToolInvocationID is the tool call that started it.
+	ToolInvocationID string `json:"tool_invocation_id,omitempty"`
+}
 
 // RunEndReason is why a run that completed ended the way it did, when its
 // last turn did not end with a reply.
@@ -8690,6 +8727,8 @@ type ChatEvent struct {
 	Type ChatEventType  `json:"type"`
 	Hook *ChatHookEvent `json:"hook,omitempty"`
 	Run  *ChatRunEvent  `json:"run,omitempty"`
+	// Background is set on a background event.
+	Background *ChatBackgroundEvent `json:"background,omitempty"`
 }
 
 // ChatHookEvent records one lifecycle hook handler run.
@@ -9941,11 +9980,11 @@ const (
 	// CredentialScopeOrg: shared across all teams of an org. In the enum for
 	// end-to-end typing (connect-level pickers); connects with it are refused
 	// until the org domain lands (INF-795 Phase 2). Resolution order once
-	// live: agent > user > team > org > platform.
-	CredentialScopeOrg   CredentialScope = "org"
-	CredentialScopeTeam  CredentialScope = "team"
-	CredentialScopeUser  CredentialScope = "user"
-	CredentialScopeAgent CredentialScope = "agent"
+	// live: user > team > org > platform. Credentials an agent uses are
+	// composed by vaults (INF-737), not by a scope.
+	CredentialScopeOrg  CredentialScope = "org"
+	CredentialScopeTeam CredentialScope = "team"
+	CredentialScopeUser CredentialScope = "user"
 )
 
 // CredentialGrant is which layer a credential row is. OAuth has two: the
@@ -10748,7 +10787,19 @@ type RunStateChangedPayload struct {
 type TurnStartedPayload struct {
 	TurnIndex int    `json:"turn_index"`
 	Model     string `json:"model,omitempty"`
+	// Origin is what started the turn: empty for a prompt, TurnOriginBackground
+	// for one the agent started itself when background work it left running
+	// finished (TaskID names it).
+	Origin TurnOrigin `json:"origin,omitempty"`
+	TaskID string     `json:"task_id,omitempty"`
 }
+
+// TurnOrigin is what started a turn.
+type TurnOrigin string
+
+// TurnOriginBackground is a turn the agent started on its own, with no
+// prompt, because background work it left running finished.
+const TurnOriginBackground TurnOrigin = "background"
 
 type TurnCompletedPayload struct {
 	TurnIndex  int    `json:"turn_index"`
@@ -10796,6 +10847,10 @@ type ApprovalRequiredPayload struct {
 	ToolName         string           `json:"tool_name"`
 	Arguments        StringEncodedMap `json:"arguments,omitempty"`
 	Reason           InterruptReason  `json:"reason"`
+	// Input is set when the agent asks the person questions rather than
+	// for permission (Reason is then input). The answer is the resolution's
+	// values, one per Input.Schema property; a deny declines to answer.
+	Input *InputForm `json:"input,omitempty"`
 	// SubagentID is set when a subagent asks: its tool call, not the
 	// agent's.
 	SubagentID string `json:"subagent_id,omitempty"`
@@ -10910,6 +10965,37 @@ const (
 	InterruptReasonAuth         InterruptReason = "auth"
 	InterruptReasonConfirmation InterruptReason = "confirmation"
 	InterruptReasonHookGate     InterruptReason = "hook_gate"
+	InterruptReasonInput        InterruptReason = "input"
+)
+
+// --------------------
+// source: background_types.go
+// --------------------
+
+const (
+	AgentEventBackgroundStarted   AgentEventType = "background.started"
+	AgentEventBackgroundCompleted AgentEventType = "background.completed"
+)
+
+// BackgroundKind is what kind of background work a task is.
+type BackgroundKind string
+
+const (
+	// BackgroundCommand is a shell command left running.
+	BackgroundCommand BackgroundKind = "command"
+	// BackgroundMonitor watches something (a command's output, a file) and
+	// reports what it sees until it is stopped or times out.
+	BackgroundMonitor BackgroundKind = "monitor"
+)
+
+// BackgroundStatus is how background work ended.
+type BackgroundStatus string
+
+const (
+	BackgroundCompleted BackgroundStatus = "completed"
+	BackgroundFailed    BackgroundStatus = "failed"
+	BackgroundCancelled BackgroundStatus = "cancelled"
+	BackgroundTimedOut  BackgroundStatus = "timed_out"
 )
 
 // --------------------
@@ -11097,6 +11183,32 @@ type SessionLiveness struct {
 	// PID is the process the evidence points at, when there is one.
 	PID    int    `json:"pid,omitempty"`
 	Detail string `json:"detail,omitempty"`
+}
+
+// --------------------
+// source: input_types.go
+// --------------------
+
+// InputForm is a set of questions an agent asks the person, as a form:
+// form-mode elicitation as MCP and ACP define it. Schema is a flat JSON
+// object schema whose properties are the questions:
+//
+//   - a string, number, integer or boolean field;
+//   - a single choice: a string with enum (and enumNames) or oneOf
+//     ({const, title}) for the choices;
+//   - several choices: an array whose items have enum or anyOf.
+//
+// A property's title is the question's short label and its description the
+// question itself. The answer is an object with a value per property; one
+// left out was not answered.
+//
+// Agents ask in their own shapes (Claude Code's AskUserQuestion, Grok's
+// x.ai/ask_user_question, ACP's elicitation/create); a driver turns each into
+// an InputForm and the answer back into the agent's shape, so a person
+// answers every agent the same way.
+type InputForm struct {
+	Message string          `json:"message,omitempty"`
+	Schema  json.RawMessage `json:"requested_schema"`
 }
 
 // --------------------

@@ -2355,11 +2355,14 @@ class CheckRequirementsResponse(TypedDict, total=False):
     errors: List[RequirementError]
 
 # ShareRequest is POST /{resource}/{id}/share: a share to one person
-# (user_id) or to the resource's whole team (team: true), at a permission
-# (read when empty).
+# (user_id), to a team (team: true for the resource's own team, or team_id
+# for another team of its org) or to the resource's whole org (org: true),
+# at a permission (read when empty).
 class ShareRequest(TypedDict, total=False):
     user_id: str
     team: bool
+    team_id: str
+    org: bool
     permission: Permission
 
 # SDKTypes is a phantom type for gotypegen dependency tracing.
@@ -3167,6 +3170,16 @@ class ChatMessageContent(TypedDict, total=False):
     tool_calls: Optional[List[ToolCall]]
     event: Optional[ChatEvent]
 
+# ChatBackgroundEvent is background work ending, on a background event.
+class ChatBackgroundEvent(TypedDict, total=False):
+    task_id: str
+    kind: BackgroundKind
+    command: str
+    status: BackgroundStatus
+    exit_code: Optional[int]
+    # ToolInvocationID is the tool call that started it.
+    tool_invocation_id: str
+
 # ChatRunEvent is how a run ended, on a run_ended event.
 class ChatRunEvent(TypedDict, total=False):
     run_id: str
@@ -3182,6 +3195,8 @@ class ChatEvent(TypedDict, total=False):
     type: ChatEventType
     hook: Optional[ChatHookEvent]
     run: Optional[ChatRunEvent]
+    # Background is set on a background event.
+    background: Optional[ChatBackgroundEvent]
 
 # ChatHookEvent records one lifecycle hook handler run.
 class ChatHookEvent(TypedDict, total=False):
@@ -3529,6 +3544,11 @@ class RunStateChangedPayload(TypedDict, total=False):
 class TurnStartedPayload(TypedDict, total=False):
     turn_index: int
     model: str
+    # Origin is what started the turn: empty for a prompt, TurnOriginBackground
+    # for one the agent started itself when background work it left running
+    # finished (TaskID names it).
+    origin: TurnOrigin
+    task_id: str
 
 class TurnCompletedPayload(TypedDict, total=False):
     turn_index: int
@@ -3565,6 +3585,10 @@ class ApprovalRequiredPayload(TypedDict, total=False):
     tool_name: str
     arguments: StringEncodedMap
     reason: InterruptReason
+    # Input is set when the agent asks the person questions rather than
+    # for permission (Reason is then input). The answer is the resolution's
+    # values, one per Input.Schema property; a deny declines to answer.
+    input: Optional[InputForm]
     # SubagentID is set when a subagent asks: its tool call, not the
     # agent's.
     subagent_id: str
@@ -3606,6 +3630,27 @@ class ErrorPayload(TypedDict, total=False):
     code: str
 
 StringEncodedMap = Dict[str, Any]
+
+# InputForm is a set of questions an agent asks the person, as a form:
+# form-mode elicitation as MCP and ACP define it. Schema is a flat JSON
+# object schema whose properties are the questions:
+# 
+#   - a string, number, integer or boolean field;
+#   - a single choice: a string with enum (and enumNames) or oneOf
+#     ({const, title}) for the choices;
+#   - several choices: an array whose items have enum or anyOf.
+# 
+# A property's title is the question's short label and its description the
+# question itself. The answer is an object with a value per property; one
+# left out was not answered.
+# 
+# Agents ask in their own shapes (Claude Code's AskUserQuestion, Grok's
+# x.ai/ask_user_question, ACP's elicitation/create); a driver turns each into
+# an InputForm and the answer back into the agent's shape, so a person
+# answers every agent the same way.
+class InputForm(TypedDict, total=False):
+    message: str
+    requested_schema: Any
 
 # HookEventDefinition describes a lifecycle hook event and its capabilities.
 class HookEventDefinition(TypedDict, total=False):
@@ -3968,13 +4013,17 @@ class RefRouteDTO(BaseModelDTO, TypedDict, total=False):
     description: str
     enabled: bool
 
+# ResourceShareDTO is one share: an acl_entries row naming a person, a team
+# or an org (INF-1133). UserID, TeamID or OrgID repeats the grantee for
+# clients that read those.
 class ResourceShareDTO(BaseModelDTO, TypedDict, total=False):
     resource_id: str
     resource_type: str
-    # UserID names the person a share is to; TeamID, with UserID empty,
-    # the resource's whole team.
+    grantee_type: ACLGrantee
+    grantee_id: str
     user_id: str
     team_id: str
+    org_id: str
     user: Optional[UserRelationDTO]
     permission: Permission
 
@@ -5323,6 +5372,14 @@ class Permission(str, Enum):
     # governed by their team/org usage policy (reach, INF-808).
     PERM_USE = "use"
 
+class ACLGrantee(str, Enum):
+    USER = "user"
+    TEAM = "team"
+    ORG = "org"
+    # ACLGranteeEveryone: every caller. Only a platform-scope credential
+    # may carry one (the acl service's rule).
+    EVERYONE = "everyone"
+
 class SubscriptionStatus(str, Enum):
     TRIALING = "trialing"
     ACTIVE = "active"
@@ -5446,6 +5503,10 @@ class ChatEventType(str, Enum):
     # ChatEventTypeRunEnded marks the point a run completed or was stopped;
     # the event's run says how, and the content's text, when set, why.
     RUN_ENDED = "run_ended"
+    # ChatEventTypeBackground marks background work a harness left running
+    # ending; the event's background says what and how. A turn the harness
+    # then starts about it answers this message.
+    BACKGROUND = "background"
 
 class RunEndReason(str, Enum):
     # RunEndReasonOutputLimit: the model's last turn hit its output limit
@@ -5564,6 +5625,7 @@ class InterruptReason(str, Enum):
     AUTH = "auth"
     CONFIRMATION = "confirmation"
     HOOK_GATE = "hook_gate"
+    INPUT = "input"
 
 class MergeStrategy(str, Enum):
     CONCAT = "concat"
@@ -5853,11 +5915,11 @@ class CredentialScope(str, Enum):
     # CredentialScopeOrg: shared across all teams of an org. In the enum for
     # end-to-end typing (connect-level pickers); connects with it are refused
     # until the org domain lands (INF-795 Phase 2). Resolution order once
-    # live: agent > user > team > org > platform.
+    # live: user > team > org > platform. Credentials an agent uses are
+    # composed by vaults (INF-737), not by a scope.
     ORG = "org"
     TEAM = "team"
     USER = "user"
-    AGENT = "agent"
 
 class CredentialGrant(str, Enum):
     # CredentialGrantCredentials: an OAuth app. Never a connection.
@@ -6134,9 +6196,16 @@ class AgentEventType(str, Enum):
     AGENT_EVENT_CONTEXT_COMPACTED = "context.compacted"
     # Errors
     AGENT_EVENT_ERROR = "error"
+    AGENT_EVENT_BACKGROUND_STARTED = "background.started"
+    AGENT_EVENT_BACKGROUND_COMPLETED = "background.completed"
     AGENT_EVENT_SUBAGENT_STARTED = "subagent.started"
     AGENT_EVENT_SUBAGENT_UPDATED = "subagent.updated"
     AGENT_EVENT_SUBAGENT_COMPLETED = "subagent.completed"
+
+# TurnOriginBackground is a turn the agent started on its own, with no
+# prompt, because background work it left running finished.
+class TurnOrigin(str, Enum):
+    BACKGROUND = "background"
 
 class ContentDeltaKind(str, Enum):
     CONTENT_DELTA_TEXT = "text"
@@ -6151,6 +6220,19 @@ class AgentRunState(str, Enum):
     FAILED = "failed"
     CANCELED = "canceled"
     REJECTED = "rejected"
+
+class BackgroundKind(str, Enum):
+    # BackgroundCommand is a shell command left running.
+    BACKGROUND_COMMAND = "command"
+    # BackgroundMonitor watches something (a command's output, a file) and
+    # reports what it sees until it is stopped or times out.
+    BACKGROUND_MONITOR = "monitor"
+
+class BackgroundStatus(str, Enum):
+    BACKGROUND_COMPLETED = "completed"
+    BACKGROUND_FAILED = "failed"
+    BACKGROUND_CANCELLED = "cancelled"
+    BACKGROUND_TIMED_OUT = "timed_out"
 
 class InterruptStatus(str, Enum):
     PENDING = "pending"
