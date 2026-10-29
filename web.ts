@@ -12904,23 +12904,18 @@ export const CredentialStatusError: CredentialStatus = "error";
 /**
  * CredentialScope controls resolution priority and ownership.
  */
-export type CredentialScope =
-  | "platform"
-  | "org"
-  | "team"
-  | "user"
-  | "agent";
+export type CredentialScope = "platform" | "org" | "team" | "user";
 export const CredentialScopePlatform: CredentialScope = "platform";
 /**
  * CredentialScopeOrg: shared across all teams of an org. In the enum for
  * end-to-end typing (connect-level pickers); connects with it are refused
  * until the org domain lands (INF-795 Phase 2). Resolution order once
- * live: agent > user > team > org > platform.
+ * live: user > team > org > platform. Credentials an agent uses are
+ * composed by vaults (INF-737), not by a scope.
  */
 export const CredentialScopeOrg: CredentialScope = "org";
 export const CredentialScopeTeam: CredentialScope = "team";
 export const CredentialScopeUser: CredentialScope = "user";
-export const CredentialScopeAgent: CredentialScope = "agent";
 /**
  * CredentialGrant is which layer a credential row is. OAuth has two: the
  * app (client id and secret, owned by the platform, an org or a team) and
@@ -13253,7 +13248,7 @@ export const PolicyLintOverridden: PolicyLintCode = "overridden";
  * reach admits the resource. The ladder deliberately reuses the visibility
  * values so the two read as one system.
  */
-export type Reach = "public" | "org" | "team" | "private";
+export type Reach = "public" | "org" | "team";
 /**
  * ReachPublic: every resource the caller can see is eligible.
  */
@@ -13266,11 +13261,6 @@ export const ReachOrg: Reach = "org";
  * ReachTeam: nothing outside the caller's own team is eligible.
  */
 export const ReachTeam: Reach = "team";
-/**
- * ReachPrivate: nothing outside is eligible. Kept for enum symmetry with
- * visibility; it evaluates exactly like team.
- */
-export const ReachPrivate: Reach = "private";
 /**
  * PolicyReach is a governance layer's usage default as the API carries it:
  * usage kind (App, Agent, Knowledge, Mcp, Flow) → reach. An absent kind is

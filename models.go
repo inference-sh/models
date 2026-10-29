@@ -9868,11 +9868,11 @@ const (
 	// CredentialScopeOrg: shared across all teams of an org. In the enum for
 	// end-to-end typing (connect-level pickers); connects with it are refused
 	// until the org domain lands (INF-795 Phase 2). Resolution order once
-	// live: agent > user > team > org > platform.
-	CredentialScopeOrg   CredentialScope = "org"
-	CredentialScopeTeam  CredentialScope = "team"
-	CredentialScopeUser  CredentialScope = "user"
-	CredentialScopeAgent CredentialScope = "agent"
+	// live: user > team > org > platform. Credentials an agent uses are
+	// composed by vaults (INF-737), not by a scope.
+	CredentialScopeOrg  CredentialScope = "org"
+	CredentialScopeTeam CredentialScope = "team"
+	CredentialScopeUser CredentialScope = "user"
 )
 
 // CredentialGrant is which layer a credential row is. OAuth has two: the
