@@ -2596,6 +2596,10 @@ type ChatDTO struct {
 	WorkDir string `json:"work_dir,omitempty"`
 	// ForkedFromMessageID is the message this chat was branched at.
 	ForkedFromMessageID *string `json:"forked_from_message_id,omitempty"`
+	// Origin is how the chat came to be: "ui" for a person in one of our
+	// apps, else api, trigger, integration, openai_client, embed, hook,
+	// subagent or branch. GET /chats filters on it.
+	Origin ChatOrigin `json:"origin"`
 }
 
 // ChatMessageDTO for API responses
@@ -5272,6 +5276,10 @@ type RemoteLaunchRequest struct {
 	// ResumeSessionID continues a session the harness has on the machine,
 	// as listed by GET /remotes/{id}/sessions, instead of starting fresh.
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
+	// Origin and Client are where the launch came from, set by the handler
+	// from the request (models.Chat.Origin, shared.ChatData.Client).
+	Origin ChatOrigin `json:"-"`
+	Client string     `json:"-"`
 }
 
 // HarnessCatalogEntry is one agent harness inference can drive on a remote,
@@ -8512,7 +8520,41 @@ type ChatData struct {
 	// review branch is opened with it set, so a review cannot fire the hook
 	// that reviews it.
 	DisableHooks bool `json:"disable_hooks,omitempty"`
+	// Client is the app the chat was started from (web, mac, ios, cli,
+	// sdk-js), as the request named itself (X-Client-Source). Shown, never
+	// trusted or filtered on: Chat.Origin is what a chat list filters.
+	Client string `json:"client,omitempty"`
 }
+
+// ChatOrigin is how a chat came to be. A chat list shows a person's own
+// sessions (ChatOriginUI) and keeps the rest, which nobody sat in front of,
+// out of the way.
+type ChatOrigin string
+
+const (
+	// ChatOriginUI is a person in one of our apps: web, mac, ios, watch or
+	// the CLI.
+	ChatOriginUI ChatOrigin = "ui"
+	// ChatOriginAPI is anything else that called the API: a key, an SDK, A2A.
+	ChatOriginAPI ChatOrigin = "api"
+	// ChatOriginTrigger is a trigger firing (Chat.TriggerID).
+	ChatOriginTrigger ChatOrigin = "trigger"
+	// ChatOriginIntegration is a message on a messaging channel: Slack,
+	// Telegram, Discord or Teams.
+	ChatOriginIntegration ChatOrigin = "integration"
+	// ChatOriginOpenAIClient is a client of the OpenAI-compatible agent route.
+	ChatOriginOpenAIClient ChatOrigin = "openai_client"
+	// ChatOriginEmbed is a visitor to an embedded agent.
+	ChatOriginEmbed ChatOrigin = "embed"
+	// ChatOriginHook is a lifecycle hook handing its event to an agent.
+	ChatOriginHook ChatOrigin = "hook"
+	// ChatOriginSubagent is a sub-agent's chat, started by a tool call
+	// (Chat.ParentID).
+	ChatOriginSubagent ChatOrigin = "subagent"
+	// ChatOriginBranch is a fork of another chat, a review branch among them
+	// (Chat.ForkedFromMessageID).
+	ChatOriginBranch ChatOrigin = "branch"
+)
 
 // PlanStep represents a step in an agent's execution plan
 type PlanStep struct {
@@ -9809,6 +9851,8 @@ const (
 type CredentialStatus string
 
 const (
+	// CredentialStatusPending is no longer written: a credential row exists
+	// once it holds a key or a login. Rows soft-deleted before then carry it.
 	CredentialStatusPending      CredentialStatus = "pending"
 	CredentialStatusConnected    CredentialStatus = "connected"
 	CredentialStatusDisconnected CredentialStatus = "disconnected"
