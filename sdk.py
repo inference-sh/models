@@ -2712,6 +2712,23 @@ class ToolInvocationFunction(TypedDict, total=False):
     name: str
     arguments: StringEncodedMap
 
+# UpdateStatus is the last update a remote or an engine was asked for and
+# what came of it. An engine restarts after every update request, whatever
+# the outcome; a remote restarts only once its install succeeded.
+UpdateStatus = TypedDict('UpdateStatus', {
+    'state': 'UpdateState',
+    # Target is what was asked for: stable, canary or a version (engines).
+    # Remotes always update to the latest release and leave it empty.
+    'target': 'str',
+    # From is the version the machine ran when asked; To the version it
+    # installs or found itself already on.
+    'from': 'str',
+    'to': 'str',
+    'error': 'str',
+    # At is when State was reached.
+    'at': 'str',
+}, total=False)
+
 # MetaItem represents metadata about an input or output item
 class MetaItem(TypedDict, total=False):
     type: MetaItemType
@@ -4250,6 +4267,9 @@ class EngineDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     engine_pin: str
     # Capabilities are what the engine last reported it can do.
     capabilities: EngineCapabilities
+    # LastUpdate is the last update the engine was asked for and how it
+    # went; nil when it was never asked.
+    last_update: Optional[UpdateStatus]
     system_info: Optional[SystemInfo]
     workers: List[Optional[WorkerDTO]]
 
@@ -5131,6 +5151,25 @@ class SetupActionType(str, Enum):
     SETUP_ACTION_ADD_SECRET = "add_secret"
     SETUP_ACTION_CONNECT = "connect"
     SETUP_ACTION_ADD_SCOPES = "add_scopes"
+
+class UpdateState(str, Enum):
+    # UpdateRequested: the request was sent and nothing has answered it yet.
+    # An engine older than engine_update_result never answers, so its update stays here.
+    UPDATE_REQUESTED = "requested"
+    # UpdateInstalling: a different release is being installed. The machine
+    # finishes its running work and restarts on it.
+    UPDATE_INSTALLING = "installing"
+    # UpdateInstalled: the machine reconnected on To.
+    UPDATE_INSTALLED = "installed"
+    # UpdateCurrent: the machine already runs To; nothing was installed.
+    UPDATE_CURRENT = "current"
+    # UpdateRefused: the binary cannot replace itself (a development build,
+    # an install a package manager owns, or a directory the machine's user
+    # cannot write to). Error says what to do on the machine.
+    UPDATE_REFUSED = "refused"
+    # UpdateFailed: the release could not be checked, downloaded or
+    # installed. Error says why. The machine keeps the version it has.
+    UPDATE_FAILED = "failed"
 
 class A2UIComponentType(str, Enum):
     A2UI_ROW = "Row"

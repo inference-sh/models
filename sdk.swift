@@ -6597,6 +6597,9 @@ public struct EngineDTO: Codable, Sendable {
     public var enginePin: String?
     /// Capabilities are what the engine last reported it can do.
     public var capabilities: EngineCapabilities?
+    /// LastUpdate is the last update the engine was asked for and how it
+    /// went; nil when it was never asked.
+    @Indirect public var lastUpdate: UpdateStatus?
     @Indirect public var systemInfo: SystemInfo?
     public var workers: [WorkerDTO]?
 
@@ -6619,6 +6622,7 @@ public struct EngineDTO: Codable, Sendable {
         engineVersion: String = "",
         enginePin: String? = nil,
         capabilities: EngineCapabilities? = nil,
+        lastUpdate: UpdateStatus? = nil,
         systemInfo: SystemInfo? = nil,
         workers: [WorkerDTO]? = nil
     ) {
@@ -6640,6 +6644,7 @@ public struct EngineDTO: Codable, Sendable {
         self.engineVersion = engineVersion
         self.enginePin = enginePin
         self.capabilities = capabilities
+        self.lastUpdate = lastUpdate
         self.systemInfo = systemInfo
         self.workers = workers
     }
@@ -6663,6 +6668,7 @@ public struct EngineDTO: Codable, Sendable {
         case engineVersion = "engine_version"
         case enginePin = "engine_pin"
         case capabilities = "capabilities"
+        case lastUpdate = "last_update"
         case systemInfo = "system_info"
         case workers = "workers"
     }
@@ -14710,6 +14716,73 @@ public struct ToolInvocationDTO: Codable, Sendable {
         case result = "result"
         case data = "data"
         case widget = "widget"
+    }
+}
+
+/// UpdateState is where the last update a remote or an engine was asked for
+/// stands.
+public struct UpdateState: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// UpdateRequested: the request was sent and nothing has answered it yet.
+    /// An engine older than engine_update_result never answers, so its update stays here.
+    public static let updateRequested = UpdateState(rawValue: "requested")
+    /// UpdateInstalling: a different release is being installed. The machine
+    /// finishes its running work and restarts on it.
+    public static let updateInstalling = UpdateState(rawValue: "installing")
+    /// UpdateInstalled: the machine reconnected on To.
+    public static let updateInstalled = UpdateState(rawValue: "installed")
+    /// UpdateCurrent: the machine already runs To; nothing was installed.
+    public static let updateCurrent = UpdateState(rawValue: "current")
+    /// UpdateRefused: the binary cannot replace itself (a development build,
+    /// an install a package manager owns, or a directory the machine's user
+    /// cannot write to). Error says what to do on the machine.
+    public static let updateRefused = UpdateState(rawValue: "refused")
+    /// UpdateFailed: the release could not be checked, downloaded or
+    /// installed. Error says why. The machine keeps the version it has.
+    public static let updateFailed = UpdateState(rawValue: "failed")
+}
+
+/// UpdateStatus is the last update a remote or an engine was asked for and
+/// what came of it. An engine restarts after every update request, whatever
+/// the outcome; a remote restarts only once its install succeeded.
+public struct UpdateStatus: Codable, Sendable {
+    public var state: UpdateState
+    /// Target is what was asked for: stable, canary or a version (engines).
+    /// Remotes always update to the latest release and leave it empty.
+    public var target: String?
+    /// From is the version the machine ran when asked; To the version it
+    /// installs or found itself already on.
+    public var from: String?
+    public var to: String?
+    public var error: String?
+    /// At is when State was reached.
+    public var at: String
+
+    public init(
+        state: UpdateState,
+        target: String? = nil,
+        from: String? = nil,
+        to: String? = nil,
+        error: String? = nil,
+        at: String = ""
+    ) {
+        self.state = state
+        self.target = target
+        self.from = from
+        self.to = to
+        self.error = error
+        self.at = at
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case state = "state"
+        case target = "target"
+        case from = "from"
+        case to = "to"
+        case error = "error"
+        case at = "at"
     }
 }
 

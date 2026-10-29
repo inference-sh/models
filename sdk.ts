@@ -2932,6 +2932,11 @@ export interface EngineDTO extends BaseModelDTO, PermissionModelDTO {
    * Capabilities are what the engine last reported it can do.
    */
   capabilities?: EngineCapabilities;
+  /**
+   * LastUpdate is the last update the engine was asked for and how it
+   * went; nil when it was never asked.
+   */
+  last_update?: UpdateStatus;
   system_info?: SystemInfo;
   workers: (WorkerDTO | undefined)[];
 }
@@ -5536,6 +5541,70 @@ export interface ToolInvocationDTO extends BaseModelDTO, PermissionModelDTO {
   result?: string;
   data?: any;
   widget?: Widget;
+}
+/**
+ * UpdateState is where the last update a remote or an engine was asked for
+ * stands.
+ */
+export type UpdateState =
+  | "requested"
+  | "installing"
+  | "installed"
+  | "current"
+  | "refused"
+  | "failed";
+/**
+ * UpdateRequested: the request was sent and nothing has answered it yet.
+ * An engine older than engine_update_result never answers, so its update stays here.
+ */
+export const UpdateRequested: UpdateState = "requested";
+/**
+ * UpdateInstalling: a different release is being installed. The machine
+ * finishes its running work and restarts on it.
+ */
+export const UpdateInstalling: UpdateState = "installing";
+/**
+ * UpdateInstalled: the machine reconnected on To.
+ */
+export const UpdateInstalled: UpdateState = "installed";
+/**
+ * UpdateCurrent: the machine already runs To; nothing was installed.
+ */
+export const UpdateCurrent: UpdateState = "current";
+/**
+ * UpdateRefused: the binary cannot replace itself (a development build,
+ * an install a package manager owns, or a directory the machine's user
+ * cannot write to). Error says what to do on the machine.
+ */
+export const UpdateRefused: UpdateState = "refused";
+/**
+ * UpdateFailed: the release could not be checked, downloaded or
+ * installed. Error says why. The machine keeps the version it has.
+ */
+export const UpdateFailed: UpdateState = "failed";
+/**
+ * UpdateStatus is the last update a remote or an engine was asked for and
+ * what came of it. An engine restarts after every update request, whatever
+ * the outcome; a remote restarts only once its install succeeded.
+ */
+export interface UpdateStatus {
+  state: UpdateState;
+  /**
+   * Target is what was asked for: stable, canary or a version (engines).
+   * Remotes always update to the latest release and leave it empty.
+   */
+  target?: string;
+  /**
+   * From is the version the machine ran when asked; To the version it
+   * installs or found itself already on.
+   */
+  from?: string;
+  to?: string;
+  error?: string;
+  /**
+   * At is when State was reached.
+   */
+  at: string /* RFC3339 */;
 }
 /**
  * MetaItem represents metadata about an input or output item
