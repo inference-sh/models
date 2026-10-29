@@ -2712,6 +2712,23 @@ class ToolInvocationFunction(TypedDict, total=False):
     name: str
     arguments: StringEncodedMap
 
+# UpdateStatus is the last update a remote or an engine was asked for and
+# what came of it. An engine restarts after every update request, whatever
+# the outcome; a remote restarts only once its install succeeded.
+UpdateStatus = TypedDict('UpdateStatus', {
+    'state': 'UpdateState',
+    # Target is what was asked for: stable, canary or a version (engines).
+    # Remotes always update to the latest release and leave it empty.
+    'target': 'str',
+    # From is the version the machine ran when asked; To the version it
+    # installs or found itself already on.
+    'from': 'str',
+    'to': 'str',
+    'error': 'str',
+    # At is when State was reached.
+    'at': 'str',
+}, total=False)
+
 # MetaItem represents metadata about an input or output item
 class MetaItem(TypedDict, total=False):
     type: MetaItemType
@@ -3127,6 +3144,10 @@ class ChatData(TypedDict, total=False):
     # review branch is opened with it set, so a review cannot fire the hook
     # that reviews it.
     disable_hooks: bool
+    # Client is the app the chat was started from (web, mac, ios, cli,
+    # sdk-js), as the request named itself (X-Client-Source). Shown, never
+    # trusted or filtered on: Chat.Origin is what a chat list filters.
+    client: str
 
 # PlanStep represents a step in an agent's execution plan
 class PlanStep(TypedDict, total=False):
@@ -4246,6 +4267,9 @@ class EngineDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     engine_pin: str
     # Capabilities are what the engine last reported it can do.
     capabilities: EngineCapabilities
+    # LastUpdate is the last update the engine was asked for and how it
+    # went; nil when it was never asked.
+    last_update: Optional[UpdateStatus]
     system_info: Optional[SystemInfo]
     workers: List[Optional[WorkerDTO]]
 
@@ -4696,6 +4720,10 @@ class ChatDTO(BaseModelDTO, PermissionModelDTO, ProjectModelDTO, TypedDict, tota
     work_dir: str
     # ForkedFromMessageID is the message this chat was branched at.
     forked_from_message_id: Optional[str]
+    # Origin is how the chat came to be: "ui" for a person in one of our
+    # apps, else api, trigger, integration, openai_client, embed, hook,
+    # subagent or branch. GET /chats filters on it.
+    origin: ChatOrigin
 
 # Widget is an A2UI surface stored on a ToolInvocation.
 # Alias of shared.A2UISurface so the type generation pipeline picks it up.
@@ -5124,6 +5152,25 @@ class SetupActionType(str, Enum):
     SETUP_ACTION_CONNECT = "connect"
     SETUP_ACTION_ADD_SCOPES = "add_scopes"
 
+class UpdateState(str, Enum):
+    # UpdateRequested: the request was sent and nothing has answered it yet.
+    # An engine older than engine_update_result never answers, so its update stays here.
+    UPDATE_REQUESTED = "requested"
+    # UpdateInstalling: a different release is being installed. The machine
+    # finishes its running work and restarts on it.
+    UPDATE_INSTALLING = "installing"
+    # UpdateInstalled: the machine reconnected on To.
+    UPDATE_INSTALLED = "installed"
+    # UpdateCurrent: the machine already runs To; nothing was installed.
+    UPDATE_CURRENT = "current"
+    # UpdateRefused: the binary cannot replace itself (a development build,
+    # an install a package manager owns, or a directory the machine's user
+    # cannot write to). Error says what to do on the machine.
+    UPDATE_REFUSED = "refused"
+    # UpdateFailed: the release could not be checked, downloaded or
+    # installed. Error says why. The machine keeps the version it has.
+    UPDATE_FAILED = "failed"
+
 class A2UIComponentType(str, Enum):
     A2UI_ROW = "Row"
     A2UI_COLUMN = "Column"
@@ -5366,6 +5413,30 @@ class ChannelType(str, Enum):
     DISCORD = "discord"
     TEAMS = "teams"
     TELEGRAM = "telegram"
+
+class ChatOrigin(str, Enum):
+    # ChatOriginUI is a person in one of our apps: web, mac, ios, watch or
+    # the CLI.
+    UI = "ui"
+    # ChatOriginAPI is anything else that called the API: a key, an SDK, A2A.
+    API = "api"
+    # ChatOriginTrigger is a trigger firing (Chat.TriggerID).
+    TRIGGER = "trigger"
+    # ChatOriginIntegration is a message on a messaging channel: Slack,
+    # Telegram, Discord or Teams.
+    INTEGRATION = "integration"
+    # ChatOriginOpenAIClient is a client of the OpenAI-compatible agent route.
+    OPEN_AI_CLIENT = "openai_client"
+    # ChatOriginEmbed is a visitor to an embedded agent.
+    EMBED = "embed"
+    # ChatOriginHook is a lifecycle hook handing its event to an agent.
+    HOOK = "hook"
+    # ChatOriginSubagent is a sub-agent's chat, started by a tool call
+    # (Chat.ParentID).
+    SUBAGENT = "subagent"
+    # ChatOriginBranch is a fork of another chat, a review branch among them
+    # (Chat.ForkedFromMessageID).
+    BRANCH = "branch"
 
 class ChatEventType(str, Enum):
     HOOK = "hook"
@@ -5769,6 +5840,8 @@ class CredentialType(str, Enum):
     WIF = "wif"
 
 class CredentialStatus(str, Enum):
+    # CredentialStatusPending is no longer written: a credential row exists
+    # once it holds a key or a login. Rows soft-deleted before then carry it.
     PENDING = "pending"
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"

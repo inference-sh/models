@@ -2596,6 +2596,10 @@ type ChatDTO struct {
 	WorkDir string `json:"work_dir,omitempty"`
 	// ForkedFromMessageID is the message this chat was branched at.
 	ForkedFromMessageID *string `json:"forked_from_message_id,omitempty"`
+	// Origin is how the chat came to be: "ui" for a person in one of our
+	// apps, else api, trigger, integration, openai_client, embed, hook,
+	// subagent or branch. GET /chats filters on it.
+	Origin ChatOrigin `json:"origin"`
 }
 
 // ChatMessageDTO for API responses
@@ -3086,8 +3090,11 @@ type EngineDTO struct {
 	EnginePin string `json:"engine_pin,omitempty"`
 	// Capabilities are what the engine last reported it can do.
 	Capabilities EngineCapabilities `json:"capabilities,omitempty"`
-	SystemInfo   *SystemInfo        `json:"system_info"`
-	Workers      []*WorkerDTO       `json:"workers"`
+	// LastUpdate is the last update the engine was asked for and how it
+	// went; nil when it was never asked.
+	LastUpdate *UpdateStatus `json:"last_update,omitempty"`
+	SystemInfo *SystemInfo   `json:"system_info"`
+	Workers    []*WorkerDTO  `json:"workers"`
 }
 
 // EngineUpdateRequest names the release an engine should install: "stable",
@@ -5135,6 +5142,9 @@ type RemoteDTO struct {
 	// to every remote carrying the tag.
 	Tags     []string      `json:"tags"`
 	Profiles []*ProfileDTO `json:"profiles"`
+	// LastUpdate is the last update the remote was asked for and how it
+	// went; nil when it was never asked.
+	LastUpdate *UpdateStatus `json:"last_update,omitempty"`
 }
 
 // ProfileDTO is the API response for one harness-plus-account slot on a remote.
@@ -5272,6 +5282,10 @@ type RemoteLaunchRequest struct {
 	// ResumeSessionID continues a session the harness has on the machine,
 	// as listed by GET /remotes/{id}/sessions, instead of starting fresh.
 	ResumeSessionID string `json:"resume_session_id,omitempty"`
+	// Origin and Client are where the launch came from, set by the handler
+	// from the request (models.Chat.Origin, shared.ChatData.Client).
+	Origin ChatOrigin `json:"-"`
+	Client string     `json:"-"`
 }
 
 // HarnessCatalogEntry is one agent harness inference can drive on a remote,
@@ -5897,6 +5911,7 @@ type EngineTypes struct {
 	_wsTelemetry       EngineTelemetry
 	_wsDeleteCache     WsEngineDeleteHFCacheRepoPayload
 	_wsEngineUpdate    WsEngineUpdatePayload
+	_wsEngineUpdated   WsEngineUpdateResult
 	_wsSessionEnd      WsSessionEndPayload
 	// Engine registration + internal API
 	_engineRegReq  EngineRegisterRequest
@@ -6786,6 +6801,51 @@ type TaskCostDTO struct {
 }
 
 // --------------------
+// source: update.go
+// --------------------
+
+// UpdateState is where the last update a remote or an engine was asked for
+// stands.
+type UpdateState string
+
+const (
+	// UpdateRequested: the request was sent and nothing has answered it yet.
+	// An engine older than engine_update_result never answers, so its update stays here.
+	UpdateRequested UpdateState = "requested"
+	// UpdateInstalling: a different release is being installed. The machine
+	// finishes its running work and restarts on it.
+	UpdateInstalling UpdateState = "installing"
+	// UpdateInstalled: the machine reconnected on To.
+	UpdateInstalled UpdateState = "installed"
+	// UpdateCurrent: the machine already runs To; nothing was installed.
+	UpdateCurrent UpdateState = "current"
+	// UpdateRefused: the binary cannot replace itself (a development build,
+	// an install a package manager owns, or a directory the machine's user
+	// cannot write to). Error says what to do on the machine.
+	UpdateRefused UpdateState = "refused"
+	// UpdateFailed: the release could not be checked, downloaded or
+	// installed. Error says why. The machine keeps the version it has.
+	UpdateFailed UpdateState = "failed"
+)
+
+// UpdateStatus is the last update a remote or an engine was asked for and
+// what came of it. An engine restarts after every update request, whatever
+// the outcome; a remote restarts only once its install succeeded.
+type UpdateStatus struct {
+	State UpdateState `json:"state"`
+	// Target is what was asked for: stable, canary or a version (engines).
+	// Remotes always update to the latest release and leave it empty.
+	Target string `json:"target,omitempty"`
+	// From is the version the machine ran when asked; To the version it
+	// installs or found itself already on.
+	From  string `json:"from,omitempty"`
+	To    string `json:"to,omitempty"`
+	Error string `json:"error,omitempty"`
+	// At is when State was reached.
+	At time.Time `json:"at"`
+}
+
+// --------------------
 // source: usage.go
 // --------------------
 
@@ -7045,6 +7105,9 @@ type WsTaskForceCancelPayload struct {
 const (
 	WSEventEngineHeartbeat WSEventType = "engine_heartbeat"
 	WSEventEngineTelemetry WSEventType = "engine_telemetry"
+	// WSEventEngineUpdateResult answers an engine_update once the engine has
+	// installed the release or found it cannot, before it drains.
+	WSEventEngineUpdateResult WSEventType = "engine_update_result"
 )
 
 type WorkerStatusMap map[string]WorkerStatus
@@ -7088,6 +7151,19 @@ type WorkerTelemetry struct {
 // Empty means stable, which is what engines did before the payload existed.
 type WsEngineUpdatePayload struct {
 	Version string `json:"version,omitempty"`
+}
+
+// WsEngineUpdateResult is what an engine did about an engine_update, sent
+// before it drains and restarts (it restarts whatever the state). State is
+// installing (To is in place), current (already on To), refused (the binary
+// cannot replace itself) or failed (the release could not be read or
+// installed); Error says why for the last two.
+type WsEngineUpdateResult struct {
+	Target string      `json:"target"`
+	State  UpdateState `json:"state"`
+	From   string      `json:"from,omitempty"`
+	To     string      `json:"to,omitempty"`
+	Error  string      `json:"error,omitempty"`
 }
 
 type WsEngineDeleteHFCacheRepoPayload struct {
@@ -7150,6 +7226,11 @@ const (
 	RemoteUpdateUnsupported RemoteUpdateState = "unsupported"
 	// RemoteUpdateFailed: the release could not be checked.
 	RemoteUpdateFailed RemoteUpdateState = "failed"
+	// RemoteUpdateInstallFailed follows an updating answer when the install
+	// then failed (download, digest, disk): the daemon stays on From and
+	// takes work again. Sent with the same request id, after the request
+	// itself was answered, so only the remote's last_update shows it.
+	RemoteUpdateInstallFailed RemoteUpdateState = "install_failed"
 )
 
 // WsRemoteUpdate asks a remote's daemon to update belt to the latest release.
@@ -8512,7 +8593,41 @@ type ChatData struct {
 	// review branch is opened with it set, so a review cannot fire the hook
 	// that reviews it.
 	DisableHooks bool `json:"disable_hooks,omitempty"`
+	// Client is the app the chat was started from (web, mac, ios, cli,
+	// sdk-js), as the request named itself (X-Client-Source). Shown, never
+	// trusted or filtered on: Chat.Origin is what a chat list filters.
+	Client string `json:"client,omitempty"`
 }
+
+// ChatOrigin is how a chat came to be. A chat list shows a person's own
+// sessions (ChatOriginUI) and keeps the rest, which nobody sat in front of,
+// out of the way.
+type ChatOrigin string
+
+const (
+	// ChatOriginUI is a person in one of our apps: web, mac, ios, watch or
+	// the CLI.
+	ChatOriginUI ChatOrigin = "ui"
+	// ChatOriginAPI is anything else that called the API: a key, an SDK, A2A.
+	ChatOriginAPI ChatOrigin = "api"
+	// ChatOriginTrigger is a trigger firing (Chat.TriggerID).
+	ChatOriginTrigger ChatOrigin = "trigger"
+	// ChatOriginIntegration is a message on a messaging channel: Slack,
+	// Telegram, Discord or Teams.
+	ChatOriginIntegration ChatOrigin = "integration"
+	// ChatOriginOpenAIClient is a client of the OpenAI-compatible agent route.
+	ChatOriginOpenAIClient ChatOrigin = "openai_client"
+	// ChatOriginEmbed is a visitor to an embedded agent.
+	ChatOriginEmbed ChatOrigin = "embed"
+	// ChatOriginHook is a lifecycle hook handing its event to an agent.
+	ChatOriginHook ChatOrigin = "hook"
+	// ChatOriginSubagent is a sub-agent's chat, started by a tool call
+	// (Chat.ParentID).
+	ChatOriginSubagent ChatOrigin = "subagent"
+	// ChatOriginBranch is a fork of another chat, a review branch among them
+	// (Chat.ForkedFromMessageID).
+	ChatOriginBranch ChatOrigin = "branch"
+)
 
 // PlanStep represents a step in an agent's execution plan
 type PlanStep struct {
@@ -9809,6 +9924,8 @@ const (
 type CredentialStatus string
 
 const (
+	// CredentialStatusPending is no longer written: a credential row exists
+	// once it holds a key or a login. Rows soft-deleted before then carry it.
 	CredentialStatusPending      CredentialStatus = "pending"
 	CredentialStatusConnected    CredentialStatus = "connected"
 	CredentialStatusDisconnected CredentialStatus = "disconnected"

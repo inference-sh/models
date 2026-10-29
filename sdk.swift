@@ -5399,6 +5399,10 @@ public struct ChatDTO: Codable, Sendable {
     public var workDir: String?
     /// ForkedFromMessageID is the message this chat was branched at.
     public var forkedFromMessageId: String?
+    /// Origin is how the chat came to be: "ui" for a person in one of our
+    /// apps, else api, trigger, integration, openai_client, embed, hook,
+    /// subagent or branch. GET /chats filters on it.
+    public var origin: ChatOrigin
 
     public init(
         id: String = "",
@@ -5432,7 +5436,8 @@ public struct ChatDTO: Codable, Sendable {
         pendingInterrupts: [InterruptDTO]? = nil,
         harnessSessionId: String? = nil,
         workDir: String? = nil,
-        forkedFromMessageId: String? = nil
+        forkedFromMessageId: String? = nil,
+        origin: ChatOrigin
     ) {
         self.id = id
         self.shortId = shortId
@@ -5466,6 +5471,7 @@ public struct ChatDTO: Codable, Sendable {
         self.harnessSessionId = harnessSessionId
         self.workDir = workDir
         self.forkedFromMessageId = forkedFromMessageId
+        self.origin = origin
     }
 
     enum CodingKeys: String, CodingKey {
@@ -5501,6 +5507,7 @@ public struct ChatDTO: Codable, Sendable {
         case harnessSessionId = "harness_session_id"
         case workDir = "work_dir"
         case forkedFromMessageId = "forked_from_message_id"
+        case origin = "origin"
     }
 }
 
@@ -6590,6 +6597,9 @@ public struct EngineDTO: Codable, Sendable {
     public var enginePin: String?
     /// Capabilities are what the engine last reported it can do.
     public var capabilities: EngineCapabilities?
+    /// LastUpdate is the last update the engine was asked for and how it
+    /// went; nil when it was never asked.
+    @Indirect public var lastUpdate: UpdateStatus?
     @Indirect public var systemInfo: SystemInfo?
     public var workers: [WorkerDTO]?
 
@@ -6612,6 +6622,7 @@ public struct EngineDTO: Codable, Sendable {
         engineVersion: String = "",
         enginePin: String? = nil,
         capabilities: EngineCapabilities? = nil,
+        lastUpdate: UpdateStatus? = nil,
         systemInfo: SystemInfo? = nil,
         workers: [WorkerDTO]? = nil
     ) {
@@ -6633,6 +6644,7 @@ public struct EngineDTO: Codable, Sendable {
         self.engineVersion = engineVersion
         self.enginePin = enginePin
         self.capabilities = capabilities
+        self.lastUpdate = lastUpdate
         self.systemInfo = systemInfo
         self.workers = workers
     }
@@ -6656,6 +6668,7 @@ public struct EngineDTO: Codable, Sendable {
         case engineVersion = "engine_version"
         case enginePin = "engine_pin"
         case capabilities = "capabilities"
+        case lastUpdate = "last_update"
         case systemInfo = "system_info"
         case workers = "workers"
     }
@@ -14706,6 +14719,73 @@ public struct ToolInvocationDTO: Codable, Sendable {
     }
 }
 
+/// UpdateState is where the last update a remote or an engine was asked for
+/// stands.
+public struct UpdateState: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// UpdateRequested: the request was sent and nothing has answered it yet.
+    /// An engine older than engine_update_result never answers, so its update stays here.
+    public static let updateRequested = UpdateState(rawValue: "requested")
+    /// UpdateInstalling: a different release is being installed. The machine
+    /// finishes its running work and restarts on it.
+    public static let updateInstalling = UpdateState(rawValue: "installing")
+    /// UpdateInstalled: the machine reconnected on To.
+    public static let updateInstalled = UpdateState(rawValue: "installed")
+    /// UpdateCurrent: the machine already runs To; nothing was installed.
+    public static let updateCurrent = UpdateState(rawValue: "current")
+    /// UpdateRefused: the binary cannot replace itself (a development build,
+    /// an install a package manager owns, or a directory the machine's user
+    /// cannot write to). Error says what to do on the machine.
+    public static let updateRefused = UpdateState(rawValue: "refused")
+    /// UpdateFailed: the release could not be checked, downloaded or
+    /// installed. Error says why. The machine keeps the version it has.
+    public static let updateFailed = UpdateState(rawValue: "failed")
+}
+
+/// UpdateStatus is the last update a remote or an engine was asked for and
+/// what came of it. An engine restarts after every update request, whatever
+/// the outcome; a remote restarts only once its install succeeded.
+public struct UpdateStatus: Codable, Sendable {
+    public var state: UpdateState
+    /// Target is what was asked for: stable, canary or a version (engines).
+    /// Remotes always update to the latest release and leave it empty.
+    public var target: String?
+    /// From is the version the machine ran when asked; To the version it
+    /// installs or found itself already on.
+    public var from: String?
+    public var to: String?
+    public var error: String?
+    /// At is when State was reached.
+    public var at: String
+
+    public init(
+        state: UpdateState,
+        target: String? = nil,
+        from: String? = nil,
+        to: String? = nil,
+        error: String? = nil,
+        at: String = ""
+    ) {
+        self.state = state
+        self.target = target
+        self.from = from
+        self.to = to
+        self.error = error
+        self.at = at
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case state = "state"
+        case target = "target"
+        case from = "from"
+        case to = "to"
+        case error = "error"
+        case at = "at"
+    }
+}
+
 /// MetaItem represents metadata about an input or output item
 public struct MetaItem: Codable, Sendable {
     public var type: MetaItemType
@@ -16404,17 +16484,23 @@ public struct ChatData: Codable, Sendable {
     /// review branch is opened with it set, so a review cannot fire the hook
     /// that reviews it.
     public var disableHooks: Bool?
+    /// Client is the app the chat was started from (web, mac, ios, cli,
+    /// sdk-js), as the request named itself (X-Client-Source). Shown, never
+    /// trusted or filtered on: Chat.Origin is what a chat list filters.
+    public var client: String?
 
     public init(
         planSteps: [PlanStep]? = nil,
         memory: StringEncodedMap? = nil,
         allowAllTools: Bool = false,
-        disableHooks: Bool? = nil
+        disableHooks: Bool? = nil,
+        client: String? = nil
     ) {
         self.planSteps = planSteps
         self.memory = memory
         self.allowAllTools = allowAllTools
         self.disableHooks = disableHooks
+        self.client = client
     }
 
     enum CodingKeys: String, CodingKey {
@@ -16422,7 +16508,39 @@ public struct ChatData: Codable, Sendable {
         case memory = "memory"
         case allowAllTools = "allow_all_tools"
         case disableHooks = "disable_hooks"
+        case client = "client"
     }
+}
+
+/// ChatOrigin is how a chat came to be. A chat list shows a person's own
+/// sessions (ChatOriginUI) and keeps the rest, which nobody sat in front of,
+/// out of the way.
+public struct ChatOrigin: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// ChatOriginUI is a person in one of our apps: web, mac, ios, watch or
+    /// the CLI.
+    public static let ui = ChatOrigin(rawValue: "ui")
+    /// ChatOriginAPI is anything else that called the API: a key, an SDK, A2A.
+    public static let api = ChatOrigin(rawValue: "api")
+    /// ChatOriginTrigger is a trigger firing (Chat.TriggerID).
+    public static let trigger = ChatOrigin(rawValue: "trigger")
+    /// ChatOriginIntegration is a message on a messaging channel: Slack,
+    /// Telegram, Discord or Teams.
+    public static let integration = ChatOrigin(rawValue: "integration")
+    /// ChatOriginOpenAIClient is a client of the OpenAI-compatible agent route.
+    public static let openAIClient = ChatOrigin(rawValue: "openai_client")
+    /// ChatOriginEmbed is a visitor to an embedded agent.
+    public static let embed = ChatOrigin(rawValue: "embed")
+    /// ChatOriginHook is a lifecycle hook handing its event to an agent.
+    public static let hook = ChatOrigin(rawValue: "hook")
+    /// ChatOriginSubagent is a sub-agent's chat, started by a tool call
+    /// (Chat.ParentID).
+    public static let subagent = ChatOrigin(rawValue: "subagent")
+    /// ChatOriginBranch is a fork of another chat, a review branch among them
+    /// (Chat.ForkedFromMessageID).
+    public static let branch = ChatOrigin(rawValue: "branch")
 }
 
 /// PlanStep represents a step in an agent's execution plan
@@ -18204,6 +18322,8 @@ public struct CredentialStatus: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
+    /// CredentialStatusPending is no longer written: a credential row exists
+    /// once it holds a key or a login. Rows soft-deleted before then carry it.
     public static let pending = CredentialStatus(rawValue: "pending")
     public static let connected = CredentialStatus(rawValue: "connected")
     public static let disconnected = CredentialStatus(rawValue: "disconnected")
