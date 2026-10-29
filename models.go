@@ -5601,7 +5601,7 @@ type WsSandboxStartPayload struct {
 	MemoryMiB  int64  `json:"memory_mib"`
 	DiskMiB    int64  `json:"disk_mib"`
 	// Config is the box's plain settings (INFSH_SANDBOX_ID, INFSH_SANDBOX_NAME,
-	// INFSH_API_URL). Never a secret.
+	// INFERENCE_API_URL). Never a secret.
 	Config map[string]string `json:"config,omitempty"`
 	// Secrets is the ECIES SecretsPayload v2, the same form as task_run: Bound
 	// carries INFERENCE_API_KEY for the API host, so the box holds a placeholder.
