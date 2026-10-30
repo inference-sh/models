@@ -18556,7 +18556,8 @@ public struct EntitlementResource: RawRepresentable, Codable, Hashable, Sendable
     public static let resourceFeatureMarketplacePublish = EntitlementResource(rawValue: "feature:marketplace_publish")
     /// Granted per team: creating forms is by invitation for now.
     public static let resourceFeatureForms = EntitlementResource(rawValue: "feature:forms")
-    /// Granted per team: managed sandboxes are by invitation for now (INF-833).
+    /// Managed sandboxes (INF-833): open to every team; a row with enabled
+    /// false shuts one team out.
     public static let resourceFeatureSandboxes = EntitlementResource(rawValue: "feature:sandboxes")
     /// Legacy feature gates — kept for DB compatibility, no longer gated
     public static let resourceFeatureScopes = EntitlementResource(rawValue: "feature:scopes")

@@ -5937,7 +5937,8 @@ class EntitlementResource(str, Enum):
     RESOURCE_FEATURE_MARKETPLACE_PUBLISH = "feature:marketplace_publish"
     # Granted per team: creating forms is by invitation for now.
     RESOURCE_FEATURE_FORMS = "feature:forms"
-    # Granted per team: managed sandboxes are by invitation for now (INF-833).
+    # Managed sandboxes (INF-833): open to every team; a row with enabled
+    # false shuts one team out.
     RESOURCE_FEATURE_SANDBOXES = "feature:sandboxes"
     # Legacy feature gates — kept for DB compatibility, no longer gated
     RESOURCE_FEATURE_SCOPES = "feature:scopes"
