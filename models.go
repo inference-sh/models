@@ -1168,6 +1168,9 @@ const (
 	// Action-level scopes for Remotes
 	ScopeRemotesRead  Scope = "remotes:read"
 	ScopeRemotesWrite Scope = "remotes:write"
+	// Action-level scopes for Sandboxes (managed boxes that run a remote)
+	ScopeSandboxesRead  Scope = "sandboxes:read"
+	ScopeSandboxesWrite Scope = "sandboxes:write"
 	// Action-level scopes for API Keys
 	ScopeApiKeysRead  Scope = "apikeys:read"
 	ScopeApiKeysWrite Scope = "apikeys:write"
@@ -1238,6 +1241,7 @@ const (
 	ScopeGroupCredentials   ScopeGroup = "credentials"
 	ScopeGroupEngines       ScopeGroup = "engines"
 	ScopeGroupRemotes       ScopeGroup = "remotes"
+	ScopeGroupSandboxes     ScopeGroup = "sandboxes"
 	ScopeGroupApiKeys       ScopeGroup = "apikeys"
 	ScopeGroupKnowledge     ScopeGroup = "knowledge"
 	ScopeGroupArtifacts     ScopeGroup = "artifacts"
@@ -3221,7 +3225,15 @@ type WorkerRAM struct {
 // a task to an engine that has every one it needs.
 type EngineCapability string
 
-const EngineCapabilityEgressGateway EngineCapability = "egress_gateway"
+const (
+	// EngineCapabilityEgressGateway: the engine runs its sandboxes behind
+	// the egress gateway, so it can take bound secrets (the v2 secrets
+	// envelope) and place each value only toward its hosts (INF-1076).
+	EngineCapabilityEgressGateway EngineCapability = "egress_gateway"
+	// EngineCapabilitySandboxes: the engine has boxd connected and a VM
+	// space up, so it can take sandbox_start (INF-833).
+	EngineCapabilitySandboxes EngineCapability = "sandboxes"
+)
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
 // empty are the same: nothing beyond the base contract.
@@ -5587,6 +5599,122 @@ type ShareRequest struct {
 }
 
 // --------------------
+// source: sandbox.go
+// --------------------
+
+// SandboxStatus is where the API's record of a sandbox stands. A sandbox is
+// a Firecracker box on one of our engines that runs `belt remote start` and
+// connects back as an ordinary Remote.
+type SandboxStatus string
+
+const (
+	SandboxStatusPending  SandboxStatus = "pending"
+	SandboxStatusStarting SandboxStatus = "starting"
+	SandboxStatusRunning  SandboxStatus = "running"
+	SandboxStatusStopping SandboxStatus = "stopping"
+	SandboxStatusStopped  SandboxStatus = "stopped"
+	SandboxStatusFailed   SandboxStatus = "failed"
+)
+
+// SandboxDesiredState is what the owner asked for; the reconciler moves the
+// status toward it.
+type SandboxDesiredState string
+
+const (
+	SandboxDesiredRunning SandboxDesiredState = "running"
+	SandboxDesiredStopped SandboxDesiredState = "stopped"
+	SandboxDesiredDeleted SandboxDesiredState = "deleted"
+)
+
+// SandboxBoxState is what the engine says of one box.
+type SandboxBoxState string
+
+const (
+	SandboxBoxStarting SandboxBoxState = "starting"
+	SandboxBoxRunning  SandboxBoxState = "running"
+	SandboxBoxExited   SandboxBoxState = "exited"
+	SandboxBoxStopped  SandboxBoxState = "stopped"
+	SandboxBoxFailed   SandboxBoxState = "failed"
+)
+
+// WsSandboxStartPayload is sandbox_start, API to engine: boot one box on a
+// worker the API has leased for it.
+type WsSandboxStartPayload struct {
+	SandboxID  string `json:"sandbox_id"`
+	WorkerID   string `json:"worker_id"`
+	Generation int64  `json:"generation"` // one per start; stale events are dropped by it
+	Image      string `json:"image"`      // registry ref, allowlisted by the API
+	VCPUs      int    `json:"vcpus"`
+	MemoryMiB  int64  `json:"memory_mib"`
+	DiskMiB    int64  `json:"disk_mib"`
+	// Config is the box's plain settings (INFSH_SANDBOX_ID, INFSH_SANDBOX_NAME,
+	// INFERENCE_API_URL). Never a secret.
+	Config map[string]string `json:"config,omitempty"`
+	// Secrets is the ECIES SecretsPayload v2, the same form as task_run: Bound
+	// carries INFERENCE_API_KEY for the API host, so the box holds a placeholder.
+	Secrets string `json:"secrets"`
+}
+
+// WsSandboxStopPayload is sandbox_stop, API to engine.
+type WsSandboxStopPayload struct {
+	SandboxID    string `json:"sandbox_id"`
+	Generation   int64  `json:"generation"` // 0 stops whatever generation runs (orphan sweep)
+	GraceSeconds int    `json:"grace_seconds"`
+}
+
+// WsSandboxStatusPayload is sandbox_status, engine to API, sent on every
+// transition of a box.
+type WsSandboxStatusPayload struct {
+	SandboxID  string          `json:"sandbox_id"`
+	Generation int64           `json:"generation"`
+	State      SandboxBoxState `json:"state"`
+	ExitCode   *int            `json:"exit_code,omitempty"`
+	Error      string          `json:"error,omitempty"` // redacted, short
+}
+
+// SandboxReport is one box in EngineTelemetry.Sandboxes: the whole set each
+// report, so the API can find lost and orphaned boxes.
+type SandboxReport struct {
+	SandboxID  string          `json:"sandbox_id"`
+	Generation int64           `json:"generation"`
+	WorkerID   string          `json:"worker_id"`
+	State      SandboxBoxState `json:"state"`
+}
+
+// CreateSandboxRequest is POST /sandboxes. Sizes left at zero take the
+// defaults.
+type CreateSandboxRequest struct {
+	Name      string `json:"name"`
+	VCPUs     int    `json:"vcpus,omitempty"`      // default 2, max 8
+	MemoryMiB int64  `json:"memory_mib,omitempty"` // default 4096, max 16384
+	DiskMiB   int64  `json:"disk_mib,omitempty"`   // default 10240, max 51200
+}
+
+// SandboxDTO is the API response for a sandbox.
+type SandboxDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Name               string              `json:"name"`
+	Image              string              `json:"image"`
+	VCPUs              int                 `json:"vcpus"`
+	MemoryMiB          int64               `json:"memory_mib"`
+	DiskMiB            int64               `json:"disk_mib"`
+	DesiredState       SandboxDesiredState `json:"desired_state"`
+	Status             SandboxStatus       `json:"status"`
+	StatusReason       string              `json:"status_reason,omitempty"`
+	// Generation counts starts, restarts included.
+	Generation int64 `json:"generation"`
+	// EngineID and WorkerID place the current generation; empty while
+	// pending or stopped.
+	EngineID *string `json:"engine_id,omitempty"`
+	WorkerID *string `json:"worker_id,omitempty"`
+	// RemoteID is the Remote the box connects as; the same across restarts.
+	RemoteID  *string    `json:"remote_id,omitempty"`
+	StartedAt *time.Time `json:"started_at,omitempty"`
+	StoppedAt *time.Time `json:"stopped_at,omitempty"`
+}
+
+// --------------------
 // source: sdk.go
 // --------------------
 
@@ -5625,6 +5753,8 @@ type SDKTypes struct {
 	_flowRun            FlowRunDTO
 	_flowVer            FlowVersionDTO
 	_engine             EngineDTO
+	_sandbox            SandboxDTO
+	_sandboxCreate      CreateSandboxRequest
 	_engineUpdateReq    EngineUpdateRequest
 	_engineReleases     EngineReleasesResponse
 	_cursor             CursorListRequest
@@ -5943,6 +6073,10 @@ type EngineTypes struct {
 	_wsEngineUpdate    WsEngineUpdatePayload
 	_wsEngineUpdated   WsEngineUpdateResult
 	_wsSessionEnd      WsSessionEndPayload
+	_wsSandboxStart    WsSandboxStartPayload
+	_wsSandboxStop     WsSandboxStopPayload
+	_wsSandboxStatus   WsSandboxStatusPayload
+	_sandboxReport     SandboxReport
 	// Engine registration + internal API
 	_engineRegReq  EngineRegisterRequest
 	_engineRegResp EngineRegisterResponse
@@ -7110,7 +7244,12 @@ const (
 	WSEventEngineUpdate            WSEventType = "engine_update"
 	WSEventEngineDeleteHFCacheRepo WSEventType = "engine_delete_hfcache_repo"
 	WSEventSessionEnd              WSEventType = "session_end"
+	WSEventSandboxStart            WSEventType = "sandbox_start"
+	WSEventSandboxStop             WSEventType = "sandbox_stop"
 )
+
+// WSEventSandboxStatus is engine → API, sent on every transition of a box.
+const WSEventSandboxStatus WSEventType = "sandbox_status"
 
 type WsTaskRunPayload struct {
 	Task    TaskDispatchPayload `json:"task"`
@@ -7162,6 +7301,8 @@ type EngineTelemetry struct {
 	Capabilities EngineCapabilities `json:"capabilities,omitempty"`
 	SystemInfo   *SystemInfo        `json:"system_info"`
 	Workers      []WorkerTelemetry  `json:"workers"`
+	// Sandboxes is every box the engine holds, the whole set each report.
+	Sandboxes []SandboxReport `json:"sandboxes,omitempty"`
 }
 
 // WorkerTelemetry is the minimal telemetry data engine sends per worker.
@@ -7172,8 +7313,10 @@ type WorkerTelemetry struct {
 	AppID           string       `json:"app_id"`
 	AppVersionID    string       `json:"app_version_id"`
 	ActiveSessionID *string      `json:"active_session_id,omitempty"`
-	SystemInfo      SystemInfo   `json:"system_info"`
-	WarmApps        []string     `json:"warm_apps,omitempty"`
+	// ActiveSandboxID is the sandbox whose box holds this worker.
+	ActiveSandboxID *string    `json:"active_sandbox_id,omitempty"`
+	SystemInfo      SystemInfo `json:"system_info"`
+	WarmApps        []string   `json:"warm_apps,omitempty"`
 }
 
 // WsEngineUpdatePayload tells an engine which release to install before it
@@ -9929,6 +10072,8 @@ const (
 	ResourceFeatureMarketplacePublish EntitlementResource = "feature:marketplace_publish"
 	// Granted per team: creating forms is by invitation for now.
 	ResourceFeatureForms EntitlementResource = "feature:forms"
+	// Granted per team: managed sandboxes are by invitation for now (INF-833).
+	ResourceFeatureSandboxes EntitlementResource = "feature:sandboxes"
 	// Legacy feature gates — kept for DB compatibility, no longer gated
 	ResourceFeatureScopes       EntitlementResource = "feature:scopes"
 	ResourceFeatureWebhooks     EntitlementResource = "feature:webhooks"
