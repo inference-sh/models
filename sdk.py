@@ -4853,6 +4853,8 @@ class Scope(str, Enum):
     TEAMS = "teams"
     BILLING = "billing"
     ARTIFACTS = "artifacts"
+    FORMS = "forms"
+    BOUNTIES = "bounties"
     # Action-level scopes for Agents
     AGENTS_READ = "agents:read"
     AGENTS_WRITE = "agents:write"
@@ -4909,6 +4911,15 @@ class Scope(str, Enum):
     # Action-level scopes for Artifacts (published HTML/Markdown pages)
     ARTIFACTS_READ = "artifacts:read"
     ARTIFACTS_WRITE = "artifacts:write"
+    # Action-level scopes for Forms: read sees forms, write creates and
+    # manages them and reads their answers, execute submits answers.
+    FORMS_READ = "forms:read"
+    FORMS_WRITE = "forms:write"
+    FORMS_EXECUTE = "forms:execute"
+    # Action-level scopes for Bounties: read lists the programs, execute
+    # claims one (only the account holder's own sign-in).
+    BOUNTIES_READ = "bounties:read"
+    BOUNTIES_EXECUTE = "bounties:execute"
     # Action-level scopes for User profile
     USER_READ = "user:read"
     USER_WRITE = "user:write"
@@ -4960,6 +4971,8 @@ class ScopeGroup(str, Enum):
     API_KEYS = "apikeys"
     KNOWLEDGE = "knowledge"
     ARTIFACTS = "artifacts"
+    FORMS = "forms"
+    BOUNTIES = "bounties"
     USER = "user"
     SETTINGS = "settings"
     APPROVALS = "approvals"

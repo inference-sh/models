@@ -2691,6 +2691,8 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     public static let teams = Scope(rawValue: "teams")
     public static let billing = Scope(rawValue: "billing")
     public static let artifacts = Scope(rawValue: "artifacts")
+    public static let forms = Scope(rawValue: "forms")
+    public static let bounties = Scope(rawValue: "bounties")
     /// Action-level scopes for Agents
     public static let agentsRead = Scope(rawValue: "agents:read")
     public static let agentsWrite = Scope(rawValue: "agents:write")
@@ -2747,6 +2749,15 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     /// Action-level scopes for Artifacts (published HTML/Markdown pages)
     public static let artifactsRead = Scope(rawValue: "artifacts:read")
     public static let artifactsWrite = Scope(rawValue: "artifacts:write")
+    /// Action-level scopes for Forms: read sees forms, write creates and
+    /// manages them and reads their answers, execute submits answers.
+    public static let formsRead = Scope(rawValue: "forms:read")
+    public static let formsWrite = Scope(rawValue: "forms:write")
+    public static let formsExecute = Scope(rawValue: "forms:execute")
+    /// Action-level scopes for Bounties: read lists the programs, execute
+    /// claims one (only the account holder's own sign-in).
+    public static let bountiesRead = Scope(rawValue: "bounties:read")
+    public static let bountiesExecute = Scope(rawValue: "bounties:execute")
     /// Action-level scopes for User profile
     public static let userRead = Scope(rawValue: "user:read")
     public static let userWrite = Scope(rawValue: "user:write")
@@ -2803,6 +2814,8 @@ public struct ScopeGroup: RawRepresentable, Codable, Hashable, Sendable {
     public static let apiKeys = ScopeGroup(rawValue: "apikeys")
     public static let knowledge = ScopeGroup(rawValue: "knowledge")
     public static let artifacts = ScopeGroup(rawValue: "artifacts")
+    public static let forms = ScopeGroup(rawValue: "forms")
+    public static let bounties = ScopeGroup(rawValue: "bounties")
     public static let user = ScopeGroup(rawValue: "user")
     public static let settings = ScopeGroup(rawValue: "settings")
     public static let approvals = ScopeGroup(rawValue: "approvals")

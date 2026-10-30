@@ -1119,6 +1119,8 @@ const (
 	ScopeTeams         Scope = "teams"
 	ScopeBilling       Scope = "billing"
 	ScopeArtifacts     Scope = "artifacts"
+	ScopeForms         Scope = "forms"
+	ScopeBounties      Scope = "bounties"
 	// Action-level scopes for Agents
 	ScopeAgentsRead    Scope = "agents:read"
 	ScopeAgentsWrite   Scope = "agents:write"
@@ -1175,6 +1177,15 @@ const (
 	// Action-level scopes for Artifacts (published HTML/Markdown pages)
 	ScopeArtifactsRead  Scope = "artifacts:read"
 	ScopeArtifactsWrite Scope = "artifacts:write"
+	// Action-level scopes for Forms: read sees forms, write creates and
+	// manages them and reads their answers, execute submits answers.
+	ScopeFormsRead    Scope = "forms:read"
+	ScopeFormsWrite   Scope = "forms:write"
+	ScopeFormsExecute Scope = "forms:execute"
+	// Action-level scopes for Bounties: read lists the programs, execute
+	// claims one (only the account holder's own sign-in).
+	ScopeBountiesRead    Scope = "bounties:read"
+	ScopeBountiesExecute Scope = "bounties:execute"
 	// Action-level scopes for User profile
 	ScopeUserRead  Scope = "user:read"
 	ScopeUserWrite Scope = "user:write"
@@ -1230,6 +1241,8 @@ const (
 	ScopeGroupApiKeys       ScopeGroup = "apikeys"
 	ScopeGroupKnowledge     ScopeGroup = "knowledge"
 	ScopeGroupArtifacts     ScopeGroup = "artifacts"
+	ScopeGroupForms         ScopeGroup = "forms"
+	ScopeGroupBounties      ScopeGroup = "bounties"
 	ScopeGroupUser          ScopeGroup = "user"
 	ScopeGroupSettings      ScopeGroup = "settings"
 	ScopeGroupApprovals     ScopeGroup = "approvals"
