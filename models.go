@@ -3363,6 +3363,9 @@ const (
 	// does not allow the action. Meta is TeamRoleRequiredMeta when a
 	// capability gate refused it.
 	ErrorCodeTeamRoleRequired ErrorCode = "team_role_required"
+	// ErrorCodeInOtherWorkspace: the resource lives in another workspace
+	// the caller belongs to and could open there (InOtherWorkspaceMeta).
+	ErrorCodeInOtherWorkspace ErrorCode = "in_other_workspace"
 	// ErrorCodeBlockedByUsagePolicy: the resource is outside the team or org
 	// usage policy. The message names who to ask.
 	ErrorCodeBlockedByUsagePolicy ErrorCode = "blocked_by_usage_policy"
@@ -3495,6 +3498,12 @@ type TeamRoleRequiredMeta struct {
 	ActualRole       TeamRole       `json:"actual_role,omitempty"`
 	RequiredRole     TeamRole       `json:"required_role,omitempty"`
 	RequiresOrgAdmin *bool          `json:"requires_org_admin,omitempty"`
+}
+
+// InOtherWorkspaceMeta is the meta of an in_other_workspace error: the
+// workspace to switch to.
+type InOtherWorkspaceMeta struct {
+	TeamID string `json:"team_id"`
 }
 
 // ScopeRefusedMeta is the meta of an insufficient_scope or
@@ -5733,6 +5742,7 @@ type SDKTypes struct {
 	_teamRoleRequiredMeta  TeamRoleRequiredMeta
 	_scopeRefusedMeta      ScopeRefusedMeta
 	_paymentMethodReqdMeta PaymentMethodRequiredMeta
+	_inOtherWorkspaceMeta  InOtherWorkspaceMeta
 	// Response envelope
 	_responseMessage ResponseMessage
 	// An LLM app's task input; no agent request type reaches it.
