@@ -2876,8 +2876,9 @@ type CredentialDTO struct {
 	IsPrimary     bool           `json:"is_primary"`
 	ErrorMessage  string         `json:"error_message,omitempty"`
 	// Secrets are the secret rows linked to the credential (a key's values),
-	// by row and key, never by value. Filled on the vault's api_key configs
-	// and the admin provider tree.
+	// by row and key, never by value. Filled on the vault's api_key configs,
+	// on a config's app when it is the caller's workspace's own (which of
+	// its keys are set) and on the admin provider tree.
 	Secrets []CredentialSecretRef `json:"secrets,omitempty"`
 }
 
@@ -2937,6 +2938,11 @@ type CredentialConfigDTO struct {
 	// set up yet, or when it doesn't sign in through one. Credential is the
 	// login itself.
 	App *CredentialDTO `json:"app,omitempty"`
+	// AppNoun is what that app is called ("GitHub App") when it is not an
+	// OAuth sign-in app: its logins connect something other than a person
+	// signing in (an installation). Empty: an OAuth app logins sign in
+	// through.
+	AppNoun string `json:"app_noun,omitempty"`
 	// AuthProviderID is set when the provider is one the team defined
 	// itself (models.AuthProvider), so the UI can offer edit and remove.
 	AuthProviderID string `json:"auth_provider_id,omitempty"`
