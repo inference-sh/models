@@ -3111,7 +3111,10 @@ type EngineDTO struct {
 	// went; nil when it was never asked.
 	LastUpdate *UpdateStatus `json:"last_update,omitempty"`
 	SystemInfo *SystemInfo   `json:"system_info"`
-	Workers    []*WorkerDTO  `json:"workers"`
+	// Capacity is what the engine last reported it offers and has given
+	// out; nil from an engine that does not report it.
+	Capacity *EngineCapacity `json:"capacity,omitempty"`
+	Workers  []*WorkerDTO    `json:"workers"`
 }
 
 // EngineUpdateRequest names the release an engine should install: "stable",
@@ -3233,6 +3236,9 @@ const (
 	// EngineCapabilitySandboxes: the engine has boxd connected and a VM
 	// space up, so it can take sandbox_start (INF-833).
 	EngineCapabilitySandboxes EngineCapability = "sandboxes"
+	// EngineCapabilityCapacity: the engine reports EngineTelemetry.Capacity
+	// (INF-1156).
+	EngineCapabilityCapacity EngineCapability = "capacity"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -3260,6 +3266,52 @@ func (c EngineCapabilities) Missing(required EngineCapabilities) EngineCapabilit
 // order.
 func (c EngineCapabilities) Equal(other EngineCapabilities) bool {
 	return len(c.Missing(other)) == 0 && len(other.Missing(c)) == 0
+}
+
+// --------------------
+// source: engine_capacity.go
+// --------------------
+
+// EngineCapacity is what an engine offers and what it has given out
+// (INF-1156): the machine, the host reserve kept back from it, what is
+// left to give (allocatable), what it has promised (committed: app
+// workers' quotas and sandbox boxes' sizes) and what is in use now.
+// Reported by engines with EngineCapabilityCapacity.
+type EngineCapacity struct {
+	// CPUs are the logical CPUs (hardware threads) the engine may use;
+	// Cores the physical cores they are on.
+	CPUs        int    `json:"cpus"`
+	Cores       int    `json:"cores"`
+	MemoryBytes uint64 `json:"memory_bytes"`
+	// DiskBytes and DiskFreeBytes are the volume the engine's data is on.
+	DiskBytes     uint64         `json:"disk_bytes"`
+	DiskFreeBytes uint64         `json:"disk_free_bytes"`
+	GPUs          []CapacityGPU  `json:"gpus,omitempty"`
+	Reserve       CapacityAmount `json:"reserve"`
+	Allocatable   CapacityAmount `json:"allocatable"`
+	Committed     CapacityAmount `json:"committed"`
+	Used          CapacityAmount `json:"used"`
+}
+
+func (c EngineCapacity) Value() (driver.Value, error) {
+	return JSONValue(c)
+}
+
+func (c *EngineCapacity) Scan(value any) error {
+	return JSONScan(c, value, "EngineCapacity")
+}
+
+// CapacityAmount is an amount of CPU and memory. CPUs are logical CPUs,
+// fractional for use (1.5 is one and a half CPUs busy).
+type CapacityAmount struct {
+	CPUs        float64 `json:"cpus"`
+	MemoryBytes uint64  `json:"memory_bytes"`
+}
+
+// CapacityGPU is one GPU of an engine.
+type CapacityGPU struct {
+	ID        string `json:"id"`
+	VRAMBytes uint64 `json:"vram_bytes"`
 }
 
 // --------------------
@@ -5666,6 +5718,13 @@ type SandboxReport struct {
 	Generation int64           `json:"generation"`
 	WorkerID   string          `json:"worker_id"`
 	State      SandboxBoxState `json:"state"`
+	// VCPUs and MemoryBytes are the box's size; MemoryUsedBytes and
+	// MemoryPeakBytes what it uses now and at most, where the engine can
+	// read them (0 when it cannot).
+	VCPUs           int   `json:"vcpus,omitempty"`
+	MemoryBytes     int64 `json:"memory_bytes,omitempty"`
+	MemoryUsedBytes int64 `json:"memory_used_bytes,omitempty"`
+	MemoryPeakBytes int64 `json:"memory_peak_bytes,omitempty"`
 }
 
 // CreateSandboxRequest is POST /sandboxes. Sizes left at zero take the
@@ -7285,6 +7344,9 @@ type EngineTelemetry struct {
 	Workers      []WorkerTelemetry  `json:"workers"`
 	// Sandboxes is every box the engine holds, the whole set each report.
 	Sandboxes []SandboxReport `json:"sandboxes,omitempty"`
+	// Capacity is what the engine offers and has given out; nil from an
+	// engine without EngineCapabilityCapacity.
+	Capacity *EngineCapacity `json:"capacity,omitempty"`
 }
 
 // WorkerTelemetry is the minimal telemetry data engine sends per worker.
