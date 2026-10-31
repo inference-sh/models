@@ -3560,6 +3560,9 @@ type ExecRunDTO struct {
 	RequestedBy ExecRequestedBy `json:"requested_by"`
 	AgentRunID  *string         `json:"agent_run_id,omitempty"`
 	LastSeq     int             `json:"last_seq"`
+	// OutputTruncated: the run printed more than its output budget, and the
+	// chunks past it were not kept.
+	OutputTruncated bool `json:"output_truncated"`
 }
 
 // ExecRunOutputDTO is one sequenced chunk of a run's output.

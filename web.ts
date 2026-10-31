@@ -4982,6 +4982,11 @@ export interface ExecRunDTO extends BaseModelDTO, PermissionModelDTO {
   requested_by: ExecRequestedBy;
   agent_run_id?: string;
   last_seq: number /* int */;
+  /**
+   * OutputTruncated: the run printed more than its output budget, and the
+   * chunks past it were not kept.
+   */
+  output_truncated: boolean;
 }
 /**
  * ExecRunOutputDTO is one sequenced chunk of a run's output.
