@@ -7210,27 +7210,6 @@ export interface HarnessCapabilities {
    * the prompt's text, so the server writes the files' URLs into it.
    */
   files: boolean;
-  /**
-   * Direct is what the harness supports as a model in direct mode, where
-   * the api's loop calls it like an LLM app. Nil means it has no direct
-   * mode, which is also how a daemon older than the field reads.
-   */
-  direct?: DirectCapabilities;
-}
-/**
- * DirectCapabilities say which LLMInput settings a harness honours in direct
- * mode. It mirrors agentprotocol's llm.Capabilities.
- */
-export interface DirectCapabilities {
-  images: boolean;
-  reasoning: boolean;
-  effort: boolean;
-  max_tokens: boolean;
-  /**
-   * ContextWindow is the model's context size in tokens, where the
-   * harness reports one; 0 when unknown.
-   */
-  context_window?: number /* int */;
 }
 /**
  * RemoteRegisterRequest creates a remote from a connecting daemon.
@@ -10067,10 +10046,6 @@ export type WSEventType =
   | "remote_terminal_exit"
   | "remote_update"
   | "remote_updating"
-  | "remote_llm_call"
-  | "remote_llm_cancel"
-  | "remote_llm_delta"
-  | "remote_llm_result"
   | "remote_paths_resolve"
   | "remote_paths_resolved"
   | "remote_session_open"
@@ -10564,89 +10539,6 @@ export interface WsRemoteLane {
   chat_id?: string;
   exec_run_id?: string;
   session_id?: string;
-}
-/**
- * Server -> remote.
- */
-export const WSEventRemoteLLMCall: WSEventType = "remote_llm_call";
-/**
- * Direct-mode model calls over the remote socket. An agent whose model app
- * is a harness model app (claude-code/opus-5-5 and the rest) keeps the api's own
- * loop, tools and context; only each LLM call goes to the running user's
- * daemon, which serves it with the profile's harness as the model
- * (agentprotocol package llm) and returns what an LLM app task would. The call is a task row like any model call (Infra remote): CallID
- * is the task's id, and the frames complete it.
- * Every frame carries the chat, so a call rides the chat's lane: its deltas
- * are handled in order and before its result.
- */
-export const WSEventRemoteLLMCancel: WSEventType = "remote_llm_cancel";
-/**
- * Remote -> server.
- */
-export const WSEventRemoteLLMDelta: WSEventType = "remote_llm_delta";
-/**
- * Direct-mode model calls over the remote socket. An agent whose model app
- * is a harness model app (claude-code/opus-5-5 and the rest) keeps the api's own
- * loop, tools and context; only each LLM call goes to the running user's
- * daemon, which serves it with the profile's harness as the model
- * (agentprotocol package llm) and returns what an LLM app task would. The call is a task row like any model call (Infra remote): CallID
- * is the task's id, and the frames complete it.
- * Every frame carries the chat, so a call rides the chat's lane: its deltas
- * are handled in order and before its result.
- */
-export const WSEventRemoteLLMResult: WSEventType = "remote_llm_result";
-/**
- * WsRemoteLLMCall asks the daemon to answer one model call with a harness.
- */
-export interface WsRemoteLLMCall {
-  call_id: string;
-  chat_id: string;
-  harness: HarnessID;
-  /**
-   * Key names the conversation the daemon keeps a harness process for
-   * between calls, so the next call on it continues rather than restarts.
-   * Empty is the chat; a call that is not the chat's own turn (a review, a
-   * compaction summary) names its own.
-   */
-  key?: string;
-  /**
-   * Model is the model the harness answers as (the agent's app input
-   * "model"); empty is the harness's default.
-   */
-  model?: string;
-  input: LLMInput;
-}
-/**
- * WsRemoteLLMCancel abandons a call. The daemon ends it and sends nothing
- * more for it; a result already on its way is ignored.
- */
-export interface WsRemoteLLMCancel {
-  call_id: string;
-  chat_id: string;
-}
-/**
- * WsRemoteLLMDelta is a piece of a call's response as it streams. Seq orders
- * a call's deltas from 1.
- */
-export interface WsRemoteLLMDelta {
-  call_id: string;
-  chat_id: string;
-  seq: number /* int64 */;
-  delta: LLMDelta;
-}
-/**
- * WsRemoteLLMResult ends a call with its output, or with Error.
- */
-export interface WsRemoteLLMResult {
-  call_id: string;
-  chat_id: string;
-  output?: LLMOutput;
-  error?: string;
-  /**
-   * Restarted reports that the harness was restarted from the written
-   * conversation to answer, rather than continuing its live process.
-   */
-  restarted?: boolean;
 }
 /**
  * Server -> remote.
@@ -14077,17 +13969,10 @@ export const TaskStatusRejected: TaskStatus = 13;
 /**
  * Infra defines where a task should run.
  */
-export type Infra = "private" | "cloud" | "private_first" | "remote";
+export type Infra = "private" | "cloud" | "private_first";
 export const InfraPrivate: Infra = "private";
 export const InfraCloud: Infra = "cloud";
 export const InfraPrivateFirst: Infra = "private_first";
-/**
- * InfraRemote is a model call a harness on the caller's own remote
- * answers (an agent whose model app is a harness model app). The
- * scheduler never takes it: the remote model service sends it to the
- * remote's daemon, whose frames end it.
- */
-export const InfraRemote: Infra = "remote";
 /**
  * TaskLogType defines the type of task log.
  */

@@ -5241,22 +5241,6 @@ type HarnessCapabilities struct {
 	// images or as paths on the remote. A daemon older than this reads only
 	// the prompt's text, so the server writes the files' URLs into it.
 	Files bool `json:"files"`
-	// Direct is what the harness supports as a model in direct mode, where
-	// the api's loop calls it like an LLM app. Nil means it has no direct
-	// mode, which is also how a daemon older than the field reads.
-	Direct *DirectCapabilities `json:"direct,omitempty"`
-}
-
-// DirectCapabilities say which LLMInput settings a harness honours in direct
-// mode. It mirrors agentprotocol's llm.Capabilities.
-type DirectCapabilities struct {
-	Images    bool `json:"images"`
-	Reasoning bool `json:"reasoning"`
-	Effort    bool `json:"effort"`
-	MaxTokens bool `json:"max_tokens"`
-	// ContextWindow is the model's context size in tokens, where the
-	// harness reports one; 0 when unknown.
-	ContextWindow int `json:"context_window,omitempty"`
 }
 
 // RemoteRegisterRequest creates a remote from a connecting daemon.
@@ -6223,11 +6207,6 @@ type RemoteTypes struct {
 	_pathsResolved WsRemotePathsResolved
 	_update        WsRemoteUpdate
 	_updating      WsRemoteUpdating
-	_llmCall       WsRemoteLLMCall
-	_llmCancel     WsRemoteLLMCancel
-	_llmDelta      WsRemoteLLMDelta
-	_llmResult     WsRemoteLLMResult
-	_direct        DirectCapabilities
 }
 
 // --------------------
@@ -7547,71 +7526,6 @@ func (WsRemoteLane) OrderingKey(data json.RawMessage) string {
 		return "terminal:" + ids.SessionID
 	}
 	return ""
-}
-
-// --------------------
-// source: ws_remote_llm.go
-// --------------------
-
-// Direct-mode model calls over the remote socket. An agent whose model app
-// is a harness model app (claude-code/opus-5-5 and the rest) keeps the api's own
-// loop, tools and context; only each LLM call goes to the running user's
-// daemon, which serves it with the profile's harness as the model
-// (agentprotocol package llm) and returns what an LLM app task would. The call is a task row like any model call (Infra remote): CallID
-// is the task's id, and the frames complete it.
-//
-// Every frame carries the chat, so a call rides the chat's lane: its deltas
-// are handled in order and before its result.
-const (
-	// Server -> remote.
-	WSEventRemoteLLMCall   WSEventType = "remote_llm_call"
-	WSEventRemoteLLMCancel WSEventType = "remote_llm_cancel"
-	// Remote -> server.
-	WSEventRemoteLLMDelta  WSEventType = "remote_llm_delta"
-	WSEventRemoteLLMResult WSEventType = "remote_llm_result"
-)
-
-// WsRemoteLLMCall asks the daemon to answer one model call with a harness.
-type WsRemoteLLMCall struct {
-	CallID  string    `json:"call_id"`
-	ChatID  string    `json:"chat_id"`
-	Harness HarnessID `json:"harness"`
-	// Key names the conversation the daemon keeps a harness process for
-	// between calls, so the next call on it continues rather than restarts.
-	// Empty is the chat; a call that is not the chat's own turn (a review, a
-	// compaction summary) names its own.
-	Key string `json:"key,omitempty"`
-	// Model is the model the harness answers as (the agent's app input
-	// "model"); empty is the harness's default.
-	Model string   `json:"model,omitempty"`
-	Input LLMInput `json:"input"`
-}
-
-// WsRemoteLLMCancel abandons a call. The daemon ends it and sends nothing
-// more for it; a result already on its way is ignored.
-type WsRemoteLLMCancel struct {
-	CallID string `json:"call_id"`
-	ChatID string `json:"chat_id"`
-}
-
-// WsRemoteLLMDelta is a piece of a call's response as it streams. Seq orders
-// a call's deltas from 1.
-type WsRemoteLLMDelta struct {
-	CallID string   `json:"call_id"`
-	ChatID string   `json:"chat_id"`
-	Seq    int64    `json:"seq"`
-	Delta  LLMDelta `json:"delta"`
-}
-
-// WsRemoteLLMResult ends a call with its output, or with Error.
-type WsRemoteLLMResult struct {
-	CallID string     `json:"call_id"`
-	ChatID string     `json:"chat_id"`
-	Output *LLMOutput `json:"output,omitempty"`
-	Error  string     `json:"error,omitempty"`
-	// Restarted reports that the harness was restarted from the written
-	// conversation to answer, rather than continuing its live process.
-	Restarted bool `json:"restarted,omitempty"`
 }
 
 // --------------------
@@ -10690,11 +10604,6 @@ const (
 	InfraPrivate      Infra = "private"
 	InfraCloud        Infra = "cloud"
 	InfraPrivateFirst Infra = "private_first"
-	// InfraRemote is a model call a harness on the caller's own remote
-	// answers (an agent whose model app is a harness model app). The
-	// scheduler never takes it: the remote model service sends it to the
-	// remote's daemon, whose frames end it.
-	InfraRemote Infra = "remote"
 )
 
 // TaskLogType defines the type of task log.
