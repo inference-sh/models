@@ -8789,6 +8789,11 @@ const (
 	// RunEndReasonNoReply: the model ended its last turn with no reply and
 	// no tool call.
 	RunEndReasonNoReply RunEndReason = "no_reply"
+	// RunEndReasonRefusal: the provider's safety system ended the model's
+	// last turn. The run's messages stay in the chat and are left out of
+	// the context every later turn sends (BuildContext), so the next
+	// message is not refused for what this run held.
+	RunEndReasonRefusal RunEndReason = "refusal"
 )
 
 // ChatRunEvent is how a run ended, on a run_ended event.
@@ -9367,6 +9372,20 @@ func (o *LLMOutput) HitOutputLimit() bool {
 	}
 	switch o.Usage.StopReason {
 	case "length", "max_tokens":
+		return true
+	}
+	return false
+}
+
+// Refused reports that the provider's safety system ended the turn, by the
+// stop reason each provider gives for it: Anthropic's refusal, an
+// OpenAI-compatible content_filter, xAI's usage_violation.
+func (o *LLMOutput) Refused() bool {
+	if o == nil || o.Usage == nil {
+		return false
+	}
+	switch o.Usage.StopReason {
+	case "refusal", "content_filter", "usage_violation":
 		return true
 	}
 	return false
