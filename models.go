@@ -2943,6 +2943,10 @@ type CredentialConfigDTO struct {
 	// signing in (an installation). Empty: an OAuth app logins sign in
 	// through.
 	AppNoun string `json:"app_noun,omitempty"`
+	// HookURL is where App delivers its events (the GitHub App's webhook
+	// URL, to paste in its settings): the platform's app's, or this
+	// workspace's own app's. Empty when the provider's apps deliver none.
+	HookURL string `json:"hook_url,omitempty"`
 	// AuthProviderID is set when the provider is one the team defined
 	// itself (models.AuthProvider), so the UI can offer edit and remove.
 	AuthProviderID string `json:"auth_provider_id,omitempty"`

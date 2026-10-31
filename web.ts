@@ -4253,6 +4253,12 @@ export interface CredentialConfigDTO {
    */
   app_noun?: string;
   /**
+   * HookURL is where App delivers its events (the GitHub App's webhook
+   * URL, to paste in its settings): the platform's app's, or this
+   * workspace's own app's. Empty when the provider's apps deliver none.
+   */
+  hook_url?: string;
+  /**
    * AuthProviderID is set when the provider is one the team defined
    * itself (models.AuthProvider), so the UI can offer edit and remove.
    */
@@ -9537,7 +9543,8 @@ export interface TriggerDTO extends BaseModelDTO, PermissionModelDTO, ProjectMod
    * CredentialID is the connection the trigger is bound to: a github-app
    * login (a GitHub App installation) for a trigger of the github source,
    * which then runs on that installation's events (POST
-   * /triggers/hooks/github) with no webhook secret of its own to set.
+   * /triggers/hooks/github[/{app id}]) with no webhook secret of its own
+   * to set.
    */
   credential_id?: string;
   scheduled_at?: string /* RFC3339 */;
