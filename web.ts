@@ -9525,6 +9525,13 @@ export interface TriggerDTO extends BaseModelDTO, PermissionModelDTO, ProjectMod
   output_schema?: any;
   input_mapping?: FlowRunInputs;
   filters?: TriggerFilterRule[];
+  /**
+   * CredentialID is the connection the trigger is bound to: a github-app
+   * login (a GitHub App installation) for a trigger of the github source,
+   * which then runs on that installation's events (POST
+   * /triggers/hooks/github) with no webhook secret of its own to set.
+   */
+  credential_id?: string;
   scheduled_at?: string /* RFC3339 */;
   last_fired_at?: string /* RFC3339 */;
   fire_count: number /* int64 */;
@@ -13244,6 +13251,7 @@ export type CredentialProvider =
   | "slack"
   | "notion"
   | "github"
+  | "github-app"
   | "x"
   | "microsoft"
   | "salesforce"
@@ -13270,6 +13278,10 @@ export const CredentialProviderNotion: CredentialProvider = "notion";
  * Credential.Provider is a plain string; cast with string(...) when assigning.
  */
 export const CredentialProviderGitHub: CredentialProvider = "github";
+/**
+ * Credential.Provider is a plain string; cast with string(...) when assigning.
+ */
+export const CredentialProviderGitHubApp: CredentialProvider = "github-app";
 /**
  * Credential.Provider is a plain string; cast with string(...) when assigning.
  */

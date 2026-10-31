@@ -10108,6 +10108,7 @@ const (
 	CredentialProviderSlack      CredentialProvider = "slack"
 	CredentialProviderNotion     CredentialProvider = "notion"
 	CredentialProviderGitHub     CredentialProvider = "github"
+	CredentialProviderGitHubApp  CredentialProvider = "github-app"
 	CredentialProviderX          CredentialProvider = "x"
 	CredentialProviderMicrosoft  CredentialProvider = "microsoft"
 	CredentialProviderSalesforce CredentialProvider = "salesforce"
