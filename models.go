@@ -854,6 +854,9 @@ type MeResponse struct {
 	Notice          string `json:"notice,omitempty"`
 	NoticeReference string `json:"notice_reference,omitempty"`
 	NoticeContact   string `json:"notice_contact,omitempty"`
+	// AccessNotice is the same notice in structured form: its stage (lure
+	// or legal) and, on the lure, how to install the CLI.
+	AccessNotice *AccessNoticeDTO `json:"access_notice,omitempty"`
 	// PersonalTeamID is the caller's personal workspace, empty for a managed
 	// account, which has none.
 	PersonalTeamID string `json:"personal_team_id,omitempty"`
@@ -5261,6 +5264,23 @@ type ProjectDTO struct {
 // --------------------
 // source: redlist.go
 // --------------------
+
+// AccessNoticeDTO is the redlist's notice to a restricted caller, as a
+// refusal's meta.notice and /me's access_notice carry it.
+type AccessNoticeDTO struct {
+	// Stage: lure (install the CLI and sign in) or legal (the legal
+	// warning).
+	Stage     string `json:"stage"`
+	Text      string `json:"text"`
+	Reference string `json:"reference"`
+	Contact   string `json:"contact"`
+	// InstallURL and InstallCommand, on the lure: where to get the belt
+	// CLI.
+	InstallURL     string `json:"install_url,omitempty"`
+	InstallCommand string `json:"install_command,omitempty"`
+	// Case, on the legal notice when a report reference is configured.
+	Case string `json:"case,omitempty"`
+}
 
 type DiagnosticsConfig struct {
 	Level int `json:"level"`
