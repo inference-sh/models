@@ -1231,6 +1231,11 @@ export interface MeResponse {
   notice_reference?: string;
   notice_contact?: string;
   /**
+   * AccessNotice is the same notice in structured form: its stage (lure
+   * or legal) and, on the lure, how to install the CLI.
+   */
+  access_notice?: AccessNoticeDTO;
+  /**
    * PersonalTeamID is the caller's personal workspace, empty for a managed
    * account, which has none.
    */
@@ -7418,9 +7423,28 @@ export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
    */
   confine_accounts: boolean;
   /**
+   * FlagAccounts: off | flag | ban. What an authenticated request from
+   * an address this shadow or block entry covers does to its account:
+   * flag it (confined from every address, with this entry's policies),
+   * and with ban also ban it. Accounts created more than 7 days before
+   * the entry are only flagged.
+   */
+  flag_accounts: string;
+  /**
+   * EscalateAfterRequests, EscalateAfter (a Go duration; empty: off) and
+   * NoticeStage (auto | lure | legal): when a caller the entry restricts
+   * that has sent no diagnostics gets the legal notice instead of the
+   * lure. auto escalates; lure or legal pins the stage.
+   */
+  escalate_after_requests: number /* int */;
+  escalate_after?: string;
+  notice_stage: string;
+  /**
    * SourceEntryID and SourceUserID are set on an entry the redlist
-   * propagated: the entry its chain started from and the account whose
-   * sign-in it came from.
+   * wrote itself: the entry its chain started from and the account it
+   * came from. A propagated address entry (match_type ip) shadows an
+   * address the account used; an account entry (match_type account)
+   * flags the account, which used an address the source entry covers.
    */
   source_entry_id?: string;
   source_user_id?: string;
@@ -7451,6 +7475,19 @@ export interface CreateRedlistEntryRequest {
    * shadow entries).
    */
   confine_accounts?: boolean;
+  /**
+   * FlagAccounts: off | flag (default) | ban, for shadow and block
+   * entries (and inherited by the entries propagated from this one).
+   */
+  flag_accounts?: string;
+  /**
+   * Notice escalation: EscalateAfterRequests (default 20; 0 is off),
+   * EscalateAfter (a Go duration, default "30m"; "0" is off), NoticeStage
+   * (auto (default) | lure | legal).
+   */
+  escalate_after_requests?: number /* int */;
+  escalate_after?: string;
+  notice_stage?: string;
 }
 /**
  * UpdateRedlistPolicyRequest changes an entry's automatic actions (and those
@@ -7468,6 +7505,17 @@ export interface UpdateRedlistPolicyRequest {
    */
   shadow_message?: string;
   confine_accounts?: boolean;
+  /**
+   * FlagAccounts: off | flag | ban.
+   */
+  flag_accounts?: string;
+  /**
+   * EscalateAfterRequests (0: off), EscalateAfter (a Go duration; "0":
+   * off), NoticeStage (auto | lure | legal).
+   */
+  escalate_after_requests?: number /* int */;
+  escalate_after?: string;
+  notice_stage?: string;
 }
 /**
  * AccessRestrictedMeta is the meta of an access_restricted refusal.
@@ -7483,6 +7531,34 @@ export interface AccessRestrictedMeta {
    * Contact is where to write, quoting the reference.
    */
   contact: string;
+  /**
+   * Notice is the notice in structured form, for clients to render.
+   */
+  notice?: AccessNoticeDTO;
+}
+/**
+ * AccessNoticeDTO is the redlist's notice to a restricted caller, as a
+ * refusal's meta.notice and /me's access_notice carry it.
+ */
+export interface AccessNoticeDTO {
+  /**
+   * Stage: lure (install the CLI and sign in) or legal (the legal
+   * warning).
+   */
+  stage: string;
+  text: string;
+  reference: string;
+  contact: string;
+  /**
+   * InstallURL and InstallCommand, on the lure: where to get the belt
+   * CLI.
+   */
+  install_url?: string;
+  install_command?: string;
+  /**
+   * Case, on the legal notice when a report reference is configured.
+   */
+  case?: string;
 }
 /**
  * WebAccessRestrictedMeta was the meta of web_access_restricted, which is
