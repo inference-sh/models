@@ -1221,11 +1221,15 @@ export interface MeResponse {
   team_view?: TeamViewDTO;
   diagnostics?: DiagnosticsConfig;
   /**
-   * Notice is an operator's notice about the caller's access, set only
-   * when the request comes from an address restricted to sign-in and the
-   * CLI. Empty otherwise.
+   * Notice is a notice about the caller's access, set only when the
+   * redlist restricts this request (a restricted address, or a
+   * restricted account): the text an access_restricted refusal carries
+   * as its detail. Empty otherwise. NoticeReference and NoticeContact
+   * are that refusal's meta.reference and meta.contact.
    */
   notice?: string;
+  notice_reference?: string;
+  notice_contact?: string;
   /**
    * PersonalTeamID is the caller's personal workspace, empty for a managed
    * account, which has none.
@@ -4935,6 +4939,7 @@ export type ErrorCode =
   | "method_not_allowed"
   | "rate_limited"
   | "internal_error"
+  | "access_restricted"
   | "web_access_restricted"
   | "requirements_not_met"
   | "team_role_required"
@@ -5000,9 +5005,16 @@ export const ErrorCodeMethodNotAllowed: ErrorCode = "method_not_allowed";
 export const ErrorCodeRateLimited: ErrorCode = "rate_limited";
 export const ErrorCodeInternalError: ErrorCode = "internal_error";
 /**
- * ErrorCodeWebAccessRestricted (403): the request comes from an address
- * restricted to sign-in and the CLI; detail is the operator's notice
- * and meta is WebAccessRestrictedMeta.
+ * ErrorCodeAccessRestricted (403): the redlist refuses the request (a
+ * restricted address, or a restricted account outside sign-in, /me,
+ * telemetry and balance). detail is the notice to show the person, as
+ * is; meta is AccessRestrictedMeta: a reference to quote and who to
+ * contact.
+ */
+export const ErrorCodeAccessRestricted: ErrorCode = "access_restricted";
+/**
+ * ErrorCodeWebAccessRestricted is no longer sent: refusals are
+ * access_restricted. Kept so clients that name it still build.
  */
 export const ErrorCodeWebAccessRestricted: ErrorCode = "web_access_restricted";
 /**
@@ -7424,8 +7436,23 @@ export interface UpdateRedlistPolicyRequest {
   confine_accounts?: boolean;
 }
 /**
- * WebAccessRestrictedMeta is the meta of a web_access_restricted refusal: a
- * shadowed request whose entry carries a message. CLI is where to continue.
+ * AccessRestrictedMeta is the meta of an access_restricted refusal.
+ */
+export interface AccessRestrictedMeta {
+  /**
+   * Reference identifies the restriction to staff (R- and 10 base32
+   * characters). It is the same for one account, or one address when
+   * signed out, on one UTC day, and reveals neither.
+   */
+  reference: string;
+  /**
+   * Contact is where to write, quoting the reference.
+   */
+  contact: string;
+}
+/**
+ * WebAccessRestrictedMeta was the meta of web_access_restricted, which is
+ * no longer sent (see AccessRestrictedMeta).
  */
 export interface WebAccessRestrictedMeta {
   cli: string;

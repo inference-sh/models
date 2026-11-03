@@ -846,10 +846,14 @@ type MeResponse struct {
 	// governance and capabilities (GET /teams/{id}/view).
 	TeamView    *TeamViewDTO       `json:"team_view,omitempty"`
 	Diagnostics *DiagnosticsConfig `json:"diagnostics,omitempty"`
-	// Notice is an operator's notice about the caller's access, set only
-	// when the request comes from an address restricted to sign-in and the
-	// CLI. Empty otherwise.
-	Notice string `json:"notice,omitempty"`
+	// Notice is a notice about the caller's access, set only when the
+	// redlist restricts this request (a restricted address, or a
+	// restricted account): the text an access_restricted refusal carries
+	// as its detail. Empty otherwise. NoticeReference and NoticeContact
+	// are that refusal's meta.reference and meta.contact.
+	Notice          string `json:"notice,omitempty"`
+	NoticeReference string `json:"notice_reference,omitempty"`
+	NoticeContact   string `json:"notice_contact,omitempty"`
 	// PersonalTeamID is the caller's personal workspace, empty for a managed
 	// account, which has none.
 	PersonalTeamID string `json:"personal_team_id,omitempty"`
@@ -3572,9 +3576,14 @@ const (
 	ErrorCodeMethodNotAllowed ErrorCode = "method_not_allowed"
 	ErrorCodeRateLimited      ErrorCode = "rate_limited"
 	ErrorCodeInternalError    ErrorCode = "internal_error"
-	// ErrorCodeWebAccessRestricted (403): the request comes from an address
-	// restricted to sign-in and the CLI; detail is the operator's notice
-	// and meta is WebAccessRestrictedMeta.
+	// ErrorCodeAccessRestricted (403): the redlist refuses the request (a
+	// restricted address, or a restricted account outside sign-in, /me,
+	// telemetry and balance). detail is the notice to show the person, as
+	// is; meta is AccessRestrictedMeta: a reference to quote and who to
+	// contact.
+	ErrorCodeAccessRestricted ErrorCode = "access_restricted"
+	// ErrorCodeWebAccessRestricted is no longer sent: refusals are
+	// access_restricted. Kept so clients that name it still build.
 	ErrorCodeWebAccessRestricted ErrorCode = "web_access_restricted"
 	// ErrorCodeRequirementsNotMet (412): the run needs a secret or a
 	// credential the caller has not set up. Meta "errors" lists each

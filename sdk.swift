@@ -2178,10 +2178,14 @@ public struct MeResponse: Codable, Sendable {
     /// governance and capabilities (GET /teams/{id}/view).
     @Indirect public var teamView: TeamViewDTO?
     @Indirect public var diagnostics: DiagnosticsConfig?
-    /// Notice is an operator's notice about the caller's access, set only
-    /// when the request comes from an address restricted to sign-in and the
-    /// CLI. Empty otherwise.
+    /// Notice is a notice about the caller's access, set only when the
+    /// redlist restricts this request (a restricted address, or a
+    /// restricted account): the text an access_restricted refusal carries
+    /// as its detail. Empty otherwise. NoticeReference and NoticeContact
+    /// are that refusal's meta.reference and meta.contact.
     public var notice: String?
+    public var noticeReference: String?
+    public var noticeContact: String?
     /// PersonalTeamID is the caller's personal workspace, empty for a managed
     /// account, which has none.
     public var personalTeamId: String?
@@ -2207,6 +2211,8 @@ public struct MeResponse: Codable, Sendable {
         teamView: TeamViewDTO? = nil,
         diagnostics: DiagnosticsConfig? = nil,
         notice: String? = nil,
+        noticeReference: String? = nil,
+        noticeContact: String? = nil,
         personalTeamId: String? = nil,
         needsUsername: Bool = false,
         platformPower: Bool = false,
@@ -2218,6 +2224,8 @@ public struct MeResponse: Codable, Sendable {
         self.teamView = teamView
         self.diagnostics = diagnostics
         self.notice = notice
+        self.noticeReference = noticeReference
+        self.noticeContact = noticeContact
         self.personalTeamId = personalTeamId
         self.needsUsername = needsUsername
         self.platformPower = platformPower
@@ -2231,6 +2239,8 @@ public struct MeResponse: Codable, Sendable {
         case teamView = "team_view"
         case diagnostics = "diagnostics"
         case notice = "notice"
+        case noticeReference = "notice_reference"
+        case noticeContact = "notice_contact"
         case personalTeamId = "personal_team_id"
         case needsUsername = "needs_username"
         case platformPower = "platform_power"
@@ -7721,9 +7731,14 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     public static let methodNotAllowed = ErrorCode(rawValue: "method_not_allowed")
     public static let rateLimited = ErrorCode(rawValue: "rate_limited")
     public static let internalError = ErrorCode(rawValue: "internal_error")
-    /// ErrorCodeWebAccessRestricted (403): the request comes from an address
-    /// restricted to sign-in and the CLI; detail is the operator's notice
-    /// and meta is WebAccessRestrictedMeta.
+    /// ErrorCodeAccessRestricted (403): the redlist refuses the request (a
+    /// restricted address, or a restricted account outside sign-in, /me,
+    /// telemetry and balance). detail is the notice to show the person, as
+    /// is; meta is AccessRestrictedMeta: a reference to quote and who to
+    /// contact.
+    public static let accessRestricted = ErrorCode(rawValue: "access_restricted")
+    /// ErrorCodeWebAccessRestricted is no longer sent: refusals are
+    /// access_restricted. Kept so clients that name it still build.
     public static let webAccessRestricted = ErrorCode(rawValue: "web_access_restricted")
     /// ErrorCodeRequirementsNotMet (412): the run needs a secret or a
     /// credential the caller has not set up. Meta "errors" lists each
