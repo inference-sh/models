@@ -132,8 +132,10 @@ type InternalToolsConfig struct {
 	// (Remote on), declared as an app's credentials are (provider slug,
 	// scopes): the runner's own, as a task of theirs resolves it; a runner
 	// with none is asked to connect it and the call waits. None declared,
-	// none given. The model's arguments never add any.
-	SandboxCredentials []CredentialRequirement `json:"sandbox_credentials,omitempty" yaml:"sandbox_credentials,omitempty"`
+	// none given. The model's arguments never add any. Each entry's mode
+	// says when the box gets it: auto (the default) at once, ask on first
+	// use once a person approves it (SandboxCredential).
+	SandboxCredentials []SandboxCredential `json:"sandbox_credentials,omitempty" yaml:"sandbox_credentials,omitempty"`
 }
 
 // UnmarshalJSON reads the pre-rename "spawn" key as "agent", so stored agent
@@ -3264,6 +3266,12 @@ const (
 	// EngineCapabilityCapacity: the engine reports EngineTelemetry.Capacity
 	// (INF-1156).
 	EngineCapabilityCapacity EngineCapability = "capacity"
+	// EngineCapabilityEgressPending: the engine's gateway takes pending
+	// bound secrets (BoundSecret.Pending: no value) and fetches each value
+	// on first use through POST /engines/{id}/egress/resolve, with the
+	// triggers EgressTrigger names; it also reports the hosts its boxes
+	// reach (POST /engines/{id}/egress/hosts) (INF-1173).
+	EngineCapabilityEgressPending EngineCapability = "egress_pending"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -5784,7 +5792,75 @@ type CreateSandboxRequest struct {
 	// keys a provider binds to hosts: the box holds placeholders, the
 	// engine's gateway places the values toward those hosts and renews
 	// the ones that expire, always from the login chosen here.
-	Credentials []CredentialRequirement `json:"credentials,omitempty"`
+	Credentials []SandboxCredential `json:"credentials,omitempty"`
+}
+
+// SandboxCredentialMode is when a sandbox's login is given to its box.
+type SandboxCredentialMode string
+
+const (
+	// SandboxCredentialAuto (the default): the login is chosen when the
+	// sandbox is made and given without asking.
+	SandboxCredentialAuto SandboxCredentialMode = "auto"
+	// SandboxCredentialAsk: the box gets the login on first use, once a
+	// person approves it on the tool call running there; a run nobody
+	// watches (a trigger, a schedule) never gets it (INF-1173). Needs an
+	// engine with EngineCapabilityEgressPending.
+	SandboxCredentialAsk SandboxCredentialMode = "ask"
+)
+
+// SandboxCredential is a login a sandbox's box gets: a requirement by
+// provider, as an app declares one, and when it is given (Mode, auto when
+// unset). It reads and writes as the requirement's fields plus "mode", so
+// a plain requirement is an auto one.
+type SandboxCredential struct {
+	CredentialRequirement `yaml:",inline"`
+	Mode                  SandboxCredentialMode `json:"mode,omitempty" yaml:"mode,omitempty"`
+}
+
+// Asks reports whether the login is given only once a person approves it.
+func (c SandboxCredential) Asks() bool {
+	return c.Mode == SandboxCredentialAsk
+}
+
+// UnmarshalJSON reads the requirement (in any form it takes) and the mode:
+// the requirement's own reader would otherwise drop the mode.
+func (c *SandboxCredential) UnmarshalJSON(data []byte) error {
+	var mode struct {
+		Mode SandboxCredentialMode `json:"mode"`
+	}
+	if err := json.Unmarshal(data, &mode); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, &c.CredentialRequirement); err != nil {
+		return err
+	}
+	c.Mode = mode.Mode
+	return nil
+}
+
+// UnmarshalYAML is UnmarshalJSON for YAML.
+func (c *SandboxCredential) UnmarshalYAML(unmarshal func(any) error) error {
+	var mode struct {
+		Mode SandboxCredentialMode `yaml:"mode"`
+	}
+	if err := unmarshal(&mode); err != nil {
+		return err
+	}
+	if err := unmarshal(&c.CredentialRequirement); err != nil {
+		return err
+	}
+	c.Mode = mode.Mode
+	return nil
+}
+
+// Validate refuses a mode other than auto and ask.
+func (c SandboxCredential) Validate() error {
+	switch c.Mode {
+	case "", SandboxCredentialAuto, SandboxCredentialAsk:
+		return nil
+	}
+	return fmt.Errorf("credential %s: mode is auto or ask, not %q", c.Slug, c.Mode)
 }
 
 // SandboxDTO is the API response for a sandbox.
@@ -9461,6 +9537,15 @@ const InterruptResourceTurn InterruptResourceType = "turn"
 // (allow), or until a person ends the wait sooner. Its resource is the
 // wait call (InterruptResourceToolInvocation).
 const InterruptReasonWait InterruptReason = "wait"
+
+// InterruptReasonEgressLogin asks whether a sandbox's box gets one of its
+// owner's logins, on the tool call running there (a remote_exec) when the
+// box first reaches the login's host (INF-1173). Its resource is that call
+// (InterruptResourceToolInvocation), which keeps running: the engine holds
+// the request until the answer, and asks for it again
+// (POST /engines/{id}/egress/resolve). Allow gives the login, deny or no
+// answer in time refuses it for the sandbox. Meta is EgressLoginAskMeta.
+const InterruptReasonEgressLogin InterruptReason = "egress_login"
 
 // --------------------
 // source: llm_types.go
