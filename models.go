@@ -3058,6 +3058,106 @@ type CountResponse struct {
 }
 
 // --------------------
+// source: egress_grant.go
+// --------------------
+
+// EgressGrantScope is what a grant lets use a login: a task or a sandbox.
+type EgressGrantScope string
+
+const (
+	EgressGrantScopeTask    EgressGrantScope = "task"
+	EgressGrantScopeSandbox EgressGrantScope = "sandbox"
+)
+
+// EgressGrantState is where a grant stands.
+type EgressGrantState string
+
+const (
+	// EgressGrantOpen: the scope may be asked for the login; nobody has
+	// been yet.
+	EgressGrantOpen EgressGrantState = "open"
+	// EgressGrantAsked: a card is open (EgressGrantDTO.InterruptID).
+	EgressGrantAsked EgressGrantState = "asked"
+	// EgressGrantAllowed: the scope gets the login.
+	EgressGrantAllowed EgressGrantState = "allowed"
+	// EgressGrantDeclined: a person said no, for the scope's life.
+	EgressGrantDeclined EgressGrantState = "declined"
+	// EgressGrantEnded: the grant no longer holds (Reason says why); the
+	// scope keeps running, and its next use decides again.
+	EgressGrantEnded EgressGrantState = "ended"
+)
+
+// EgressGrantSource is where a grant came from.
+type EgressGrantSource string
+
+const (
+	EgressGrantSourceAppDeclared    EgressGrantSource = "app_declared"
+	EgressGrantSourceAgentConfig    EgressGrantSource = "agent_config"
+	EgressGrantSourceSandboxCreate  EgressGrantSource = "sandbox_create"
+	EgressGrantSourceOwnerApproval  EgressGrantSource = "owner_approval"
+	EgressGrantSourceConnectedOffer EgressGrantSource = "connected_offer"
+	EgressGrantSourceReconnect      EgressGrantSource = "reconnect"
+)
+
+// EgressGrantReason is why a grant was declined or ended.
+type EgressGrantReason string
+
+const (
+	EgressGrantReasonDeclined          EgressGrantReason = "declined"
+	EgressGrantReasonLoginDeleted      EgressGrantReason = "login_deleted"
+	EgressGrantReasonLoginDisconnected EgressGrantReason = "login_disconnected"
+	EgressGrantReasonNotOwner          EgressGrantReason = "not_owner"
+	EgressGrantReasonExpiredLifetime   EgressGrantReason = "expired_lifetime"
+	EgressGrantReasonScopesMissing     EgressGrantReason = "scopes_missing"
+	EgressGrantReasonScopeEnded        EgressGrantReason = "scope_ended"
+	EgressGrantReasonRevokedByOwner    EgressGrantReason = "revoked_by_owner"
+)
+
+// EgressGrantDTO is one decision that a task or a sandbox may use a
+// provider's login through the engine's egress gateway: what was allowed,
+// who allowed it and why, and which login answers (INF-1173). It never
+// holds a value. GET /sandboxes/{id}/grants, GET /tasks/{id}/grants.
+type EgressGrantDTO struct {
+	ID      string           `json:"id"`
+	Scope   EgressGrantScope `json:"scope"`
+	ScopeID string           `json:"scope_id"`
+	// Provider is the provider's slug.
+	Provider string                `json:"provider"`
+	Mode     SandboxCredentialMode `json:"mode"`
+	State    EgressGrantState      `json:"state"`
+	Source   EgressGrantSource     `json:"source"`
+	// GrantedBy is the user who allowed it: the task's user for an app's
+	// declaration, the agent config's owner for its own, the answering
+	// owner for an approval.
+	GrantedBy string `json:"granted_by,omitempty"`
+	// CredentialID is the login that answers; empty until first use picks
+	// one.
+	CredentialID string `json:"credential_id,omitempty"`
+	// Host is the first host it was wanted for.
+	Host string `json:"host,omitempty"`
+	// Reason is why it was declined or ended.
+	Reason    EgressGrantReason `json:"reason,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	EndedAt   *time.Time        `json:"ended_at,omitempty"`
+}
+
+// WsEgressRevokePayload is egress_revoke, API to engine: the bindings
+// Names of one task or one sandbox (exactly one of the two ids) lose their
+// login now. The engine wipes their held values and refuses them, with
+// Reason as the refusal text, until the scope ends or a later answer gives
+// a value again (INF-1173). Only engines with EngineCapabilityEgressGrants
+// are sent one.
+type WsEgressRevokePayload struct {
+	TaskID    string   `json:"task_id,omitempty"`
+	SandboxID string   `json:"sandbox_id,omitempty"`
+	Names     []string `json:"names"`
+	// Reason is the text the gateway answers a refused request with
+	// ("GitHub login is no longer available: it was disconnected").
+	Reason string `json:"reason,omitempty"`
+}
+
+// --------------------
 // source: engine.go
 // --------------------
 
@@ -3278,6 +3378,13 @@ const (
 	// triggers EgressTrigger names; it also reports the hosts its boxes
 	// reach (POST /engines/{id}/egress/hosts) (INF-1173).
 	EngineCapabilityEgressPending EngineCapability = "egress_pending"
+	// EngineCapabilityEgressGrants: the engine's gateway holds a fetched
+	// value only BoundSecret.KeepFor (at most until it expires), answers a
+	// refused binding with EgressResolveResponse.Reason, wipes a binding's
+	// held value when it is declined, and takes egress_revoke
+	// (WsEgressRevokePayload). Tasks are sent pending bindings only on such
+	// an engine (INF-1173).
+	EngineCapabilityEgressGrants EngineCapability = "egress_grants"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -5934,6 +6041,7 @@ type SDKTypes struct {
 	_engine             EngineDTO
 	_sandbox            SandboxDTO
 	_sandboxCreate      CreateSandboxRequest
+	_egressGrant        EgressGrantDTO
 	_engineUpdateReq    EngineUpdateRequest
 	_engineReleases     EngineReleasesResponse
 	_cursor             CursorListRequest
@@ -6258,6 +6366,7 @@ type EngineTypes struct {
 	_wsSandboxStop     WsSandboxStopPayload
 	_wsSandboxStatus   WsSandboxStatusPayload
 	_sandboxReport     SandboxReport
+	_wsEgressRevoke    WsEgressRevokePayload
 	// Engine registration + internal API
 	_engineRegReq  EngineRegisterRequest
 	_engineRegResp EngineRegisterResponse
@@ -7431,6 +7540,7 @@ const (
 	WSEventSessionEnd              WSEventType = "session_end"
 	WSEventSandboxStart            WSEventType = "sandbox_start"
 	WSEventSandboxStop             WSEventType = "sandbox_stop"
+	WSEventEgressRevoke            WSEventType = "egress_revoke"
 )
 
 // WSEventSandboxStatus is engine → API, sent on every transition of a box.
