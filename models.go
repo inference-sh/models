@@ -128,6 +128,12 @@ type InternalToolsConfig struct {
 	Remote      *bool `json:"remote,omitempty" yaml:"remote,omitempty"`
 	Knowledge   *bool `json:"knowledge,omitempty" yaml:"knowledge,omitempty"`
 	Wait        *bool `json:"wait,omitempty" yaml:"wait,omitempty"`
+	// SandboxCredentials are the logins a sandbox sandbox_create makes gets
+	// (Remote on), declared as an app's credentials are (provider slug,
+	// scopes): the runner's own, as a task of theirs resolves it; a runner
+	// with none is asked to connect it and the call waits. None declared,
+	// none given. The model's arguments never add any.
+	SandboxCredentials []CredentialRequirement `json:"sandbox_credentials,omitempty" yaml:"sandbox_credentials,omitempty"`
 }
 
 // UnmarshalJSON reads the pre-rename "spawn" key as "agent", so stored agent
@@ -735,6 +741,11 @@ type DeviceAuthInitRequest struct {
 	TokenKind           DeviceTokenKind `json:"token_kind,omitempty"`
 	CodeChallenge       string          `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string          `json:"code_challenge_method,omitempty"`
+	// Scopes the device asks for ("belt login --admin" names the admin
+	// scopes). Empty: the default, every scope but user:write and admin.
+	// The approval page shows them and the person confirms; the approval
+	// grants at most these.
+	Scopes []Scope `json:"scopes,omitempty"`
 }
 
 type DeviceAuthResponse struct {
@@ -833,6 +844,10 @@ type MeResponse struct {
 	// governance and capabilities (GET /teams/{id}/view).
 	TeamView    *TeamViewDTO       `json:"team_view,omitempty"`
 	Diagnostics *DiagnosticsConfig `json:"diagnostics,omitempty"`
+	// Notice is an operator's notice about the caller's access, set only
+	// when the request comes from an address restricted to sign-in and the
+	// CLI. Empty otherwise.
+	Notice string `json:"notice,omitempty"`
 	// PersonalTeamID is the caller's personal workspace, empty for a managed
 	// account, which has none.
 	PersonalTeamID string `json:"personal_team_id,omitempty"`
@@ -3346,6 +3361,13 @@ type EntitlementDTO struct {
 	TeamPlanID   *string             `json:"team_plan_id,omitempty"`
 }
 
+// FeatureAccess is whether the caller's team may use feature gate
+// Resource, as the API decides it (CheckFeatureGate): what a client shows.
+type FeatureAccess struct {
+	Resource EntitlementResource `json:"resource"`
+	Allowed  bool                `json:"allowed"`
+}
+
 // EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
 type EntitlementErrorMeta struct {
 	Resource         EntitlementResource `json:"resource"`
@@ -3429,6 +3451,10 @@ const (
 	ErrorCodeMethodNotAllowed ErrorCode = "method_not_allowed"
 	ErrorCodeRateLimited      ErrorCode = "rate_limited"
 	ErrorCodeInternalError    ErrorCode = "internal_error"
+	// ErrorCodeWebAccessRestricted (403): the request comes from an address
+	// restricted to sign-in and the CLI; detail is the operator's notice
+	// and meta is WebAccessRestrictedMeta.
+	ErrorCodeWebAccessRestricted ErrorCode = "web_access_restricted"
 	// ErrorCodeRequirementsNotMet (412): the run needs a secret or a
 	// credential the caller has not set up. Meta "errors" lists each
 	// RequirementError, its action saying how to set it up.
@@ -5461,6 +5487,15 @@ type OAuthAuthorizeInfoResponse struct {
 	Verified     bool    `json:"verified"`
 	Scopes       []Scope `json:"scopes"`
 	RedirectHost string  `json:"redirect_host"`
+	// StepUpRequired: the caller has not approved this client, to this
+	// redirect, for these scopes and this team (team_id query parameter,
+	// else the session's) since the fix, with a grant still live, so
+	// approving takes a step-up: StepUpAction for StepUpTarget, proved via
+	// POST /auth/otp/verify (an emailed code via POST /auth/otp/resend
+	// {action, target}); the form submits the token as step_up_token.
+	StepUpRequired bool         `json:"step_up_required"`
+	StepUpAction   StepUpAction `json:"step_up_action,omitempty"`
+	StepUpTarget   string       `json:"step_up_target,omitempty"`
 }
 
 // OAuthApproveRequest is the request body for POST /oauth/authorize/approve.
@@ -5744,6 +5779,12 @@ type CreateSandboxRequest struct {
 	VCPUs     int    `json:"vcpus,omitempty"`      // default 2, max 8
 	MemoryMiB int64  `json:"memory_mib,omitempty"` // default 4096, max 16384
 	DiskMiB   int64  `json:"disk_mib,omitempty"`   // default 10240, max 51200
+	// Credentials are the logins the box gets, by provider (slug), as a
+	// run of its owner resolves them (e.g. [{"slug":"github-app"}]). Only
+	// keys a provider binds to hosts: the box holds placeholders, the
+	// engine's gateway places the values toward those hosts and renews
+	// the ones that expire, always from the login chosen here.
+	Credentials []CredentialRequirement `json:"credentials,omitempty"`
 }
 
 // SandboxDTO is the API response for a sandbox.
@@ -5894,6 +5935,7 @@ type SDKTypes struct {
 	_teamSetup        TeamSetupRequest
 	_teamMemberDTO    TeamMemberDTO
 	_teamMemberAdd    TeamMemberAddRequest
+	_teamMemberAddRes TeamMemberAddResultDTO
 	_teamMemberRole   TeamMemberUpdateRoleRequest
 	_teamInvite       TeamInviteDTO
 	_teamInviteCreate TeamInviteCreateRequest
@@ -5916,6 +5958,7 @@ type SDKTypes struct {
 	_checkReqsResp CheckRequirementsResponse
 	// Entitlements
 	_entitlementDTO     EntitlementDTO
+	_featureAccess      FeatureAccess
 	_entitlementErrMeta EntitlementErrorMeta
 	// Entitlement requests (a team asks for a feature gate, an admin decides)
 	_entitlementRequestDTO       EntitlementRequestDTO
@@ -6807,6 +6850,15 @@ type TeamDTO struct {
 	// caller's team list (/teams) so a member of one of its teams sees whose
 	// org it is without belonging to the org workspace.
 	OrgName string `json:"org_name,omitempty"`
+}
+
+// TeamMemberAddResultDTO is what POST /teams/{id}/members did: added the
+// account (member) or, for an account the team's org does not own, sent it
+// an invite (invite).
+type TeamMemberAddResultDTO struct {
+	Outcome TeamMemberAddOutcome `json:"outcome"`
+	Member  *TeamMemberDTO       `json:"member,omitempty"`
+	Invite  *TeamInviteDTO       `json:"invite,omitempty"`
 }
 
 // TeamMemberDTO is the API response for a team member.
@@ -9907,6 +9959,123 @@ const (
 	SecondFactorEmail SecondFactor = "email"
 )
 
+// StepUpAction is an action that takes a step-up: a factor proved for this
+// one action, spent by the one request that performs it (auth.RequireStepUp).
+// A sign-in or a re-auth window never stands in for it.
+type StepUpAction string
+
+// Valid reports whether a is a step-up action.
+func (a StepUpAction) Valid() bool {
+	switch a {
+	case StepUpExport, StepUpDelete, StepUpFactorEnroll, StepUpFactorChange, StepUpDeviceApprove, StepUpAdminElevationApprove, StepUpOAuthApprove, StepUpAPIKeyCreate, StepUpSecretReveal, StepUpAdminSession, StepUpAdminSensitive, StepUpTeamMemberChange, StepUpTeamSSOChange:
+		return true
+	}
+	return false
+}
+
+// Warning is the step-up email's caution for an action that hands out a
+// lasting way into the account: enter the code only if you started it.
+func (a StepUpAction) Warning() string {
+	switch a {
+	case StepUpFactorEnroll:
+		return "this code lets someone add a new sign-in method to your account. only enter it if you opened settings → security yourself."
+	case StepUpAPIKeyCreate:
+		return "this code lets someone create an API key for your account. only enter it if you are creating a key yourself."
+	case StepUpDeviceApprove:
+		return "this code signs a device into your account. only enter it if you started the sign-in on your own device."
+	case StepUpOAuthApprove:
+		return "this code connects an app to your account. only enter it if you are connecting the app yourself."
+	case StepUpTeamMemberChange:
+		return "this code lets someone add a person to your team or change their role. only enter it if you are doing that yourself."
+	}
+	return ""
+}
+
+// Label is how the step-up email names the action.
+func (a StepUpAction) Label() string {
+	switch a {
+	case StepUpExport:
+		return "export your account data"
+	case StepUpDelete:
+		return "delete your account"
+	case StepUpFactorEnroll:
+		return "add a sign-in method (two-step verification)"
+	case StepUpFactorChange:
+		return "change your two-step verification"
+	case StepUpDeviceApprove:
+		return "sign in a device (CLI)"
+	case StepUpAdminElevationApprove:
+		return "grant admin access to a CLI login"
+	case StepUpOAuthApprove:
+		return "connect an app to your account"
+	case StepUpAPIKeyCreate:
+		return "create an API key"
+	case StepUpSecretReveal:
+		return "reveal a secret"
+	case StepUpAdminSession:
+		return "make admin changes for the next ten minutes"
+	case StepUpAdminSensitive:
+		return "perform a sensitive admin action"
+	case StepUpTeamMemberChange:
+		return "add someone to a team or change their role"
+	case StepUpTeamSSOChange:
+		return "change a team's single sign-on"
+	}
+	return ""
+}
+
+const (
+	// StepUpExport: request an account data export, or a download link.
+	StepUpExport StepUpAction = "export"
+	// StepUpDelete: schedule the account's deletion.
+	StepUpDelete StepUpAction = "delete"
+	// StepUpFactorEnroll: start enrolling an authenticator or passkey, or
+	// turn two-step verification on (which hands out recovery codes).
+	StepUpFactorEnroll StepUpAction = "factor_enroll"
+	// StepUpFactorChange: turn two-step verification off, remove a method,
+	// or regenerate recovery codes.
+	StepUpFactorChange StepUpAction = "factor_change"
+	// StepUpDeviceApprove: approve a device (CLI) sign-in.
+	StepUpDeviceApprove StepUpAction = "device_approve"
+	// StepUpAdminElevationApprove: approve an admin elevation of a CLI login.
+	StepUpAdminElevationApprove StepUpAction = "admin_elevation_approve"
+	// StepUpOAuthApprove: approve an OAuth app the account has not approved
+	// before (for this redirect URI, these scopes and this team).
+	StepUpOAuthApprove StepUpAction = "oauth_approve"
+	// StepUpAPIKeyCreate: create an API key from the browser (target: its
+	// scopes and team).
+	StepUpAPIKeyCreate StepUpAction = "api_key_create"
+	// StepUpSecretReveal: read a stored secret's value or a webhook signing
+	// secret, or generate a new signing secret (target: the request).
+	StepUpSecretReveal StepUpAction = "secret_reveal"
+	// StepUpAdminSession: open the staff browser session's ten-minute admin
+	// action window, inside which admin writes pass.
+	StepUpAdminSession StepUpAction = "admin_session"
+	// StepUpAdminSensitive: one sensitive admin action, every time, window
+	// or not (impersonation, revealing a setting's secret, a device
+	// identity, exporting voucher codes). Target: the request.
+	StepUpAdminSensitive StepUpAction = "admin_sensitive"
+	// StepUpTeamMemberChange: add someone to a team, invite them, or change
+	// a member's role (target: team|email or user|role).
+	StepUpTeamMemberChange StepUpAction = "team_member_change"
+	// StepUpTeamSSOChange: change who can enter a team through SSO.
+	StepUpTeamSSOChange StepUpAction = "team_sso_change"
+)
+
+// TeamMemberAddOutcome is what adding an existing account to a team by email
+// did (POST /teams/{id}/members, POST /orgs/{id}/admins).
+type TeamMemberAddOutcome string
+
+const (
+	// TeamMemberAddAdded: the team's org owns the account (it manages it,
+	// it is already in the org, or it is at a verified domain), so it
+	// joined straight away.
+	TeamMemberAddAdded TeamMemberAddOutcome = "added"
+	// TeamMemberAddInvited: the account is not the org's to place, so an
+	// invite was sent; it joins when it accepts.
+	TeamMemberAddInvited TeamMemberAddOutcome = "invited"
+)
+
 // TeamInviteStatus represents the status of a team invitation
 type TeamInviteStatus string
 
@@ -10080,8 +10249,8 @@ const (
 	ResourceFeatureMarketplacePublish EntitlementResource = "feature:marketplace_publish"
 	// Granted per team: creating forms is by invitation for now.
 	ResourceFeatureForms EntitlementResource = "feature:forms"
-	// Managed sandboxes (INF-833): open to every team; a row with enabled
-	// false shuts one team out.
+	// Managed sandboxes (INF-833): open to every team unless turned off
+	// for one (FeatureOpen).
 	ResourceFeatureSandboxes EntitlementResource = "feature:sandboxes"
 	// Legacy feature gates — kept for DB compatibility, no longer gated
 	ResourceFeatureScopes       EntitlementResource = "feature:scopes"

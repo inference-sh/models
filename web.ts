@@ -86,6 +86,14 @@ export interface InternalToolsConfig {
   remote?: boolean;
   knowledge?: boolean;
   wait?: boolean;
+  /**
+   * SandboxCredentials are the logins a sandbox sandbox_create makes gets
+   * (Remote on), declared as an app's credentials are (provider slug,
+   * scopes): the runner's own, as a task of theirs resolves it; a runner
+   * with none is asked to connect it and the call waits. None declared,
+   * none given. The model's arguments never add any.
+   */
+  sandbox_credentials?: CredentialRequirement[];
 }
 /**
  * AgentPermissions is what an agent's new chats in its own workspace may do
@@ -1090,6 +1098,13 @@ export interface DeviceAuthInitRequest {
   token_kind?: DeviceTokenKind;
   code_challenge?: string;
   code_challenge_method?: string;
+  /**
+   * Scopes the device asks for ("belt login --admin" names the admin
+   * scopes). Empty: the default, every scope but user:write and admin.
+   * The approval page shows them and the person confirms; the approval
+   * grants at most these.
+   */
+  scopes?: Scope[];
 }
 export interface DeviceAuthResponse {
   user_code: string;
@@ -1203,6 +1218,12 @@ export interface MeResponse {
    */
   team_view?: TeamViewDTO;
   diagnostics?: DiagnosticsConfig;
+  /**
+   * Notice is an operator's notice about the caller's access, set only
+   * when the request comes from an address restricted to sign-in and the
+   * CLI. Empty otherwise.
+   */
+  notice?: string;
   /**
    * PersonalTeamID is the caller's personal workspace, empty for a managed
    * account, which has none.
@@ -4666,6 +4687,14 @@ export interface EntitlementDTO extends BaseModelDTO {
   team_plan_id?: string;
 }
 /**
+ * FeatureAccess is whether the caller's team may use feature gate
+ * Resource, as the API decides it (CheckFeatureGate): what a client shows.
+ */
+export interface FeatureAccess {
+  resource: EntitlementResource;
+  allowed: boolean;
+}
+/**
  * EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
  */
 export interface EntitlementErrorMeta {
@@ -4743,6 +4772,7 @@ export type ErrorCode =
   | "method_not_allowed"
   | "rate_limited"
   | "internal_error"
+  | "web_access_restricted"
   | "requirements_not_met"
   | "team_role_required"
   | "in_other_workspace"
@@ -4806,6 +4836,12 @@ export const ErrorCodeNotConfigured: ErrorCode = "not_configured";
 export const ErrorCodeMethodNotAllowed: ErrorCode = "method_not_allowed";
 export const ErrorCodeRateLimited: ErrorCode = "rate_limited";
 export const ErrorCodeInternalError: ErrorCode = "internal_error";
+/**
+ * ErrorCodeWebAccessRestricted (403): the request comes from an address
+ * restricted to sign-in and the CLI; detail is the operator's notice
+ * and meta is WebAccessRestrictedMeta.
+ */
+export const ErrorCodeWebAccessRestricted: ErrorCode = "web_access_restricted";
 /**
  * ErrorCodeRequirementsNotMet (412): the run needs a secret or a
  * credential the caller has not set up. Meta "errors" lists each
@@ -6657,6 +6693,16 @@ export interface OrgAdminDTO {
   user?: TeamMemberUserDTO;
 }
 /**
+ * OrgAdminAddResultDTO is what POST /orgs/{id}/admins did: made the account
+ * an org admin (admin) or, for an account the org does not own, sent it an
+ * admin invite (invite).
+ */
+export interface OrgAdminAddResultDTO {
+  outcome: TeamMemberAddOutcome;
+  admin?: OrgAdminDTO;
+  invite?: TeamInviteDTO;
+}
+/**
  * OrgCreateRequest creates an org; the caller becomes its first org admin.
  */
 export interface OrgCreateRequest {
@@ -7136,6 +7182,39 @@ export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
   incident_ref?: string;
   notes?: string;
   status: string;
+  /**
+   * OnCapture: none | ban. What happens to a flagged account once its
+   * diagnostics report is stored.
+   */
+  on_capture: string;
+  /**
+   * OnUnshadowedIP: none | shadow_ip | ban. What happens when a flagged
+   * account signs in from an address no entry covers.
+   */
+  on_unshadowed_ip: string;
+  /**
+   * MaxAccountAge (a Go duration, e.g. "3h0m0s"): a flagged account older
+   * than this that never sent a report is banned. Empty: off.
+   */
+  max_account_age?: string;
+  /**
+   * ShadowMessage: the notice a request this shadow entry refuses is
+   * answered with, and /me carries for it. Empty: the plain refusal.
+   */
+  shadow_message?: string;
+  /**
+   * ConfineAccounts: the accounts the entry flags are held to the shadow
+   * allow-list on every request, from any address and with any
+   * credential.
+   */
+  confine_accounts: boolean;
+  /**
+   * SourceEntryID and SourceUserID are set on an entry the redlist
+   * propagated: the entry its chain started from and the account whose
+   * sign-in it came from.
+   */
+  source_entry_id?: string;
+  source_user_id?: string;
 }
 export interface CreateRedlistEntryRequest {
   match_type: string;
@@ -7144,6 +7223,49 @@ export interface CreateRedlistEntryRequest {
   level: number /* int */;
   incident_ref?: string;
   notes?: string;
+  /**
+   * Automatic actions, for watch and shadow entries. OnCapture: none
+   * (default) | ban. OnUnshadowedIP: none | shadow_ip (default) | ban.
+   * MaxAccountAge: a Go duration ("3h"); empty or "0" is off.
+   */
+  on_capture?: string;
+  on_unshadowed_ip?: string;
+  max_account_age?: string;
+  /**
+   * ShadowMessage: plain text (at most 300 characters, no HTML or
+   * control characters) a refused shadowed request is answered with.
+   */
+  shadow_message?: string;
+  /**
+   * ConfineAccounts: hold the accounts the entry flags to the shadow
+   * allow-list whatever address or credential they use (watch and
+   * shadow entries).
+   */
+  confine_accounts?: boolean;
+}
+/**
+ * UpdateRedlistPolicyRequest changes an entry's automatic actions (and those
+ * of the entries propagated from it). An absent field is left as it is.
+ */
+export interface UpdateRedlistPolicyRequest {
+  on_capture?: string;
+  on_unshadowed_ip?: string;
+  /**
+   * MaxAccountAge: a Go duration ("3h"); "" or "0" turns it off.
+   */
+  max_account_age?: string;
+  /**
+   * ShadowMessage: "" clears it.
+   */
+  shadow_message?: string;
+  confine_accounts?: boolean;
+}
+/**
+ * WebAccessRestrictedMeta is the meta of a web_access_restricted refusal: a
+ * shadowed request whose entry carries a message. CLI is where to continue.
+ */
+export interface WebAccessRestrictedMeta {
+  cli: string;
 }
 export interface DiagnosticsConfig {
   level: number /* int */;
@@ -7462,6 +7584,17 @@ export interface OAuthAuthorizeInfoResponse {
   verified: boolean;
   scopes: Scope[];
   redirect_host: string;
+  /**
+   * StepUpRequired: the caller has not approved this client, to this
+   * redirect, for these scopes and this team (team_id query parameter,
+   * else the session's) since the fix, with a grant still live, so
+   * approving takes a step-up: StepUpAction for StepUpTarget, proved via
+   * POST /auth/otp/verify (an emailed code via POST /auth/otp/resend
+   * {action, target}); the form submits the token as step_up_token.
+   */
+  step_up_required: boolean;
+  step_up_action?: StepUpAction;
+  step_up_target?: string;
 }
 /**
  * OAuthApproveRequest is the request body for POST /oauth/authorize/approve.
@@ -7819,6 +7952,14 @@ export interface CreateSandboxRequest {
   vcpus?: number /* int */; // default 2, max 8
   memory_mib?: number /* int64 */; // default 4096, max 16384
   disk_mib?: number /* int64 */; // default 10240, max 51200
+  /**
+   * Credentials are the logins the box gets, by provider (slug), as a
+   * run of its owner resolves them (e.g. [{"slug":"github-app"}]). Only
+   * keys a provider binds to hosts: the box holds placeholders, the
+   * engine's gateway places the values toward those hosts and renews
+   * the ones that expire, always from the login chosen here.
+   */
+  credentials?: CredentialRequirement[];
 }
 /**
  * SandboxDTO is the API response for a sandbox.
@@ -8046,6 +8187,26 @@ export interface VerifySecondFactorRequest {
   method?: SecondFactor;
   code?: string;
   assertion?: PasskeyAssertion;
+  /**
+   * Action, with the session cookie, asks for a step-up for that one
+   * action (and Target, when the refusal named one) instead of a re-auth
+   * window: the answer carries a single-use step_up_token the retried
+   * request sends as X-Step-Up.
+   */
+  action?: StepUpAction;
+  target?: string;
+}
+/**
+ * StepUpResponse is POST /auth/otp/verify for a step-up: the token the
+ * retried request sends as the X-Step-Up header, good once, until
+ * ExpiresAt, for Action (and Target) only.
+ */
+export interface StepUpResponse {
+  success: boolean;
+  step_up_token: string;
+  action: StepUpAction;
+  target?: string;
+  expires_at: string /* RFC3339 */;
 }
 /**
  * PasskeyAssertBeginRequest is POST /auth/passkey/assert/begin: for a
@@ -9213,6 +9374,16 @@ export interface TeamDTO extends BaseModelDTO {
    * org it is without belonging to the org workspace.
    */
   org_name?: string;
+}
+/**
+ * TeamMemberAddResultDTO is what POST /teams/{id}/members did: added the
+ * account (member) or, for an account the team's org does not own, sent it
+ * an invite (invite).
+ */
+export interface TeamMemberAddResultDTO {
+  outcome: TeamMemberAddOutcome;
+  member?: TeamMemberDTO;
+  invite?: TeamInviteDTO;
 }
 /**
  * TeamMemberDTO is the API response for a team member.
@@ -13006,6 +13177,102 @@ export const OrgProvisionAdded: OrgProvisionOutcome = "added";
  */
 export const OrgProvisionInvited: OrgProvisionOutcome = "invited";
 /**
+ * StepUpAction is an action that takes a step-up: a factor proved for this
+ * one action, spent by the one request that performs it (auth.RequireStepUp).
+ * A sign-in or a re-auth window never stands in for it.
+ */
+export type StepUpAction =
+  | "export"
+  | "delete"
+  | "factor_enroll"
+  | "factor_change"
+  | "device_approve"
+  | "admin_elevation_approve"
+  | "oauth_approve"
+  | "api_key_create"
+  | "secret_reveal"
+  | "admin_session"
+  | "admin_sensitive"
+  | "team_member_change"
+  | "team_sso_change";
+/**
+ * StepUpExport: request an account data export, or a download link.
+ */
+export const StepUpExport: StepUpAction = "export";
+/**
+ * StepUpDelete: schedule the account's deletion.
+ */
+export const StepUpDelete: StepUpAction = "delete";
+/**
+ * StepUpFactorEnroll: start enrolling an authenticator or passkey, or
+ * turn two-step verification on (which hands out recovery codes).
+ */
+export const StepUpFactorEnroll: StepUpAction = "factor_enroll";
+/**
+ * StepUpFactorChange: turn two-step verification off, remove a method,
+ * or regenerate recovery codes.
+ */
+export const StepUpFactorChange: StepUpAction = "factor_change";
+/**
+ * StepUpDeviceApprove: approve a device (CLI) sign-in.
+ */
+export const StepUpDeviceApprove: StepUpAction = "device_approve";
+/**
+ * StepUpAdminElevationApprove: approve an admin elevation of a CLI login.
+ */
+export const StepUpAdminElevationApprove: StepUpAction = "admin_elevation_approve";
+/**
+ * StepUpOAuthApprove: approve an OAuth app the account has not approved
+ * before (for this redirect URI, these scopes and this team).
+ */
+export const StepUpOAuthApprove: StepUpAction = "oauth_approve";
+/**
+ * StepUpAPIKeyCreate: create an API key from the browser (target: its
+ * scopes and team).
+ */
+export const StepUpAPIKeyCreate: StepUpAction = "api_key_create";
+/**
+ * StepUpSecretReveal: read a stored secret's value or a webhook signing
+ * secret, or generate a new signing secret (target: the request).
+ */
+export const StepUpSecretReveal: StepUpAction = "secret_reveal";
+/**
+ * StepUpAdminSession: open the staff browser session's ten-minute admin
+ * action window, inside which admin writes pass.
+ */
+export const StepUpAdminSession: StepUpAction = "admin_session";
+/**
+ * StepUpAdminSensitive: one sensitive admin action, every time, window
+ * or not (impersonation, revealing a setting's secret, a device
+ * identity, exporting voucher codes). Target: the request.
+ */
+export const StepUpAdminSensitive: StepUpAction = "admin_sensitive";
+/**
+ * StepUpTeamMemberChange: add someone to a team, invite them, or change
+ * a member's role (target: team|email or user|role).
+ */
+export const StepUpTeamMemberChange: StepUpAction = "team_member_change";
+/**
+ * StepUpTeamSSOChange: change who can enter a team through SSO.
+ */
+export const StepUpTeamSSOChange: StepUpAction = "team_sso_change";
+/**
+ * TeamMemberAddOutcome is what adding an existing account to a team by email
+ * did (POST /teams/{id}/members, POST /orgs/{id}/admins).
+ */
+export type TeamMemberAddOutcome = "added" | "invited";
+/**
+ * TeamMemberAddAdded: the team's org owns the account (it manages it,
+ * it is already in the org, or it is at a verified domain), so it
+ * joined straight away.
+ */
+export const TeamMemberAddAdded: TeamMemberAddOutcome = "added";
+/**
+ * TeamMemberAddInvited: the account is not the org's to place, so an
+ * invite was sent; it joins when it accepts.
+ */
+export const TeamMemberAddInvited: TeamMemberAddOutcome = "invited";
+/**
  * TeamInviteStatus represents the status of a team invitation
  */
 export type TeamInviteStatus =
@@ -13236,8 +13503,8 @@ export const ResourceFeatureMarketplacePublish: EntitlementResource = "feature:m
  */
 export const ResourceFeatureForms: EntitlementResource = "feature:forms";
 /**
- * Managed sandboxes (INF-833): open to every team; a row with enabled
- * false shuts one team out.
+ * Managed sandboxes (INF-833): open to every team unless turned off
+ * for one (FeatureOpen).
  */
 export const ResourceFeatureSandboxes: EntitlementResource = "feature:sandboxes";
 /**
