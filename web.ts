@@ -7455,6 +7455,11 @@ export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
    */
   source_entry_id?: string;
   source_user_id?: string;
+  /**
+   * ExpiresAt is when the entry ends (the address entries the redlist
+   * writes from abuse signals and bans); absent, it does not.
+   */
+  expires_at?: string /* RFC3339 */;
 }
 export interface CreateRedlistEntryRequest {
   match_type: string;
