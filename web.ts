@@ -5020,6 +5020,7 @@ export type ErrorCode =
   | "app_retired"
   | "app_maintenance"
   | "invalid_transition"
+  | "maintenance"
   | "SESSION_NOT_FOUND"
   | "SESSION_EXPIRED"
   | "SESSION_ENDED"
@@ -5217,6 +5218,12 @@ export const ErrorCodeCodeConfirmationRequired: ErrorCode = "code_confirmation_r
 export const ErrorCodeAppRetired: ErrorCode = "app_retired";
 export const ErrorCodeAppMaintenance: ErrorCode = "app_maintenance";
 export const ErrorCodeInvalidTransition: ErrorCode = "invalid_transition";
+/**
+ * Maintenance (503, Retry-After): the platform is draining for
+ * maintenance (platform.maintenance) and the route starts new work.
+ * The message is the operator's; meta is MaintenanceMeta.
+ */
+export const ErrorCodeMaintenance: ErrorCode = "maintenance";
 /**
  * Session-bound runs. SessionNotFound (404), SessionExpired and
  * SessionEnded (410), WorkerLeased, AppMismatch and VersionMismatch
@@ -8911,7 +8918,9 @@ export interface EgressHostReport {
 /**
  * EgressHost is one host and port a box reached: its connections and
  * bytes since the last report, whether the gateway decrypted them, and
- * when it was first and last seen in that span.
+ * when it was first and last seen in that span. Denied and Flagged count
+ * the gateway's egress rules' verdicts there (port 0: a name its DNS
+ * refused), RuleSet and Rule the last one's reason ("mining", "pool").
  */
 export interface EgressHost {
   host: string;
@@ -8920,6 +8929,10 @@ export interface EgressHost {
   bytes_up: number /* int64 */;
   bytes_down: number /* int64 */;
   decrypted: boolean;
+  denied?: number /* int64 */;
+  flagged?: number /* int64 */;
+  rule_set?: string;
+  rule?: string;
   first_seen: string /* RFC3339 */;
   last_seen: string /* RFC3339 */;
 }

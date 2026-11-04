@@ -3747,6 +3747,10 @@ const (
 	ErrorCodeAppRetired        ErrorCode = "app_retired"
 	ErrorCodeAppMaintenance    ErrorCode = "app_maintenance"
 	ErrorCodeInvalidTransition ErrorCode = "invalid_transition"
+	// Maintenance (503, Retry-After): the platform is draining for
+	// maintenance (platform.maintenance) and the route starts new work.
+	// The message is the operator's; meta is MaintenanceMeta.
+	ErrorCodeMaintenance ErrorCode = "maintenance"
 	// Session-bound runs. SessionNotFound (404), SessionExpired and
 	// SessionEnded (410), WorkerLeased, AppMismatch and VersionMismatch
 	// (409). The SDKs match these upper-case strings.
@@ -6861,7 +6865,9 @@ type EgressHostReport struct {
 
 // EgressHost is one host and port a box reached: its connections and
 // bytes since the last report, whether the gateway decrypted them, and
-// when it was first and last seen in that span.
+// when it was first and last seen in that span. Denied and Flagged count
+// the gateway's egress rules' verdicts there (port 0: a name its DNS
+// refused), RuleSet and Rule the last one's reason ("mining", "pool").
 type EgressHost struct {
 	Host      string    `json:"host"`
 	Port      int       `json:"port"`
@@ -6869,6 +6875,10 @@ type EgressHost struct {
 	BytesUp   int64     `json:"bytes_up"`
 	BytesDown int64     `json:"bytes_down"`
 	Decrypted bool      `json:"decrypted"`
+	Denied    int64     `json:"denied,omitempty"`
+	Flagged   int64     `json:"flagged,omitempty"`
+	RuleSet   string    `json:"rule_set,omitempty"`
+	Rule      string    `json:"rule,omitempty"`
 	FirstSeen time.Time `json:"first_seen"`
 	LastSeen  time.Time `json:"last_seen"`
 }
