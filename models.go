@@ -187,6 +187,9 @@ type AgentTool struct {
 	MCP             *MCPToolConfig      `json:"mcp,omitempty" yaml:"mcp,omitempty"`
 	Client          *ClientToolConfig   `json:"client,omitempty" yaml:"client,omitempty"`
 	Internal        *InternalToolConfig `json:"internal,omitempty" yaml:"internal,omitempty"`
+	// ContentTier overrides the tier the tool-result guard reads this
+	// tool's output at; empty is the tool type's.
+	ContentTier ContentTier `json:"content_tier,omitempty" yaml:"content_tier,omitempty"`
 }
 
 // InternalToolConfig contains configuration for internal/built-in tools
@@ -228,6 +231,7 @@ type AgentToolDTO struct {
 	Type            ToolType             `json:"type"`
 	RequireApproval bool                 `json:"require_approval,omitempty"`
 	ApprovalTimeout int                  `json:"approval_timeout,omitempty"`
+	ContentTier     ContentTier          `json:"content_tier,omitempty"`
 	App             *AppToolConfigDTO    `json:"app,omitempty"`
 	Agent           *AgentToolConfigDTO  `json:"agent,omitempty"`
 	Hook            *HookToolConfigDTO   `json:"hook,omitempty"`
@@ -438,6 +442,9 @@ type AgentVersionDTO struct {
 	Permissions        *AgentPermissions     `json:"permissions,omitempty"`
 	Hooks              []LifecycleHookConfig `json:"hooks,omitempty"`
 	OutputSchema       *json.RawMessage      `json:"output_schema"`
+	// ContentGuard is the agent's tool-result guard; absent is the
+	// platform's mode.
+	ContentGuard *ContentGuardConfig `json:"content_guard,omitempty"`
 	// VisitorReads is the scope groups of the team's resources (knowledge,
 	// files, artifacts, remotes) a visitor of an embed of this version can
 	// have it read by id, beyond what it configures by name. Set when the
@@ -482,6 +489,7 @@ type AgentConfigInput struct {
 	Permissions    *AgentPermissions     `json:"permissions,omitempty" yaml:"permissions,omitempty"`
 	Hooks          []LifecycleHookConfig `json:"hooks,omitempty" yaml:"hooks,omitempty"`
 	OutputSchema   *json.RawMessage      `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
+	ContentGuard   *ContentGuardConfig   `json:"content_guard,omitempty" yaml:"content_guard,omitempty"`
 }
 
 // CoreAppConfigInput is the API input shape for core app configuration.
@@ -2896,6 +2904,86 @@ type ConnectTokens struct {
 	RefreshToken SensitiveString
 	ExpiresAt    *time.Time
 }
+
+// --------------------
+// source: content_guard.go
+// --------------------
+
+// ContentGuardMode is what the tool-result guard does with what it finds in
+// a tool's result before the agent reads it.
+type ContentGuardMode string
+
+// Valid reports whether m is a mode; "" is valid and means the platform's.
+func (m ContentGuardMode) Valid() bool {
+	switch m {
+	case "", ContentGuardShadow, ContentGuardOff, ContentGuardAnnotate, ContentGuardStrict:
+		return true
+	}
+	return false
+}
+
+// Frames reports whether the mode changes what the agent reads.
+func (m ContentGuardMode) Frames() bool {
+	return m == ContentGuardAnnotate || m == ContentGuardStrict
+}
+
+const (
+	// ContentGuardShadow scans and logs; the agent reads the result as the
+	// tool returned it. The default.
+	ContentGuardShadow ContentGuardMode = "shadow"
+	// ContentGuardOff does nothing.
+	ContentGuardOff ContentGuardMode = "off"
+	// ContentGuardAnnotate frames third-party and content results as
+	// untrusted data, notes findings under the frame's header, and judges
+	// without waiting (a flag found later taints the run).
+	ContentGuardAnnotate ContentGuardMode = "annotate"
+	// ContentGuardStrict is annotate with the judge waited for, and a judge
+	// that does not answer in time read as a flag.
+	ContentGuardStrict ContentGuardMode = "strict"
+)
+
+// ContentGuardConfig is an agent's tool-result guard (content_guard).
+type ContentGuardConfig struct {
+	// Mode: shadow (default), off, annotate or strict. Empty is the
+	// platform's (content_guard.mode, itself shadow by default).
+	Mode ContentGuardMode `json:"mode,omitempty" yaml:"mode,omitempty"`
+	// IgnoreRules are rule ids not to apply (INF-PI-005 for an agent whose
+	// job is reading Slack mentions).
+	IgnoreRules []string `json:"ignore_rules,omitempty" yaml:"ignore_rules,omitempty"`
+}
+
+// Validate checks the mode.
+func (c *ContentGuardConfig) Validate() error {
+	if c == nil {
+		return nil
+	}
+	if !c.Mode.Valid() {
+		return fmt.Errorf("content_guard.mode %q: must be shadow, off, annotate or strict", c.Mode)
+	}
+	return nil
+}
+
+// ContentTier is how far a tool's output is from the agent's operator:
+// internal (the platform wrote it from the operator's own data), content
+// (the operator's stored content others may have written into) or
+// third_party (an app, an MCP server, an HTTP endpoint, a client, another
+// agent).
+type ContentTier string
+
+// Valid reports whether t is a tier; "" is valid and means the tool type's.
+func (t ContentTier) Valid() bool {
+	switch t {
+	case "", ContentTierInternal, ContentTierContent, ContentTierThirdParty:
+		return true
+	}
+	return false
+}
+
+const (
+	ContentTierInternal   ContentTier = "internal"
+	ContentTierContent    ContentTier = "content"
+	ContentTierThirdParty ContentTier = "third_party"
+)
 
 // --------------------
 // source: credential.go

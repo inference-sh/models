@@ -65,6 +65,9 @@ class AgentTool(TypedDict, total=False):
     mcp: Optional[MCPToolConfig]
     client: Optional[ClientToolConfig]
     internal: Optional[InternalToolConfig]
+    # ContentTier overrides the tier the tool-result guard reads this
+    # tool's output at; empty is the tool type's.
+    content_tier: ContentTier
 
 # InternalToolConfig contains configuration for internal/built-in tools
 class InternalToolConfig(TypedDict, total=False):
@@ -102,6 +105,7 @@ class AgentToolDTO(TypedDict, total=False):
     type: ToolType
     require_approval: bool
     approval_timeout: int
+    content_tier: ContentTier
     app: Optional[AppToolConfigDTO]
     agent: Optional[AgentToolConfigDTO]
     hook: Optional[HookToolConfigDTO]
@@ -264,6 +268,7 @@ class AgentConfigInput(TypedDict, total=False):
     permissions: Optional[AgentPermissions]
     hooks: List[LifecycleHookConfig]
     output_schema: Optional[Any]
+    content_guard: Optional[ContentGuardConfig]
 
 # CoreAppConfigInput is the API input shape for core app configuration.
 class CoreAppConfigInput(TypedDict, total=False):
@@ -1394,6 +1399,15 @@ class ConnectTokens(TypedDict, total=False):
     AccessToken: SensitiveString
     RefreshToken: SensitiveString
     ExpiresAt: Optional[str]
+
+# ContentGuardConfig is an agent's tool-result guard (content_guard).
+class ContentGuardConfig(TypedDict, total=False):
+    # Mode: shadow (default), off, annotate or strict. Empty is the
+    # platform's (content_guard.mode, itself shadow by default).
+    mode: ContentGuardMode
+    # IgnoreRules are rule ids not to apply (INF-PI-005 for an agent whose
+    # job is reading Slack mentions).
+    ignore_rules: List[str]
 
 # CredentialSecretRef names one secret linked to a credential: the row's
 # id, the key it is stored under and when its value last changed.
@@ -4298,6 +4312,9 @@ class AgentVersionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     permissions: Optional[AgentPermissions]
     hooks: List[LifecycleHookConfig]
     output_schema: Optional[Any]
+    # ContentGuard is the agent's tool-result guard; absent is the
+    # platform's mode.
+    content_guard: Optional[ContentGuardConfig]
     # VisitorReads is the scope groups of the team's resources (knowledge,
     # files, artifacts, remotes) a visitor of an embed of this version can
     # have it read by id, beyond what it configures by name. Set when the
@@ -5229,6 +5246,25 @@ class ToolRiskLevel(str, Enum):
     TOOL_RISK_MEDIUM = "medium"
     # ToolRiskHigh: dangerous or irreversible changes.
     TOOL_RISK_HIGH = "high"
+
+class ContentGuardMode(str, Enum):
+    # ContentGuardShadow scans and logs; the agent reads the result as the
+    # tool returned it. The default.
+    CONTENT_GUARD_SHADOW = "shadow"
+    # ContentGuardOff does nothing.
+    CONTENT_GUARD_OFF = "off"
+    # ContentGuardAnnotate frames third-party and content results as
+    # untrusted data, notes findings under the frame's header, and judges
+    # without waiting (a flag found later taints the run).
+    CONTENT_GUARD_ANNOTATE = "annotate"
+    # ContentGuardStrict is annotate with the judge waited for, and a judge
+    # that does not answer in time read as a flag.
+    CONTENT_GUARD_STRICT = "strict"
+
+class ContentTier(str, Enum):
+    INTERNAL = "internal"
+    CONTENT = "content"
+    THIRD_PARTY = "third_party"
 
 class EgressGrantScope(str, Enum):
     TASK = "task"

@@ -219,6 +219,9 @@ public struct AgentTool: Codable, Sendable {
     @Indirect public var mcp: MCPToolConfig?
     @Indirect public var client: ClientToolConfig?
     @Indirect public var `internal`: InternalToolConfig?
+    /// ContentTier overrides the tier the tool-result guard reads this
+    /// tool's output at; empty is the tool type's.
+    public var contentTier: ContentTier?
 
     public init(
         name: String = "",
@@ -234,7 +237,8 @@ public struct AgentTool: Codable, Sendable {
         call: HTTPToolConfig? = nil,
         mcp: MCPToolConfig? = nil,
         client: ClientToolConfig? = nil,
-        `internal`: InternalToolConfig? = nil
+        `internal`: InternalToolConfig? = nil,
+        contentTier: ContentTier? = nil
     ) {
         self.name = name
         self.displayName = displayName
@@ -250,6 +254,7 @@ public struct AgentTool: Codable, Sendable {
         self.mcp = mcp
         self.client = client
         self.`internal` = `internal`
+        self.contentTier = contentTier
     }
 
     enum CodingKeys: String, CodingKey {
@@ -267,6 +272,7 @@ public struct AgentTool: Codable, Sendable {
         case mcp = "mcp"
         case client = "client"
         case `internal` = "internal"
+        case contentTier = "content_tier"
     }
 }
 
@@ -372,6 +378,7 @@ public struct AgentToolDTO: Codable, Sendable {
     public var type: ToolType
     public var requireApproval: Bool?
     public var approvalTimeout: Int?
+    public var contentTier: ContentTier?
     @Indirect public var app: AppToolConfigDTO?
     @Indirect public var agent: AgentToolConfigDTO?
     @Indirect public var hook: HookToolConfigDTO?
@@ -387,6 +394,7 @@ public struct AgentToolDTO: Codable, Sendable {
         type: ToolType,
         requireApproval: Bool? = nil,
         approvalTimeout: Int? = nil,
+        contentTier: ContentTier? = nil,
         app: AppToolConfigDTO? = nil,
         agent: AgentToolConfigDTO? = nil,
         hook: HookToolConfigDTO? = nil,
@@ -401,6 +409,7 @@ public struct AgentToolDTO: Codable, Sendable {
         self.type = type
         self.requireApproval = requireApproval
         self.approvalTimeout = approvalTimeout
+        self.contentTier = contentTier
         self.app = app
         self.agent = agent
         self.hook = hook
@@ -417,6 +426,7 @@ public struct AgentToolDTO: Codable, Sendable {
         case type = "type"
         case requireApproval = "require_approval"
         case approvalTimeout = "approval_timeout"
+        case contentTier = "content_tier"
         case app = "app"
         case agent = "agent"
         case hook = "hook"
@@ -995,6 +1005,9 @@ public struct AgentVersionDTO: Codable, Sendable {
     @Indirect public var permissions: AgentPermissions?
     public var hooks: [LifecycleHookConfig]?
     public var outputSchema: JSONValue?
+    /// ContentGuard is the agent's tool-result guard; absent is the
+    /// platform's mode.
+    @Indirect public var contentGuard: ContentGuardConfig?
     /// VisitorReads is the scope groups of the team's resources (knowledge,
     /// files, artifacts, remotes) a visitor of an embed of this version can
     /// have it read by id, beyond what it configures by name. Set when the
@@ -1024,6 +1037,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         permissions: AgentPermissions? = nil,
         hooks: [LifecycleHookConfig]? = nil,
         outputSchema: JSONValue? = nil,
+        contentGuard: ContentGuardConfig? = nil,
         visitorReads: [ScopeGroup]? = nil
     ) {
         self.id = id
@@ -1047,6 +1061,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         self.permissions = permissions
         self.hooks = hooks
         self.outputSchema = outputSchema
+        self.contentGuard = contentGuard
         self.visitorReads = visitorReads
     }
 
@@ -1072,6 +1087,7 @@ public struct AgentVersionDTO: Codable, Sendable {
         case permissions = "permissions"
         case hooks = "hooks"
         case outputSchema = "output_schema"
+        case contentGuard = "content_guard"
         case visitorReads = "visitor_reads"
     }
 }
@@ -1149,6 +1165,7 @@ public struct AgentConfigInput: Codable, Sendable {
     @Indirect public var permissions: AgentPermissions?
     public var hooks: [LifecycleHookConfig]?
     public var outputSchema: JSONValue?
+    @Indirect public var contentGuard: ContentGuardConfig?
 
     public init(
         name: String? = nil,
@@ -1162,7 +1179,8 @@ public struct AgentConfigInput: Codable, Sendable {
         internalTools: InternalToolsConfig? = nil,
         permissions: AgentPermissions? = nil,
         hooks: [LifecycleHookConfig]? = nil,
-        outputSchema: JSONValue? = nil
+        outputSchema: JSONValue? = nil,
+        contentGuard: ContentGuardConfig? = nil
     ) {
         self.name = name
         self.description = description
@@ -1176,6 +1194,7 @@ public struct AgentConfigInput: Codable, Sendable {
         self.permissions = permissions
         self.hooks = hooks
         self.outputSchema = outputSchema
+        self.contentGuard = contentGuard
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1191,6 +1210,7 @@ public struct AgentConfigInput: Codable, Sendable {
         case permissions = "permissions"
         case hooks = "hooks"
         case outputSchema = "output_schema"
+        case contentGuard = "content_guard"
     }
 }
 
@@ -5997,6 +6017,63 @@ public struct ConnectTokens: Codable, Sendable {
         case refreshToken = "RefreshToken"
         case expiresAt = "ExpiresAt"
     }
+}
+
+/// ContentGuardMode is what the tool-result guard does with what it finds in
+/// a tool's result before the agent reads it.
+public struct ContentGuardMode: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// ContentGuardShadow scans and logs; the agent reads the result as the
+    /// tool returned it. The default.
+    public static let contentGuardShadow = ContentGuardMode(rawValue: "shadow")
+    /// ContentGuardOff does nothing.
+    public static let contentGuardOff = ContentGuardMode(rawValue: "off")
+    /// ContentGuardAnnotate frames third-party and content results as
+    /// untrusted data, notes findings under the frame's header, and judges
+    /// without waiting (a flag found later taints the run).
+    public static let contentGuardAnnotate = ContentGuardMode(rawValue: "annotate")
+    /// ContentGuardStrict is annotate with the judge waited for, and a judge
+    /// that does not answer in time read as a flag.
+    public static let contentGuardStrict = ContentGuardMode(rawValue: "strict")
+}
+
+/// ContentGuardConfig is an agent's tool-result guard (content_guard).
+public struct ContentGuardConfig: Codable, Sendable {
+    /// Mode: shadow (default), off, annotate or strict. Empty is the
+    /// platform's (content_guard.mode, itself shadow by default).
+    public var mode: ContentGuardMode?
+    /// IgnoreRules are rule ids not to apply (INF-PI-005 for an agent whose
+    /// job is reading Slack mentions).
+    public var ignoreRules: [String]?
+
+    public init(
+        mode: ContentGuardMode? = nil,
+        ignoreRules: [String]? = nil
+    ) {
+        self.mode = mode
+        self.ignoreRules = ignoreRules
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case mode = "mode"
+        case ignoreRules = "ignore_rules"
+    }
+}
+
+/// ContentTier is how far a tool's output is from the agent's operator:
+/// internal (the platform wrote it from the operator's own data), content
+/// (the operator's stored content others may have written into) or
+/// third_party (an app, an MCP server, an HTTP endpoint, a client, another
+/// agent).
+public struct ContentTier: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let `internal` = ContentTier(rawValue: "internal")
+    public static let content = ContentTier(rawValue: "content")
+    public static let thirdParty = ContentTier(rawValue: "third_party")
 }
 
 /// CredentialDTO is the API response for a credential (never exposes secrets).
