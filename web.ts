@@ -4941,6 +4941,13 @@ export interface EntitlementErrorMeta {
   addon_plan_id?: string;
   addon_plan_name?: string;
   addon_plan_price?: number /* int */;
+  /**
+   * Requirement is the unmet requirement of a purchase_required refusal,
+   * WithinDays its window, BillingPage where to meet it.
+   */
+  requirement?: FeatureRequirement;
+  within_days?: number /* int */;
+  billing_page?: string;
 }
 /**
  * EntitlementRequestDTO is a team's request for an entitlement, with the
@@ -5033,6 +5040,7 @@ export type ErrorCode =
   | "limit_exceeded"
   | "feature_not_available"
   | "entitlement_unavailable"
+  | "purchase_required"
   | "payment_required"
   | "payment_method_required"
   | "form_closed"
@@ -5201,6 +5209,13 @@ export const ErrorCodeLastAuthenticator: ErrorCode = "last_authenticator";
 export const ErrorCodeLimitExceeded: ErrorCode = "limit_exceeded";
 export const ErrorCodeFeatureNotAvailable: ErrorCode = "feature_not_available";
 export const ErrorCodeEntitlementUnavailable: ErrorCode = "entitlement_unavailable";
+/**
+ * ErrorCodePurchaseRequired (402): the feature requires a purchase
+ * within the last EntitlementErrorMeta.WithinDays days
+ * (shared.RequireRecentPurchase) and the team's payer made none. Meta is
+ * EntitlementErrorMeta, with BillingPage where to make one.
+ */
+export const ErrorCodePurchaseRequired: ErrorCode = "purchase_required";
 export const ErrorCodePaymentRequired: ErrorCode = "payment_required";
 /**
  * ErrorCodePaymentMethodRequired (402): the action needs a saved payment
@@ -14239,6 +14254,13 @@ export const ResourceFeatureTeamBilling: EntitlementResource = "feature:team_bil
 export const ResourceFeatureAutoRecharge: EntitlementResource = "feature:auto_recharge";
 export const ResourceFeatureInvoices: EntitlementResource = "feature:invoices";
 export const ResourceFeaturePublishApps: EntitlementResource = "feature:publish_apps";
+/**
+ * FeatureRequirement is a condition a team must meet to pass a feature gate
+ * on top of its entitlement (FeatureRequires). An enabled boolean row with
+ * source override, which staff grant, waives a feature's requirements.
+ */
+export type FeatureRequirement = "recent_purchase";
+export const RequireRecentPurchase: FeatureRequirement = "recent_purchase";
 export type ContentRating =
   | "safe"
   | "sexual_suggestive"

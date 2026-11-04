@@ -7525,6 +7525,11 @@ public struct EntitlementErrorMeta: Codable, Sendable {
     public var addonPlanId: String?
     public var addonPlanName: String?
     public var addonPlanPrice: Int?
+    /// Requirement is the unmet requirement of a purchase_required refusal,
+    /// WithinDays its window, BillingPage where to meet it.
+    public var requirement: FeatureRequirement?
+    public var withinDays: Int?
+    public var billingPage: String?
 
     public init(
         resource: EntitlementResource,
@@ -7536,7 +7541,10 @@ public struct EntitlementErrorMeta: Codable, Sendable {
         requestState: String? = nil,
         addonPlanId: String? = nil,
         addonPlanName: String? = nil,
-        addonPlanPrice: Int? = nil
+        addonPlanPrice: Int? = nil,
+        requirement: FeatureRequirement? = nil,
+        withinDays: Int? = nil,
+        billingPage: String? = nil
     ) {
         self.resource = resource
         self.resourceLabel = resourceLabel
@@ -7548,6 +7556,9 @@ public struct EntitlementErrorMeta: Codable, Sendable {
         self.addonPlanId = addonPlanId
         self.addonPlanName = addonPlanName
         self.addonPlanPrice = addonPlanPrice
+        self.requirement = requirement
+        self.withinDays = withinDays
+        self.billingPage = billingPage
     }
 
     enum CodingKeys: String, CodingKey {
@@ -7561,6 +7572,9 @@ public struct EntitlementErrorMeta: Codable, Sendable {
         case addonPlanId = "addon_plan_id"
         case addonPlanName = "addon_plan_name"
         case addonPlanPrice = "addon_plan_price"
+        case requirement = "requirement"
+        case withinDays = "within_days"
+        case billingPage = "billing_page"
     }
 }
 
@@ -7838,6 +7852,11 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     public static let limitExceeded = ErrorCode(rawValue: "limit_exceeded")
     public static let featureNotAvailable = ErrorCode(rawValue: "feature_not_available")
     public static let entitlementUnavailable = ErrorCode(rawValue: "entitlement_unavailable")
+    /// ErrorCodePurchaseRequired (402): the feature requires a purchase
+    /// within the last EntitlementErrorMeta.WithinDays days
+    /// (shared.RequireRecentPurchase) and the team's payer made none. Meta is
+    /// EntitlementErrorMeta, with BillingPage where to make one.
+    public static let purchaseRequired = ErrorCode(rawValue: "purchase_required")
     public static let paymentRequired = ErrorCode(rawValue: "payment_required")
     /// ErrorCodePaymentMethodRequired (402): the action needs a saved payment
     /// method and the caller's team has none: a bounty program that requires
@@ -19192,6 +19211,16 @@ public struct EntitlementResource: RawRepresentable, Codable, Hashable, Sendable
     public static let resourceFeatureAutoRecharge = EntitlementResource(rawValue: "feature:auto_recharge")
     public static let resourceFeatureInvoices = EntitlementResource(rawValue: "feature:invoices")
     public static let resourceFeaturePublishApps = EntitlementResource(rawValue: "feature:publish_apps")
+}
+
+/// FeatureRequirement is a condition a team must meet to pass a feature gate
+/// on top of its entitlement (FeatureRequires). An enabled boolean row with
+/// source override, which staff grant, waives a feature's requirements.
+public struct FeatureRequirement: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let requireRecentPurchase = FeatureRequirement(rawValue: "recent_purchase")
 }
 
 public struct ContentRating: RawRepresentable, Codable, Hashable, Sendable {

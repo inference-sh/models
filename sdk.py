@@ -1695,6 +1695,11 @@ class EntitlementErrorMeta(TypedDict, total=False):
     addon_plan_id: str
     addon_plan_name: str
     addon_plan_price: Optional[int]
+    # Requirement is the unmet requirement of a purchase_required refusal,
+    # WithinDays its window, BillingPage where to meet it.
+    requirement: FeatureRequirement
+    within_days: int
+    billing_page: str
 
 # EntitlementRequested is the shape of a request's "requested" field and of
 # the grant an acceptance makes: a boolean gate switched on, or a limit.
@@ -5400,6 +5405,11 @@ class ErrorCode(str, Enum):
     LIMIT_EXCEEDED = "limit_exceeded"
     FEATURE_NOT_AVAILABLE = "feature_not_available"
     ENTITLEMENT_UNAVAILABLE = "entitlement_unavailable"
+    # ErrorCodePurchaseRequired (402): the feature requires a purchase
+    # within the last EntitlementErrorMeta.WithinDays days
+    # (shared.RequireRecentPurchase) and the team's payer made none. Meta is
+    # EntitlementErrorMeta, with BillingPage where to make one.
+    PURCHASE_REQUIRED = "purchase_required"
     PAYMENT_REQUIRED = "payment_required"
     # ErrorCodePaymentMethodRequired (402): the action needs a saved payment
     # method and the caller's team has none: a bounty program that requires
@@ -6275,6 +6285,9 @@ class EntitlementResource(str, Enum):
     RESOURCE_FEATURE_AUTO_RECHARGE = "feature:auto_recharge"
     RESOURCE_FEATURE_INVOICES = "feature:invoices"
     RESOURCE_FEATURE_PUBLISH_APPS = "feature:publish_apps"
+
+class FeatureRequirement(str, Enum):
+    REQUIRE_RECENT_PURCHASE = "recent_purchase"
 
 class ContentRating(str, Enum):
     CONTENT_SAFE = "safe"

@@ -3574,6 +3574,11 @@ type EntitlementErrorMeta struct {
 	AddonPlanID      string              `json:"addon_plan_id,omitempty"`
 	AddonPlanName    string              `json:"addon_plan_name,omitempty"`
 	AddonPlanVersion *int                `json:"addon_plan_price,omitempty"`
+	// Requirement is the unmet requirement of a purchase_required refusal,
+	// WithinDays its window, BillingPage where to meet it.
+	Requirement FeatureRequirement `json:"requirement,omitempty"`
+	WithinDays  int                `json:"within_days,omitempty"`
+	BillingPage string             `json:"billing_page,omitempty"`
 }
 
 // --------------------
@@ -3740,7 +3745,12 @@ const (
 	ErrorCodeLimitExceeded          ErrorCode = "limit_exceeded"
 	ErrorCodeFeatureNotAvailable    ErrorCode = "feature_not_available"
 	ErrorCodeEntitlementUnavailable ErrorCode = "entitlement_unavailable"
-	ErrorCodePaymentRequired        ErrorCode = "payment_required"
+	// ErrorCodePurchaseRequired (402): the feature requires a purchase
+	// within the last EntitlementErrorMeta.WithinDays days
+	// (shared.RequireRecentPurchase) and the team's payer made none. Meta is
+	// EntitlementErrorMeta, with BillingPage where to make one.
+	ErrorCodePurchaseRequired ErrorCode = "purchase_required"
+	ErrorCodePaymentRequired  ErrorCode = "payment_required"
 	// ErrorCodePaymentMethodRequired (402): the action needs a saved payment
 	// method and the caller's team has none: a bounty program that requires
 	// one, or a free app run without a balance. Meta is
@@ -10833,6 +10843,13 @@ const (
 	ResourceFeatureInvoices     EntitlementResource = "feature:invoices"
 	ResourceFeaturePublishApps  EntitlementResource = "feature:publish_apps"
 )
+
+// FeatureRequirement is a condition a team must meet to pass a feature gate
+// on top of its entitlement (FeatureRequires). An enabled boolean row with
+// source override, which staff grant, waives a feature's requirements.
+type FeatureRequirement string
+
+const RequireRecentPurchase FeatureRequirement = "recent_purchase"
 
 type ContentRating string
 
