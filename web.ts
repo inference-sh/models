@@ -4562,9 +4562,15 @@ export interface EgressGrantDTO {
  * login now. The engine wipes their held values and refuses them, with
  * Reason as the refusal text, until the scope ends or a later answer gives
  * a value again (INF-1173). Only engines with EngineCapabilityEgressGrants
- * are sent one.
+ * are sent one. An egress_decide engine answers egress_revoke_ack with ID;
+ * until it does, or until it asks about the scope again, the API sends
+ * the revoke again.
  */
 export interface WsEgressRevokePayload {
+  /**
+   * ID names this revoke for its ack.
+   */
+  id?: string;
   task_id?: string;
   sandbox_id?: string;
   names: string[];
@@ -4573,6 +4579,25 @@ export interface WsEgressRevokePayload {
    * ("GitHub login is no longer available: it was disconnected").
    */
   reason?: string;
+}
+/**
+ * WsEgressRevokeAckPayload is egress_revoke_ack, engine to API: the
+ * engine applied revoke ID (WsEgressRevokePayload.ID).
+ */
+export interface WsEgressRevokeAckPayload {
+  id: string;
+}
+/**
+ * WsEgressAnswerPayload is egress_answer, API to engine: the decision on
+ * bindings Names of one task or one sandbox (exactly one of the two ids)
+ * changed (a card was answered, a grant moved). The engine asks again at
+ * once for every request it holds on them, rather than at its next poll.
+ * Only egress_decide engines are sent one.
+ */
+export interface WsEgressAnswerPayload {
+  task_id?: string;
+  sandbox_id?: string;
+  names: string[];
 }
 /**
  * EngineConfig holds engine configuration (no gorm tags).
@@ -4760,7 +4785,8 @@ export type EngineCapability =
   | "sandboxes"
   | "capacity"
   | "egress_pending"
-  | "egress_grants";
+  | "egress_grants"
+  | "egress_decide";
 /**
  * EngineCapabilityEgressGateway: the engine runs its sandboxes behind
  * the egress gateway, so it can take bound secrets (the v2 secrets
@@ -4794,6 +4820,14 @@ export const EngineCapabilityEgressPending: EngineCapability = "egress_pending";
  * an engine (INF-1173).
  */
 export const EngineCapabilityEgressGrants: EngineCapability = "egress_grants";
+/**
+ * EngineCapabilityEgressDecide: the engine's gateway reports what it
+ * saw on a request (EgressResolveRequest.Observed) and carries out the
+ * API's answer, every time in it included (HoldUntil, HoldOffMs,
+ * MaxHoldMs, Resend, the retry status); it wakes held requests on
+ * egress_answer and acks egress_revoke (INF-1173).
+ */
+export const EngineCapabilityEgressDecide: EngineCapability = "egress_decide";
 /**
  * EngineCapabilities is a set of capabilities, kept as a list. Nil and
  * empty are the same: nothing beyond the base contract.
@@ -8610,6 +8644,299 @@ export interface SecretDTO extends BaseModelDTO, PermissionModelDTO {
   credential_default: boolean;
 }
 /**
+ * BoundSecret is a secret the engine places at egress rather than in the
+ * sandbox's environment: the sandbox holds a placeholder for Name, and the
+ * engine's gateway puts Value in its place only in requests to Hosts
+ * (INF-1076). A host is a lowercase name or address, with a port when it
+ * is not the scheme's default.
+ */
+export interface BoundSecret {
+  name: string;
+  value: string;
+  hosts: string[];
+  /**
+   * ExpiresAt, when set, is when Value stops working: the engine's
+   * gateway asks for the current value shortly before
+   * (POST /engines/{id}/egress/resolve, INF-1167). Unset never expires.
+   */
+  expires_at?: string /* RFC3339 */;
+  /**
+   * Pending is a binding with no value yet (Value ""): the gateway asks
+   * for it on first use (EgressResolveRequest.Observed), and the API
+   * decides then whether the run gets it (INF-1173). Only engines that
+   * speak the grants wire (EngineCapabilities.SpeaksGrants) are sent one.
+   */
+  pending?: boolean;
+  /**
+   * Provider is the slug of the provider the value comes from, for the
+   * engine's logs and the audit.
+   */
+  provider?: string;
+  /**
+   * Form is how the gateway adds the value to a request that carries no
+   * credential, or whose credential carries the marker (EgressMarker).
+   */
+  form?: BoundForm;
+  /**
+   * Mode is always auto or ask, never empty. An engine without
+   * EngineCapabilityEgressDecide decides by it when to ask for a pending
+   * binding's value: auto on the first request to its hosts, ask only
+   * once a request shows it wants a login. An egress_decide engine
+   * ignores it: it reports what it saw and the API decides.
+   */
+  mode: SandboxCredentialMode;
+  /**
+   * KeepFor is how long, in seconds, the gateway holds a fetched value
+   * before it asks again: the shorter of KeepFor and the time to
+   * ExpiresAt. Read by engines without EngineCapabilityEgressDecide; an
+   * egress_decide engine reads HoldUntil.
+   */
+  keep_for?: number /* int */;
+  /**
+   * HoldUntil is when the gateway drops a fetched Value and asks again
+   * on the next use: the earlier of KeepFor from the answer and
+   * ExpiresAt, computed by the API. Sent with values to egress_decide
+   * engines.
+   */
+  hold_until?: string /* RFC3339 */;
+  /**
+   * Resend, on a value answering an EgressObservedHostRejected fetch,
+   * tells the gateway to send the rejected request once more with the
+   * value filled in. false: the request already carried the login, and
+   * the host's answer stands.
+   */
+  resend?: boolean;
+}
+/**
+ * BoundForm is how a bound value goes on a request: in Header, as Scheme
+ * says, or as the query parameter Query.
+ */
+export interface BoundForm {
+  /**
+   * Header is the header the value goes in ("Authorization",
+   * "x-api-key").
+   */
+  header?: string;
+  /**
+   * Scheme is how the value is written in Header: BoundSchemeBearer,
+   * BoundSchemeBasic (BasicUser as the user, the value as the password)
+   * or BoundSchemeRaw (the value as it is).
+   */
+  scheme?: BoundScheme;
+  basic_user?: string;
+  /**
+   * Query is the query parameter the value goes in, for a provider that
+   * takes it there.
+   */
+  query?: string;
+}
+/**
+ * BoundScheme is how a value is written in its header (BoundForm.Scheme).
+ */
+export type BoundScheme = "bearer" | "basic" | "raw";
+export const BoundSchemeBearer: BoundScheme = "bearer";
+export const BoundSchemeBasic: BoundScheme = "basic";
+export const BoundSchemeRaw: BoundScheme = "raw";
+/**
+ * EgressTrigger is what an engine's gateway asks for
+ * (EgressResolveRequest.Trigger).
+ */
+export type EgressTrigger =
+  | "renew"
+  | "lookup"
+  | "fetch"
+  | "placeholder"
+  | "marker"
+  | "no_auth";
+/**
+ * EgressTriggerRenew (or "") is a held value about to expire: every
+ * bound secret of the scope that expires comes back (INF-1167).
+ */
+export const EgressTriggerRenew: EgressTrigger = "renew";
+/**
+ * EgressTriggerLookup is the first connection to a Host none of the
+ * scope's bindings names: whether the gateway should decrypt it, and
+ * the pending bindings it gets when so. It never answers with values.
+ */
+export const EgressTriggerLookup: EgressTrigger = "lookup";
+/**
+ * EgressTriggerFetch is a request to Host that needs a decision on
+ * its login, Observed saying what the gateway saw. Sent by
+ * egress_decide engines.
+ */
+export const EgressTriggerFetch: EgressTrigger = "fetch";
+/**
+ * EgressTriggerPlaceholder: a request carrying binding Name's
+ * placeholder.
+ */
+export const EgressTriggerPlaceholder: EgressTrigger = "placeholder";
+/**
+ * EgressTriggerMarker: a request whose credential carries
+ * EgressMarker.
+ */
+export const EgressTriggerMarker: EgressTrigger = "marker";
+/**
+ * EgressTriggerNoAuth: a request with no credential to a host with a
+ * pending binding: an auto binding's first request, or an ask
+ * binding's request after the host answered 401.
+ */
+export const EgressTriggerNoAuth: EgressTrigger = "no_auth";
+/**
+ * EgressObserved is what the gateway saw on the request a fetch is for
+ * (EgressResolveRequest.Observed). The engine reports it; the API
+ * decides what follows.
+ */
+export type EgressObserved = "placeholder" | "marker" | "no_credential" | "host_rejected";
+/**
+ * EgressObservedPlaceholder: the request carries binding Name's
+ * placeholder, which has no value yet.
+ */
+export const EgressObservedPlaceholder: EgressObserved = "placeholder";
+/**
+ * EgressObservedMarker: the request's credential carries EgressMarker.
+ */
+export const EgressObservedMarker: EgressObserved = "marker";
+/**
+ * EgressObservedNoCredential: the request carries no credential where
+ * binding Name's form puts one.
+ */
+export const EgressObservedNoCredential: EgressObserved = "no_credential";
+/**
+ * EgressObservedHostRejected: the host answered 401 or 403 to a
+ * request the gateway sent for binding Name.
+ */
+export const EgressObservedHostRejected: EgressObserved = "host_rejected";
+/**
+ * EgressStatus is the answer to a fetch (EgressResolveResponse.Status).
+ */
+export type EgressStatus =
+  | "ok"
+  | "pending_approval"
+  | "declined"
+  | "none"
+  | "retry";
+/**
+ * EgressStatusOK: Secrets holds the host's values (bindings with no
+ * value for a lookup).
+ */
+export const EgressStatusOK: EgressStatus = "ok";
+/**
+ * EgressStatusPendingApproval: a person is asked; hold the request and
+ * ask again on egress_answer, or after RetryAfterMs, for at most
+ * MaxHoldMs from the first ask.
+ */
+export const EgressStatusPendingApproval: EgressStatus = "pending_approval";
+/**
+ * EgressStatusDeclined: the run does not get the host's login; refuse
+ * the request with Reason, and the binding's requests for HoldOffMs
+ * without asking.
+ */
+export const EgressStatusDeclined: EgressStatus = "declined";
+/**
+ * EgressStatusNone: no login for the request (or, for a lookup,
+ * nothing to decrypt it for); send it without one, or tunnel, and do
+ * not ask again for the binding's requests without a credential for
+ * HoldOffMs.
+ */
+export const EgressStatusNone: EgressStatus = "none";
+/**
+ * EgressStatusRetry: the API is busy or a write raced; ask again after
+ * RetryAfterMs, holding the request (within MaxHoldMs). Sent to
+ * egress_decide engines in place of HTTP 409.
+ */
+export const EgressStatusRetry: EgressStatus = "retry";
+/**
+ * EgressResolveRequest is an engine asking for values of a task it runs,
+ * or of a sandbox's box it runs: exactly one of the two. Trigger "" or
+ * renew asks for every bound secret of the scope that expires; lookup and
+ * fetch ask about Host alone (sandboxes, INF-1173).
+ */
+export interface EgressResolveRequest {
+  task_id?: string;
+  sandbox_id?: string;
+  /**
+   * Host is the request's host: lowercase, with its port only when it
+   * is not the scheme's default.
+   */
+  host?: string;
+  trigger?: EgressTrigger;
+  /**
+   * Observed is, for a fetch, what the gateway saw on the request.
+   */
+  observed?: EgressObserved;
+  /**
+   * Name is the binding the request matched, if any.
+   */
+  name?: string;
+}
+/**
+ * EgressResolveResponse is the values asked for as dispatch sends
+ * secrets: the v2 envelope holding the bound secrets, encrypted to the
+ * engine; empty when a fetch gets none. Status answers a fetch, "" for a
+ * renewal (declined when the scope's expiring logins are gone). Every
+ * time an egress_decide engine acts on comes from here.
+ */
+export interface EgressResolveResponse {
+  secrets: string;
+  status?: EgressStatus;
+  /**
+   * RetryAfterMs is, for pending_approval and retry, when to ask again.
+   */
+  retry_after_ms?: number /* int */;
+  /**
+   * HoldOffMs is, for none and declined, how long the answer stands for
+   * the binding (the host, when the request named none) without asking
+   * again: none for its requests without a credential, declined for all
+   * of them. A host_rejected request after a none is asked about
+   * regardless. Sent to egress_decide engines.
+   */
+  hold_off_ms?: number /* int */;
+  /**
+   * MaxHoldMs is, for pending_approval and retry, the longest the
+   * request is held from its first ask; past it the gateway sends it
+   * without a login. Sent to egress_decide engines.
+   */
+  max_hold_ms?: number /* int */;
+  /**
+   * Reason is, for EgressStatusDeclined, the text the gateway answers
+   * the refused request with, naming the provider by its display name
+   * ("GitHub login was declined for this sandbox"). Read by engines with
+   * EngineCapabilityEgressGrants (INF-1173).
+   */
+  reason?: string;
+}
+/**
+ * EgressHostReport is what a task's or a sandbox's box reached through
+ * the engine's gateway since the last report (deltas): exactly one of
+ * TaskID and SandboxID (POST /engines/{id}/egress/hosts, INF-1173).
+ */
+export interface EgressHostReport {
+  task_id?: string;
+  sandbox_id?: string;
+  hosts: EgressHost[];
+}
+/**
+ * EgressHost is one host and port a box reached: its connections and
+ * bytes since the last report, whether the gateway decrypted them, and
+ * when it was first and last seen in that span. Denied and Flagged count
+ * the gateway's egress rules' verdicts there (port 0: a name its DNS
+ * refused), RuleSet and Rule the last one's reason ("mining", "pool").
+ */
+export interface EgressHost {
+  host: string;
+  port: number /* int */;
+  conns: number /* int64 */;
+  bytes_up: number /* int64 */;
+  bytes_down: number /* int64 */;
+  decrypted: boolean;
+  denied?: number /* int64 */;
+  flagged?: number /* int64 */;
+  rule_set?: string;
+  rule?: string;
+  first_seen: string /* RFC3339 */;
+  last_seen: string /* RFC3339 */;
+}
+/**
  * SensitiveString is a string type that prevents accidental exposure of secrets.
  * It redacts in JSON/fmt output unless explicitly accessed via .Expose().
  * Encryption at rest is handled by the GORM "sensitive" serializer
@@ -10637,6 +10964,8 @@ export type WSEventType =
   | "sandbox_start"
   | "sandbox_stop"
   | "egress_revoke"
+  | "egress_revoke_ack"
+  | "egress_answer"
   | "sandbox_status"
   | "engine_heartbeat"
   | "engine_telemetry"
@@ -10778,6 +11107,8 @@ export const WSEventSessionEnd: WSEventType = "session_end";
 export const WSEventSandboxStart: WSEventType = "sandbox_start";
 export const WSEventSandboxStop: WSEventType = "sandbox_stop";
 export const WSEventEgressRevoke: WSEventType = "egress_revoke";
+export const WSEventEgressRevokeAck: WSEventType = "egress_revoke_ack";
+export const WSEventEgressAnswer: WSEventType = "egress_answer";
 /**
  * WSEventSandboxStatus is engine → API, sent on every transition of a box.
  */
