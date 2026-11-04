@@ -1382,6 +1382,33 @@ export interface EngineRegisterRequest {
   system_info?: SystemInfo;
   worker_config: WorkerConfig;
 }
+/**
+ * EngineEnrollRequest trades a one-time enrollment token (POST
+ * /engines/enroll) for the engine's identity: the engine's signing key
+ * (Ed25519, base64url without padding) is pinned on it. A request without
+ * one is an engine from before engine identities, which is given an API
+ * key instead, while the API still takes those.
+ */
+export interface EngineEnrollRequest {
+  token: string;
+  signing_public_key?: string;
+}
+/**
+ * EngineEnrollResponse is the engine enrolled: its id, and for an engine
+ * from before engine identities its API key, given once.
+ */
+export interface EngineEnrollResponse {
+  engine_id: string;
+  api_key?: string;
+}
+/**
+ * EngineIdentityMigrateRequest pins the signing key of an engine installed
+ * before engine identities, on the API key it runs on (POST
+ * /engines/{id}/identity/migrate).
+ */
+export interface EngineIdentityMigrateRequest {
+  signing_public_key: string;
+}
 export interface EngineRegisterResponse {
   engine_id: string;
   workers: AllocatedWorker[];
