@@ -3758,6 +3758,11 @@ const (
 	// ErrorCodeInOtherWorkspace: the resource lives in another workspace
 	// the caller belongs to and could open there (InOtherWorkspaceMeta).
 	ErrorCodeInOtherWorkspace ErrorCode = "in_other_workspace"
+	// ErrorCodeVisibilityNotAllowed (400): the resource cannot take the
+	// visibility asked for (models.VisibilityDeclarer): a task, a flow run
+	// or an engine is private or team, never org, public or unlisted.
+	// Meta is VisibilityNotAllowedMeta.
+	ErrorCodeVisibilityNotAllowed ErrorCode = "visibility_not_allowed"
 	// ErrorCodeBlockedByUsagePolicy: the resource is outside the team or org
 	// usage policy. The message names who to ask.
 	ErrorCodeBlockedByUsagePolicy ErrorCode = "blocked_by_usage_policy"
@@ -3908,6 +3913,14 @@ type TeamRoleRequiredMeta struct {
 // workspace to switch to.
 type InOtherWorkspaceMeta struct {
 	TeamID string `json:"team_id"`
+}
+
+// VisibilityNotAllowedMeta is the meta of a visibility_not_allowed error:
+// the resource, the visibility refused and the ones it may take.
+type VisibilityNotAllowedMeta struct {
+	Resource   string       `json:"resource"`
+	Visibility Visibility   `json:"visibility"`
+	Allowed    []Visibility `json:"allowed"`
 }
 
 // ScopeRefusedMeta is the meta of an insufficient_scope or
@@ -6370,6 +6383,7 @@ type SDKTypes struct {
 	_scopeRefusedMeta      ScopeRefusedMeta
 	_paymentMethodReqdMeta PaymentMethodRequiredMeta
 	_inOtherWorkspaceMeta  InOtherWorkspaceMeta
+	_visibilityNotAllowed  VisibilityNotAllowedMeta
 	// Response envelope
 	_responseMessage ResponseMessage
 	// An LLM app's task input; no agent request type reaches it.

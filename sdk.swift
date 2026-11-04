@@ -7854,6 +7854,11 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     /// ErrorCodeInOtherWorkspace: the resource lives in another workspace
     /// the caller belongs to and could open there (InOtherWorkspaceMeta).
     public static let inOtherWorkspace = ErrorCode(rawValue: "in_other_workspace")
+    /// ErrorCodeVisibilityNotAllowed (400): the resource cannot take the
+    /// visibility asked for (models.VisibilityDeclarer): a task, a flow run
+    /// or an engine is private or team, never org, public or unlisted.
+    /// Meta is VisibilityNotAllowedMeta.
+    public static let visibilityNotAllowed = ErrorCode(rawValue: "visibility_not_allowed")
     /// ErrorCodeBlockedByUsagePolicy: the resource is outside the team or org
     /// usage policy. The message names who to ask.
     public static let blockedByUsagePolicy = ErrorCode(rawValue: "blocked_by_usage_policy")
@@ -8032,6 +8037,30 @@ public struct InOtherWorkspaceMeta: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case teamId = "team_id"
+    }
+}
+
+/// VisibilityNotAllowedMeta is the meta of a visibility_not_allowed error:
+/// the resource, the visibility refused and the ones it may take.
+public struct VisibilityNotAllowedMeta: Codable, Sendable {
+    public var resource: String
+    public var visibility: Visibility
+    public var allowed: [Visibility]?
+
+    public init(
+        resource: String = "",
+        visibility: Visibility,
+        allowed: [Visibility]? = nil
+    ) {
+        self.resource = resource
+        self.visibility = visibility
+        self.allowed = allowed
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case resource = "resource"
+        case visibility = "visibility"
+        case allowed = "allowed"
     }
 }
 

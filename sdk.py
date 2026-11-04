@@ -1752,6 +1752,13 @@ class TeamRoleRequiredMeta(TypedDict, total=False):
 class InOtherWorkspaceMeta(TypedDict, total=False):
     team_id: str
 
+# VisibilityNotAllowedMeta is the meta of a visibility_not_allowed error:
+# the resource, the visibility refused and the ones it may take.
+class VisibilityNotAllowedMeta(TypedDict, total=False):
+    resource: str
+    visibility: Visibility
+    allowed: List[Visibility]
+
 # ScopeRefusedMeta is the meta of an insufficient_scope or
 # requires_sign_in error: the scope the operation declares and the
 # credential does not hold. The detail says what would hold it.
@@ -5373,6 +5380,11 @@ class ErrorCode(str, Enum):
     # ErrorCodeInOtherWorkspace: the resource lives in another workspace
     # the caller belongs to and could open there (InOtherWorkspaceMeta).
     IN_OTHER_WORKSPACE = "in_other_workspace"
+    # ErrorCodeVisibilityNotAllowed (400): the resource cannot take the
+    # visibility asked for (models.VisibilityDeclarer): a task, a flow run
+    # or an engine is private or team, never org, public or unlisted.
+    # Meta is VisibilityNotAllowedMeta.
+    VISIBILITY_NOT_ALLOWED = "visibility_not_allowed"
     # ErrorCodeBlockedByUsagePolicy: the resource is outside the team or org
     # usage policy. The message names who to ask.
     BLOCKED_BY_USAGE_POLICY = "blocked_by_usage_policy"
