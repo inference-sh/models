@@ -1003,6 +1003,30 @@ type EngineRegisterRequest struct {
 	WorkerConfig     WorkerConfig      `json:"worker_config"`
 }
 
+// EngineEnrollRequest trades a one-time enrollment token (POST
+// /engines/enroll) for the engine's identity: the engine's signing key
+// (Ed25519, base64url without padding) is pinned on it. A request without
+// one is an engine from before engine identities, which is given an API
+// key instead, while the API still takes those.
+type EngineEnrollRequest struct {
+	Token            string `json:"token"`
+	SigningPublicKey string `json:"signing_public_key,omitempty"`
+}
+
+// EngineEnrollResponse is the engine enrolled: its id, and for an engine
+// from before engine identities its API key, given once.
+type EngineEnrollResponse struct {
+	EngineID string `json:"engine_id"`
+	APIKey   string `json:"api_key,omitempty"`
+}
+
+// EngineIdentityMigrateRequest pins the signing key of an engine installed
+// before engine identities, on the API key it runs on (POST
+// /engines/{id}/identity/migrate).
+type EngineIdentityMigrateRequest struct {
+	SigningPublicKey string `json:"signing_public_key"`
+}
+
 type EngineRegisterResponse struct {
 	EngineID string            `json:"engine_id"`
 	Workers  []AllocatedWorker `json:"workers"`
@@ -6465,11 +6489,16 @@ type EngineTypes struct {
 	// Engine registration + internal API
 	_engineRegReq  EngineRegisterRequest
 	_engineRegResp EngineRegisterResponse
-	_engineAPIReq  EngineAPIRequest
-	_workerSetup   WorkerSetupRequest
-	_workerRun     WorkerRunRequest
-	_cancelTask    CancelTaskRequest
-	_localEngine   LocalEngineState
+	// Engine identity: enroll (engine setup) and migrate (an install from
+	// before engine identities).
+	_engineEnrollReq  EngineEnrollRequest
+	_engineEnrollResp EngineEnrollResponse
+	_engineMigrateReq EngineIdentityMigrateRequest
+	_engineAPIReq     EngineAPIRequest
+	_workerSetup      WorkerSetupRequest
+	_workerRun        WorkerRunRequest
+	_cancelTask       CancelTaskRequest
+	_localEngine      LocalEngineState
 	// CLI types
 	_deviceAuth         DeviceAuthResponse
 	_deviceAuthPoll     DeviceAuthPollResponse
