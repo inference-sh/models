@@ -5037,6 +5037,7 @@ export type ErrorCode =
   | "payment_method_required"
   | "form_closed"
   | "already_submitted"
+  | "notifications_disabled"
   | "already_claimed"
   | "already_entitled"
   | "request_open"
@@ -5214,6 +5215,11 @@ export const ErrorCodePaymentMethodRequired: ErrorCode = "payment_method_require
  */
 export const ErrorCodeFormClosed: ErrorCode = "form_closed";
 export const ErrorCodeAlreadySubmitted: ErrorCode = "already_submitted";
+/**
+ * ErrorCodeNotificationsDisabled (409): the recipient switched this
+ * notification off in their notification preferences.
+ */
+export const ErrorCodeNotificationsDisabled: ErrorCode = "notifications_disabled";
 /**
  * Bounty claims (409): the caller already claimed this proof, or as many
  * times as the program allows.

@@ -3750,6 +3750,9 @@ const (
 	// already holds the caller's submission.
 	ErrorCodeFormClosed       ErrorCode = "form_closed"
 	ErrorCodeAlreadySubmitted ErrorCode = "already_submitted"
+	// ErrorCodeNotificationsDisabled (409): the recipient switched this
+	// notification off in their notification preferences.
+	ErrorCodeNotificationsDisabled ErrorCode = "notifications_disabled"
 	// Bounty claims (409): the caller already claimed this proof, or as many
 	// times as the program allows.
 	ErrorCodeAlreadyClaimed ErrorCode = "already_claimed"

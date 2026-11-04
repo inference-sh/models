@@ -7848,6 +7848,9 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     /// already holds the caller's submission.
     public static let formClosed = ErrorCode(rawValue: "form_closed")
     public static let alreadySubmitted = ErrorCode(rawValue: "already_submitted")
+    /// ErrorCodeNotificationsDisabled (409): the recipient switched this
+    /// notification off in their notification preferences.
+    public static let notificationsDisabled = ErrorCode(rawValue: "notifications_disabled")
     /// Bounty claims (409): the caller already claimed this proof, or as many
     /// times as the program allows.
     public static let alreadyClaimed = ErrorCode(rawValue: "already_claimed")
