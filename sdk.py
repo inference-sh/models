@@ -2756,7 +2756,6 @@ class TaskLog(TypedDict, total=False):
     log_type: TaskLogType
     content: bytes
 
-# TaskDTO is the full API response for a task.
 # TaskEgress is what a task's sandbox sent to and received from the
 # internet through the engine's egress gateway, in bytes.
 class TaskEgress(TypedDict, total=False):
@@ -4879,6 +4878,14 @@ class SocketDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     worker_frames: int
     worker_bytes: int
 
+# TaskDTO is the full API response for a task.
+# 
+# A reader who may not inspect the task (shared.PermInspect: anyone but its
+# owner, whatever its visibility) gets it without its runtime internals
+# (task.withoutInternals): webhook, setup, engine and worker, egress and
+# session are absent, logs, workers and usage_events null, infra empty.
+# Those four keep their key, so a client that requires them (the Swift
+# SDK's infra) still decodes the task.
 class TaskDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     graph_id: Optional[str]
     user_public_key: bytes
@@ -5759,6 +5766,12 @@ class Permission(str, Enum):
     # resource is readable by everyone, but whether this caller may USE it is
     # governed by their team/org usage policy (reach, INF-808).
     PERM_USE = "use"
+    # PermInspect reads a row's runtime internals: a task's logs,
+    # telemetry, webhook, setup, engine and worker. The row's owner and the
+    # stored entries on it grant it; no visibility does. Making a task
+    # public shares what it was asked and what it answered, not how its run
+    # went on the machine.
+    PERM_INSPECT = "inspect"
 
 class ACLGrantee(str, Enum):
     USER = "user"

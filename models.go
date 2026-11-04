@@ -7343,7 +7343,6 @@ type TaskLog struct {
 	Content   []byte      `json:"content"`
 }
 
-// TaskDTO is the full API response for a task.
 // TaskEgress is what a task's sandbox sent to and received from the
 // internet through the engine's egress gateway, in bytes.
 type TaskEgress struct {
@@ -7351,6 +7350,14 @@ type TaskEgress struct {
 	BytesIn  int64 `json:"bytes_in"`
 }
 
+// TaskDTO is the full API response for a task.
+//
+// A reader who may not inspect the task (shared.PermInspect: anyone but its
+// owner, whatever its visibility) gets it without its runtime internals
+// (task.withoutInternals): webhook, setup, engine and worker, egress and
+// session are absent, logs, workers and usage_events null, infra empty.
+// Those four keep their key, so a client that requires them (the Swift
+// SDK's infra) still decodes the task.
 type TaskDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
@@ -9249,6 +9256,12 @@ const (
 	// resource is readable by everyone, but whether this caller may USE it is
 	// governed by their team/org usage policy (reach, INF-808).
 	PermUse Permission = "use"
+	// PermInspect reads a row's runtime internals: a task's logs,
+	// telemetry, webhook, setup, engine and worker. The row's owner and the
+	// stored entries on it grant it; no visibility does. Making a task
+	// public shares what it was asked and what it answered, not how its run
+	// went on the machine.
+	PermInspect Permission = "inspect"
 )
 
 // ACLGrantee is who an ACL entry is for (models.ACLEntry, INF-1130).
