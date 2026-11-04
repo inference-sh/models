@@ -3775,6 +3775,11 @@ const (
 	// the account.
 	ErrorCodeAccountDeactivated ErrorCode = "account_deactivated"
 	ErrorCodeAccountBanned      ErrorCode = "account_banned"
+	// ErrorCodePublishQuarantined (403): the account may not make the row
+	// public or unlisted yet: it is new (younger than 72 hours), its email
+	// is not verified, or it is flagged (abuse.CheckPublish). Meta is
+	// PublishQuarantinedMeta; Until says from when a new account can.
+	ErrorCodePublishQuarantined ErrorCode = "publish_quarantined"
 	// ErrorCodePersonRequired (403): only a person may do this, and the
 	// caller is a workspace's service account (a workspace API key), or the
 	// account is one and cannot sign in.
@@ -3935,6 +3940,30 @@ type ScopeRefusedMeta struct {
 type PaymentMethodRequiredMeta struct {
 	BountyID    string `json:"bounty_id,omitempty"`
 	BillingPage string `json:"billing_page"`
+}
+
+// PublishQuarantineReason is why an account may not publish yet
+// (PublishQuarantinedMeta).
+type PublishQuarantineReason string
+
+const (
+	// PublishQuarantineNewAccount: the account is younger than the
+	// quarantine (72 hours by default); Until is when it ends.
+	PublishQuarantineNewAccount PublishQuarantineReason = "new_account"
+	// PublishQuarantineUnverifiedEmail: the account's email is not verified.
+	PublishQuarantineUnverifiedEmail PublishQuarantineReason = "unverified_email"
+	// PublishQuarantineFlagged: the account is banned or flagged.
+	PublishQuarantineFlagged PublishQuarantineReason = "flagged"
+)
+
+// PublishQuarantinedMeta is the meta of a publish_quarantined error: the
+// resource and visibility refused, why, and for a new account from when
+// it may publish.
+type PublishQuarantinedMeta struct {
+	Resource   string                  `json:"resource"`
+	Visibility Visibility              `json:"visibility"`
+	Reason     PublishQuarantineReason `json:"reason"`
+	Until      *time.Time              `json:"until,omitempty"`
 }
 
 // --------------------
@@ -6380,6 +6409,7 @@ type SDKTypes struct {
 	// Error codes and typed error meta
 	_errorCode             ErrorCode
 	_teamRoleRequiredMeta  TeamRoleRequiredMeta
+	_publishQuarantined    PublishQuarantinedMeta
 	_scopeRefusedMeta      ScopeRefusedMeta
 	_paymentMethodReqdMeta PaymentMethodRequiredMeta
 	_inOtherWorkspaceMeta  InOtherWorkspaceMeta

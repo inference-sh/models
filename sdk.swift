@@ -7871,6 +7871,11 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     /// the account.
     public static let accountDeactivated = ErrorCode(rawValue: "account_deactivated")
     public static let accountBanned = ErrorCode(rawValue: "account_banned")
+    /// ErrorCodePublishQuarantined (403): the account may not make the row
+    /// public or unlisted yet: it is new (younger than 72 hours), its email
+    /// is not verified, or it is flagged (abuse.CheckPublish). Meta is
+    /// PublishQuarantinedMeta; Until says from when a new account can.
+    public static let publishQuarantined = ErrorCode(rawValue: "publish_quarantined")
     /// ErrorCodePersonRequired (403): only a person may do this, and the
     /// caller is a workspace's service account (a workspace API key), or the
     /// account is one and cannot sign in.
@@ -8098,6 +8103,50 @@ public struct PaymentMethodRequiredMeta: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case bountyId = "bounty_id"
         case billingPage = "billing_page"
+    }
+}
+
+/// PublishQuarantineReason is why an account may not publish yet
+/// (PublishQuarantinedMeta).
+public struct PublishQuarantineReason: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// PublishQuarantineNewAccount: the account is younger than the
+    /// quarantine (72 hours by default); Until is when it ends.
+    public static let publishQuarantineNewAccount = PublishQuarantineReason(rawValue: "new_account")
+    /// PublishQuarantineUnverifiedEmail: the account's email is not verified.
+    public static let publishQuarantineUnverifiedEmail = PublishQuarantineReason(rawValue: "unverified_email")
+    /// PublishQuarantineFlagged: the account is banned or flagged.
+    public static let publishQuarantineFlagged = PublishQuarantineReason(rawValue: "flagged")
+}
+
+/// PublishQuarantinedMeta is the meta of a publish_quarantined error: the
+/// resource and visibility refused, why, and for a new account from when
+/// it may publish.
+public struct PublishQuarantinedMeta: Codable, Sendable {
+    public var resource: String
+    public var visibility: Visibility
+    public var reason: PublishQuarantineReason
+    public var until: String?
+
+    public init(
+        resource: String = "",
+        visibility: Visibility,
+        reason: PublishQuarantineReason,
+        until: String? = nil
+    ) {
+        self.resource = resource
+        self.visibility = visibility
+        self.reason = reason
+        self.until = until
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case resource = "resource"
+        case visibility = "visibility"
+        case reason = "reason"
+        case until = "until"
     }
 }
 

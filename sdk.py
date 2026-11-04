@@ -1771,6 +1771,15 @@ class PaymentMethodRequiredMeta(TypedDict, total=False):
     bounty_id: str
     billing_page: str
 
+# PublishQuarantinedMeta is the meta of a publish_quarantined error: the
+# resource and visibility refused, why, and for a new account from when
+# it may publish.
+class PublishQuarantinedMeta(TypedDict, total=False):
+    resource: str
+    visibility: Visibility
+    reason: PublishQuarantineReason
+    until: Optional[str]
+
 # FileMetadata holds probed media metadata cached on File records.
 class FileMetadata(TypedDict, total=False):
     type: str
@@ -5397,6 +5406,11 @@ class ErrorCode(str, Enum):
     # the account.
     ACCOUNT_DEACTIVATED = "account_deactivated"
     ACCOUNT_BANNED = "account_banned"
+    # ErrorCodePublishQuarantined (403): the account may not make the row
+    # public or unlisted yet: it is new (younger than 72 hours), its email
+    # is not verified, or it is flagged (abuse.CheckPublish). Meta is
+    # PublishQuarantinedMeta; Until says from when a new account can.
+    PUBLISH_QUARANTINED = "publish_quarantined"
     # ErrorCodePersonRequired (403): only a person may do this, and the
     # caller is a workspace's service account (a workspace API key), or the
     # account is one and cannot sign in.
@@ -5518,6 +5532,15 @@ class ErrorCode(str, Enum):
     REMOTE_TIMEOUT = "remote_timeout"
     HARNESS_NOT_DRIVABLE = "harness_not_drivable"
     HARNESS_TOO_OLD = "harness_too_old"
+
+class PublishQuarantineReason(str, Enum):
+    # PublishQuarantineNewAccount: the account is younger than the
+    # quarantine (72 hours by default); Until is when it ends.
+    PUBLISH_QUARANTINE_NEW_ACCOUNT = "new_account"
+    # PublishQuarantineUnverifiedEmail: the account's email is not verified.
+    PUBLISH_QUARANTINE_UNVERIFIED_EMAIL = "unverified_email"
+    # PublishQuarantineFlagged: the account is banned or flagged.
+    PUBLISH_QUARANTINE_FLAGGED = "flagged"
 
 class TaskFileRole(str, Enum):
     INPUT = "input"
