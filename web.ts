@@ -511,6 +511,32 @@ export interface AgentRunDTO extends BaseModelDTO, PermissionModelDTO {
   remote_id?: string;
 }
 /**
+ * AgentRunDeadDTO is one agent run recorded dead, as staff read it (GET
+ * /admin/agent-runs/dead).
+ */
+export interface AgentRunDeadDTO {
+  run_id: string;
+  agent_id: string;
+  chat_id: string;
+  team_id: string;
+  trigger_id?: string;
+  state: AgentRunState;
+  /**
+   * Reason is why the run is dead; Source, who caused it, follows from it.
+   */
+  reason: DeadRunReason;
+  source: DeadRunSource;
+  /**
+   * Model is the core app ref of the run's last turn
+   * (namespace/name@version); Turns how many turns the run took.
+   */
+  model?: string;
+  turns: number /* int64 */;
+  error?: string;
+  created_at: string /* RFC3339 */;
+  finished_at?: string /* RFC3339 */;
+}
+/**
  * TimeWindow represents a single analytics time window
  */
 export interface TimeWindow {
@@ -9414,6 +9440,61 @@ export interface StoreCheckRunDTO {
   use_cases?: StoreUseCaseResultDTO[]; // dynamic
   verdicts?: StoreRuleVerdictDTO[]; // ai_review
   feedback?: string; // ai_review draft for the publisher
+  /**
+   * Content is the content check's verdict (staff views only).
+   */
+  content?: StoreContentVerdictDTO;
+}
+/**
+ * StoreContentVerdictStatus grades a content verdict for the review badge.
+ */
+export type StoreContentVerdictStatus = "clean" | "warning" | "flagged";
+export const StoreContentClean: StoreContentVerdictStatus = "clean";
+export const StoreContentWarning: StoreContentVerdictStatus = "warning";
+export const StoreContentFlagged: StoreContentVerdictStatus = "flagged";
+/**
+ * StoreContentVerdictDTO is the store content check's verdict on a version:
+ * the prompt-injection rules it hit and the judge's answer. Flagged holds
+ * the version for a reviewer; warning and clean do not.
+ */
+export interface StoreContentVerdictDTO {
+  status: StoreContentVerdictStatus;
+  /**
+   * Rules are the ids of the rules that matched (INF-PI-*).
+   */
+  rules?: string[];
+  judge?: StoreJudgeVerdictDTO;
+  /**
+   * JudgePending is a judge still reading; JudgeSkipped is why none
+   * will (off, budget, empty, unavailable).
+   */
+  judge_pending?: boolean;
+  judge_skipped?: string;
+  scanner_version?: string;
+}
+/**
+ * StoreJudgeVerdictDTO is the judge's answer about a version.
+ */
+export interface StoreJudgeVerdictDTO {
+  model?: string;
+  /**
+   * Flagged: an answer the store holds on crossed its threshold;
+   * Reasons are those questions.
+   */
+  flagged: boolean;
+  reasons?: string[];
+  /**
+   * Probabilities are the probability of yes by question id.
+   */
+  probabilities?: { [key: string]: number /* float64 */};
+  goal?: string;
+  goal_probabilities?: { [key: string]: number /* float64 */};
+  /**
+   * Error is why there is no answer; TimedOut that it was the deadline.
+   */
+  error?: string;
+  timed_out?: boolean;
+  latency_ms?: number /* int64 */;
 }
 /**
  * StoreFindingDTO is one problem a check found. Rule links to the policy
@@ -12237,6 +12318,74 @@ export interface A2UISurface {
   components: A2UIComponent[];
   dataModel?: any;
 }
+/**
+ * DeadRunReason is why an ended agent run counts as dead: what happened.
+ * Who caused it (DeadRunSource) follows from it (ClassifyDeadRun); it is
+ * never set on its own.
+ */
+export type DeadRunReason =
+  | "model_stopped_early"
+  | "model_empty_reply"
+  | "model_output_limit"
+  | "model_refused"
+  | "provider_error"
+  | "no_progress"
+  | "platform_error";
+/**
+ * DeadRunReasonModelStoppedEarly: the agent owes its output through
+ * finish and the model ended its turn with text or reasoning and no tool
+ * call.
+ */
+export const DeadRunReasonModelStoppedEarly: DeadRunReason = "model_stopped_early";
+/**
+ * DeadRunReasonModelEmptyReply: the agent owes its output through finish
+ * and the model ended its turn with no content.
+ */
+export const DeadRunReasonModelEmptyReply: DeadRunReason = "model_empty_reply";
+/**
+ * DeadRunReasonModelOutputLimit: the agent owes its output through
+ * finish and the model's turn was cut at its output token limit.
+ */
+export const DeadRunReasonModelOutputLimit: DeadRunReason = "model_output_limit";
+/**
+ * DeadRunReasonModelRefused: the agent owes its output through finish
+ * and the provider's safety system refused the turn of a run a trigger
+ * started.
+ */
+export const DeadRunReasonModelRefused: DeadRunReason = "model_refused";
+/**
+ * DeadRunReasonProviderError: the model call failed: the provider's or
+ * engine's error, a timeout, or the error a remote harness reported.
+ */
+export const DeadRunReasonProviderError: DeadRunReason = "provider_error";
+/**
+ * DeadRunReasonNoProgress: the platform ended a run that went quiet, or
+ * a run a trigger started that was still working past its bound.
+ */
+export const DeadRunReasonNoProgress: DeadRunReason = "no_progress";
+/**
+ * DeadRunReasonPlatformError: the run failed for the platform's own
+ * reasons: storage, dispatch, a turn that could not start, a harness
+ * session or remote lost.
+ */
+export const DeadRunReasonPlatformError: DeadRunReason = "platform_error";
+/**
+ * DeadRunSource is who caused a dead agent run.
+ */
+export type DeadRunSource = "model" | "provider" | "platform";
+/**
+ * DeadRunSourceModel: the model ended without the output it owed.
+ */
+export const DeadRunSourceModel: DeadRunSource = "model";
+/**
+ * DeadRunSourceProvider: the model's provider (or the engine running
+ * it) failed the call.
+ */
+export const DeadRunSourceProvider: DeadRunSource = "provider";
+/**
+ * DeadRunSourcePlatform: the platform failed or ended the run.
+ */
+export const DeadRunSourcePlatform: DeadRunSource = "platform";
 /**
  * ApiKeyScope is who an API key acts as, chosen when it is created, the way a
  * credential's scope says who owns it.
@@ -15084,12 +15233,19 @@ export type StoreCheck =
   | "scan"
   | "policy"
   | "dynamic"
-  | "ai_review";
+  | "ai_review"
+  | "content";
 export const StoreCheckValidation: StoreCheck = "validation";
 export const StoreCheckScan: StoreCheck = "scan";
 export const StoreCheckPolicy: StoreCheck = "policy";
 export const StoreCheckDynamic: StoreCheck = "dynamic";
 export const StoreCheckAIReview: StoreCheck = "ai_review";
+/**
+ * StoreCheckContent reads what a version ships for prompt injection:
+ * the INF-PI rules at submit, then the judge (the decision model the
+ * tool-result guard asks), whose answer is recorded as a later run.
+ */
+export const StoreCheckContent: StoreCheck = "content";
 /**
  * StoreCheckStatus is the outcome of one check run.
  */

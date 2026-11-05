@@ -5680,6 +5680,41 @@ class A2UIComponentType(str, Enum):
     # postMessage, and whose tools/call requests it proxies to the server.
     A2UI_MCP_APP = "McpApp"
 
+class DeadRunReason(str, Enum):
+    # DeadRunReasonModelStoppedEarly: the agent owes its output through
+    # finish and the model ended its turn with text or reasoning and no tool
+    # call.
+    MODEL_STOPPED_EARLY = "model_stopped_early"
+    # DeadRunReasonModelEmptyReply: the agent owes its output through finish
+    # and the model ended its turn with no content.
+    MODEL_EMPTY_REPLY = "model_empty_reply"
+    # DeadRunReasonModelOutputLimit: the agent owes its output through
+    # finish and the model's turn was cut at its output token limit.
+    MODEL_OUTPUT_LIMIT = "model_output_limit"
+    # DeadRunReasonModelRefused: the agent owes its output through finish
+    # and the provider's safety system refused the turn of a run a trigger
+    # started.
+    MODEL_REFUSED = "model_refused"
+    # DeadRunReasonProviderError: the model call failed: the provider's or
+    # engine's error, a timeout, or the error a remote harness reported.
+    PROVIDER_ERROR = "provider_error"
+    # DeadRunReasonNoProgress: the platform ended a run that went quiet, or
+    # a run a trigger started that was still working past its bound.
+    NO_PROGRESS = "no_progress"
+    # DeadRunReasonPlatformError: the run failed for the platform's own
+    # reasons: storage, dispatch, a turn that could not start, a harness
+    # session or remote lost.
+    PLATFORM_ERROR = "platform_error"
+
+class DeadRunSource(str, Enum):
+    # DeadRunSourceModel: the model ended without the output it owed.
+    MODEL = "model"
+    # DeadRunSourceProvider: the model's provider (or the engine running
+    # it) failed the call.
+    PROVIDER = "provider"
+    # DeadRunSourcePlatform: the platform failed or ended the run.
+    PLATFORM = "platform"
+
 class ApiKeyScope(str, Enum):
     # ApiKeyScopeUser is a personal key: it acts as the person who created it,
     # in the workspace it was created in, and ends when they can no longer

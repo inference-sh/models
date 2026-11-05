@@ -6565,6 +6565,10 @@ type SDKTypes struct {
 	_submitTelemetryReq SubmitTelemetryRequest
 	// Stats
 	_meStats MeStatsResponse
+	// Why an agent run is dead and who caused it (the dead-run collection),
+	// rooted so their constants reach every SDK.
+	_deadRunReason DeadRunReason
+	_deadRunSource DeadRunSource
 }
 
 // --------------------
@@ -8810,6 +8814,76 @@ func (s *A2UISurface) RootComponent() *A2UIComponent {
 	}
 	return nil
 }
+
+// --------------------
+// source: agent_run_dead.go
+// --------------------
+
+// DeadRunReason is why an ended agent run counts as dead: what happened.
+// Who caused it (DeadRunSource) follows from it (ClassifyDeadRun); it is
+// never set on its own.
+type DeadRunReason string
+
+// Description says what a dead-run reason means; "" for an unknown one.
+func (r DeadRunReason) Description() string {
+	switch r {
+	case DeadRunReasonModelStoppedEarly:
+		return "The model ended its turn with text and did not call finish."
+	case DeadRunReasonModelEmptyReply:
+		return "The model ended its turn without replying or calling finish."
+	case DeadRunReasonModelOutputLimit:
+		return "The model hit its output limit before it called finish."
+	case DeadRunReasonModelRefused:
+		return "The model provider's safety system refused the run's turn."
+	case DeadRunReasonProviderError:
+		return "The model call failed at the provider or engine."
+	case DeadRunReasonNoProgress:
+		return "The run stopped making progress and the platform ended it."
+	case DeadRunReasonPlatformError:
+		return "The platform failed the run."
+	}
+	return ""
+}
+
+const (
+	// DeadRunReasonModelStoppedEarly: the agent owes its output through
+	// finish and the model ended its turn with text or reasoning and no tool
+	// call.
+	DeadRunReasonModelStoppedEarly DeadRunReason = "model_stopped_early"
+	// DeadRunReasonModelEmptyReply: the agent owes its output through finish
+	// and the model ended its turn with no content.
+	DeadRunReasonModelEmptyReply DeadRunReason = "model_empty_reply"
+	// DeadRunReasonModelOutputLimit: the agent owes its output through
+	// finish and the model's turn was cut at its output token limit.
+	DeadRunReasonModelOutputLimit DeadRunReason = "model_output_limit"
+	// DeadRunReasonModelRefused: the agent owes its output through finish
+	// and the provider's safety system refused the turn of a run a trigger
+	// started.
+	DeadRunReasonModelRefused DeadRunReason = "model_refused"
+	// DeadRunReasonProviderError: the model call failed: the provider's or
+	// engine's error, a timeout, or the error a remote harness reported.
+	DeadRunReasonProviderError DeadRunReason = "provider_error"
+	// DeadRunReasonNoProgress: the platform ended a run that went quiet, or
+	// a run a trigger started that was still working past its bound.
+	DeadRunReasonNoProgress DeadRunReason = "no_progress"
+	// DeadRunReasonPlatformError: the run failed for the platform's own
+	// reasons: storage, dispatch, a turn that could not start, a harness
+	// session or remote lost.
+	DeadRunReasonPlatformError DeadRunReason = "platform_error"
+)
+
+// DeadRunSource is who caused a dead agent run.
+type DeadRunSource string
+
+const (
+	// DeadRunSourceModel: the model ended without the output it owed.
+	DeadRunSourceModel DeadRunSource = "model"
+	// DeadRunSourceProvider: the model's provider (or the engine running
+	// it) failed the call.
+	DeadRunSourceProvider DeadRunSource = "provider"
+	// DeadRunSourcePlatform: the platform failed or ended the run.
+	DeadRunSourcePlatform DeadRunSource = "platform"
+)
 
 // --------------------
 // source: apikey.go

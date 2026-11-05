@@ -16610,6 +16610,53 @@ public struct A2UISurface: Codable, Sendable {
     }
 }
 
+/// DeadRunReason is why an ended agent run counts as dead: what happened.
+/// Who caused it (DeadRunSource) follows from it (ClassifyDeadRun); it is
+/// never set on its own.
+public struct DeadRunReason: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// DeadRunReasonModelStoppedEarly: the agent owes its output through
+    /// finish and the model ended its turn with text or reasoning and no tool
+    /// call.
+    public static let modelStoppedEarly = DeadRunReason(rawValue: "model_stopped_early")
+    /// DeadRunReasonModelEmptyReply: the agent owes its output through finish
+    /// and the model ended its turn with no content.
+    public static let modelEmptyReply = DeadRunReason(rawValue: "model_empty_reply")
+    /// DeadRunReasonModelOutputLimit: the agent owes its output through
+    /// finish and the model's turn was cut at its output token limit.
+    public static let modelOutputLimit = DeadRunReason(rawValue: "model_output_limit")
+    /// DeadRunReasonModelRefused: the agent owes its output through finish
+    /// and the provider's safety system refused the turn of a run a trigger
+    /// started.
+    public static let modelRefused = DeadRunReason(rawValue: "model_refused")
+    /// DeadRunReasonProviderError: the model call failed: the provider's or
+    /// engine's error, a timeout, or the error a remote harness reported.
+    public static let providerError = DeadRunReason(rawValue: "provider_error")
+    /// DeadRunReasonNoProgress: the platform ended a run that went quiet, or
+    /// a run a trigger started that was still working past its bound.
+    public static let noProgress = DeadRunReason(rawValue: "no_progress")
+    /// DeadRunReasonPlatformError: the run failed for the platform's own
+    /// reasons: storage, dispatch, a turn that could not start, a harness
+    /// session or remote lost.
+    public static let platformError = DeadRunReason(rawValue: "platform_error")
+}
+
+/// DeadRunSource is who caused a dead agent run.
+public struct DeadRunSource: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    /// DeadRunSourceModel: the model ended without the output it owed.
+    public static let model = DeadRunSource(rawValue: "model")
+    /// DeadRunSourceProvider: the model's provider (or the engine running
+    /// it) failed the call.
+    public static let provider = DeadRunSource(rawValue: "provider")
+    /// DeadRunSourcePlatform: the platform failed or ended the run.
+    public static let platform = DeadRunSource(rawValue: "platform")
+}
+
 /// ApiKeyScope is who an API key acts as, chosen when it is created, the way a
 /// credential's scope says who owns it.
 public struct ApiKeyScope: RawRepresentable, Codable, Hashable, Sendable {
