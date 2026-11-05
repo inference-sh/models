@@ -7129,6 +7129,17 @@ public struct WorkerDTO: Codable, Sendable {
     public var appId: String
     public var appVersionId: String
     public var activeSessionId: String?
+    /// Kind is "app" for a sized app worker (INF-1159), made when a run was
+    /// placed and kept while warm; empty for a slot the engine registered.
+    public var kind: WorkerKind?
+    /// VCPUs, MemoryMiB and MemoryLimitMiB are a sized app worker's request
+    /// and memory cap (WorkerSize); 0 on a slot.
+    public var vcpus: Int?
+    public var memoryMib: Int?
+    public var memoryLimitMib: Int?
+    /// MemoryDeclaredMiB is what the app declared when the request was
+    /// capped below it (workers.max_app_ram_mib); 0 when not capped.
+    public var memoryDeclaredMib: Int?
     public var gpus: [WorkerGPU]?
     public var cpus: [WorkerCPU]?
     public var rams: [WorkerRAM]?
@@ -7150,6 +7161,11 @@ public struct WorkerDTO: Codable, Sendable {
         appId: String = "",
         appVersionId: String = "",
         activeSessionId: String? = nil,
+        kind: WorkerKind? = nil,
+        vcpus: Int? = nil,
+        memoryMib: Int? = nil,
+        memoryLimitMib: Int? = nil,
+        memoryDeclaredMib: Int? = nil,
         gpus: [WorkerGPU]? = nil,
         cpus: [WorkerCPU]? = nil,
         rams: [WorkerRAM]? = nil,
@@ -7170,6 +7186,11 @@ public struct WorkerDTO: Codable, Sendable {
         self.appId = appId
         self.appVersionId = appVersionId
         self.activeSessionId = activeSessionId
+        self.kind = kind
+        self.vcpus = vcpus
+        self.memoryMib = memoryMib
+        self.memoryLimitMib = memoryLimitMib
+        self.memoryDeclaredMib = memoryDeclaredMib
         self.gpus = gpus
         self.cpus = cpus
         self.rams = rams
@@ -7192,6 +7213,11 @@ public struct WorkerDTO: Codable, Sendable {
         case appId = "app_id"
         case appVersionId = "app_version_id"
         case activeSessionId = "active_session_id"
+        case kind = "kind"
+        case vcpus = "vcpus"
+        case memoryMib = "memory_mib"
+        case memoryLimitMib = "memory_limit_mib"
+        case memoryDeclaredMib = "memory_declared_mib"
         case gpus = "gpus"
         case cpus = "cpus"
         case rams = "rams"
@@ -7401,6 +7427,21 @@ public struct EngineCapability: RawRepresentable, Codable, Hashable, Sendable {
     /// MaxHoldMs, Resend, the retry status); it wakes held requests on
     /// egress_answer and acks egress_revoke (INF-1173).
     public static let egressDecide = EngineCapability(rawValue: "egress_decide")
+    /// EngineCapabilitySizedSandboxes: the engine runs a sandbox's box that
+    /// holds no worker, sized by the start, and refuses one it has no room
+    /// for (SandboxBoxReasonNoRoom). The API then places sandboxes there by
+    /// size, against the engine's capacity, instead of leasing a worker
+    /// (INF-1158).
+    public static let sizedSandboxes = EngineCapability(rawValue: "sized_sandboxes")
+    /// EngineCapabilitySizedWorkers: the engine registers no CPU slots
+    /// (EngineRegisterRequest.SizedWorkers) and makes a CPU app worker when a
+    /// run is dispatched to one it does not have, sized by the dispatch
+    /// (WsTaskRunPayload.Worker): its vCPUs as the CPU quota, its memory
+    /// limit as the cgroup cap. It refuses one it has no room for
+    /// (RejectionNoRoom), ends one on worker_release, and its committed_apps
+    /// counts its slot (GPU) workers only. The API then places CPU app runs
+    /// there by size, against the engine's capacity (INF-1159).
+    public static let sizedWorkers = EngineCapability(rawValue: "sized_workers")
 }
 
 /// EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -7425,6 +7466,12 @@ public struct EngineCapacity: Codable, Sendable {
     @Indirect public var reserve: CapacityAmount
     @Indirect public var allocatable: CapacityAmount
     @Indirect public var committed: CapacityAmount
+    /// CommittedApps is the apps' part of Committed: the CPU quota of the
+    /// workers running an app and the memory their containers use. Workers
+    /// are slots registered ahead of time, so an idle one holds nothing
+    /// until it runs something (INF-1159 gives apps real requests). Sized
+    /// sandbox placement adds the boxes the API placed to it.
+    @Indirect public var committedApps: CapacityAmount
     @Indirect public var used: CapacityAmount
 
     public init(
@@ -7437,6 +7484,7 @@ public struct EngineCapacity: Codable, Sendable {
         reserve: CapacityAmount,
         allocatable: CapacityAmount,
         committed: CapacityAmount,
+        committedApps: CapacityAmount,
         used: CapacityAmount
     ) {
         self.cpus = cpus
@@ -7448,6 +7496,7 @@ public struct EngineCapacity: Codable, Sendable {
         self.reserve = reserve
         self.allocatable = allocatable
         self.committed = committed
+        self.committedApps = committedApps
         self.used = used
     }
 
@@ -7461,6 +7510,7 @@ public struct EngineCapacity: Codable, Sendable {
         case reserve = "reserve"
         case allocatable = "allocatable"
         case committed = "committed"
+        case committedApps = "committed_apps"
         case used = "used"
     }
 }
@@ -18236,6 +18286,17 @@ public struct WorkerStatus: RawRepresentable, Codable, Hashable, Sendable {
     public static let inactive = WorkerStatus(rawValue: "inactive")
 }
 
+/// WorkerKind is what a worker row is (INF-1156). Empty is a slot an engine
+/// registered ahead of time; app is a sized live reservation for CPU app
+/// runs, made when a run is placed and kept while warm (INF-1159).
+public struct WorkerKind: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let slot = WorkerKind(rawValue: "")
+    public static let app = WorkerKind(rawValue: "app")
+}
+
 public struct FlowRunStatus: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -19427,6 +19488,10 @@ public struct EntitlementResource: RawRepresentable, Codable, Hashable, Sendable
     public static let resourceSeats = EntitlementResource(rawValue: "seats")
     public static let resourceTriggers = EntitlementResource(rawValue: "triggers")
     public static let resourceRetentionDays = EntitlementResource(rawValue: "retention_days")
+    /// Sandboxes a team may hold placed at once, and their vCPUs together
+    /// (INF-1158). No row: the platform default (setting sandboxes.placement).
+    public static let resourceSandboxes = EntitlementResource(rawValue: "sandboxes")
+    public static let resourceSandboxVCPUs = EntitlementResource(rawValue: "sandbox_vcpus")
     /// Legacy — kept for DB compatibility, no longer in plan seeds
     public static let resourcePrivateApps = EntitlementResource(rawValue: "private_apps")
     public static let resourceTaskExecutions = EntitlementResource(rawValue: "task_executions")

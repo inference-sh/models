@@ -1686,6 +1686,12 @@ class EngineCapacity(TypedDict, total=False):
     reserve: CapacityAmount
     allocatable: CapacityAmount
     committed: CapacityAmount
+    # CommittedApps is the apps' part of Committed: the CPU quota of the
+    # workers running an app and the memory their containers use. Workers
+    # are slots registered ahead of time, so an idle one holds nothing
+    # until it runs something (INF-1159 gives apps real requests). Sized
+    # sandbox placement adds the boxes the API placed to it.
+    committed_apps: CapacityAmount
     used: CapacityAmount
 
 # CapacityAmount is an amount of CPU and memory. CPUs are logical CPUs,
@@ -4116,6 +4122,17 @@ class WorkerDTO(BaseModelDTO, TypedDict, total=False):
     app_id: str
     app_version_id: str
     active_session_id: Optional[str]
+    # Kind is "app" for a sized app worker (INF-1159), made when a run was
+    # placed and kept while warm; empty for a slot the engine registered.
+    kind: WorkerKind
+    # VCPUs, MemoryMiB and MemoryLimitMiB are a sized app worker's request
+    # and memory cap (WorkerSize); 0 on a slot.
+    vcpus: int
+    memory_mib: int
+    memory_limit_mib: int
+    # MemoryDeclaredMiB is what the app declared when the request was
+    # capped below it (workers.max_app_ram_mib); 0 when not capped.
+    memory_declared_mib: int
     gpus: List[WorkerGPU]
     cpus: List[WorkerCPU]
     rams: List[WorkerRAM]
@@ -5363,6 +5380,21 @@ class EngineCapability(str, Enum):
     # MaxHoldMs, Resend, the retry status); it wakes held requests on
     # egress_answer and acks egress_revoke (INF-1173).
     EGRESS_DECIDE = "egress_decide"
+    # EngineCapabilitySizedSandboxes: the engine runs a sandbox's box that
+    # holds no worker, sized by the start, and refuses one it has no room
+    # for (SandboxBoxReasonNoRoom). The API then places sandboxes there by
+    # size, against the engine's capacity, instead of leasing a worker
+    # (INF-1158).
+    SIZED_SANDBOXES = "sized_sandboxes"
+    # EngineCapabilitySizedWorkers: the engine registers no CPU slots
+    # (EngineRegisterRequest.SizedWorkers) and makes a CPU app worker when a
+    # run is dispatched to one it does not have, sized by the dispatch
+    # (WsTaskRunPayload.Worker): its vCPUs as the CPU quota, its memory
+    # limit as the cgroup cap. It refuses one it has no room for
+    # (RejectionNoRoom), ends one on worker_release, and its committed_apps
+    # counts its slot (GPU) workers only. The API then places CPU app runs
+    # there by size, against the engine's capacity (INF-1159).
+    SIZED_WORKERS = "sized_workers"
 
 class ErrorCode(str, Enum):
     INVALID_REQUEST = "invalid_request"
@@ -6030,6 +6062,10 @@ class WorkerStatus(str, Enum):
     IDLE = "idle"
     INACTIVE = "inactive"
 
+class WorkerKind(str, Enum):
+    SLOT = ""
+    APP = "app"
+
 class FlowRunStatus(IntEnum):
     UNKNOWN = 0
     PENDING = 1
@@ -6396,6 +6432,10 @@ class EntitlementResource(str, Enum):
     RESOURCE_SEATS = "seats"
     RESOURCE_TRIGGERS = "triggers"
     RESOURCE_RETENTION_DAYS = "retention_days"
+    # Sandboxes a team may hold placed at once, and their vCPUs together
+    # (INF-1158). No row: the platform default (setting sandboxes.placement).
+    RESOURCE_SANDBOXES = "sandboxes"
+    RESOURCE_SANDBOX_VCP_US = "sandbox_vcpus"
     # Legacy — kept for DB compatibility, no longer in plan seeds
     RESOURCE_PRIVATE_APPS = "private_apps"
     RESOURCE_TASK_EXECUTIONS = "task_executions"

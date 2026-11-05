@@ -1429,6 +1429,12 @@ export interface EngineRegisterRequest {
   api_url: string;
   system_info?: SystemInfo;
   worker_config: WorkerConfig;
+  /**
+   * SizedWorkers: the engine takes CPU app runs on sized workers the API
+   * makes as it places them (INF-1159), so it is given no CPU slots; its
+   * GPU workers are allocated as before.
+   */
+  sized_workers?: boolean;
 }
 /**
  * EngineEnrollRequest trades a one-time enrollment token (POST
@@ -4835,6 +4841,23 @@ export interface WorkerDTO extends BaseModelDTO {
   app_id: string;
   app_version_id: string;
   active_session_id?: string;
+  /**
+   * Kind is "app" for a sized app worker (INF-1159), made when a run was
+   * placed and kept while warm; empty for a slot the engine registered.
+   */
+  kind?: WorkerKind;
+  /**
+   * VCPUs, MemoryMiB and MemoryLimitMiB are a sized app worker's request
+   * and memory cap (WorkerSize); 0 on a slot.
+   */
+  vcpus?: number /* int */;
+  memory_mib?: number /* int64 */;
+  memory_limit_mib?: number /* int64 */;
+  /**
+   * MemoryDeclaredMiB is what the app declared when the request was
+   * capped below it (workers.max_app_ram_mib); 0 when not capped.
+   */
+  memory_declared_mib?: number /* int64 */;
   gpus?: WorkerGPU[];
   cpus?: WorkerCPU[];
   rams?: WorkerRAM[];
@@ -4912,7 +4935,9 @@ export type EngineCapability =
   | "capacity"
   | "egress_pending"
   | "egress_grants"
-  | "egress_decide";
+  | "egress_decide"
+  | "sized_sandboxes"
+  | "sized_workers";
 /**
  * EngineCapabilityEgressGateway: the engine runs its sandboxes behind
  * the egress gateway, so it can take bound secrets (the v2 secrets
@@ -4955,6 +4980,25 @@ export const EngineCapabilityEgressGrants: EngineCapability = "egress_grants";
  */
 export const EngineCapabilityEgressDecide: EngineCapability = "egress_decide";
 /**
+ * EngineCapabilitySizedSandboxes: the engine runs a sandbox's box that
+ * holds no worker, sized by the start, and refuses one it has no room
+ * for (SandboxBoxReasonNoRoom). The API then places sandboxes there by
+ * size, against the engine's capacity, instead of leasing a worker
+ * (INF-1158).
+ */
+export const EngineCapabilitySizedSandboxes: EngineCapability = "sized_sandboxes";
+/**
+ * EngineCapabilitySizedWorkers: the engine registers no CPU slots
+ * (EngineRegisterRequest.SizedWorkers) and makes a CPU app worker when a
+ * run is dispatched to one it does not have, sized by the dispatch
+ * (WsTaskRunPayload.Worker): its vCPUs as the CPU quota, its memory
+ * limit as the cgroup cap. It refuses one it has no room for
+ * (RejectionNoRoom), ends one on worker_release, and its committed_apps
+ * counts its slot (GPU) workers only. The API then places CPU app runs
+ * there by size, against the engine's capacity (INF-1159).
+ */
+export const EngineCapabilitySizedWorkers: EngineCapability = "sized_workers";
+/**
  * EngineCapabilities is a set of capabilities, kept as a list. Nil and
  * empty are the same: nothing beyond the base contract.
  */
@@ -4983,6 +5027,14 @@ export interface EngineCapacity {
   reserve: CapacityAmount;
   allocatable: CapacityAmount;
   committed: CapacityAmount;
+  /**
+   * CommittedApps is the apps' part of Committed: the CPU quota of the
+   * workers running an app and the memory their containers use. Workers
+   * are slots registered ahead of time, so an idle one holds nothing
+   * until it runs something (INF-1159 gives apps real requests). Sized
+   * sandbox placement adds the boxes the API placed to it.
+   */
+  committed_apps: CapacityAmount;
   used: CapacityAmount;
 }
 /**
@@ -8403,8 +8455,15 @@ export const SandboxBoxExited: SandboxBoxState = "exited";
 export const SandboxBoxStopped: SandboxBoxState = "stopped";
 export const SandboxBoxFailed: SandboxBoxState = "failed";
 /**
+ * SandboxBoxReason is why a box failed, where the engine knows it as one
+ * the API acts on.
+ */
+export type SandboxBoxReason = "no_room";
+export const SandboxBoxReasonNoRoom: SandboxBoxReason = "no_room";
+/**
  * WsSandboxStartPayload is sandbox_start, API to engine: boot one box on a
- * worker the API has leased for it.
+ * worker the API has leased for it, or, with no worker (an engine with
+ * EngineCapabilitySizedSandboxes), sized by VCPUs and MemoryMiB alone.
  */
 export interface WsSandboxStartPayload {
   sandbox_id: string;
@@ -8443,6 +8502,10 @@ export interface WsSandboxStatusPayload {
   state: SandboxBoxState;
   exit_code?: number /* int */;
   error?: string; // redacted, short
+  /**
+   * Reason is why a failed box failed, when it is one the API acts on.
+   */
+  reason?: SandboxBoxReason;
 }
 /**
  * SandboxReport is one box in EngineTelemetry.Sandboxes: the whole set each
@@ -11242,6 +11305,7 @@ export type WSEventType =
   | "egress_revoke"
   | "egress_revoke_ack"
   | "egress_answer"
+  | "worker_release"
   | "sandbox_status"
   | "engine_heartbeat"
   | "engine_telemetry"
@@ -11386,6 +11450,36 @@ export const WSEventEgressRevoke: WSEventType = "egress_revoke";
 export const WSEventEgressRevokeAck: WSEventType = "egress_revoke_ack";
 export const WSEventEgressAnswer: WSEventType = "egress_answer";
 /**
+ * WSEventWorkerRelease is API → engine (WsWorkerReleasePayload): end a
+ * sized app worker (INF-1159), evicted or idle past its keep time.
+ */
+export const WSEventWorkerRelease: WSEventType = "worker_release";
+/**
+ * WsWorkerReleasePayload names the sized app worker the engine is to end.
+ * The engine ends it only while it runs nothing.
+ */
+export interface WsWorkerReleasePayload {
+  worker_id: string;
+}
+/**
+ * WorkerSize is a sized app worker (INF-1159): what the scheduler placed
+ * it by and what its container is capped at.
+ */
+export interface WorkerSize {
+  /**
+   * VCPUs is its CPU request, and its container's CPU quota.
+   */
+  vcpus: number /* int */;
+  /**
+   * MemoryMiB is its memory request: what it holds of the engine's room.
+   */
+  memory_mib: number /* int64 */;
+  /**
+   * MemoryLimitMiB is its container's memory cap (the cgroup limit).
+   */
+  memory_limit_mib: number /* int64 */;
+}
+/**
  * WSEventSandboxStatus is engine → API, sent on every transition of a box.
  */
 export const WSEventSandboxStatus: WSEventType = "sandbox_status";
@@ -11398,6 +11492,13 @@ export interface WsTaskRunPayload {
    * also what clients read.
    */
   socket?: SocketAccess;
+  /**
+   * Worker is set when the task's worker is a sized app worker (an
+   * engine with sized_workers, INF-1159): its size. The engine makes the
+   * worker when it does not have it yet, or refuses the task
+   * (RejectionNoRoom) when it has no room.
+   */
+  worker?: WorkerSize;
 }
 export interface WsTaskCancelPayload {
   task: TaskDTO;
@@ -13554,6 +13655,14 @@ export const WorkerStatusBusy: WorkerStatus = "busy";
 export const WorkerStatusIdle: WorkerStatus = "idle";
 export const WorkerStatusInactive: WorkerStatus = "inactive";
 /**
+ * WorkerKind is what a worker row is (INF-1156). Empty is a slot an engine
+ * registered ahead of time; app is a sized live reservation for CPU app
+ * runs, made when a run is placed and kept while warm (INF-1159).
+ */
+export type WorkerKind = "" | "app";
+export const WorkerKindSlot: WorkerKind = "";
+export const WorkerKindApp: WorkerKind = "app";
+/**
  * ExecRunStatus is the lifecycle of one command executed on a host (a remote,
  * or later any compute we own). It follows the process-handle shape of INF-832:
  * a run is started, streams output as events, and ends — cleanly (exited), by
@@ -14501,6 +14610,8 @@ export type EntitlementResource =
   | "seats"
   | "triggers"
   | "retention_days"
+  | "sandboxes"
+  | "sandbox_vcpus"
   | "private_apps"
   | "task_executions"
   | "feature:byok"
@@ -14526,6 +14637,12 @@ export const ResourceRatePerMin: EntitlementResource = "rate_per_min";
 export const ResourceSeats: EntitlementResource = "seats";
 export const ResourceTriggers: EntitlementResource = "triggers";
 export const ResourceRetentionDays: EntitlementResource = "retention_days";
+/**
+ * Sandboxes a team may hold placed at once, and their vCPUs together
+ * (INF-1158). No row: the platform default (setting sandboxes.placement).
+ */
+export const ResourceSandboxes: EntitlementResource = "sandboxes";
+export const ResourceSandboxVCPUs: EntitlementResource = "sandbox_vcpus";
 /**
  * Legacy — kept for DB compatibility, no longer in plan seeds
  */
@@ -14718,11 +14835,21 @@ export type CompanyStatus = "active" | "beta" | "deprecated";
 export const CompanyStatusActive: CompanyStatus = "active";
 export const CompanyStatusBeta: CompanyStatus = "beta";
 export const CompanyStatusDeprecated: CompanyStatus = "deprecated";
-export type RejectionReason = "worker_busy" | "worker_not_found" | "worker_id_nil" | "engine_draining";
+export type RejectionReason =
+  | "worker_busy"
+  | "worker_not_found"
+  | "worker_id_nil"
+  | "engine_draining"
+  | "no_room";
 export const RejectionWorkerBusy: RejectionReason = "worker_busy";
 export const RejectionWorkerNotFound: RejectionReason = "worker_not_found";
 export const RejectionWorkerIDNil: RejectionReason = "worker_id_nil";
 export const RejectionEngineDraining: RejectionReason = "engine_draining";
+/**
+ * RejectionNoRoom: the engine has no room for the sized app worker the
+ * task was placed on (INF-1159); the API places it again.
+ */
+export const RejectionNoRoom: RejectionReason = "no_room";
 export type ConsentCategory = "terms" | "marketing";
 export const ConsentCategoryTerms: ConsentCategory = "terms";
 export const ConsentCategoryMarketing: ConsentCategory = "marketing";
