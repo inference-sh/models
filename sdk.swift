@@ -2152,23 +2152,40 @@ public struct AdminElevateResponse: Codable, Sendable {
 public struct AdminElevationStatus: Codable, Sendable {
     public var elevated: Bool
     public var adminUntil: String?
+    /// AdminPower: a staff browser sign-in holds platform power on this
+    /// request, until AdminPowerUntil (INF-1190). AdminPowerWithheld says
+    /// why one that proved an authenticator holds none here: expired,
+    /// other_client or wrong_origin.
+    public var adminPower: Bool
+    public var adminPowerUntil: String?
+    public var adminPowerWithheld: String?
 
     public init(
         elevated: Bool = false,
-        adminUntil: String? = nil
+        adminUntil: String? = nil,
+        adminPower: Bool = false,
+        adminPowerUntil: String? = nil,
+        adminPowerWithheld: String? = nil
     ) {
         self.elevated = elevated
         self.adminUntil = adminUntil
+        self.adminPower = adminPower
+        self.adminPowerUntil = adminPowerUntil
+        self.adminPowerWithheld = adminPowerWithheld
     }
 
     enum CodingKeys: String, CodingKey {
         case elevated = "elevated"
         case adminUntil = "admin_until"
+        case adminPower = "admin_power"
+        case adminPowerUntil = "admin_power_until"
+        case adminPowerWithheld = "admin_power_withheld"
     }
 }
 
 /// AdminElevationDropResponse is DELETE /device/auth/elevate. Dropped is
-/// false when the session held no elevation.
+/// false when the session held no elevation (a CLI login) or no staff power
+/// or admin action window (a browser sign-in).
 public struct AdminElevationDropResponse: Codable, Sendable {
     public var elevated: Bool
     public var dropped: Bool
@@ -7911,7 +7928,7 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     /// grants one, and only the person's own browser sign-in changes how the
     /// account is signed into (authenticator enrollment, RequireBrowserSession).
     /// InvalidTTL (400): the elevation asked for a window outside
-    /// models.AdminElevationMinTTL..AdminElevationMaxTTL.
+    /// models.AdminElevationMinTTL..admin.elevation.max_ttl.
     /// AdminScopesNotApproved (403): a platform admin's CLI login was approved
     /// with a scope list that does not name the admin scopes, so it can't be
     /// elevated: log in again approving them, then elevate.
@@ -7922,6 +7939,10 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     public static let sameAdminRequired = ErrorCode(rawValue: "same_admin_required")
     public static let browserSessionRequired = ErrorCode(rawValue: "browser_session_required")
     public static let invalidTTL = ErrorCode(rawValue: "invalid_ttl")
+    /// AdminOriginRequired (403): a staff browser sign-in's power is used
+    /// only from the admin origin (ADMIN_URL), never from the app where user
+    /// content renders, a frame or another site (INF-1190).
+    public static let adminOriginRequired = ErrorCode(rawValue: "admin_origin_required")
     /// AdminAuthenticatorRequired (403): a platform admin without an
     /// authenticator app (TOTP) enrolled. Admin power needs one; until it is
     /// enrolled (POST /auth/totp/enroll, then /auth/totp/confirm) the admin

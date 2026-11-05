@@ -834,10 +834,18 @@ type AdminElevateResponse struct {
 type AdminElevationStatus struct {
 	Elevated   bool       `json:"elevated"`
 	AdminUntil *time.Time `json:"admin_until,omitempty"`
+	// AdminPower: a staff browser sign-in holds platform power on this
+	// request, until AdminPowerUntil (INF-1190). AdminPowerWithheld says
+	// why one that proved an authenticator holds none here: expired,
+	// other_client or wrong_origin.
+	AdminPower         bool       `json:"admin_power"`
+	AdminPowerUntil    *time.Time `json:"admin_power_until,omitempty"`
+	AdminPowerWithheld string     `json:"admin_power_withheld,omitempty"`
 }
 
 // AdminElevationDropResponse is DELETE /device/auth/elevate. Dropped is
-// false when the session held no elevation.
+// false when the session held no elevation (a CLI login) or no staff power
+// or admin action window (a browser sign-in).
 type AdminElevationDropResponse struct {
 	Elevated bool `json:"elevated"`
 	Dropped  bool `json:"dropped"`
@@ -3815,7 +3823,7 @@ const (
 	// grants one, and only the person's own browser sign-in changes how the
 	// account is signed into (authenticator enrollment, RequireBrowserSession).
 	// InvalidTTL (400): the elevation asked for a window outside
-	// models.AdminElevationMinTTL..AdminElevationMaxTTL.
+	// models.AdminElevationMinTTL..admin.elevation.max_ttl.
 	// AdminScopesNotApproved (403): a platform admin's CLI login was approved
 	// with a scope list that does not name the admin scopes, so it can't be
 	// elevated: log in again approving them, then elevate.
@@ -3826,6 +3834,10 @@ const (
 	ErrorCodeSameAdminRequired      ErrorCode = "same_admin_required"
 	ErrorCodeBrowserSessionRequired ErrorCode = "browser_session_required"
 	ErrorCodeInvalidTTL             ErrorCode = "invalid_ttl"
+	// AdminOriginRequired (403): a staff browser sign-in's power is used
+	// only from the admin origin (ADMIN_URL), never from the app where user
+	// content renders, a frame or another site (INF-1190).
+	ErrorCodeAdminOriginRequired ErrorCode = "admin_origin_required"
 	// AdminAuthenticatorRequired (403): a platform admin without an
 	// authenticator app (TOTP) enrolled. Admin power needs one; until it is
 	// enrolled (POST /auth/totp/enroll, then /auth/totp/confirm) the admin
