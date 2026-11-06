@@ -5539,6 +5539,47 @@ type ProjectDTO struct {
 }
 
 // --------------------
+// source: publication.go
+// --------------------
+
+// PublicationThemeColors defines the core colors for one mode (light or dark).
+type PublicationThemeColors struct {
+	Primary    string `json:"primary"`
+	Secondary  string `json:"secondary"`
+	Background string `json:"background"`
+	Text       string `json:"text"`
+	Border     string `json:"border,omitempty"`
+}
+
+// PublicationTheme defines branding colors for embedded UIs.
+type PublicationTheme struct {
+	Light PublicationThemeColors  `json:"light"`
+	Dark  *PublicationThemeColors `json:"dark,omitempty"`
+}
+
+// PublicationDTO for API responses.
+type PublicationDTO struct {
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	ResourceType       string `json:"resource_type"`
+	ResourceID         string `json:"resource_id"`
+	Namespace          string `json:"namespace"`
+	Name               string `json:"name"`
+	// Title is the human-readable name; empty falls back to Name.
+	Title          string            `json:"title"`
+	AllowedOrigins []string          `json:"allowed_origins,omitempty"`
+	RateLimitRPM   *int              `json:"rate_limit_rpm,omitempty"`
+	Theme          *PublicationTheme `json:"theme,omitempty"`
+	Label          string            `json:"label,omitempty"`
+	Enabled        bool              `json:"enabled"`
+	// VisitorReads is the scope groups of the team's resources (knowledge,
+	// artifacts, files, remotes) a visitor can ask the published agent's
+	// current version to reach by id: what its built-in tools add to an
+	// embed run. Empty when its tools reach only what it names itself.
+	VisitorReads []ScopeGroup `json:"visitor_reads"`
+}
+
+// --------------------
 // source: redlist.go
 // --------------------
 
@@ -6364,6 +6405,7 @@ type SDKTypes struct {
 	_engine             EngineDTO
 	_sandbox            SandboxDTO
 	_sandboxCreate      CreateSandboxRequest
+	_publication        PublicationDTO
 	_egressGrant        EgressGrantDTO
 	_engineUpdateReq    EngineUpdateRequest
 	_engineReleases     EngineReleasesResponse
