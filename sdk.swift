@@ -12691,6 +12691,156 @@ public struct ProjectDTO: Codable, Sendable {
     }
 }
 
+/// PublicationThemeColors defines the core colors for one mode (light or dark).
+public struct PublicationThemeColors: Codable, Sendable {
+    public var primary: String
+    public var secondary: String
+    public var background: String
+    public var text: String
+    public var border: String?
+
+    public init(
+        primary: String = "",
+        secondary: String = "",
+        background: String = "",
+        text: String = "",
+        border: String? = nil
+    ) {
+        self.primary = primary
+        self.secondary = secondary
+        self.background = background
+        self.text = text
+        self.border = border
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case primary = "primary"
+        case secondary = "secondary"
+        case background = "background"
+        case text = "text"
+        case border = "border"
+    }
+}
+
+/// PublicationTheme defines branding colors for embedded UIs.
+public struct PublicationTheme: Codable, Sendable {
+    @Indirect public var light: PublicationThemeColors
+    @Indirect public var dark: PublicationThemeColors?
+
+    public init(
+        light: PublicationThemeColors,
+        dark: PublicationThemeColors? = nil
+    ) {
+        self.light = light
+        self.dark = dark
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case light = "light"
+        case dark = "dark"
+    }
+}
+
+/// PublicationDTO for API responses.
+public struct PublicationDTO: Codable, Sendable {
+    public var id: String
+    public var shortId: String
+    public var createdAt: String
+    public var updatedAt: String
+    public var deletedAt: String?
+    public var userId: String
+    @Indirect public var user: UserRelationDTO?
+    public var teamId: String
+    @Indirect public var team: TeamRelationDTO?
+    public var visibility: Visibility
+    public var resourceType: String
+    public var resourceId: String
+    public var namespace: String
+    public var name: String
+    /// Title is the human-readable name; empty falls back to Name.
+    public var title: String
+    public var allowedOrigins: [String]?
+    public var rateLimitRpm: Int?
+    @Indirect public var theme: PublicationTheme?
+    public var label: String?
+    public var enabled: Bool
+    /// VisitorReads is the scope groups of the team's resources (knowledge,
+    /// artifacts, files, remotes) a visitor can ask the published agent's
+    /// current version to reach by id: what its built-in tools add to an
+    /// embed run. Empty when its tools reach only what it names itself.
+    public var visitorReads: [ScopeGroup]?
+
+    public init(
+        id: String = "",
+        shortId: String = "",
+        createdAt: String = "",
+        updatedAt: String = "",
+        deletedAt: String? = nil,
+        userId: String = "",
+        user: UserRelationDTO? = nil,
+        teamId: String = "",
+        team: TeamRelationDTO? = nil,
+        visibility: Visibility,
+        resourceType: String = "",
+        resourceId: String = "",
+        namespace: String = "",
+        name: String = "",
+        title: String = "",
+        allowedOrigins: [String]? = nil,
+        rateLimitRpm: Int? = nil,
+        theme: PublicationTheme? = nil,
+        label: String? = nil,
+        enabled: Bool = false,
+        visitorReads: [ScopeGroup]? = nil
+    ) {
+        self.id = id
+        self.shortId = shortId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.deletedAt = deletedAt
+        self.userId = userId
+        self.user = user
+        self.teamId = teamId
+        self.team = team
+        self.visibility = visibility
+        self.resourceType = resourceType
+        self.resourceId = resourceId
+        self.namespace = namespace
+        self.name = name
+        self.title = title
+        self.allowedOrigins = allowedOrigins
+        self.rateLimitRpm = rateLimitRpm
+        self.theme = theme
+        self.label = label
+        self.enabled = enabled
+        self.visitorReads = visitorReads
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id = "id"
+        case shortId = "short_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case deletedAt = "deleted_at"
+        case userId = "user_id"
+        case user = "user"
+        case teamId = "team_id"
+        case team = "team"
+        case visibility = "visibility"
+        case resourceType = "resource_type"
+        case resourceId = "resource_id"
+        case namespace = "namespace"
+        case name = "name"
+        case title = "title"
+        case allowedOrigins = "allowed_origins"
+        case rateLimitRpm = "rate_limit_rpm"
+        case theme = "theme"
+        case label = "label"
+        case enabled = "enabled"
+        case visitorReads = "visitor_reads"
+    }
+}
+
 /// AccessNoticeDTO is the redlist's notice to a restricted caller, as a
 /// refusal's meta.notice and /me's access_notice carry it.
 public struct AccessNoticeDTO: Codable, Sendable {

@@ -2361,6 +2361,19 @@ class ProjectModelDTO(TypedDict, total=False):
     project_id: Optional[str]
     project: Optional[ProjectDTO]
 
+# PublicationThemeColors defines the core colors for one mode (light or dark).
+class PublicationThemeColors(TypedDict, total=False):
+    primary: str
+    secondary: str
+    background: str
+    text: str
+    border: str
+
+# PublicationTheme defines branding colors for embedded UIs.
+class PublicationTheme(TypedDict, total=False):
+    light: PublicationThemeColors
+    dark: Optional[PublicationThemeColors]
+
 # AccessNoticeDTO is the redlist's notice to a restricted caller, as a
 # refusal's meta.notice and /me's access_notice carry it.
 class AccessNoticeDTO(TypedDict, total=False):
@@ -4863,6 +4876,25 @@ class ProjectDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     parent_id: Optional[str]
     parent: Optional[ProjectDTO]
     children: List[Optional[ProjectDTO]]
+
+# PublicationDTO for API responses.
+class PublicationDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
+    resource_type: str
+    resource_id: str
+    namespace: str
+    name: str
+    # Title is the human-readable name; empty falls back to Name.
+    title: str
+    allowed_origins: List[str]
+    rate_limit_rpm: Optional[int]
+    theme: Optional[PublicationTheme]
+    label: str
+    enabled: bool
+    # VisitorReads is the scope groups of the team's resources (knowledge,
+    # artifacts, files, remotes) a visitor can ask the published agent's
+    # current version to reach by id: what its built-in tools add to an
+    # embed run. Empty when its tools reach only what it names itself.
+    visitor_reads: List[ScopeGroup]
 
 # SandboxDTO is the API response for a sandbox.
 class SandboxDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
