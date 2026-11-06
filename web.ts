@@ -11407,6 +11407,14 @@ export interface WsTaskFailedPayload {
   task_id: string;
   error?: string;
   /**
+   * ErrorType is the class name of the exception the app raised, and
+   * ErrorCode the app's machine-readable code for it (an error_code
+   * attribute, e.g. "content_moderation"). Engines send them only for an
+   * app's own failure, and only when the app set them.
+   */
+  error_type?: string;
+  error_code?: string;
+  /**
    * Egress is what the task moved through the egress gateway; engines
    * without one send nothing.
    */

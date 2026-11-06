@@ -8081,6 +8081,12 @@ type WsTaskOutputPayload struct {
 type WsTaskFailedPayload struct {
 	TaskID string  `json:"task_id"`
 	Error  *string `json:"error,omitempty"`
+	// ErrorType is the class name of the exception the app raised, and
+	// ErrorCode the app's machine-readable code for it (an error_code
+	// attribute, e.g. "content_moderation"). Engines send them only for an
+	// app's own failure, and only when the app set them.
+	ErrorType string `json:"error_type,omitempty"`
+	ErrorCode string `json:"error_code,omitempty"`
 	// Egress is what the task moved through the egress gateway; engines
 	// without one send nothing.
 	Egress *TaskEgress `json:"egress,omitempty"`
