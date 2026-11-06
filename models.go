@@ -574,7 +574,6 @@ type ApiAppRunRequest struct {
 	Session        *string          `json:"session,omitempty"`
 	SessionTimeout *int             `json:"session_timeout,omitempty"`
 	RunAt          *string          `json:"run_at,omitempty"`
-	Metadata       *TaskMetadata    `json:"metadata,omitempty"`
 }
 
 // MessageInput is a message a caller sends to an agent: its text and the
@@ -11867,18 +11866,6 @@ const (
 	TaskLogTypeSetup
 	TaskLogTypeTask
 )
-
-// TaskAction defines an action to execute when a task reaches a specific status.
-type TaskAction struct {
-	Key    string          `json:"key"`
-	On     string          `json:"on"`
-	Params json.RawMessage `json:"params,omitempty"`
-}
-
-// TaskMetadata holds optional metadata attached to a task.
-type TaskMetadata struct {
-	Action *TaskAction `json:"action,omitempty"`
-}
 
 // --------------------
 // source: team.go

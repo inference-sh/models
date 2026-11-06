@@ -315,7 +315,6 @@ class ApiAppRunRequest(TypedDict, total=False):
     session: Optional[str]
     session_timeout: Optional[int]
     run_at: Optional[str]
-    metadata: Optional[TaskMetadata]
 
 # MessageInput is a message a caller sends to an agent: its text and the
 # files sent with it. The model, its settings, the system prompt, the tools
@@ -3758,16 +3757,6 @@ class DeltaEvent(TypedDict, total=False):
     # the same key, so an in-process follower reads to it instead of guessing
     # when the stream is over. The stream layer never sends it to clients.
     end: str
-
-# TaskAction defines an action to execute when a task reaches a specific status.
-class TaskAction(TypedDict, total=False):
-    key: str
-    on: str
-    params: Any
-
-# TaskMetadata holds optional metadata attached to a task.
-class TaskMetadata(TypedDict, total=False):
-    action: Optional[TaskAction]
 
 # UtilityConfig defines a flow utility node — gate, selector, merge, or custom CEL.
 class UtilityConfig(TypedDict, total=False):

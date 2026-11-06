@@ -1467,7 +1467,6 @@ public struct ApiAppRunRequest: Codable, Sendable {
     public var session: String?
     public var sessionTimeout: Int?
     public var runAt: String?
-    @Indirect public var metadata: TaskMetadata?
 
     public init(
         app: String? = nil,
@@ -1483,8 +1482,7 @@ public struct ApiAppRunRequest: Codable, Sendable {
         function: String? = nil,
         session: String? = nil,
         sessionTimeout: Int? = nil,
-        runAt: String? = nil,
-        metadata: TaskMetadata? = nil
+        runAt: String? = nil
     ) {
         self.app = app
         self.appId = appId
@@ -1500,7 +1498,6 @@ public struct ApiAppRunRequest: Codable, Sendable {
         self.session = session
         self.sessionTimeout = sessionTimeout
         self.runAt = runAt
-        self.metadata = metadata
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1518,7 +1515,6 @@ public struct ApiAppRunRequest: Codable, Sendable {
         case session = "session"
         case sessionTimeout = "session_timeout"
         case runAt = "run_at"
-        case metadata = "metadata"
     }
 }
 
@@ -20055,44 +20051,6 @@ public struct TaskLogType: RawRepresentable, Codable, Hashable, Sendable {
     public static let serve = TaskLogType(rawValue: 2)
     public static let setup = TaskLogType(rawValue: 3)
     public static let task = TaskLogType(rawValue: 4)
-}
-
-/// TaskAction defines an action to execute when a task reaches a specific status.
-public struct TaskAction: Codable, Sendable {
-    public var key: String
-    public var on: String
-    public var params: JSONValue?
-
-    public init(
-        key: String = "",
-        on: String = "",
-        params: JSONValue? = nil
-    ) {
-        self.key = key
-        self.on = on
-        self.params = params
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case key = "key"
-        case on = "on"
-        case params = "params"
-    }
-}
-
-/// TaskMetadata holds optional metadata attached to a task.
-public struct TaskMetadata: Codable, Sendable {
-    @Indirect public var action: TaskAction?
-
-    public init(
-        action: TaskAction? = nil
-    ) {
-        self.action = action
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case action = "action"
-    }
 }
 
 public struct TeamType: RawRepresentable, Codable, Hashable, Sendable {

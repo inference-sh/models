@@ -954,7 +954,6 @@ export interface ApiAppRunRequest {
   session?: string;
   session_timeout?: number /* int */;
   run_at?: string;
-  metadata?: TaskMetadata;
 }
 /**
  * MessageInput is a message a caller sends to an agent: its text and the
@@ -4251,6 +4250,25 @@ export type ContentTier = "internal" | "content" | "third_party";
 export const ContentTierInternal: ContentTier = "internal";
 export const ContentTierContent: ContentTier = "content";
 export const ContentTierThirdParty: ContentTier = "third_party";
+/**
+ * GenerateCoversRequest is the request body for POST
+ * /admin/apps/{id}/covers/generate and /admin/agents/{id}/covers/generate:
+ * staff have the platform generate an app's or agent's cover images.
+ */
+export interface GenerateCoversRequest {
+  prompt: string;
+  /**
+   * Seed fixes the generator's randomness; a random one when unset.
+   */
+  seed?: number /* int */;
+}
+/**
+ * GenerateCoversResponse names the queued cover generation. Its task is the
+ * platform's; the covers are applied when it completes.
+ */
+export interface GenerateCoversResponse {
+  work_item_id: string;
+}
 /**
  * CredentialDTO is the API response for a credential (never exposes secrets).
  */
@@ -15571,20 +15589,6 @@ export const TaskLogTypeRun: TaskLogType = 1;
 export const TaskLogTypeServe: TaskLogType = 2;
 export const TaskLogTypeSetup: TaskLogType = 3;
 export const TaskLogTypeTask: TaskLogType = 4;
-/**
- * TaskAction defines an action to execute when a task reaches a specific status.
- */
-export interface TaskAction {
-  key: string;
-  on: string;
-  params?: any;
-}
-/**
- * TaskMetadata holds optional metadata attached to a task.
- */
-export interface TaskMetadata {
-  action?: TaskAction;
-}
 export type TeamType = "personal" | "team" | "system" | "org";
 export const TeamTypePersonal: TeamType = "personal";
 export const TeamTypeTeam: TeamType = "team";
