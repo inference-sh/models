@@ -980,11 +980,16 @@ type CredentialCompleteOAuthRequest struct {
 }
 
 type CredentialConnectResponse struct {
-	Credential   *CredentialDTO `json:"credential"`
-	AuthURL      string         `json:"auth_url,omitempty"`
-	State        string         `json:"state,omitempty"`
-	CodeVerifier string         `json:"code_verifier,omitempty"`
-	Instructions string         `json:"instructions,omitempty"`
+	Credential *CredentialDTO `json:"credential"`
+	AuthURL    string         `json:"auth_url,omitempty"`
+	// ConnectURL is a short link on our app that sends the person who
+	// started this connect on to AuthURL. A client that does not finish the
+	// flow in its own browser tab (a CLI, an agent) shows this one: the
+	// app's callback completes only a flow its browser started.
+	ConnectURL   string `json:"connect_url,omitempty"`
+	State        string `json:"state,omitempty"`
+	CodeVerifier string `json:"code_verifier,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
 	// Tokens the provider minted on connect (client-credentials grants):
 	// the credential service stores them as the login's secrets. Never
 	// sent to clients.
@@ -992,6 +997,17 @@ type CredentialConnectResponse struct {
 	RequiresConfirmation bool           `json:"requires_confirmation,omitempty"`
 	ConfirmationType     string         `json:"confirmation_type,omitempty"`
 	Message              string         `json:"message,omitempty"`
+}
+
+// Link is the address to hand a person who finishes this connect in a
+// browser the client does not drive (a terminal, a chat): the short link on
+// our app when there is one, else the provider's URL. Empty for a connect
+// that needs no sign-in.
+func (r CredentialConnectResponse) Link() string {
+	if r.ConnectURL != "" {
+		return r.ConnectURL
+	}
+	return r.AuthURL
 }
 
 type ProjectCreateRequest struct {

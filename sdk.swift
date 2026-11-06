@@ -2549,6 +2549,11 @@ public struct CredentialCompleteOAuthRequest: Codable, Sendable {
 public struct CredentialConnectResponse: Codable, Sendable {
     @Indirect public var credential: CredentialDTO?
     public var authUrl: String?
+    /// ConnectURL is a short link on our app that sends the person who
+    /// started this connect on to AuthURL. A client that does not finish the
+    /// flow in its own browser tab (a CLI, an agent) shows this one: the
+    /// app's callback completes only a flow its browser started.
+    public var connectUrl: String?
     public var state: String?
     public var codeVerifier: String?
     public var instructions: String?
@@ -2559,6 +2564,7 @@ public struct CredentialConnectResponse: Codable, Sendable {
     public init(
         credential: CredentialDTO? = nil,
         authUrl: String? = nil,
+        connectUrl: String? = nil,
         state: String? = nil,
         codeVerifier: String? = nil,
         instructions: String? = nil,
@@ -2568,6 +2574,7 @@ public struct CredentialConnectResponse: Codable, Sendable {
     ) {
         self.credential = credential
         self.authUrl = authUrl
+        self.connectUrl = connectUrl
         self.state = state
         self.codeVerifier = codeVerifier
         self.instructions = instructions
@@ -2579,6 +2586,7 @@ public struct CredentialConnectResponse: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case credential = "credential"
         case authUrl = "auth_url"
+        case connectUrl = "connect_url"
         case state = "state"
         case codeVerifier = "code_verifier"
         case instructions = "instructions"
