@@ -8924,6 +8924,8 @@ func (r DeadRunReason) Description() string {
 		return "The run stopped making progress and the platform ended it."
 	case DeadRunReasonPlatformError:
 		return "The platform failed the run."
+	case DeadRunReasonOwnerSetup:
+		return "The run could not start until the agent's owner fixes its setup."
 	}
 	return ""
 }
@@ -8953,6 +8955,12 @@ const (
 	// reasons: storage, dispatch, a turn that could not start, a harness
 	// session or remote lost.
 	DeadRunReasonPlatformError DeadRunReason = "platform_error"
+	// DeadRunReasonOwnerSetup: a turn could not start because of something
+	// the agent's owner has to fix: a missing secret or key, a credential
+	// without the scope the call needs, no balance or payment method, an
+	// agent with no model configured, an app outside the team's usage
+	// policy.
+	DeadRunReasonOwnerSetup DeadRunReason = "owner_setup"
 )
 
 // DeadRunSource is who caused a dead agent run.
@@ -8966,6 +8974,8 @@ const (
 	DeadRunSourceProvider DeadRunSource = "provider"
 	// DeadRunSourcePlatform: the platform failed or ended the run.
 	DeadRunSourcePlatform DeadRunSource = "platform"
+	// DeadRunSourceOwner: the agent's owner has to fix its setup.
+	DeadRunSourceOwner DeadRunSource = "owner"
 )
 
 // --------------------

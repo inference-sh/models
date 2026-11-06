@@ -16712,6 +16712,12 @@ public struct DeadRunReason: RawRepresentable, Codable, Hashable, Sendable {
     /// reasons: storage, dispatch, a turn that could not start, a harness
     /// session or remote lost.
     public static let platformError = DeadRunReason(rawValue: "platform_error")
+    /// DeadRunReasonOwnerSetup: a turn could not start because of something
+    /// the agent's owner has to fix: a missing secret or key, a credential
+    /// without the scope the call needs, no balance or payment method, an
+    /// agent with no model configured, an app outside the team's usage
+    /// policy.
+    public static let ownerSetup = DeadRunReason(rawValue: "owner_setup")
 }
 
 /// DeadRunSource is who caused a dead agent run.
@@ -16726,6 +16732,8 @@ public struct DeadRunSource: RawRepresentable, Codable, Hashable, Sendable {
     public static let provider = DeadRunSource(rawValue: "provider")
     /// DeadRunSourcePlatform: the platform failed or ended the run.
     public static let platform = DeadRunSource(rawValue: "platform")
+    /// DeadRunSourceOwner: the agent's owner has to fix its setup.
+    public static let owner = DeadRunSource(rawValue: "owner")
 }
 
 /// ApiKeyScope is who an API key acts as, chosen when it is created, the way a

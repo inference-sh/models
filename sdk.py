@@ -5749,6 +5749,12 @@ class DeadRunReason(str, Enum):
     # reasons: storage, dispatch, a turn that could not start, a harness
     # session or remote lost.
     PLATFORM_ERROR = "platform_error"
+    # DeadRunReasonOwnerSetup: a turn could not start because of something
+    # the agent's owner has to fix: a missing secret or key, a credential
+    # without the scope the call needs, no balance or payment method, an
+    # agent with no model configured, an app outside the team's usage
+    # policy.
+    OWNER_SETUP = "owner_setup"
 
 class DeadRunSource(str, Enum):
     # DeadRunSourceModel: the model ended without the output it owed.
@@ -5758,6 +5764,8 @@ class DeadRunSource(str, Enum):
     PROVIDER = "provider"
     # DeadRunSourcePlatform: the platform failed or ended the run.
     PLATFORM = "platform"
+    # DeadRunSourceOwner: the agent's owner has to fix its setup.
+    OWNER = "owner"
 
 class ApiKeyScope(str, Enum):
     # ApiKeyScopeUser is a personal key: it acts as the person who created it,
