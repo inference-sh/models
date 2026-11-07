@@ -1357,11 +1357,33 @@ type ScopeDefinition struct {
 	CostsCredits bool `json:"costs_credits,omitempty"`
 }
 
+// ScopeCategory is the section of a permission list a scope group falls
+// in: what is built and run, the workspace itself, the person's own
+// account, the platform's own workspace.
+type ScopeCategory string
+
+const (
+	ScopeCategoryResources ScopeCategory = "resources"
+	ScopeCategoryWorkspace ScopeCategory = "workspace"
+	ScopeCategoryAccount   ScopeCategory = "account"
+	ScopeCategoryPlatform  ScopeCategory = "platform"
+)
+
+// ScopeCategoryDefinition describes a category of scope groups for UI
+// rendering: a section heading over the groups in it.
+type ScopeCategoryDefinition struct {
+	ID          ScopeCategory `json:"id"`
+	Label       string        `json:"label"`
+	Description string        `json:"description"`
+}
+
 // ScopeGroupDefinition describes a group of scopes for UI rendering
 type ScopeGroupDefinition struct {
 	ID          ScopeGroup `json:"id"`
 	Label       string     `json:"label"`
 	Description string     `json:"description"`
+	// Category is the section the group is listed under (ScopesResponse.Categories).
+	Category ScopeCategory `json:"category"`
 	// PublicRows: the resource's rows can be public, so a credential
 	// without its read scope still reads what a signed-out caller reads
 	// (its public rows) instead of being refused.
@@ -1376,6 +1398,9 @@ type ScopesResponse struct {
 	Scopes  []ScopeDefinition      `json:"scopes"`
 	Groups  []ScopeGroupDefinition `json:"groups"`
 	Presets []ScopePreset          `json:"presets"`
+	// Categories are the sections Groups and AccountGroups fall in, in
+	// display order: every category a listed group names.
+	Categories []ScopeCategoryDefinition `json:"categories"`
 	// AccountScopes are the account holder's own scopes (approvals,
 	// profile and sessions, keys, billing writes) a sign-in may be approved
 	// for: the device approval page offers them as their own section. No
