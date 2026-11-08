@@ -7396,6 +7396,9 @@ type SystemInfo struct {
 	Volumes       []Volume    `json:"volumes"`
 	HFCacheInfo   HFCacheInfo `json:"hf_cache"`
 	GPUs          []GPU       `json:"gpus"`
+	// HostCPU is how the host runs its CPUs (INF-1244); nil off Linux
+	// and from engines that predate it.
+	HostCPU *HostCPU `json:"host_cpu,omitempty"`
 }
 
 func (s SystemInfo) Value() (driver.Value, error) {
@@ -7404,6 +7407,41 @@ func (s SystemInfo) Value() (driver.Value, error) {
 
 func (s *SystemInfo) Scan(value any) error {
 	return JSONScan(s, value, "SystemInfo")
+}
+
+// HostCPU is how a host runs its CPUs: the settings that make the same
+// cores fast or slow (INF-1244), as the engine reads them from /sys.
+type HostCPU struct {
+	// Governor and Driver are cpu0's cpufreq scaling_governor and
+	// scaling_driver.
+	Governor string `json:"governor,omitempty"`
+	Driver   string `json:"driver,omitempty"`
+	// Boost is turbo/boost on or off; nil when the host does not say.
+	Boost *bool `json:"boost,omitempty"`
+	// CurMHz is the mean current frequency across CPUs, MaxMHz cpu0's
+	// hardware maximum.
+	CurMHz float64 `json:"cur_mhz,omitempty"`
+	MaxMHz float64 `json:"max_mhz,omitempty"`
+	// SMT is simultaneous multithreading on or off; nil when unknown.
+	SMT            *bool `json:"smt,omitempty"`
+	ThreadsPerCore int   `json:"threads_per_core,omitempty"`
+	// HugePages2M are the reserved 2 MiB huge pages; THP the transparent
+	// huge page mode (always, madvise or never).
+	HugePages2MTotal uint64 `json:"hugepages_2m_total"`
+	HugePages2MFree  uint64 `json:"hugepages_2m_free"`
+	THP              string `json:"thp,omitempty"`
+	// KVM is /dev/kvm present.
+	KVM bool `json:"kvm"`
+	// Score is the engine's startup CPU benchmark; nil until it has run.
+	Score *CPUScore `json:"cpu_score,omitempty"`
+}
+
+// CPUScore is the engine's startup CPU benchmark: a fixed loop on one
+// thread, then on every thread.
+type CPUScore struct {
+	SingleOpsPerSec float64 `json:"single_ops_per_sec"`
+	AllOpsPerSec    float64 `json:"all_ops_per_sec"`
+	Threads         int     `json:"threads"`
 }
 
 type Docker struct {
@@ -7811,6 +7849,12 @@ type TeamViewDTO struct {
 	Org        *TeamViewOrg     `json:"org,omitempty"`
 	Governance TeamGovernance   `json:"governance"`
 	Can        []TeamCapability `json:"can"`
+	// NeedsAdminAccess lists what the caller would also hold with admin
+	// access on: set only for staff whose browser sign-in holds no platform
+	// power now and would after proving the authenticator again here
+	// (AuthContext.AdminPowerRenewable). Clients show these as needing admin
+	// access instead of hiding them.
+	NeedsAdminAccess []TeamCapability `json:"needs_admin_access,omitempty"`
 }
 
 // --------------------
