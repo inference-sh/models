@@ -7773,6 +7773,50 @@ export interface RedlistEntryDTO extends BaseModelDTO, PermissionModelDTO {
    * writes from abuse signals and bans); absent, it does not.
    */
   expires_at?: string /* RFC3339 */;
+  /**
+   * QuarantinedUntil, on an account entry, is set while the account is
+   * in quarantine: an established account the redlist's automation
+   * flagged, watched (flagged standing, diagnostics, a notice on /me)
+   * but not confined; the entry expires with it unless the account is
+   * confined (confine_accounts true, this cleared). Absent otherwise.
+   */
+  quarantined_until?: string /* RFC3339 */;
+}
+/**
+ * RedlistExemptionDTO is one account the redlist's automation leaves
+ * alone (/admin/redlist/exemptions): user_id (and user) is the exempted
+ * account, created_by the staff member who wrote it.
+ */
+export interface RedlistExemptionDTO extends BaseModelDTO, PermissionModelDTO {
+  /**
+   * Reason is why the account is exempt.
+   */
+  reason: string;
+  /**
+   * ExpiresAt is when the exemption ends; absent, it does not.
+   */
+  expires_at?: string /* RFC3339 */;
+  /**
+   * CreatedBy is the staff user who wrote it.
+   */
+  created_by: string;
+}
+/**
+ * CreateRedlistExemptionRequest is POST /admin/redlist/exemptions's body.
+ */
+export interface CreateRedlistExemptionRequest {
+  /**
+   * UserID is the account to exempt.
+   */
+  user_id: string;
+  /**
+   * Reason is why (plain text, at most 500 characters).
+   */
+  reason?: string;
+  /**
+   * ExpiresAt, when set, ends the exemption then; must be in the future.
+   */
+  expires_at?: string /* RFC3339 */;
 }
 export interface CreateRedlistEntryRequest {
   match_type: string;
@@ -7829,6 +7873,11 @@ export interface UpdateRedlistPolicyRequest {
    * ShadowMessage: "" clears it.
    */
   shadow_message?: string;
+  /**
+   * ConfineAccounts: on an email entry, confine the accounts it flags.
+   * On a quarantined account entry, true (alone) ends the quarantine:
+   * the account is confined.
+   */
   confine_accounts?: boolean;
   /**
    * FlagAccounts: off | flag | ban.
@@ -9577,6 +9626,132 @@ export interface StoreCheckRunDTO {
    * Content is the content check's verdict (staff views only).
    */
   content?: StoreContentVerdictDTO;
+  /**
+   * CodeReview is the ai_review check's reading of an app's package
+   * (staff views only).
+   */
+  code_review?: StoreCodeReviewDTO;
+}
+/**
+ * StoreCodeReviewDTO is the ai_review check's record of an app version's
+ * package: what was read, the rules that matched, the hosts the code
+ * names, and the review model's verdict.
+ */
+export interface StoreCodeReviewDTO {
+  /**
+   * Mode is the store_code_review setting the run ran under: shadow
+   * (recorded, not held) or hold.
+   */
+  mode: string;
+  ruleset: string;
+  /**
+   * Files are the files read, in the order read.
+   */
+  files: StoreCodeFileDTO[];
+  /**
+   * Skipped are package entries not read, with why.
+   */
+  skipped?: StoreCodeFileDTO[];
+  /**
+   * SkippedMore counts skipped entries past those listed.
+   */
+  skipped_more?: number /* int */;
+  bytes_read: number /* int64 */;
+  /**
+   * Unchecked counts code entries not read, or read in part: past the
+   * entry limit, the total cap or the read budget, in a compression the
+   * reader lacks, or cut at the per-file cap. A run with unchecked code
+   * has no verdict.
+   */
+  unchecked?: number /* int */;
+  /**
+   * Vendored are vendored directories the package ships (node_modules,
+   * site-packages, .venv): not read, and a finding.
+   */
+  vendored?: string[];
+  /**
+   * Redacted counts likely secrets replaced before the source was sent
+   * to the review model.
+   */
+  redacted?: number /* int */;
+  /**
+   * Error is why the package could not be read: no rules ran.
+   */
+  error?: string;
+  /**
+   * Hits are the rules that matched.
+   */
+  hits?: StoreCodeHitDTO[];
+  /**
+   * Hosts are the network hosts the code names, recorded, not flagged.
+   */
+  hosts?: string[];
+  /**
+   * Review is the model's verdict; ReviewPending a review still
+   * running; ReviewSkipped why none ran (off, budget, empty, preview,
+   * unavailable).
+   */
+  review?: StoreCodeVerdictDTO;
+  review_pending?: boolean;
+  review_skipped?: string;
+}
+/**
+ * StoreCodeFileDTO is one package entry: read (Bytes of Size, Truncated
+ * when cut at the per-file or total cap, Reviewed when sent to the model)
+ * or skipped (Reason).
+ */
+export interface StoreCodeFileDTO {
+  path: string;
+  size: number /* int64 */;
+  bytes?: number /* int64 */;
+  truncated?: boolean;
+  reviewed?: boolean;
+  reason?: string;
+  /**
+   * Unchecked: a skipped entry that is code not read.
+   */
+  unchecked?: boolean;
+  /**
+   * Redacted counts likely secrets replaced in what the model read.
+   */
+  redacted?: number /* int */;
+}
+/**
+ * StoreCodeHitDTO is one rule match in a package file.
+ */
+export interface StoreCodeHitDTO {
+  rule: string;
+  severity: string; // critical | warning
+  reason: string;
+  path: string;
+  line: number /* int */;
+  excerpt?: string;
+}
+/**
+ * StoreCodeVerdictDTO is the review model's answer. A verdict with Error
+ * set is no verdict: the review failed, timed out or answered out of
+ * format, and nothing was passed on it.
+ */
+export interface StoreCodeVerdictDTO {
+  model?: string;
+  flagged: boolean;
+  categories?: string[];
+  confidence?: number /* float64 */;
+  summary?: string;
+  findings?: StoreCodeFindingDTO[];
+  error?: string;
+  timed_out?: boolean;
+  latency_ms?: number /* int64 */;
+  task_id?: string;
+}
+/**
+ * StoreCodeFindingDTO is one thing the review model found.
+ */
+export interface StoreCodeFindingDTO {
+  category: string;
+  path?: string;
+  line?: number /* int */;
+  reason: string;
 }
 /**
  * StoreContentVerdictStatus grades a content verdict for the review badge.
