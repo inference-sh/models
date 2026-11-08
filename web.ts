@@ -8636,6 +8636,12 @@ export interface SandboxReport {
    */
   disk_kept?: boolean;
   disk_bytes?: number /* int64 */;
+  /**
+   * DiskKeepable, of a box: its stop will keep its disk (boxd recorded
+   * the image and the engine it was started with). False from an engine
+   * or a boxd that predates it: a box an older boxd started is not kept.
+   */
+  disk_keepable?: boolean;
 }
 /**
  * StartSandboxRequest is POST /sandboxes/{id}/start; the body is optional.

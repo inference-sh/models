@@ -6278,6 +6278,10 @@ type SandboxReport struct {
 	// predates it sees no box.
 	DiskKept  bool  `json:"disk_kept,omitempty"`
 	DiskBytes int64 `json:"disk_bytes,omitempty"`
+	// DiskKeepable, of a box: its stop will keep its disk (boxd recorded
+	// the image and the engine it was started with). False from an engine
+	// or a boxd that predates it: a box an older boxd started is not kept.
+	DiskKeepable bool `json:"disk_keepable,omitempty"`
 }
 
 // StartSandboxRequest is POST /sandboxes/{id}/start; the body is optional.
