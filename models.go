@@ -6258,7 +6258,8 @@ type WsSandboxStatusPayload struct {
 }
 
 // SandboxReport is one box in EngineTelemetry.Sandboxes: the whole set each
-// report, so the API can find lost and orphaned boxes.
+// report, so the API can find lost and orphaned boxes; or, DiskKept, the
+// disk the engine keeps of a stopped sandbox.
 type SandboxReport struct {
 	SandboxID  string          `json:"sandbox_id"`
 	Generation int64           `json:"generation"`
@@ -6271,6 +6272,12 @@ type SandboxReport struct {
 	MemoryBytes     int64 `json:"memory_bytes,omitempty"`
 	MemoryUsedBytes int64 `json:"memory_used_bytes,omitempty"`
 	MemoryPeakBytes int64 `json:"memory_peak_bytes,omitempty"`
+	// DiskKept: no box, the disk of the sandbox's last box there, which the
+	// engine keeps for its next start there (INF-1163); DiskBytes is what
+	// it holds. Its State is stopped and its Generation 0, so an API that
+	// predates it sees no box.
+	DiskKept  bool  `json:"disk_kept,omitempty"`
+	DiskBytes int64 `json:"disk_bytes,omitempty"`
 }
 
 // CreateSandboxRequest is POST /sandboxes. Sizes left at zero take the
@@ -6760,6 +6767,7 @@ type EngineTypes struct {
 	_wsWorkerRelease   WsWorkerReleasePayload
 	_wsSandboxStart    WsSandboxStartPayload
 	_wsSandboxStop     WsSandboxStopPayload
+	_wsSandboxDrop     WsSandboxDropDiskPayload
 	_wsSandboxStatus   WsSandboxStatusPayload
 	_sandboxReport     SandboxReport
 	_wsEgressRevoke    WsEgressRevokePayload
@@ -8259,7 +8267,18 @@ const (
 	// WSEventWorkerRelease is API → engine (WsWorkerReleasePayload): end a
 	// sized app worker (INF-1159), evicted or idle past its keep time.
 	WSEventWorkerRelease WSEventType = "worker_release"
+	// WSEventSandboxDropDisk is API → engine (WsSandboxDropDiskPayload):
+	// drop the disk the engine keeps of a stopped sandbox (INF-1163). An
+	// engine that predates it has no handler for it and does nothing.
+	WSEventSandboxDropDisk WSEventType = "sandbox_drop_disk"
 )
+
+// WsSandboxDropDiskPayload names the sandbox whose kept disk the engine
+// drops: deleted, placed elsewhere since, or stopped past the API's keep.
+// A box of it that runs there keeps its disk.
+type WsSandboxDropDiskPayload struct {
+	SandboxID string `json:"sandbox_id"`
+}
 
 // WsWorkerReleasePayload names the sized app worker the engine is to end.
 // The engine ends it only while it runs nothing.
@@ -8336,8 +8355,13 @@ type EngineTelemetry struct {
 	Capabilities EngineCapabilities `json:"capabilities,omitempty"`
 	SystemInfo   *SystemInfo        `json:"system_info"`
 	Workers      []WorkerTelemetry  `json:"workers"`
-	// Sandboxes is every box the engine holds, the whole set each report.
+	// Sandboxes is every box the engine holds, the whole set each report,
+	// and the disks it keeps of stopped sandboxes (SandboxReport.DiskKept).
 	Sandboxes []SandboxReport `json:"sandboxes,omitempty"`
+	// DisksListed: Sandboxes holds every disk the engine keeps. False when
+	// it could not list them (or keeps none, an engine that predates it):
+	// the API then forgets none it knew of.
+	DisksListed bool `json:"disks_listed,omitempty"`
 	// Capacity is what the engine offers and has given out; nil from an
 	// engine without EngineCapabilityCapacity.
 	Capacity *EngineCapacity `json:"capacity,omitempty"`
