@@ -6304,6 +6304,20 @@ type CreateSandboxRequest struct {
 	// engine's gateway places the values toward those hosts and renews
 	// the ones that expire, always from the login chosen here.
 	Credentials []SandboxCredential `json:"credentials,omitempty"`
+	// IdleTimeoutSeconds stops the running box this long after it was last
+	// used through the API (an exec, an agent session, a keepalive); what
+	// runs inside it does not count, but an exec still running holds it.
+	// Unset is 1800 (30 minutes), 0 never stops it; otherwise 60 to
+	// 2592000 (30 days).
+	IdleTimeoutSeconds *int `json:"idle_timeout_seconds,omitempty"`
+}
+
+// UpdateSandboxRequest is PATCH /sandboxes/{id}: the fields to change,
+// nil left as they are.
+type UpdateSandboxRequest struct {
+	// IdleTimeoutSeconds is as in CreateSandboxRequest. Changing it counts
+	// as activity.
+	IdleTimeoutSeconds *int `json:"idle_timeout_seconds,omitempty"`
 }
 
 // SandboxCredentialMode is when a sandbox's login is given to its box.
@@ -6410,6 +6424,12 @@ type SandboxDTO struct {
 	// drop it sooner when its host runs short of disk.
 	DiskKept      bool       `json:"disk_kept"`
 	DiskKeptUntil *time.Time `json:"disk_kept_until,omitempty"`
+	// IdleTimeoutSeconds stops the running box this long after
+	// LastActivityAt; 0 never does.
+	IdleTimeoutSeconds int `json:"idle_timeout_seconds"`
+	// LastActivityAt is when the sandbox was last used through the API, or
+	// its box started, whichever is later.
+	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
 }
 
 // --------------------
@@ -6454,6 +6474,7 @@ type SDKTypes struct {
 	_sandbox            SandboxDTO
 	_sandboxCreate      CreateSandboxRequest
 	_sandboxStart       StartSandboxRequest
+	_sandboxUpdate      UpdateSandboxRequest
 	_publication        PublicationDTO
 	_egressGrant        EgressGrantDTO
 	_engineUpdateReq    EngineUpdateRequest
