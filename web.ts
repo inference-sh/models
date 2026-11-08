@@ -10772,6 +10772,14 @@ export interface TeamViewDTO {
   org?: TeamViewOrg;
   governance: TeamGovernance;
   can: TeamCapability[];
+  /**
+   * NeedsAdminAccess lists what the caller would also hold with admin
+   * access on: set only for staff whose browser sign-in holds no platform
+   * power now and would after proving the authenticator again here
+   * (AuthContext.AdminPowerRenewable). Clients show these as needing admin
+   * access instead of hiding them.
+   */
+  needs_admin_access?: TeamCapability[];
 }
 export interface TelemetryReportDTO extends BaseModelDTO, PermissionModelDTO {
   ip: string;
