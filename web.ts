@@ -8611,7 +8611,8 @@ export interface WsSandboxStatusPayload {
 }
 /**
  * SandboxReport is one box in EngineTelemetry.Sandboxes: the whole set each
- * report, so the API can find lost and orphaned boxes.
+ * report, so the API can find lost and orphaned boxes; or, DiskKept, the
+ * disk the engine keeps of a stopped sandbox.
  */
 export interface SandboxReport {
   sandbox_id: string;
@@ -8627,6 +8628,24 @@ export interface SandboxReport {
   memory_bytes?: number /* int64 */;
   memory_used_bytes?: number /* int64 */;
   memory_peak_bytes?: number /* int64 */;
+  /**
+   * DiskKept: no box, the disk of the sandbox's last box there, which the
+   * engine keeps for its next start there (INF-1163); DiskBytes is what
+   * it holds. Its State is stopped and its Generation 0, so an API that
+   * predates it sees no box.
+   */
+  disk_kept?: boolean;
+  disk_bytes?: number /* int64 */;
+}
+/**
+ * StartSandboxRequest is POST /sandboxes/{id}/start; the body is optional.
+ */
+export interface StartSandboxRequest {
+  /**
+   * FreshDisk starts the stopped sandbox on a new, empty disk: the one
+   * its engine keeps is dropped (INF-1163).
+   */
+  fresh_disk?: boolean;
 }
 /**
  * CreateSandboxRequest is POST /sandboxes. Sizes left at zero take the
@@ -8743,6 +8762,14 @@ export interface SandboxDTO extends BaseModelDTO, PermissionModelDTO {
   remote_id?: string;
   started_at?: string /* RFC3339 */;
   stopped_at?: string /* RFC3339 */;
+  /**
+   * DiskKept: the engine the sandbox last ran on keeps its disk, and its
+   * next start goes back there for it (INF-1163). DiskKeptUntil is when
+   * a stopped sandbox's disk goes (stopped_at + 7 days); the engine may
+   * drop it sooner when its host runs short of disk.
+   */
+  disk_kept: boolean;
+  disk_kept_until?: string /* RFC3339 */;
 }
 /**
  * SDKTypes is a phantom type for gotypegen dependency tracing.
@@ -11598,6 +11625,7 @@ export type WSEventType =
   | "egress_revoke_ack"
   | "egress_answer"
   | "worker_release"
+  | "sandbox_drop_disk"
   | "sandbox_status"
   | "engine_heartbeat"
   | "engine_telemetry"
@@ -11755,6 +11783,20 @@ export const WSEventEgressAnswer: WSEventType = "egress_answer";
  */
 export const WSEventWorkerRelease: WSEventType = "worker_release";
 /**
+ * WSEventSandboxDropDisk is API → engine (WsSandboxDropDiskPayload):
+ * drop the disk the engine keeps of a stopped sandbox (INF-1163). An
+ * engine that predates it has no handler for it and does nothing.
+ */
+export const WSEventSandboxDropDisk: WSEventType = "sandbox_drop_disk";
+/**
+ * WsSandboxDropDiskPayload names the sandbox whose kept disk the engine
+ * drops: deleted, placed elsewhere since, or stopped past the API's keep.
+ * A box of it that runs there keeps its disk.
+ */
+export interface WsSandboxDropDiskPayload {
+  sandbox_id: string;
+}
+/**
  * WsWorkerReleasePayload names the sized app worker the engine is to end.
  * The engine ends it only while it runs nothing.
  */
@@ -11848,9 +11890,16 @@ export interface EngineTelemetry {
   system_info?: SystemInfo;
   workers: WorkerTelemetry[];
   /**
-   * Sandboxes is every box the engine holds, the whole set each report.
+   * Sandboxes is every box the engine holds, the whole set each report,
+   * and the disks it keeps of stopped sandboxes (SandboxReport.DiskKept).
    */
   sandboxes?: SandboxReport[];
+  /**
+   * DisksListed: Sandboxes holds every disk the engine keeps. False when
+   * it could not list them (or keeps none, an engine that predates it):
+   * the API then forgets none it knew of.
+   */
+  disks_listed?: boolean;
   /**
    * Capacity is what the engine offers and has given out; nil from an
    * engine without EngineCapabilityCapacity.
