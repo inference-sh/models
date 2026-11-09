@@ -6282,6 +6282,12 @@ type SandboxReport struct {
 	// the image and the engine it was started with). False from an engine
 	// or a boxd that predates it: a box an older boxd started is not kept.
 	DiskKeepable bool `json:"disk_keepable,omitempty"`
+	// EgressIdleSeconds, of a box: how long ago it last moved bytes through
+	// the engine's gateway to or from a host other than the API, its own
+	// outbound traffic, which idle stop counts as use. Nil when it has
+	// moved none since the engine started it, and from an engine that
+	// predates it.
+	EgressIdleSeconds *int64 `json:"egress_idle_seconds,omitempty"`
 }
 
 // StartSandboxRequest is POST /sandboxes/{id}/start; the body is optional.

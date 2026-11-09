@@ -6507,126 +6507,6 @@ export interface SkillStoreListingDTO {
   tags?: string[];
 }
 /**
- * LinearWorkflowState represents a workflow state from Linear
- */
-export interface LinearWorkflowState {
-  id: string;
-  name: string;
-  color: string;
-  type: string; // backlog, unstarted, started, completed, canceled
-}
-/**
- * LinearLabel represents a label from Linear
- */
-export interface LinearLabel {
-  id: string;
-  name: string;
-  color: string;
-}
-/**
- * LinearIssueDTO is the public DTO for issues
- */
-export interface LinearIssueDTO {
-  id: string;
-  identifier: string;
-  title: string;
-  description?: string;
-  priority: LinearIssuePriority;
-  priority_name: string;
-  state?: LinearWorkflowState;
-  labels?: LinearLabel[];
-  created_at: string /* RFC3339 */;
-  updated_at: string /* RFC3339 */;
-  url: string;
-  vote_count: number /* int */;
-  comment_count: number /* int */;
-  issue_type: LinearIssueType;
-  has_voted: boolean;
-}
-/**
- * LinearCommentDTO is the public DTO for comments
- */
-export interface LinearCommentDTO {
-  id: string;
-  body: string;
-  created_at: string /* RFC3339 */;
-  updated_at: string /* RFC3339 */;
-  user_name: string;
-  user_avatar?: string;
-  is_external: boolean; // True if from external user (our platform)
-}
-/**
- * CreateFeedbackRequest is used to submit new feedback
- */
-export interface CreateFeedbackRequest {
-  title: string;
-  description: string;
-  type: LinearIssueType;
-  priority?: number /* int */; // Optional, defaults to medium
-  /**
-   * For model requests
-   */
-  model_name?: string;
-  model_provider?: string;
-  model_url?: string;
-  /**
-   * For bug reports
-   */
-  steps?: string;
-  expected?: string;
-  actual?: string;
-  environment?: string;
-  /**
-   * Turnstile captcha token
-   */
-  turnstile_token: string;
-}
-/**
- * CreateFeedbackResponse is returned after creating feedback
- */
-export interface CreateFeedbackResponse {
-  issue?: LinearIssueDTO;
-}
-/**
- * CreateCommentResponse is returned after creating a comment
- */
-export interface CreateCommentResponse {
-  comment?: LinearCommentDTO;
-}
-/**
- * VoteFeedbackResponse is returned after voting
- */
-export interface VoteFeedbackResponse {
-  vote_count: number /* int */;
-  has_voted: boolean;
-}
-/**
- * ListFeedbackResponse is returned when listing feedback
- */
-export interface ListFeedbackResponse {
-  issues: LinearIssueDTO[];
-  next_cursor?: string;
-  has_more: boolean;
-  total_count: number /* int */;
-}
-/**
- * GetFeedbackResponse is returned when getting a single issue
- */
-export interface GetFeedbackResponse {
-  issue?: LinearIssueDTO;
-  comments: LinearCommentDTO[];
-}
-/**
- * FeedbackStats contains aggregate statistics
- */
-export interface FeedbackStats {
-  total_issues: number /* int */;
-  open_issues: number /* int */;
-  completed_issues: number /* int */;
-  by_type: { [key: string]: number /* int */};
-  by_state: { [key: string]: number /* int */};
-}
-/**
  * ElicitationCapability advertises which elicitation modes the client handles.
  * An empty struct is equivalent to form-only for backward compatibility.
  */
@@ -8642,6 +8522,14 @@ export interface SandboxReport {
    * or a boxd that predates it: a box an older boxd started is not kept.
    */
   disk_keepable?: boolean;
+  /**
+   * EgressIdleSeconds, of a box: how long ago it last moved bytes through
+   * the engine's gateway to or from a host other than the API, its own
+   * outbound traffic, which idle stop counts as use. Nil when it has
+   * moved none since the engine started it, and from an engine that
+   * predates it.
+   */
+  egress_idle_seconds?: number /* int64 */;
 }
 /**
  * StartSandboxRequest is POST /sandboxes/{id}/start; the body is optional.
@@ -14906,29 +14794,6 @@ export type TriggerAction = "run_agent" | "run_app" | "run_flow";
 export const TriggerActionRunAgent: TriggerAction = "run_agent";
 export const TriggerActionRunApp: TriggerAction = "run_app";
 export const TriggerActionRunFlow: TriggerAction = "run_flow";
-/**
- * LinearIssuePriority represents issue priority levels
- */
-export type LinearIssuePriority = number /* int */;
-export const LinearPriorityNone: LinearIssuePriority = 0;
-export const LinearPriorityUrgent: LinearIssuePriority = 1;
-export const LinearPriorityHigh: LinearIssuePriority = 2;
-export const LinearPriorityMedium: LinearIssuePriority = 3;
-export const LinearPriorityLow: LinearIssuePriority = 4;
-/**
- * LinearIssueType represents the type of feedback
- */
-export type LinearIssueType =
-  | "bug_report"
-  | "feature_request"
-  | "model_request"
-  | "question"
-  | "other";
-export const LinearIssueTypeBugReport: LinearIssueType = "bug_report";
-export const LinearIssueTypeFeatureRequest: LinearIssueType = "feature_request";
-export const LinearIssueTypeModelRequest: LinearIssueType = "model_request";
-export const LinearIssueTypeQuestion: LinearIssueType = "question";
-export const LinearIssueTypeOther: LinearIssueType = "other";
 export type FilterOperator =
   | "eq"
   | "neq"
