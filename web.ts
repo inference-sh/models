@@ -827,10 +827,44 @@ export interface LiveStats {
    * Plan breakdown (all base plans including free)
    */
   plan_counts?: PlanCount[];
+  /**
+   * Today's leaderboards (since UTC midnight)
+   */
+  top_teams_credits_today: TeamCreditStats[]; // top 10 teams by credits purchased
+  top_apps_today: AppRevenueStats[]; // top 10 apps by tasks
+  /**
+   * Sandboxes
+   */
+  sandboxes_running: number /* int64 */; // status = running right now
+  sandboxes_today: number /* int64 */; // created today
+  sandboxes_yesterday: number /* int64 */; // created yesterday up to this time
+  sandboxes_yesterday_total: number /* int64 */; // created yesterday, full day
+  sandbox_spend_today: number /* int64 */; // microcents billed to sandboxes today
+  top_teams_sandboxes_today: TeamSandboxStats[]; // top 10 teams by sandbox spend today
 }
 export interface PlanCount {
   name: string;
   count: number /* int64 */;
+}
+/**
+ * TeamCreditStats is one team's Stripe credit purchases in a window.
+ */
+export interface TeamCreditStats {
+  team_id: string;
+  username: string;
+  name: string;
+  total: number /* int64 */; // microcents
+  purchase_count: number /* int64 */; // credit transactions
+}
+/**
+ * TeamSandboxStats is one team's sandbox activity in a window.
+ */
+export interface TeamSandboxStats {
+  team_id: string;
+  username: string;
+  name: string;
+  sandbox_count: number /* int64 */; // sandboxes created today or running now
+  spend: number /* int64 */; // microcents billed today
 }
 /**
  * DashboardRetentionResponse contains retention and purchase behavior metrics.
