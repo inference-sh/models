@@ -9292,6 +9292,14 @@ type WsRemoteStreamClose struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// WSEventRemoteStreamDial (server -> remote) asks the daemon to carry one
+// connection to a port of its machine through a relay instead of the
+// remote's socket (port URLs served by go/relay): dial 127.0.0.1:Port, then
+// URL with Token as a bearer, write "ok" (or close with why), and pipe the
+// port's bytes as binary frames. The relay and the visitor's browser are the
+// only hops; the API never carries the bytes.
+const WSEventRemoteStreamDial WSEventType = "remote_stream_dial"
+
 // --------------------
 // source: a2ui.go
 // --------------------

@@ -11967,7 +11967,8 @@ export type WSEventType =
   | "remote_stream_ack"
   | "remote_stream_opened"
   | "remote_stream_read"
-  | "remote_stream_closed";
+  | "remote_stream_closed"
+  | "remote_stream_dial";
 /**
  * Task WebSocket events (Engine → API)
  */
@@ -12959,6 +12960,15 @@ export interface WsRemoteStreamClose {
   stream_id: string;
   error?: string;
 }
+/**
+ * WSEventRemoteStreamDial (server -> remote) asks the daemon to carry one
+ * connection to a port of its machine through a relay instead of the
+ * remote's socket (port URLs served by go/relay): dial 127.0.0.1:Port, then
+ * URL with Token as a bearer, write "ok" (or close with why), and pipe the
+ * port's bytes as binary frames. The relay and the visitor's browser are the
+ * only hops; the API never carries the bytes.
+ */
+export const WSEventRemoteStreamDial: WSEventType = "remote_stream_dial";
 export type A2UIComponentType =
   | "Row"
   | "Column"
