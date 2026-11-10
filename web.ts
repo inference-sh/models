@@ -5029,7 +5029,8 @@ export type EngineCapability =
   | "egress_grants"
   | "egress_decide"
   | "sized_sandboxes"
-  | "sized_workers";
+  | "sized_workers"
+  | "sandbox_snapshots";
 /**
  * EngineCapabilityEgressGateway: the engine runs its sandboxes behind
  * the egress gateway, so it can take bound secrets (the v2 secrets
@@ -5090,6 +5091,13 @@ export const EngineCapabilitySizedSandboxes: EngineCapability = "sized_sandboxes
  * there by size, against the engine's capacity (INF-1159).
  */
 export const EngineCapabilitySizedWorkers: EngineCapability = "sized_workers";
+/**
+ * EngineCapabilitySandboxSnapshots: the engine copies a stopped
+ * sandbox's kept disk to a snapshot and starts a sandbox on a copy of a
+ * snapshot (sandbox_snapshot, sandbox_snapshot_drop,
+ * WsSandboxStartPayload.FromSnapshotID; INF-1251).
+ */
+export const EngineCapabilitySandboxSnapshots: EngineCapability = "sandbox_snapshots";
 /**
  * EngineCapabilities is a set of capabilities, kept as a list. Nil and
  * empty are the same: nothing beyond the base contract.
@@ -5211,6 +5219,24 @@ export interface EntitlementDTO extends BaseModelDTO {
 export interface FeatureAccess {
   resource: EntitlementResource;
   allowed: boolean;
+}
+/**
+ * ResourceUsage shows current usage vs limit for a single resource.
+ */
+export interface ResourceUsage {
+  resource: EntitlementResource;
+  label: string;
+  unit?: string;
+  type: EntitlementType;
+  usage: number /* int */;
+  limit: number /* int */;
+  unlimited: boolean;
+  enabled: boolean;
+  /**
+   * Mode is how a set limit is enforced: block refuses past it, warn
+   * only warns. Empty with no row.
+   */
+  mode?: EnforcementMode;
 }
 /**
  * EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
@@ -8557,6 +8583,13 @@ export interface WsSandboxStartPayload {
    * carries INFERENCE_API_KEY for the API host, so the box holds a placeholder.
    */
   secrets: string;
+  /**
+   * FromSnapshotID: when the engine keeps no disk of the sandbox, its
+   * box's disk starts as a copy of that snapshot's (a sandbox made from a
+   * snapshot, or a fork; INF-1251). Only sent to an engine with
+   * EngineCapabilitySandboxSnapshots, until the sandbox's box has run.
+   */
+  from_snapshot_id?: string;
 }
 /**
  * WsSandboxStopPayload is sandbox_stop, API to engine.
@@ -8632,6 +8665,13 @@ export interface StartSandboxRequest {
    * its engine keeps is dropped (INF-1163).
    */
   fresh_disk?: boolean;
+  /**
+   * UpgradeImage moves the stopped sandbox to the server's current
+   * image. A sandbox otherwise keeps the image it was made with, so its
+   * kept disk stays valid; a disk made over the old image is dropped,
+   * and it starts on a new one.
+   */
+  upgrade_image?: boolean;
 }
 /**
  * CreateSandboxRequest is POST /sandboxes. Sizes left at zero take the
@@ -8658,6 +8698,13 @@ export interface CreateSandboxRequest {
    * 2592000 (30 days).
    */
   idle_timeout_seconds?: number /* int */;
+  /**
+   * FromSnapshotID starts the sandbox on a copy of a ready snapshot's
+   * disk, with the snapshot's image, on the engine that keeps it
+   * (INF-1251). Sizes left at zero take the snapshot's; the disk is never
+   * smaller than the snapshot's.
+   */
+  from_snapshot_id?: string;
 }
 /**
  * UpdateSandboxRequest is PATCH /sandboxes/{id}: the fields to change,
@@ -8830,6 +8877,198 @@ export interface SandboxFileTransferDTO {
   path: string;
   file?: FileDTO;
   download_url?: string;
+}
+/**
+ * SandboxRange is what a sandbox may ask for of one size: the default
+ * when unset, and the largest.
+ */
+export interface SandboxRange {
+  default: number /* int64 */;
+  max: number /* int64 */;
+}
+/**
+ * SandboxLimitsDTO answers GET /sandboxes/limits: the caller's team's plan
+ * limits on sandboxes and its use of them, the sizes one sandbox may ask
+ * for, and the idle stop's range, in seconds (0 never stops).
+ */
+export interface SandboxLimitsDTO {
+  /**
+   * Limits are the team's plan limits on sandboxes, each of them
+   * (unlimited without a row), as GET /entitlements/usage reports them.
+   */
+  limits: ResourceUsage[];
+  vcpus_per_sandbox: SandboxRange;
+  memory_mib: SandboxRange;
+  disk_mib: SandboxRange;
+  /**
+   * IdleTimeout* are in seconds.
+   */
+  idle_timeout_default: number /* int64 */;
+  idle_timeout_min: number /* int64 */;
+  idle_timeout_max: number /* int64 */;
+  /**
+   * DiskKeptFor is how long a stopped sandbox's disk is kept, in seconds.
+   */
+  disk_kept_for: number /* int64 */;
+}
+/**
+ * SandboxPortRequest opens a sandbox's port on its own HTTPS URL
+ * (POST /sandboxes/{id}/ports).
+ */
+export interface SandboxPortRequest {
+  /**
+   * Port is the TCP port inside the box, 1-65535.
+   */
+  port: number /* int */;
+  /**
+   * Public answers anyone with the URL. Private (the default) asks once
+   * per browser for the token, which the open answers with.
+   */
+  public?: boolean;
+}
+/**
+ * SandboxPortDTO is an open port. URL opens it; for a private port the URL
+ * the open answered with carries its token, which is shown only then.
+ */
+export interface SandboxPortDTO {
+  port: number /* int */;
+  public: boolean;
+  url: string;
+  created_at: string /* RFC3339 */;
+}
+/**
+ * SandboxPortList is GET /sandboxes/{id}/ports.
+ */
+export interface SandboxPortList {
+  ports: SandboxPortDTO[];
+}
+/**
+ * SandboxSnapshotStatus is where a snapshot stands.
+ */
+export type SandboxSnapshotStatus = "pending" | "ready" | "failed";
+/**
+ * SandboxSnapshotPending: the engine is copying the disk.
+ */
+export const SandboxSnapshotPending: SandboxSnapshotStatus = "pending";
+/**
+ * SandboxSnapshotReady: the copy is kept; forks and new sandboxes may
+ * start from it.
+ */
+export const SandboxSnapshotReady: SandboxSnapshotStatus = "ready";
+/**
+ * SandboxSnapshotFailed: the copy could not be made (StatusReason
+ * says why), or the engine no longer has it.
+ */
+export const SandboxSnapshotFailed: SandboxSnapshotStatus = "failed";
+/**
+ * SandboxSnapshotDTO is the API response for a snapshot.
+ */
+export interface SandboxSnapshotDTO extends BaseModelDTO {
+  /**
+   * UserID took it; TeamID is the workspace it belongs to.
+   */
+  user_id: string;
+  team_id: string;
+  name: string;
+  /**
+   * SandboxID is the sandbox it was taken of.
+   */
+  sandbox_id: string;
+  /**
+   * Image and the sizes are the source's at the snapshot: a sandbox made
+   * from it runs that image, at least that size.
+   */
+  image: string;
+  vcpus: number /* int */;
+  memory_mib: number /* int64 */;
+  disk_mib: number /* int64 */;
+  /**
+   * Bytes is what the copy holds on the engine (sparse).
+   */
+  bytes: number /* int64 */;
+  status: SandboxSnapshotStatus;
+  status_reason?: string;
+  ready_at?: string /* RFC3339 */;
+  /**
+   * ForFork: taken by a fork for its sandboxes to start from, and
+   * deleted once they have all started or failed. Not listed.
+   */
+  for_fork?: boolean;
+}
+/**
+ * CreateSandboxSnapshotRequest is POST /sandboxes/{id}/snapshots: a
+ * snapshot of the stopped sandbox's kept disk.
+ */
+export interface CreateSandboxSnapshotRequest {
+  name: string;
+}
+/**
+ * ForkSandboxRequest is POST /sandboxes/{id}/fork: a snapshot of the
+ * stopped sandbox's kept disk, then Count new sandboxes (1 when unset, at
+ * most MaxSandboxForks) made from it, named Name-1..Name-N (Name alone for
+ * one; the source's name + "-fork" when unset). They hold the disk as it
+ * was at the fork: starting the source afterwards changes none of them.
+ */
+export interface ForkSandboxRequest {
+  name?: string;
+  count?: number /* int */;
+  /**
+   * IdleTimeoutSeconds is as in CreateSandboxRequest; unset takes the
+   * source's.
+   */
+  idle_timeout_seconds?: number /* int */;
+  /**
+   * KeepSnapshot keeps the fork's snapshot as one of the workspace's
+   * (listed, deleted by hand). Unset, it is deleted once every fork has
+   * started or failed.
+   */
+  keep_snapshot?: boolean;
+}
+/**
+ * ForkSandboxResponse is the sandboxes a fork made, and the snapshot they
+ * start from (SnapshotID). Error says why the rest were not, when it made
+ * fewer than asked (a plan limit, say).
+ */
+export interface ForkSandboxResponse {
+  sandboxes: (SandboxDTO | undefined)[];
+  snapshot_id?: string;
+  error?: string;
+}
+/**
+ * WsSandboxSnapshotPayload is sandbox_snapshot, API to engine: copy the
+ * disk the engine keeps of SandboxID to snapshot SnapshotID's, kept until
+ * sandbox_snapshot_drop. The engine answers sandbox_snapshot_status.
+ */
+export interface WsSandboxSnapshotPayload {
+  snapshot_id: string;
+  sandbox_id: string;
+}
+/**
+ * WsSandboxSnapshotDropPayload is sandbox_snapshot_drop, API to engine:
+ * remove snapshot SnapshotID's disk.
+ */
+export interface WsSandboxSnapshotDropPayload {
+  snapshot_id: string;
+}
+/**
+ * WsSandboxSnapshotStatusPayload is sandbox_snapshot_status, engine to
+ * API: a snapshot's copy is made (State ready, Bytes what it holds) or
+ * could not be (failed, Error).
+ */
+export interface WsSandboxSnapshotStatusPayload {
+  snapshot_id: string;
+  state: SandboxSnapshotStatus;
+  bytes?: number /* int64 */;
+  error?: string; // redacted, short
+}
+/**
+ * SandboxSnapshotReport is one snapshot an engine keeps, in
+ * EngineTelemetry.SandboxSnapshots (the whole set each report, when
+ * DisksListed).
+ */
+export interface SandboxSnapshotReport {
+  snapshot_id: string;
+  bytes: number /* int64 */;
 }
 /**
  * SDKTypes is a phantom type for gotypegen dependency tracing.
@@ -11686,6 +11925,9 @@ export type WSEventType =
   | "egress_answer"
   | "worker_release"
   | "sandbox_drop_disk"
+  | "sandbox_snapshot"
+  | "sandbox_snapshot_drop"
+  | "sandbox_snapshot_status"
   | "sandbox_status"
   | "engine_heartbeat"
   | "engine_telemetry"
@@ -11718,7 +11960,14 @@ export type WSEventType =
   | "remote_session_event"
   | "remote_session_closed"
   | "remote_sessions_listed"
-  | "remote_session_tool_call";
+  | "remote_session_tool_call"
+  | "remote_stream_open"
+  | "remote_stream_write"
+  | "remote_stream_close"
+  | "remote_stream_ack"
+  | "remote_stream_opened"
+  | "remote_stream_read"
+  | "remote_stream_closed";
 /**
  * Task WebSocket events (Engine → API)
  */
@@ -11849,6 +12098,16 @@ export const WSEventWorkerRelease: WSEventType = "worker_release";
  */
 export const WSEventSandboxDropDisk: WSEventType = "sandbox_drop_disk";
 /**
+ * WSEventSandboxSnapshot (WsSandboxSnapshotPayload) and
+ * WSEventSandboxSnapshotDrop (WsSandboxSnapshotDropPayload) are API →
+ * engine, WSEventSandboxSnapshotStatus (WsSandboxSnapshotStatusPayload)
+ * engine → API: a snapshot of a sandbox's kept disk (INF-1251). Only an
+ * engine with EngineCapabilitySandboxSnapshots is sent them.
+ */
+export const WSEventSandboxSnapshot: WSEventType = "sandbox_snapshot";
+export const WSEventSandboxSnapshotDrop: WSEventType = "sandbox_snapshot_drop";
+export const WSEventSandboxSnapshotStatus: WSEventType = "sandbox_snapshot_status";
+/**
  * WsSandboxDropDiskPayload names the sandbox whose kept disk the engine
  * drops: deleted, placed elsewhere since, or stopped past the API's keep.
  * A box of it that runs there keeps its disk.
@@ -11960,6 +12219,11 @@ export interface EngineTelemetry {
    * the API then forgets none it knew of.
    */
   disks_listed?: boolean;
+  /**
+   * SandboxSnapshots are the snapshots the engine keeps (INF-1251), the
+   * whole set when DisksListed.
+   */
+  sandbox_snapshots?: SandboxSnapshotReport[];
   /**
    * Capacity is what the engine offers and has given out; nil from an
    * engine without EngineCapabilityCapacity.
@@ -12270,6 +12534,7 @@ export interface WsRemoteLane {
   chat_id?: string;
   exec_run_id?: string;
   session_id?: string;
+  stream_id?: string;
 }
 /**
  * Server -> remote.
@@ -12596,6 +12861,103 @@ export interface RemoteListedSession {
 export interface RemoteSessionListError {
   harness: HarnessID;
   error: string;
+}
+/**
+ * Server -> remote: dial a port, write to it, close it.
+ */
+export const WSEventRemoteStreamOpen: WSEventType = "remote_stream_open";
+/**
+ * Streams: a byte stream between the api and a TCP port on the remote's own
+ * machine (127.0.0.1), carried over the remote's socket. The api opens one
+ * per proxied HTTP connection to a sandbox's port (its public URL) and per
+ * `belt sandbox tunnel`; belt's daemon dials the port and pipes the bytes.
+ * Nothing listens on the engine host: the daemon dialled out, the stream
+ * rides that connection.
+ */
+export const WSEventRemoteStreamWrite: WSEventType = "remote_stream_write";
+/**
+ * Streams: a byte stream between the api and a TCP port on the remote's own
+ * machine (127.0.0.1), carried over the remote's socket. The api opens one
+ * per proxied HTTP connection to a sandbox's port (its public URL) and per
+ * `belt sandbox tunnel`; belt's daemon dials the port and pipes the bytes.
+ * Nothing listens on the engine host: the daemon dialled out, the stream
+ * rides that connection.
+ */
+export const WSEventRemoteStreamClose: WSEventType = "remote_stream_close";
+/**
+ * WSEventRemoteStreamAck tells the daemon how much of a stream the
+ * api's reader took, so it sends on (WsRemoteStreamOpen.Window).
+ */
+export const WSEventRemoteStreamAck: WSEventType = "remote_stream_ack";
+/**
+ * Remote -> server: the dial's outcome, what the port wrote, and the
+ * end of the stream (the port closed it or the dial failed).
+ */
+export const WSEventRemoteStreamOpened: WSEventType = "remote_stream_opened";
+/**
+ * Streams: a byte stream between the api and a TCP port on the remote's own
+ * machine (127.0.0.1), carried over the remote's socket. The api opens one
+ * per proxied HTTP connection to a sandbox's port (its public URL) and per
+ * `belt sandbox tunnel`; belt's daemon dials the port and pipes the bytes.
+ * Nothing listens on the engine host: the daemon dialled out, the stream
+ * rides that connection.
+ */
+export const WSEventRemoteStreamRead: WSEventType = "remote_stream_read";
+/**
+ * Streams: a byte stream between the api and a TCP port on the remote's own
+ * machine (127.0.0.1), carried over the remote's socket. The api opens one
+ * per proxied HTTP connection to a sandbox's port (its public URL) and per
+ * `belt sandbox tunnel`; belt's daemon dials the port and pipes the bytes.
+ * Nothing listens on the engine host: the daemon dialled out, the stream
+ * rides that connection.
+ */
+export const WSEventRemoteStreamClosed: WSEventType = "remote_stream_closed";
+/**
+ * WsRemoteStreamOpen asks the daemon to dial 127.0.0.1:Port on its machine.
+ * StreamID names the stream in every later frame of either side.
+ */
+export interface WsRemoteStreamOpen {
+  stream_id: string;
+  port: number /* int */;
+  /**
+   * Window is how many bytes the daemon may send ahead of the api's
+   * acks (WsRemoteStreamAck); 0 is no flow control.
+   */
+  window?: number /* int64 */;
+}
+/**
+ * WsRemoteStreamAck is how many bytes of a stream the api's reader has
+ * taken in all: the daemon may send up to Bytes + Window.
+ */
+export interface WsRemoteStreamAck {
+  stream_id: string;
+  bytes: number /* int64 */;
+}
+/**
+ * WsRemoteStreamData is one chunk of a stream, either way. Seq counts each
+ * side's chunks from 1, so a receiver tells a lost chunk from a late one.
+ */
+export interface WsRemoteStreamData {
+  stream_id: string;
+  seq: number /* int64 */;
+  data: string;
+}
+/**
+ * WsRemoteStreamOpened answers an open: Error is set when the dial failed
+ * (nothing listens on the port), and then no other frame follows.
+ */
+export interface WsRemoteStreamOpened {
+  stream_id: string;
+  error?: string;
+}
+/**
+ * WsRemoteStreamClose ends a stream, either way: the api's side closed
+ * (WSEventRemoteStreamClose) or the port did (WSEventRemoteStreamClosed).
+ * Error says why when it was not a clean close.
+ */
+export interface WsRemoteStreamClose {
+  stream_id: string;
+  error?: string;
 }
 export type A2UIComponentType =
   | "Row"
@@ -15025,6 +15387,7 @@ export type EntitlementResource =
   | "sandbox_max_vcpus"
   | "sandbox_starts_per_min"
   | "sandbox_kept_disks"
+  | "sandbox_snapshots"
   | "private_apps"
   | "task_executions"
   | "feature:byok"
@@ -15071,6 +15434,12 @@ export const ResourceSandboxStartsPerMin: EntitlementResource = "sandbox_starts_
  * disk at once. It only warns: past it a stop still keeps its disk.
  */
 export const ResourceSandboxKeptDisks: EntitlementResource = "sandbox_kept_disks";
+/**
+ * ResourceSandboxSnapshots is how many sandbox snapshots a team keeps
+ * (INF-1251; not a fork's own, not failed). It only warns: past it a
+ * snapshot is still taken.
+ */
+export const ResourceSandboxSnapshots: EntitlementResource = "sandbox_snapshots";
 /**
  * Legacy — kept for DB compatibility, no longer in plan seeds
  */

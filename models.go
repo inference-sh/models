@@ -3811,6 +3811,21 @@ type FeatureAccess struct {
 	Allowed  bool                `json:"allowed"`
 }
 
+// ResourceUsage shows current usage vs limit for a single resource.
+type ResourceUsage struct {
+	Resource  EntitlementResource `json:"resource"`
+	Label     string              `json:"label"`
+	Unit      string              `json:"unit,omitempty"`
+	Type      EntitlementType     `json:"type"`
+	Usage     int                 `json:"usage"`
+	Limit     int                 `json:"limit"`
+	Unlimited bool                `json:"unlimited"`
+	Enabled   bool                `json:"enabled"`
+	// Mode is how a set limit is enforced: block refuses past it, warn
+	// only warns. Empty with no row.
+	Mode EnforcementMode `json:"mode,omitempty"`
+}
+
 // EntitlementErrorMeta is the structured metadata returned in entitlement error responses.
 type EntitlementErrorMeta struct {
 	Resource         EntitlementResource `json:"resource"`
@@ -6387,6 +6402,11 @@ type StartSandboxRequest struct {
 	// FreshDisk starts the stopped sandbox on a new, empty disk: the one
 	// its engine keeps is dropped (INF-1163).
 	FreshDisk bool `json:"fresh_disk,omitempty"`
+	// UpgradeImage moves the stopped sandbox to the server's current
+	// image. A sandbox otherwise keeps the image it was made with, so its
+	// kept disk stays valid; a disk made over the old image is dropped,
+	// and it starts on a new one.
+	UpgradeImage bool `json:"upgrade_image,omitempty"`
 }
 
 // CreateSandboxRequest is POST /sandboxes. Sizes left at zero take the
@@ -6578,6 +6598,59 @@ type SandboxFileTransferDTO struct {
 	DownloadURL string   `json:"download_url,omitempty"`
 }
 
+// SandboxRange is what a sandbox may ask for of one size: the default
+// when unset, and the largest.
+type SandboxRange struct {
+	Default int64 `json:"default"`
+	Max     int64 `json:"max"`
+}
+
+// SandboxLimitsDTO answers GET /sandboxes/limits: the caller's team's plan
+// limits on sandboxes and its use of them, the sizes one sandbox may ask
+// for, and the idle stop's range, in seconds (0 never stops).
+type SandboxLimitsDTO struct {
+	// Limits are the team's plan limits on sandboxes, each of them
+	// (unlimited without a row), as GET /entitlements/usage reports them.
+	Limits    []ResourceUsage `json:"limits"`
+	VCPUSize  SandboxRange    `json:"vcpus_per_sandbox"`
+	MemoryMiB SandboxRange    `json:"memory_mib"`
+	DiskMiB   SandboxRange    `json:"disk_mib"`
+	// IdleTimeout* are in seconds.
+	IdleTimeoutDefault int64 `json:"idle_timeout_default"`
+	IdleTimeoutMin     int64 `json:"idle_timeout_min"`
+	IdleTimeoutMax     int64 `json:"idle_timeout_max"`
+	// DiskKeptFor is how long a stopped sandbox's disk is kept, in seconds.
+	DiskKeptFor int64 `json:"disk_kept_for"`
+}
+
+// --------------------
+// source: sandbox_port.go
+// --------------------
+
+// SandboxPortRequest opens a sandbox's port on its own HTTPS URL
+// (POST /sandboxes/{id}/ports).
+type SandboxPortRequest struct {
+	// Port is the TCP port inside the box, 1-65535.
+	Port int `json:"port"`
+	// Public answers anyone with the URL. Private (the default) asks once
+	// per browser for the token, which the open answers with.
+	Public bool `json:"public,omitempty"`
+}
+
+// SandboxPortDTO is an open port. URL opens it; for a private port the URL
+// the open answered with carries its token, which is shown only then.
+type SandboxPortDTO struct {
+	Port      int       `json:"port"`
+	Public    bool      `json:"public"`
+	URL       string    `json:"url"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// SandboxPortList is GET /sandboxes/{id}/ports.
+type SandboxPortList struct {
+	Ports []SandboxPortDTO `json:"ports"`
+}
+
 // --------------------
 // source: sandbox_snapshot.go
 // --------------------
@@ -6735,10 +6808,13 @@ type SDKTypes struct {
 	_sandboxFileImport  SandboxFileImportRequest
 	_sandboxFileExport  SandboxFileExportRequest
 	_sandboxFileMoved   SandboxFileTransferDTO
+	_sandboxLimits      SandboxLimitsDTO
 	_sandboxSnapshot    SandboxSnapshotDTO
 	_sandboxSnapCreate  CreateSandboxSnapshotRequest
 	_sandboxFork        ForkSandboxRequest
 	_sandboxForkResp    ForkSandboxResponse
+	_sandboxPortReq     SandboxPortRequest
+	_sandboxPortList    SandboxPortList
 	_publication        PublicationDTO
 	_egressGrant        EgressGrantDTO
 	_engineUpdateReq    EngineUpdateRequest
@@ -7241,6 +7317,11 @@ type RemoteTypes struct {
 	_pathsResolved WsRemotePathsResolved
 	_update        WsRemoteUpdate
 	_updating      WsRemoteUpdating
+	_streamOpen    WsRemoteStreamOpen
+	_streamData    WsRemoteStreamData
+	_streamOpened  WsRemoteStreamOpened
+	_streamAck     WsRemoteStreamAck
+	_streamClose   WsRemoteStreamClose
 }
 
 // --------------------
@@ -8909,10 +8990,11 @@ type WsRemoteLane struct {
 	ChatID    string `json:"chat_id,omitempty"`
 	ExecRunID string `json:"exec_run_id,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
+	StreamID  string `json:"stream_id,omitempty"`
 }
 
 // OrderingKey is the lane key for a frame's data: its chat, else its exec
-// run, else its terminal session. "" when it carries none.
+// run, else its terminal session, else its stream. "" when it carries none.
 func (WsRemoteLane) OrderingKey(data json.RawMessage) string {
 	var ids WsRemoteLane
 	if len(data) > 0 {
@@ -8925,6 +9007,8 @@ func (WsRemoteLane) OrderingKey(data json.RawMessage) string {
 		return "exec:" + ids.ExecRunID
 	case ids.SessionID != "":
 		return "terminal:" + ids.SessionID
+	case ids.StreamID != "":
+		return "stream:" + ids.StreamID
 	}
 	return ""
 }
@@ -9141,6 +9225,71 @@ type RemoteListedSession struct {
 type RemoteSessionListError struct {
 	Harness HarnessID `json:"harness"`
 	Error   string    `json:"error"`
+}
+
+// --------------------
+// source: ws_remote_stream.go
+// --------------------
+
+// Streams: a byte stream between the api and a TCP port on the remote's own
+// machine (127.0.0.1), carried over the remote's socket. The api opens one
+// per proxied HTTP connection to a sandbox's port (its public URL) and per
+// `belt sandbox tunnel`; belt's daemon dials the port and pipes the bytes.
+// Nothing listens on the engine host: the daemon dialled out, the stream
+// rides that connection.
+const (
+	// Server -> remote: dial a port, write to it, close it.
+	WSEventRemoteStreamOpen  WSEventType = "remote_stream_open"
+	WSEventRemoteStreamWrite WSEventType = "remote_stream_write"
+	WSEventRemoteStreamClose WSEventType = "remote_stream_close"
+	// WSEventRemoteStreamAck tells the daemon how much of a stream the
+	// api's reader took, so it sends on (WsRemoteStreamOpen.Window).
+	WSEventRemoteStreamAck WSEventType = "remote_stream_ack"
+	// Remote -> server: the dial's outcome, what the port wrote, and the
+	// end of the stream (the port closed it or the dial failed).
+	WSEventRemoteStreamOpened WSEventType = "remote_stream_opened"
+	WSEventRemoteStreamRead   WSEventType = "remote_stream_read"
+	WSEventRemoteStreamClosed WSEventType = "remote_stream_closed"
+)
+
+// WsRemoteStreamOpen asks the daemon to dial 127.0.0.1:Port on its machine.
+// StreamID names the stream in every later frame of either side.
+type WsRemoteStreamOpen struct {
+	StreamID string `json:"stream_id"`
+	Port     int    `json:"port"`
+	// Window is how many bytes the daemon may send ahead of the api's
+	// acks (WsRemoteStreamAck); 0 is no flow control.
+	Window int64 `json:"window,omitempty"`
+}
+
+// WsRemoteStreamAck is how many bytes of a stream the api's reader has
+// taken in all: the daemon may send up to Bytes + Window.
+type WsRemoteStreamAck struct {
+	StreamID string `json:"stream_id"`
+	Bytes    int64  `json:"bytes"`
+}
+
+// WsRemoteStreamData is one chunk of a stream, either way. Seq counts each
+// side's chunks from 1, so a receiver tells a lost chunk from a late one.
+type WsRemoteStreamData struct {
+	StreamID string `json:"stream_id"`
+	Seq      int64  `json:"seq"`
+	Data     []byte `json:"data"`
+}
+
+// WsRemoteStreamOpened answers an open: Error is set when the dial failed
+// (nothing listens on the port), and then no other frame follows.
+type WsRemoteStreamOpened struct {
+	StreamID string `json:"stream_id"`
+	Error    string `json:"error,omitempty"`
+}
+
+// WsRemoteStreamClose ends a stream, either way: the api's side closed
+// (WSEventRemoteStreamClose) or the port did (WSEventRemoteStreamClosed).
+// Error says why when it was not a clean close.
+type WsRemoteStreamClose struct {
+	StreamID string `json:"stream_id"`
+	Error    string `json:"error,omitempty"`
 }
 
 // --------------------
