@@ -9461,10 +9461,19 @@ type AuthMethod struct {
 	ParamName   string             `json:"param_name,omitempty" yaml:"param_name,omitempty"`
 	ValuePrefix string             `json:"value_prefix,omitempty" yaml:"value_prefix,omitempty"`
 	// Scheme and BearerFormat describe an http kind's Authorization header.
-	Scheme                AuthMethodHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-	BearerFormat          string               `json:"bearer_format,omitempty" yaml:"bearer_format,omitempty"`
-	AuthorizationEndpoint string               `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
-	Scopes                []string             `json:"scopes,omitempty" yaml:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
+	Scheme       AuthMethodHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	BearerFormat string               `json:"bearer_format,omitempty" yaml:"bearer_format,omitempty"`
+	// Hosts are the hosts the credential's value is sent to, each exact
+	// ("api.anthropic.com", "db.example.com:5432"): the key a person
+	// pastes, or an oauth2 scheme's access token. A scheme with hosts
+	// binds its secrets: a run behind the egress gateway holds a
+	// placeholder for each, and the gateway puts the value in only on the
+	// way to these hosts (authmethod.HostBinder). Empty: the secrets are
+	// environment variables, as they were. A catalogued provider's hosts
+	// come from the catalog when the row names none.
+	Hosts                 []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	AuthorizationEndpoint string   `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
+	Scopes                []string `json:"scopes,omitempty" yaml:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
 	// ScopeAliases are shorthand a caller may write for a provider scope
 	// ("gmail.send" → "https://www.googleapis.com/auth/gmail.send"). They
 	// are accepted on input only: credentials, capabilities and allowed

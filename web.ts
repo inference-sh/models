@@ -828,10 +828,10 @@ export interface LiveStats {
    */
   plan_counts?: PlanCount[];
   /**
-   * Today's leaderboards (since UTC midnight)
+   * Today's leaderboards (since UTC midnight), up to 50 rows each
    */
-  top_teams_credits_today: TeamCreditStats[]; // top 10 teams by credits purchased
-  top_apps_today: AppRevenueStats[]; // top 10 apps by tasks
+  top_teams_credits_today: TeamCreditStats[]; // teams by credits purchased
+  top_apps_today: AppRevenueStats[]; // apps by tasks
   /**
    * Sandboxes
    */
@@ -840,7 +840,7 @@ export interface LiveStats {
   sandboxes_yesterday: number /* int64 */; // created yesterday up to this time
   sandboxes_yesterday_total: number /* int64 */; // created yesterday, full day
   sandbox_spend_today: number /* int64 */; // microcents billed to sandboxes today
-  top_teams_sandboxes_today: TeamSandboxStats[]; // top 10 teams by sandbox spend today
+  top_teams_sandboxes_today: TeamSandboxStats[]; // teams by sandbox spend today
 }
 export interface PlanCount {
   name: string;
@@ -13114,6 +13114,17 @@ export interface AuthMethod {
    */
   scheme?: AuthMethodHTTPScheme;
   bearer_format?: string;
+  /**
+   * Hosts are the hosts the credential's value is sent to, each exact
+   * ("api.anthropic.com", "db.example.com:5432"): the key a person
+   * pastes, or an oauth2 scheme's access token. A scheme with hosts
+   * binds its secrets: a run behind the egress gateway holds a
+   * placeholder for each, and the gateway puts the value in only on the
+   * way to these hosts (authmethod.HostBinder). Empty: the secrets are
+   * environment variables, as they were. A catalogued provider's hosts
+   * come from the catalog when the row names none.
+   */
+  hosts?: string[];
   authorization_endpoint?: string;
   scopes?: string[]; // requested by default; a connect request may override (RequiredScopes stay)
   /**
