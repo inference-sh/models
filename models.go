@@ -3627,6 +3627,14 @@ const (
 	// snapshot (sandbox_snapshot, sandbox_snapshot_drop,
 	// WsSandboxStartPayload.FromSnapshotID; INF-1251).
 	EngineCapabilitySandboxSnapshots EngineCapability = "sandbox_snapshots"
+	// EngineCapabilitySandboxSnapshotStore: the engine also keeps a
+	// snapshot in object storage when asked (WsSandboxSnapshotPayload.Store):
+	// it exports the copy's used blocks, compressed, and uploads them in
+	// parts through URLs the API presigns (it holds no storage credential).
+	// It starts a sandbox from a stored snapshot it has no copy of
+	// (WsSandboxStartPayload.FromSnapshot): it downloads the parts, checks
+	// each against the manifest, and rebuilds the disk.
+	EngineCapabilitySandboxSnapshotStore EngineCapability = "sandbox_snapshot_store"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -4282,6 +4290,17 @@ type TaskFileSkipped struct {
 type DeleteTaskFilesResponse struct {
 	Deleted []string          `json:"deleted"`
 	Skipped []TaskFileSkipped `json:"skipped"`
+}
+
+// TransferPart is one part of a transfer upload in parts: bytes
+// [Offset, Offset+Size) of the object, PUT to URL, which takes exactly Size
+// bytes and answers an ETag. URL is empty where a part's URL was not asked
+// for.
+type TransferPart struct {
+	Number int    `json:"number"`
+	Offset int64  `json:"offset"`
+	Size   int64  `json:"size"`
+	URL    string `json:"url,omitempty"`
 }
 
 // --------------------
@@ -6353,6 +6372,10 @@ type WsSandboxStartPayload struct {
 	// snapshot, or a fork; INF-1251). Only sent to an engine with
 	// EngineCapabilitySandboxSnapshots, until the sandbox's box has run.
 	FromSnapshotID string `json:"from_snapshot_id,omitempty"`
+	// FromSnapshot: the snapshot FromSnapshotID is kept in object storage
+	// too. An engine with EngineCapabilitySandboxSnapshotStore and no copy
+	// of it rebuilds the disk from there.
+	FromSnapshot *SandboxSnapshotRestore `json:"from_snapshot,omitempty"`
 }
 
 // WsSandboxStopPayload is sandbox_stop, API to engine.
@@ -6709,6 +6732,12 @@ type SandboxSnapshotDTO struct {
 	Status       SandboxSnapshotStatus `json:"status"`
 	StatusReason string                `json:"status_reason,omitempty"`
 	ReadyAt      *time.Time            `json:"ready_at,omitempty"`
+	// StoreStatus is where keeping it in object storage stands: empty when
+	// it is kept on its engine alone. Stored, a sandbox starts from it on
+	// any engine, and it outlives the engine that took it. StoredBytes is
+	// what the stored copy holds (compressed).
+	StoreStatus SandboxSnapshotStoreStatus `json:"store_status,omitempty"`
+	StoredBytes int64                      `json:"stored_bytes,omitempty"`
 	// ForFork: taken by a fork for its sandboxes to start from, and
 	// deleted once they have all started or failed. Not listed.
 	ForFork bool `json:"for_fork,omitempty"`
@@ -6752,6 +6781,10 @@ type ForkSandboxResponse struct {
 type WsSandboxSnapshotPayload struct {
 	SnapshotID string `json:"snapshot_id"`
 	SandboxID  string `json:"sandbox_id"`
+	// Store: once the copy is made, also keep it in object storage
+	// (EngineCapabilitySandboxSnapshotStore): POST
+	// /engines/{id}/sandbox-snapshots/{snapshot_id}/store and what follows.
+	Store bool `json:"store,omitempty"`
 }
 
 // WsSandboxSnapshotDropPayload is sandbox_snapshot_drop, API to engine:
@@ -6776,6 +6809,95 @@ type WsSandboxSnapshotStatusPayload struct {
 type SandboxSnapshotReport struct {
 	SnapshotID string `json:"snapshot_id"`
 	Bytes      int64  `json:"bytes"`
+}
+
+// SandboxSnapshotStoreStatus is where keeping a snapshot in object storage
+// stands (EngineCapabilitySandboxSnapshotStore).
+type SandboxSnapshotStoreStatus string
+
+const (
+	// SandboxSnapshotStorePending: asked of the engine, not begun.
+	SandboxSnapshotStorePending SandboxSnapshotStoreStatus = "pending"
+	// SandboxSnapshotStoreUploading: the engine is uploading it.
+	SandboxSnapshotStoreUploading SandboxSnapshotStoreStatus = "uploading"
+	// SandboxSnapshotStoreStored: it is in object storage, whole.
+	SandboxSnapshotStoreStored SandboxSnapshotStoreStatus = "stored"
+	// SandboxSnapshotStoreFailed: the upload did not finish; the snapshot
+	// is still kept on its engine.
+	SandboxSnapshotStoreFailed SandboxSnapshotStoreStatus = "failed"
+)
+
+// SandboxSnapshotFormat is how a stored snapshot's object is laid out.
+type SandboxSnapshotFormat string
+
+// SandboxSnapshotFormatExtentsZstd is a stored snapshot's object: one zstd
+// stream of the line "INFSHDISK1", a JSON header line {"size": the disk's
+// length, "extents": [[offset, length], ...] its used ranges, sorted and
+// apart}, then each extent's bytes in that order. A restore writes the
+// extents into a sparse file of that size.
+const SandboxSnapshotFormatExtentsZstd SandboxSnapshotFormat = "infsh-disk-extents-zstd-v1"
+
+// SandboxSnapshotPart is one part of a stored snapshot's object: bytes
+// [Offset, Offset+Size) of it, and their SHA-256 (hex), which a restore
+// checks before using them.
+type SandboxSnapshotPart struct {
+	Number int    `json:"number"`
+	Offset int64  `json:"offset"`
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
+}
+
+// SandboxSnapshotManifest is what a stored snapshot's object holds and how
+// to check it: its format, the disk's length (DiskBytes), the object's
+// (ObjectBytes), and its parts in order.
+type SandboxSnapshotManifest struct {
+	Format      SandboxSnapshotFormat `json:"format"`
+	DiskBytes   int64                 `json:"disk_bytes"`
+	ObjectBytes int64                 `json:"object_bytes"`
+	Parts       []SandboxSnapshotPart `json:"parts"`
+}
+
+// SandboxSnapshotStoreRequest is POST
+// /engines/{id}/sandbox-snapshots/{snapshot_id}/store, engine to API: the
+// snapshot's export is ObjectBytes long, to go up in parts of PartSize (0
+// for the API's default). The API answers SandboxSnapshotStoreParts.
+type SandboxSnapshotStoreRequest struct {
+	ObjectBytes int64 `json:"object_bytes"`
+	PartSize    int64 `json:"part_size,omitempty"`
+}
+
+// SandboxSnapshotStorePartsRequest is POST .../store/parts: the URLs again
+// for the parts Numbers (every part for none), for an upload that outlived
+// its first ones.
+type SandboxSnapshotStorePartsRequest struct {
+	Numbers []int `json:"numbers,omitempty"`
+}
+
+// SandboxSnapshotStoreParts is the parts of a snapshot's upload, each with
+// the URL that takes it (a PUT of exactly its size).
+type SandboxSnapshotStoreParts struct {
+	Parts []TransferPart `json:"parts"`
+}
+
+// SandboxSnapshotStoreComplete is POST .../store/complete: every part is
+// up; Manifest says what they hold. The API completes the upload once the
+// store has every part at its size, and keeps the manifest.
+type SandboxSnapshotStoreComplete struct {
+	Manifest SandboxSnapshotManifest `json:"manifest"`
+}
+
+// SandboxSnapshotStoreAbort is POST .../store/abort: the upload is given
+// up, Error says why (short, redacted). The snapshot stays on its engine.
+type SandboxSnapshotStoreAbort struct {
+	Error string `json:"error,omitempty"`
+}
+
+// SandboxSnapshotRestore is a stored snapshot a box's first disk is
+// rebuilt from, on an engine with no copy of it: URL reads the object
+// (ranged GETs, a part each, presigned, hours long), Manifest checks it.
+type SandboxSnapshotRestore struct {
+	URL      string                  `json:"url"`
+	Manifest SandboxSnapshotManifest `json:"manifest"`
 }
 
 // --------------------
@@ -7170,6 +7292,12 @@ type EngineTypes struct {
 	_wsSandboxSnap     WsSandboxSnapshotPayload
 	_wsSandboxSnapDrop WsSandboxSnapshotDropPayload
 	_wsSandboxSnapStat WsSandboxSnapshotStatusPayload
+	_snapStoreReq      SandboxSnapshotStoreRequest
+	_snapStoreParts    SandboxSnapshotStorePartsRequest
+	_snapStorePartsRes SandboxSnapshotStoreParts
+	_snapStoreComplete SandboxSnapshotStoreComplete
+	_snapStoreAbort    SandboxSnapshotStoreAbort
+	_snapStoreStatus   SandboxSnapshotStoreStatus
 	_wsSandboxStatus   WsSandboxStatusPayload
 	_sandboxReport     SandboxReport
 	_wsEgressRevoke    WsEgressRevokePayload
