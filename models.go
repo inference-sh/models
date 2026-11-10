@@ -4159,6 +4159,16 @@ type ExecRunDTO struct {
 	OutputTruncated bool `json:"output_truncated"`
 }
 
+// ExecRunWaitDTO is a dispatch that waited for its run (POST
+// /remotes/{id}/execs?wait=N): the run as it was when it ended or the wait
+// ran out (a status that is not terminal: it is still going), with the last
+// MiB of each stream. The whole output is at GET /execs/{id}/output.
+type ExecRunWaitDTO struct {
+	Run    *ExecRunDTO `json:"run"`
+	Stdout string      `json:"stdout"`
+	Stderr string      `json:"stderr"`
+}
+
 // ExecRunOutputDTO is one sequenced chunk of a run's output.
 type ExecRunOutputDTO struct {
 	ID        string     `json:"id"`
@@ -6510,6 +6520,49 @@ type SandboxDTO struct {
 	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
 }
 
+// SandboxFileKind is what a path on a sandbox is.
+type SandboxFileKind string
+
+const (
+	SandboxFileKindFile  SandboxFileKind = "file"
+	SandboxFileKindDir   SandboxFileKind = "dir"
+	SandboxFileKindLink  SandboxFileKind = "link"
+	SandboxFileKindOther SandboxFileKind = "other"
+)
+
+// SandboxFileEntry is one entry of a directory on a running sandbox (GET
+// /sandboxes/{id}/files?path=): its name in the directory, kind, size in
+// bytes, octal permission bits and last change.
+type SandboxFileEntry struct {
+	Name       string          `json:"name"`
+	Kind       SandboxFileKind `json:"kind"`
+	Size       int64           `json:"size"`
+	Mode       string          `json:"mode"`
+	ModifiedAt *time.Time      `json:"modified_at,omitempty"`
+}
+
+// SandboxFileImportRequest is POST /sandboxes/{id}/files/import: put the
+// platform file FileID (uploaded first, POST /files) at Path on the box.
+type SandboxFileImportRequest struct {
+	Path   string `json:"path"`
+	FileID string `json:"file_id"`
+}
+
+// SandboxFileExportRequest is POST /sandboxes/{id}/files/export: copy the
+// file at Path on the box into a new platform file.
+type SandboxFileExportRequest struct {
+	Path string `json:"path"`
+}
+
+// SandboxFileTransferDTO answers an import or an export: the path on the
+// box, the platform file on the other side (its size is the file's), and,
+// for an export, a short-lived URL that downloads it.
+type SandboxFileTransferDTO struct {
+	Path        string   `json:"path"`
+	File        *FileDTO `json:"file,omitempty"`
+	DownloadURL string   `json:"download_url,omitempty"`
+}
+
 // --------------------
 // source: sdk.go
 // --------------------
@@ -6556,6 +6609,10 @@ type SDKTypes struct {
 	_sandboxCreate      CreateSandboxRequest
 	_sandboxStart       StartSandboxRequest
 	_sandboxUpdate      UpdateSandboxRequest
+	_sandboxFile        SandboxFileEntry
+	_sandboxFileImport  SandboxFileImportRequest
+	_sandboxFileExport  SandboxFileExportRequest
+	_sandboxFileMoved   SandboxFileTransferDTO
 	_publication        PublicationDTO
 	_egressGrant        EgressGrantDTO
 	_engineUpdateReq    EngineUpdateRequest
@@ -7001,6 +7058,7 @@ type ExecRunTypes struct {
 	_execRun    ExecRunDTO
 	_execOutput ExecRunOutputDTO
 	_execCreate ExecRunCreateRequest
+	_execWait   ExecRunWaitDTO
 	_execStatus ExecRunStatus
 	_execStream ExecStream
 	_execReqBy  ExecRequestedBy
