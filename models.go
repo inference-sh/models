@@ -445,6 +445,10 @@ type AgentVersionDTO struct {
 	// ContentGuard is the agent's tool-result guard; absent is the
 	// platform's mode.
 	ContentGuard *ContentGuardConfig `json:"content_guard,omitempty"`
+	// VaultID is the agent's vault: the sandboxes its sandbox_create makes
+	// get the vault's inference.sh access (VaultDTO.APIScopes). Absent: no
+	// vault.
+	VaultID *string `json:"vault_id,omitempty"`
 	// VisitorReads is the scope groups of the team's resources (knowledge,
 	// files, artifacts, remotes) a visitor of an embed of this version can
 	// have it read by id, beyond what it configures by name. Set when the
@@ -490,6 +494,9 @@ type AgentConfigInput struct {
 	Hooks          []LifecycleHookConfig `json:"hooks,omitempty" yaml:"hooks,omitempty"`
 	OutputSchema   *json.RawMessage      `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 	ContentGuard   *ContentGuardConfig   `json:"content_guard,omitempty" yaml:"content_guard,omitempty"`
+	// VaultID picks the agent's vault, whose inference.sh access the
+	// sandboxes it makes get. Empty: no vault.
+	VaultID *string `json:"vault_id,omitempty" yaml:"vault_id,omitempty"`
 }
 
 // CoreAppConfigInput is the API input shape for core app configuration.
@@ -1355,6 +1362,9 @@ type ScopeDefinition struct {
 	// CostsCredits: using the scope spends the account's credits (running
 	// apps, agents, flows).
 	CostsCredits bool `json:"costs_credits,omitempty"`
+	// Sandbox: a vault may grant it to a sandbox (its inference.sh access,
+	// VaultDTO.APIScopes); the allowlist is models.SandboxMayHold.
+	Sandbox bool `json:"sandbox,omitempty"`
 }
 
 // ScopeCategory is the section of a permission list a scope group falls
@@ -6433,6 +6443,12 @@ type CreateSandboxRequest struct {
 	// (INF-1251). Sizes left at zero take the snapshot's; the disk is never
 	// smaller than the snapshot's.
 	FromSnapshotID string `json:"from_snapshot_id,omitempty"`
+	// VaultID is the vault whose inference.sh access (VaultDTO.APIScopes)
+	// the box gets, copied once now and cut to what the caller can hand
+	// on. Empty: the box holds what it needs to run its remote and
+	// nothing more. A sandbox an agent's sandbox_create makes takes the
+	// agent's vault (AgentVersionDTO.VaultID) instead.
+	VaultID *string `json:"vault_id,omitempty"`
 }
 
 // UpdateSandboxRequest is PATCH /sandboxes/{id}: the fields to change,
@@ -6553,6 +6569,10 @@ type SandboxDTO struct {
 	// LastActivityAt is when the sandbox was last used through the API, or
 	// its box started, whichever is later.
 	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
+	// APIScopes are what the box may do with our API beyond running its
+	// remote: copied from its vault when it was made (VaultID), for its
+	// whole life. Absent or empty: nothing beyond the remote.
+	APIScopes []Scope `json:"api_scopes,omitempty"`
 }
 
 // SandboxFileKind is what a path on a sandbox is.
@@ -8547,6 +8567,12 @@ type VaultDTO struct {
 	Name               string `json:"name"`
 	Description        string `json:"description,omitempty"`
 	IsDefault          bool   `json:"is_default"`
+	// APIScopes is the vault's inference.sh access: what a sandbox made
+	// with this vault (an agent's, or POST /sandboxes vault_id) may do with
+	// our API, chosen with the API key scope picker. Empty: nothing.
+	// Copied onto each sandbox when it is made, so a change reaches new
+	// sandboxes only.
+	APIScopes []Scope `json:"api_scopes"`
 	// Members of this vault, counted on list and get so callers do not have
 	// to fetch both collections to render a summary.
 	CredentialCount int `json:"credential_count"`

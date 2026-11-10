@@ -419,6 +419,12 @@ export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
    */
   content_guard?: ContentGuardConfig;
   /**
+   * VaultID is the agent's vault: the sandboxes its sandbox_create makes
+   * get the vault's inference.sh access (VaultDTO.APIScopes). Absent: no
+   * vault.
+   */
+  vault_id?: string;
+  /**
    * VisitorReads is the scope groups of the team's resources (knowledge,
    * files, artifacts, remotes) a visitor of an embed of this version can
    * have it read by id, beyond what it configures by name. Set when the
@@ -473,6 +479,11 @@ export interface AgentConfigInput {
   hooks?: LifecycleHookConfig[];
   output_schema?: any;
   content_guard?: ContentGuardConfig;
+  /**
+   * VaultID picks the agent's vault, whose inference.sh access the
+   * sandboxes it makes get. Empty: no vault.
+   */
+  vault_id?: string;
 }
 /**
  * CoreAppConfigInput is the API input shape for core app configuration.
@@ -2296,6 +2307,11 @@ export interface ScopeDefinition {
    * apps, agents, flows).
    */
   costs_credits?: boolean;
+  /**
+   * Sandbox: a vault may grant it to a sandbox (its inference.sh access,
+   * VaultDTO.APIScopes); the allowlist is models.SandboxMayHold.
+   */
+  sandbox?: boolean;
 }
 /**
  * ScopeCategory is the section of a permission list a scope group falls
@@ -8705,6 +8721,14 @@ export interface CreateSandboxRequest {
    * smaller than the snapshot's.
    */
   from_snapshot_id?: string;
+  /**
+   * VaultID is the vault whose inference.sh access (VaultDTO.APIScopes)
+   * the box gets, copied once now and cut to what the caller can hand
+   * on. Empty: the box holds what it needs to run its remote and
+   * nothing more. A sandbox an agent's sandbox_create makes takes the
+   * agent's vault (AgentVersionDTO.VaultID) instead.
+   */
+  vault_id?: string;
 }
 /**
  * UpdateSandboxRequest is PATCH /sandboxes/{id}: the fields to change,
@@ -8832,6 +8856,12 @@ export interface SandboxDTO extends BaseModelDTO, PermissionModelDTO {
    * its box started, whichever is later.
    */
   last_activity_at?: string /* RFC3339 */;
+  /**
+   * APIScopes are what the box may do with our API beyond running its
+   * remote: copied from its vault when it was made (VaultID), for its
+   * whole life. Absent or empty: nothing beyond the remote.
+   */
+  api_scopes?: Scope[];
 }
 /**
  * SandboxFileKind is what a path on a sandbox is.
@@ -11798,6 +11828,14 @@ export interface VaultDTO extends BaseModelDTO, PermissionModelDTO {
   name: string;
   description?: string;
   is_default: boolean;
+  /**
+   * APIScopes is the vault's inference.sh access: what a sandbox made
+   * with this vault (an agent's, or POST /sandboxes vault_id) may do with
+   * our API, chosen with the API key scope picker. Empty: nothing.
+   * Copied onto each sandbox when it is made, so a change reaches new
+   * sandboxes only.
+   */
+  api_scopes: Scope[];
   /**
    * Members of this vault, counted on list and get so callers do not have
    * to fetch both collections to render a summary.
