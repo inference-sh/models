@@ -3439,7 +3439,10 @@ type EngineDTO struct {
 	// Capacity is what the engine last reported it offers and has given
 	// out; nil from an engine that does not report it.
 	Capacity *EngineCapacity `json:"capacity,omitempty"`
-	Workers  []*WorkerDTO    `json:"workers"`
+	// CapacityPolicy is what its owner set for its room from the app:
+	// sandboxes on or off, over-commit, CPU slots. Nil keeps the defaults.
+	CapacityPolicy *EngineCapacityPolicy `json:"capacity_policy,omitempty"`
+	Workers        []*WorkerDTO          `json:"workers"`
 }
 
 // EngineUpdateRequest names the release an engine should install: "stable",
@@ -3704,6 +3707,75 @@ type CapacityGPU struct {
 	ID        string `json:"id"`
 	VRAMBytes uint64 `json:"vram_bytes"`
 }
+
+// EngineCapacityPolicy is what the engine's owner set for its room from the
+// app (POST /engines/{id}/capacity): whether it hosts sandboxes and how far
+// the API may give out more than it has. The API applies it; the engine is
+// told nothing but the CPU slots it gets at its next register. A nil field
+// keeps the default.
+type EngineCapacityPolicy struct {
+	// Sandboxes false keeps new sandboxes off the engine; boxes already on
+	// it run until they stop. Nil is on, for an engine that reports
+	// EngineCapabilitySandboxes.
+	Sandboxes *bool `json:"sandboxes,omitempty"`
+	// CPUOvercommit and MemoryOvercommit multiply the engine's allocatable
+	// for sandbox placement: 2 gives out twice its CPUs. Nil is the pool's
+	// (setting sandboxes.placement, 1 when unset). An engine on CPU slots
+	// is checked against them only when one is set.
+	CPUOvercommit    *float64 `json:"cpu_overcommit,omitempty"`
+	MemoryOvercommit *float64 `json:"memory_overcommit,omitempty"`
+	// CPUSlots is the CPU app worker slots the engine gets at its next
+	// register, over the count its engine.yml asks for (workers.cpu.count).
+	// Each slot runs one app task, or holds one sandbox on an engine on
+	// slots. Nil is the engine's count.
+	CPUSlots *int `json:"cpu_slots,omitempty"`
+}
+
+// Validate refuses ratios and slot counts out of range.
+func (p *EngineCapacityPolicy) Validate() error {
+	if p == nil {
+		return nil
+	}
+	for _, r := range []struct {
+		name string
+		v    *float64
+	}{{"cpu_overcommit", p.CPUOvercommit}, {"memory_overcommit", p.MemoryOvercommit}} {
+		if r.v != nil && (*r.v < 1 || *r.v > float64(MaxOvercommit)) {
+			return fmt.Errorf("%s is from 1 to %d", r.name, MaxOvercommit)
+		}
+	}
+	if p.CPUSlots != nil && (*p.CPUSlots < 0 || *p.CPUSlots > int(MaxCPUSlots)) {
+		return fmt.Errorf("cpu_slots is from 0 to %d", MaxCPUSlots)
+	}
+	return nil
+}
+
+// SandboxesOff reports whether p keeps new sandboxes off its engine.
+func (p *EngineCapacityPolicy) SandboxesOff() bool {
+	return p != nil && p.Sandboxes != nil && !*p.Sandboxes
+}
+
+// Overcommits reports whether p sets either over-commit ratio.
+func (p *EngineCapacityPolicy) Overcommits() bool {
+	return p != nil && (p.CPUOvercommit != nil || p.MemoryOvercommit != nil)
+}
+
+func (p EngineCapacityPolicy) Value() (driver.Value, error) {
+	return JSONValue(p)
+}
+
+func (p *EngineCapacityPolicy) Scan(value any) error {
+	return JSONScan(p, value, "EngineCapacityPolicy")
+}
+
+// EngineCapacityLimit bounds a field of EngineCapacityPolicy.
+type EngineCapacityLimit int
+
+// MaxOvercommit and MaxCPUSlots bound what EngineCapacityPolicy may say.
+const (
+	MaxOvercommit EngineCapacityLimit = 8
+	MaxCPUSlots   EngineCapacityLimit = 1024
+)
 
 // --------------------
 // source: entitlement.go
@@ -6301,8 +6373,8 @@ type StartSandboxRequest struct {
 // defaults.
 type CreateSandboxRequest struct {
 	Name      string `json:"name"`
-	VCPUs     int    `json:"vcpus,omitempty"`      // default 2, max 8
-	MemoryMiB int64  `json:"memory_mib,omitempty"` // default 4096, max 16384
+	VCPUs     int    `json:"vcpus,omitempty"`      // default 2; at most the plan's largest sandbox (sandbox_max_vcpus)
+	MemoryMiB int64  `json:"memory_mib,omitempty"` // default 4096; at most the plan's largest sandbox (sandbox_max_vcpus)
 	DiskMiB   int64  `json:"disk_mib,omitempty"`   // default 10240, max 51200
 	// Credentials are the logins the box gets, by provider (slug), as a
 	// run of its owner resolves them (e.g. [{"slug":"github-app"}]). Only
@@ -6451,6 +6523,9 @@ type SDKTypes struct {
 	// Description fields are plain strings, so their limits are rooted here
 	// for clients to check against before a write.
 	_descriptionLimit DescriptionLimit
+	// EngineCapacityPolicy's fields are plain numbers, so their bounds are
+	// rooted here for clients to check against before a write.
+	_engineCapacityLimit EngineCapacityLimit
 	// CredentialDTO.Provider is a plain string, so the provider enum is rooted
 	// here or its constants never reach the SDKs.
 	_credentialProvider CredentialProvider
@@ -11358,6 +11433,15 @@ const (
 	// (INF-1158). No row: the platform default (setting sandboxes.placement).
 	ResourceSandboxes    EntitlementResource = "sandboxes"
 	ResourceSandboxVCPUs EntitlementResource = "sandbox_vcpus"
+	// ResourceSandboxMaxVCPUs is the largest sandbox a team may make: its
+	// vCPUs, and memory up to 2 GiB for each.
+	ResourceSandboxMaxVCPUs EntitlementResource = "sandbox_max_vcpus"
+	// ResourceSandboxStartsPerMin is how many sandboxes a team may create
+	// or start in a minute.
+	ResourceSandboxStartsPerMin EntitlementResource = "sandbox_starts_per_min"
+	// ResourceSandboxKeptDisks is how many stopped sandboxes may keep their
+	// disk at once. It only warns: past it a stop still keeps its disk.
+	ResourceSandboxKeptDisks EntitlementResource = "sandbox_kept_disks"
 	// Legacy — kept for DB compatibility, no longer in plan seeds
 	ResourcePrivateApps    EntitlementResource = "private_apps"
 	ResourceTaskExecutions EntitlementResource = "task_executions"
