@@ -3612,6 +3612,11 @@ const (
 	// counts its slot (GPU) workers only. The API then places CPU app runs
 	// there by size, against the engine's capacity (INF-1159).
 	EngineCapabilitySizedWorkers EngineCapability = "sized_workers"
+	// EngineCapabilitySandboxSnapshots: the engine copies a stopped
+	// sandbox's kept disk to a snapshot and starts a sandbox on a copy of a
+	// snapshot (sandbox_snapshot, sandbox_snapshot_drop,
+	// WsSandboxStartPayload.FromSnapshotID; INF-1251).
+	EngineCapabilitySandboxSnapshots EngineCapability = "sandbox_snapshots"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -6318,6 +6323,11 @@ type WsSandboxStartPayload struct {
 	// Secrets is the ECIES SecretsPayload v2, the same form as task_run: Bound
 	// carries INFERENCE_API_KEY for the API host, so the box holds a placeholder.
 	Secrets string `json:"secrets"`
+	// FromSnapshotID: when the engine keeps no disk of the sandbox, its
+	// box's disk starts as a copy of that snapshot's (a sandbox made from a
+	// snapshot, or a fork; INF-1251). Only sent to an engine with
+	// EngineCapabilitySandboxSnapshots, until the sandbox's box has run.
+	FromSnapshotID string `json:"from_snapshot_id,omitempty"`
 }
 
 // WsSandboxStopPayload is sandbox_stop, API to engine.
@@ -6398,6 +6408,11 @@ type CreateSandboxRequest struct {
 	// Unset is 900 (15 minutes), 0 never stops it; otherwise 60 to
 	// 2592000 (30 days).
 	IdleTimeoutSeconds *int `json:"idle_timeout_seconds,omitempty"`
+	// FromSnapshotID starts the sandbox on a copy of a ready snapshot's
+	// disk, with the snapshot's image, on the engine that keeps it
+	// (INF-1251). Sizes left at zero take the snapshot's; the disk is never
+	// smaller than the snapshot's.
+	FromSnapshotID string `json:"from_snapshot_id,omitempty"`
 }
 
 // UpdateSandboxRequest is PATCH /sandboxes/{id}: the fields to change,
@@ -6564,6 +6579,113 @@ type SandboxFileTransferDTO struct {
 }
 
 // --------------------
+// source: sandbox_snapshot.go
+// --------------------
+
+// SandboxSnapshotStatus is where a snapshot stands.
+type SandboxSnapshotStatus string
+
+const (
+	// SandboxSnapshotPending: the engine is copying the disk.
+	SandboxSnapshotPending SandboxSnapshotStatus = "pending"
+	// SandboxSnapshotReady: the copy is kept; forks and new sandboxes may
+	// start from it.
+	SandboxSnapshotReady SandboxSnapshotStatus = "ready"
+	// SandboxSnapshotFailed: the copy could not be made (StatusReason
+	// says why), or the engine no longer has it.
+	SandboxSnapshotFailed SandboxSnapshotStatus = "failed"
+)
+
+// SandboxSnapshotDTO is the API response for a snapshot.
+type SandboxSnapshotDTO struct {
+	BaseModelDTO `tstype:",extends"`
+	// UserID took it; TeamID is the workspace it belongs to.
+	UserID string `json:"user_id"`
+	TeamID string `json:"team_id"`
+	Name   string `json:"name"`
+	// SandboxID is the sandbox it was taken of.
+	SandboxID string `json:"sandbox_id"`
+	// Image and the sizes are the source's at the snapshot: a sandbox made
+	// from it runs that image, at least that size.
+	Image     string `json:"image"`
+	VCPUs     int    `json:"vcpus"`
+	MemoryMiB int64  `json:"memory_mib"`
+	DiskMiB   int64  `json:"disk_mib"`
+	// Bytes is what the copy holds on the engine (sparse).
+	Bytes        int64                 `json:"bytes"`
+	Status       SandboxSnapshotStatus `json:"status"`
+	StatusReason string                `json:"status_reason,omitempty"`
+	ReadyAt      *time.Time            `json:"ready_at,omitempty"`
+	// ForFork: taken by a fork for its sandboxes to start from, and
+	// deleted once they have all started or failed. Not listed.
+	ForFork bool `json:"for_fork,omitempty"`
+}
+
+// CreateSandboxSnapshotRequest is POST /sandboxes/{id}/snapshots: a
+// snapshot of the stopped sandbox's kept disk.
+type CreateSandboxSnapshotRequest struct {
+	Name string `json:"name"`
+}
+
+// ForkSandboxRequest is POST /sandboxes/{id}/fork: a snapshot of the
+// stopped sandbox's kept disk, then Count new sandboxes (1 when unset, at
+// most MaxSandboxForks) made from it, named Name-1..Name-N (Name alone for
+// one; the source's name + "-fork" when unset). They hold the disk as it
+// was at the fork: starting the source afterwards changes none of them.
+type ForkSandboxRequest struct {
+	Name  string `json:"name,omitempty"`
+	Count int    `json:"count,omitempty"`
+	// IdleTimeoutSeconds is as in CreateSandboxRequest; unset takes the
+	// source's.
+	IdleTimeoutSeconds *int `json:"idle_timeout_seconds,omitempty"`
+	// KeepSnapshot keeps the fork's snapshot as one of the workspace's
+	// (listed, deleted by hand). Unset, it is deleted once every fork has
+	// started or failed.
+	KeepSnapshot bool `json:"keep_snapshot,omitempty"`
+}
+
+// ForkSandboxResponse is the sandboxes a fork made, and the snapshot they
+// start from (SnapshotID). Error says why the rest were not, when it made
+// fewer than asked (a plan limit, say).
+type ForkSandboxResponse struct {
+	Sandboxes  []*SandboxDTO `json:"sandboxes"`
+	SnapshotID string        `json:"snapshot_id,omitempty"`
+	Error      string        `json:"error,omitempty"`
+}
+
+// WsSandboxSnapshotPayload is sandbox_snapshot, API to engine: copy the
+// disk the engine keeps of SandboxID to snapshot SnapshotID's, kept until
+// sandbox_snapshot_drop. The engine answers sandbox_snapshot_status.
+type WsSandboxSnapshotPayload struct {
+	SnapshotID string `json:"snapshot_id"`
+	SandboxID  string `json:"sandbox_id"`
+}
+
+// WsSandboxSnapshotDropPayload is sandbox_snapshot_drop, API to engine:
+// remove snapshot SnapshotID's disk.
+type WsSandboxSnapshotDropPayload struct {
+	SnapshotID string `json:"snapshot_id"`
+}
+
+// WsSandboxSnapshotStatusPayload is sandbox_snapshot_status, engine to
+// API: a snapshot's copy is made (State ready, Bytes what it holds) or
+// could not be (failed, Error).
+type WsSandboxSnapshotStatusPayload struct {
+	SnapshotID string                `json:"snapshot_id"`
+	State      SandboxSnapshotStatus `json:"state"`
+	Bytes      int64                 `json:"bytes,omitempty"`
+	Error      string                `json:"error,omitempty"` // redacted, short
+}
+
+// SandboxSnapshotReport is one snapshot an engine keeps, in
+// EngineTelemetry.SandboxSnapshots (the whole set each report, when
+// DisksListed).
+type SandboxSnapshotReport struct {
+	SnapshotID string `json:"snapshot_id"`
+	Bytes      int64  `json:"bytes"`
+}
+
+// --------------------
 // source: sdk.go
 // --------------------
 
@@ -6613,6 +6735,10 @@ type SDKTypes struct {
 	_sandboxFileImport  SandboxFileImportRequest
 	_sandboxFileExport  SandboxFileExportRequest
 	_sandboxFileMoved   SandboxFileTransferDTO
+	_sandboxSnapshot    SandboxSnapshotDTO
+	_sandboxSnapCreate  CreateSandboxSnapshotRequest
+	_sandboxFork        ForkSandboxRequest
+	_sandboxForkResp    ForkSandboxResponse
 	_publication        PublicationDTO
 	_egressGrant        EgressGrantDTO
 	_engineUpdateReq    EngineUpdateRequest
@@ -6945,6 +7071,9 @@ type EngineTypes struct {
 	_wsSandboxStart    WsSandboxStartPayload
 	_wsSandboxStop     WsSandboxStopPayload
 	_wsSandboxDrop     WsSandboxDropDiskPayload
+	_wsSandboxSnap     WsSandboxSnapshotPayload
+	_wsSandboxSnapDrop WsSandboxSnapshotDropPayload
+	_wsSandboxSnapStat WsSandboxSnapshotStatusPayload
 	_wsSandboxStatus   WsSandboxStatusPayload
 	_sandboxReport     SandboxReport
 	_wsEgressRevoke    WsEgressRevokePayload
@@ -8449,6 +8578,14 @@ const (
 	// drop the disk the engine keeps of a stopped sandbox (INF-1163). An
 	// engine that predates it has no handler for it and does nothing.
 	WSEventSandboxDropDisk WSEventType = "sandbox_drop_disk"
+	// WSEventSandboxSnapshot (WsSandboxSnapshotPayload) and
+	// WSEventSandboxSnapshotDrop (WsSandboxSnapshotDropPayload) are API →
+	// engine, WSEventSandboxSnapshotStatus (WsSandboxSnapshotStatusPayload)
+	// engine → API: a snapshot of a sandbox's kept disk (INF-1251). Only an
+	// engine with EngineCapabilitySandboxSnapshots is sent them.
+	WSEventSandboxSnapshot       WSEventType = "sandbox_snapshot"
+	WSEventSandboxSnapshotDrop   WSEventType = "sandbox_snapshot_drop"
+	WSEventSandboxSnapshotStatus WSEventType = "sandbox_snapshot_status"
 )
 
 // WsSandboxDropDiskPayload names the sandbox whose kept disk the engine
@@ -8540,6 +8677,9 @@ type EngineTelemetry struct {
 	// it could not list them (or keeps none, an engine that predates it):
 	// the API then forgets none it knew of.
 	DisksListed bool `json:"disks_listed,omitempty"`
+	// SandboxSnapshots are the snapshots the engine keeps (INF-1251), the
+	// whole set when DisksListed.
+	SandboxSnapshots []SandboxSnapshotReport `json:"sandbox_snapshots,omitempty"`
 	// Capacity is what the engine offers and has given out; nil from an
 	// engine without EngineCapabilityCapacity.
 	Capacity *EngineCapacity `json:"capacity,omitempty"`
@@ -11500,6 +11640,10 @@ const (
 	// ResourceSandboxKeptDisks is how many stopped sandboxes may keep their
 	// disk at once. It only warns: past it a stop still keeps its disk.
 	ResourceSandboxKeptDisks EntitlementResource = "sandbox_kept_disks"
+	// ResourceSandboxSnapshots is how many sandbox snapshots a team keeps
+	// (INF-1251; not a fork's own, not failed). It only warns: past it a
+	// snapshot is still taken.
+	ResourceSandboxSnapshots EntitlementResource = "sandbox_snapshots"
 	// Legacy — kept for DB compatibility, no longer in plan seeds
 	ResourcePrivateApps    EntitlementResource = "private_apps"
 	ResourceTaskExecutions EntitlementResource = "task_executions"
