@@ -5030,7 +5030,8 @@ export type EngineCapability =
   | "egress_decide"
   | "sized_sandboxes"
   | "sized_workers"
-  | "sandbox_snapshots";
+  | "sandbox_snapshots"
+  | "sandbox_snapshot_store";
 /**
  * EngineCapabilityEgressGateway: the engine runs its sandboxes behind
  * the egress gateway, so it can take bound secrets (the v2 secrets
@@ -5098,6 +5099,16 @@ export const EngineCapabilitySizedWorkers: EngineCapability = "sized_workers";
  * WsSandboxStartPayload.FromSnapshotID; INF-1251).
  */
 export const EngineCapabilitySandboxSnapshots: EngineCapability = "sandbox_snapshots";
+/**
+ * EngineCapabilitySandboxSnapshotStore: the engine also keeps a
+ * snapshot in object storage when asked (WsSandboxSnapshotPayload.Store):
+ * it exports the copy's used blocks, compressed, and uploads them in
+ * parts through URLs the API presigns (it holds no storage credential).
+ * It starts a sandbox from a stored snapshot it has no copy of
+ * (WsSandboxStartPayload.FromSnapshot): it downloads the parts, checks
+ * each against the manifest, and rebuilds the disk.
+ */
+export const EngineCapabilitySandboxSnapshotStore: EngineCapability = "sandbox_snapshot_store";
 /**
  * EngineCapabilities is a set of capabilities, kept as a list. Nil and
  * empty are the same: nothing beyond the base contract.
@@ -5824,6 +5835,18 @@ export interface TaskFileSkipped {
 export interface DeleteTaskFilesResponse {
   deleted: string[];
   skipped: TaskFileSkipped[];
+}
+/**
+ * TransferPart is one part of a transfer upload in parts: bytes
+ * [Offset, Offset+Size) of the object, PUT to URL, which takes exactly Size
+ * bytes and answers an ETag. URL is empty where a part's URL was not asked
+ * for.
+ */
+export interface TransferPart {
+  number: number /* int */;
+  offset: number /* int64 */;
+  size: number /* int64 */;
+  url?: string;
 }
 /**
  * FlowNodeData describes a node's data within a flow
@@ -8590,6 +8613,12 @@ export interface WsSandboxStartPayload {
    * EngineCapabilitySandboxSnapshots, until the sandbox's box has run.
    */
   from_snapshot_id?: string;
+  /**
+   * FromSnapshot: the snapshot FromSnapshotID is kept in object storage
+   * too. An engine with EngineCapabilitySandboxSnapshotStore and no copy
+   * of it rebuilds the disk from there.
+   */
+  from_snapshot?: SandboxSnapshotRestore;
 }
 /**
  * WsSandboxStopPayload is sandbox_stop, API to engine.
@@ -8990,6 +9019,14 @@ export interface SandboxSnapshotDTO extends BaseModelDTO {
   status_reason?: string;
   ready_at?: string /* RFC3339 */;
   /**
+   * StoreStatus is where keeping it in object storage stands: empty when
+   * it is kept on its engine alone. Stored, a sandbox starts from it on
+   * any engine, and it outlives the engine that took it. StoredBytes is
+   * what the stored copy holds (compressed).
+   */
+  store_status?: SandboxSnapshotStoreStatus;
+  stored_bytes?: number /* int64 */;
+  /**
    * ForFork: taken by a fork for its sandboxes to start from, and
    * deleted once they have all started or failed. Not listed.
    */
@@ -9042,6 +9079,12 @@ export interface ForkSandboxResponse {
 export interface WsSandboxSnapshotPayload {
   snapshot_id: string;
   sandbox_id: string;
+  /**
+   * Store: once the copy is made, also keep it in object storage
+   * (EngineCapabilitySandboxSnapshotStore): POST
+   * /engines/{id}/sandbox-snapshots/{snapshot_id}/store and what follows.
+   */
+  store?: boolean;
 }
 /**
  * WsSandboxSnapshotDropPayload is sandbox_snapshot_drop, API to engine:
@@ -9069,6 +9112,111 @@ export interface WsSandboxSnapshotStatusPayload {
 export interface SandboxSnapshotReport {
   snapshot_id: string;
   bytes: number /* int64 */;
+}
+/**
+ * SandboxSnapshotStoreStatus is where keeping a snapshot in object storage
+ * stands (EngineCapabilitySandboxSnapshotStore).
+ */
+export type SandboxSnapshotStoreStatus = "pending" | "uploading" | "stored" | "failed";
+/**
+ * SandboxSnapshotStorePending: asked of the engine, not begun.
+ */
+export const SandboxSnapshotStorePending: SandboxSnapshotStoreStatus = "pending";
+/**
+ * SandboxSnapshotStoreUploading: the engine is uploading it.
+ */
+export const SandboxSnapshotStoreUploading: SandboxSnapshotStoreStatus = "uploading";
+/**
+ * SandboxSnapshotStoreStored: it is in object storage, whole.
+ */
+export const SandboxSnapshotStoreStored: SandboxSnapshotStoreStatus = "stored";
+/**
+ * SandboxSnapshotStoreFailed: the upload did not finish; the snapshot
+ * is still kept on its engine.
+ */
+export const SandboxSnapshotStoreFailed: SandboxSnapshotStoreStatus = "failed";
+/**
+ * SandboxSnapshotFormat is how a stored snapshot's object is laid out.
+ */
+export type SandboxSnapshotFormat = "infsh-disk-extents-zstd-v1";
+/**
+ * SandboxSnapshotFormatExtentsZstd is a stored snapshot's object: one zstd
+ * stream of the line "INFSHDISK1", a JSON header line {"size": the disk's
+ * length, "extents": [[offset, length], ...] its used ranges, sorted and
+ * apart}, then each extent's bytes in that order. A restore writes the
+ * extents into a sparse file of that size.
+ */
+export const SandboxSnapshotFormatExtentsZstd: SandboxSnapshotFormat = "infsh-disk-extents-zstd-v1";
+/**
+ * SandboxSnapshotPart is one part of a stored snapshot's object: bytes
+ * [Offset, Offset+Size) of it, and their SHA-256 (hex), which a restore
+ * checks before using them.
+ */
+export interface SandboxSnapshotPart {
+  number: number /* int */;
+  offset: number /* int64 */;
+  size: number /* int64 */;
+  sha256: string;
+}
+/**
+ * SandboxSnapshotManifest is what a stored snapshot's object holds and how
+ * to check it: its format, the disk's length (DiskBytes), the object's
+ * (ObjectBytes), and its parts in order.
+ */
+export interface SandboxSnapshotManifest {
+  format: SandboxSnapshotFormat;
+  disk_bytes: number /* int64 */;
+  object_bytes: number /* int64 */;
+  parts: SandboxSnapshotPart[];
+}
+/**
+ * SandboxSnapshotStoreRequest is POST
+ * /engines/{id}/sandbox-snapshots/{snapshot_id}/store, engine to API: the
+ * snapshot's export is ObjectBytes long, to go up in parts of PartSize (0
+ * for the API's default). The API answers SandboxSnapshotStoreParts.
+ */
+export interface SandboxSnapshotStoreRequest {
+  object_bytes: number /* int64 */;
+  part_size?: number /* int64 */;
+}
+/**
+ * SandboxSnapshotStorePartsRequest is POST .../store/parts: the URLs again
+ * for the parts Numbers (every part for none), for an upload that outlived
+ * its first ones.
+ */
+export interface SandboxSnapshotStorePartsRequest {
+  numbers?: number /* int */[];
+}
+/**
+ * SandboxSnapshotStoreParts is the parts of a snapshot's upload, each with
+ * the URL that takes it (a PUT of exactly its size).
+ */
+export interface SandboxSnapshotStoreParts {
+  parts: TransferPart[];
+}
+/**
+ * SandboxSnapshotStoreComplete is POST .../store/complete: every part is
+ * up; Manifest says what they hold. The API completes the upload once the
+ * store has every part at its size, and keeps the manifest.
+ */
+export interface SandboxSnapshotStoreComplete {
+  manifest: SandboxSnapshotManifest;
+}
+/**
+ * SandboxSnapshotStoreAbort is POST .../store/abort: the upload is given
+ * up, Error says why (short, redacted). The snapshot stays on its engine.
+ */
+export interface SandboxSnapshotStoreAbort {
+  error?: string;
+}
+/**
+ * SandboxSnapshotRestore is a stored snapshot a box's first disk is
+ * rebuilt from, on an engine with no copy of it: URL reads the object
+ * (ranged GETs, a part each, presigned, hours long), Manifest checks it.
+ */
+export interface SandboxSnapshotRestore {
+  url: string;
+  manifest: SandboxSnapshotManifest;
 }
 /**
  * SDKTypes is a phantom type for gotypegen dependency tracing.
