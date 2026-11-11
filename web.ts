@@ -999,6 +999,12 @@ export interface ApiAppRunRequest {
   session?: string;
   session_timeout?: number /* int */;
   run_at?: string;
+  /**
+   * StartTimeout, in seconds (1-86400): if no worker has started the task
+   * within it (counted from run_at when set), it is cancelled, not
+   * billed, and leaves the queue. Unset, it waits as any task does.
+   */
+  start_timeout?: number /* int */;
 }
 /**
  * MessageInput is a message a caller sends to an agent: its text and the
@@ -12238,11 +12244,22 @@ export interface WsTaskFailedPayload {
 }
 export interface WsTaskAcceptedPayload {
   task_id: string;
+  /**
+   * WorkerID is the worker the accepted dispatch named. An engine that
+   * sends it lets the API tell an answer to an earlier dispatch of the
+   * same task (to another worker) from one to the current dispatch.
+   */
+  worker_id?: string;
 }
 export interface WsTaskRejectedPayload {
   task_id: string;
   reason: RejectionReason;
   busy_with_task?: string;
+  /**
+   * WorkerID is the worker the refused dispatch named (see
+   * WsTaskAcceptedPayload.WorkerID).
+   */
+  worker_id?: string;
 }
 /**
  * WsTaskLifecyclePayload is shared by preparing/serving/setting_up/running/uploading events.

@@ -581,6 +581,10 @@ type ApiAppRunRequest struct {
 	Session        *string          `json:"session,omitempty"`
 	SessionTimeout *int             `json:"session_timeout,omitempty"`
 	RunAt          *string          `json:"run_at,omitempty"`
+	// StartTimeout, in seconds (1-86400): if no worker has started the task
+	// within it (counted from run_at when set), it is cancelled, not
+	// billed, and leaves the queue. Unset, it waits as any task does.
+	StartTimeout *int `json:"start_timeout,omitempty"`
 }
 
 // MessageInput is a message a caller sends to an agent: its text and the
@@ -8770,12 +8774,19 @@ type WsTaskFailedPayload struct {
 
 type WsTaskAcceptedPayload struct {
 	TaskID string `json:"task_id"`
+	// WorkerID is the worker the accepted dispatch named. An engine that
+	// sends it lets the API tell an answer to an earlier dispatch of the
+	// same task (to another worker) from one to the current dispatch.
+	WorkerID string `json:"worker_id,omitempty"`
 }
 
 type WsTaskRejectedPayload struct {
 	TaskID       string          `json:"task_id"`
 	Reason       RejectionReason `json:"reason"`
 	BusyWithTask *string         `json:"busy_with_task,omitempty"`
+	// WorkerID is the worker the refused dispatch named (see
+	// WsTaskAcceptedPayload.WorkerID).
+	WorkerID string `json:"worker_id,omitempty"`
 }
 
 // WsTaskLifecyclePayload is shared by preparing/serving/setting_up/running/uploading events.
