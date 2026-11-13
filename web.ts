@@ -419,9 +419,15 @@ export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
    */
   content_guard?: ContentGuardConfig;
   /**
+   * APIScopes is the inference.sh access the sandboxes its
+   * sandbox_create makes get, cut to what the run can hand on. Absent:
+   * the vault's (VaultID).
+   */
+  api_scopes?: Scope[];
+  /**
    * VaultID is the agent's vault: the sandboxes its sandbox_create makes
-   * get the vault's inference.sh access (VaultDTO.APIScopes). Absent: no
-   * vault.
+   * get the vault's inference.sh access (VaultDTO.APIScopes) when the
+   * version has none of its own (APIScopes). Absent: no vault.
    */
   vault_id?: string;
   /**
@@ -480,8 +486,14 @@ export interface AgentConfigInput {
   output_schema?: any;
   content_guard?: ContentGuardConfig;
   /**
+   * APIScopes is the inference.sh access the sandboxes it makes get:
+   * reads, apps:execute, files:write and apps:write, none the writer
+   * does not hold.
+   */
+  api_scopes?: Scope[];
+  /**
    * VaultID picks the agent's vault, whose inference.sh access the
-   * sandboxes it makes get. Empty: no vault.
+   * sandboxes it makes get when APIScopes is absent. Empty: no vault.
    */
   vault_id?: string;
 }
@@ -1505,11 +1517,12 @@ export interface EngineEnrollRequest {
   signing_public_key?: string;
 }
 /**
- * EngineEnrollResponse is the engine enrolled: its id, and for an engine
- * from before engine identities its API key, given once.
+ * EngineEnrollResponse is the engine enrolled: its id, its name, and for
+ * an engine from before engine identities its API key, given once.
  */
 export interface EngineEnrollResponse {
   engine_id: string;
+  name?: string;
   api_key?: string;
 }
 /**
@@ -3678,6 +3691,13 @@ export interface ChatSettingsRequest {
    * agent keeps for this conversation. A key that is not there is ignored.
    */
   forget_memory?: string[];
+  /**
+   * Strictness is what the agent does in this chat after the content
+   * guard flags something it read: watch, ask or strict. "" clears the
+   * chat's own level, so the agent's default applies. A team or org
+   * minimum still raises it (GET /chats/{id}/strictness).
+   */
+  strictness?: ChatStrictness;
 }
 /**
  * ChatSettingsDTO is what POST /chats/{id}/settings answers with: the chat's
@@ -3698,6 +3718,56 @@ export interface ChatSettingsDTO {
    * Memory is agent_data.memory after forget_memory removed its keys.
    */
   memory: StringEncodedMap;
+  /**
+   * Strictness is agent_data.strictness: the chat's own level, "" when
+   * it follows the agent's default.
+   */
+  strictness: ChatStrictness;
+}
+/**
+ * ChatStrictnessDTO is GET /chats/{id}/strictness: what the agent does in
+ * the chat after the content guard flags something it read, and where that
+ * comes from. Effective is the strictest of the chat's level (Chat, else
+ * AgentDefault, else watch), Minimum and Delegated.
+ */
+export interface ChatStrictnessDTO {
+  chat_id: string;
+  /**
+   * Chat is the chat's own level; "" when it follows the agent.
+   */
+  chat: ChatStrictness;
+  /**
+   * AgentDefault is the agent's content_guard.strictness; "" for watch.
+   */
+  agent_default: ChatStrictness;
+  /**
+   * Minimum is the strictest level the chat's team or org governance
+   * policy sets; "" when neither sets one. Levels below it are locked.
+   */
+  minimum: ChatStrictness;
+  /**
+   * MinimumSetBy is the rung that set Minimum: team or org.
+   */
+  minimum_set_by?: PolicySubject;
+  /**
+   * Delegated is, for a sub-agent's chat, the level the chat that
+   * delegated to it runs at: a floor, so a sub-agent never runs looser
+   * than its delegating chat. "" for a chat no agent delegated.
+   */
+  delegated?: ChatStrictness;
+  /**
+   * Flagged reports that the content guard has flagged something an
+   * agent read in this chat, or in the chat that delegated to it. It
+   * lasts for the life of the chat: what was flagged stays in its
+   * history, so ask and strict apply to every later run of the chat.
+   * Lowering the chat's level (the person's sign-in) is how runs go on
+   * unasked again.
+   */
+  flagged: boolean;
+  /**
+   * Effective is the level the chat runs at.
+   */
+  effective: ChatStrictness;
 }
 /**
  * ChatAgentDTO is what POST /chats/{id}/agent answers with: the agent the
@@ -3862,6 +3932,12 @@ export interface PolicyLayerDTO {
    */
   reach_enforced?: PolicyKind[];
   /**
+   * ChatStrictness is a governance layer's minimum chat strictness: no
+   * chat of the workspace runs below it after the content guard flags a
+   * result. "" sets none.
+   */
+  chat_strictness?: ChatStrictness;
+  /**
    * RuleKinds are the kinds a rule added here may have, set on an
    * editable layer.
    */
@@ -3948,6 +4024,14 @@ export interface PolicyLayerSetRequest {
    */
   reach_enforced?: PolicyKind[];
   rules: PolicyRuleCreateRequest[];
+}
+/**
+ * ChatStrictnessMinimumRequest is PUT /teams/{id}/rules/chat-strictness
+ * and /orgs/{id}/rules/chat-strictness: the minimum chat strictness of the
+ * workspace's governance policy. "" removes it.
+ */
+export interface ChatStrictnessMinimumRequest {
+  minimum: ChatStrictness;
 }
 /**
  * ChatRuleExplainRequest is POST /chats/{id}/rules/explain: test a call
@@ -4322,6 +4406,12 @@ export interface ContentGuardConfig {
    * job is reading Slack mentions).
    */
   ignore_rules?: string[];
+  /**
+   * Strictness is what the agent's chats do after the guard flags a
+   * result, unless a chat sets its own: watch (default), ask or strict
+   * (shared.ChatStrictness). A team or org minimum still raises it.
+   */
+  strictness?: ChatStrictness;
 }
 /**
  * ContentTier is how far a tool's output is from the agent's operator:
@@ -4409,6 +4499,14 @@ export interface CredentialSecretRef {
  */
 export interface CredentialAppRequest {
   values: { [key: string]: string};
+  /**
+   * Scope names which of the caller's apps is written: empty for its usual
+   * one (the platform's for the platform team, else the team's), "team"
+   * for the team's own. The platform team sends "team" for a client that
+   * is its own account with the provider and must not serve every
+   * workspace.
+   */
+  scope?: string;
   /**
    * AllowedScopes replaces the scopes a login through the app may request
    * (CredentialDTO.AllowedScopes). An empty list allows any scope; omitted
@@ -4526,6 +4624,13 @@ export interface CredentialConfigDTO {
    * login itself.
    */
   app?: CredentialDTO;
+  /**
+   * OwnAppScope is where an app this caller saves without naming a scope
+   * lands, when that is not the workspace's own: "platform" for the
+   * platform team, whose usual app serves every workspace. The form then
+   * asks which is meant (CredentialAppRequest.Scope). Empty: the team's.
+   */
+  own_app_scope?: CredentialScope;
   /**
    * AppNoun is what that app is called ("GitHub App") when it is not an
    * OAuth sign-in app: its logins connect something other than a person
@@ -5367,6 +5472,7 @@ export type ErrorCode =
   | "account_deactivated"
   | "account_banned"
   | "publish_quarantined"
+  | "file_in_use"
   | "person_required"
   | "otp_required"
   | "requires_sign_in"
@@ -5489,6 +5595,12 @@ export const ErrorCodeAccountBanned: ErrorCode = "account_banned";
  * PublishQuarantinedMeta; Until says from when a new account can.
  */
 export const ErrorCodePublishQuarantined: ErrorCode = "publish_quarantined";
+/**
+ * ErrorCodeFileInUse (409): the file is used by live content (a skill's
+ * files, an artifact's assets) and was not deleted. Meta is FileInUseMeta:
+ * the content using it. Staff may delete it anyway (?force=true).
+ */
+export const ErrorCodeFileInUse: ErrorCode = "file_in_use";
 /**
  * ErrorCodePersonRequired (403): only a person may do this, and the
  * caller is a workspace's service account (a workspace API key), or the
@@ -7484,6 +7596,16 @@ export interface PaymentRecordDTO extends BaseModelDTO, PermissionModelDTO {
   provider_session_id?: string;
   provider_metadata?: { [key: string]: any};
   /**
+   * The card the charge was made with, empty for another payment method.
+   * CardFingerprint is the provider's stable id of the card number. Only the
+   * admin payment lists fill it; customer responses leave it empty.
+   */
+  card_brand?: string;
+  card_last4?: string;
+  card_fingerprint?: string;
+  card_country?: string;
+  card_funding?: string;
+  /**
    * Invoice is the document that currently stands for this payment; Invoices is every invoice and
    * credit note issued against it, oldest first.
    */
@@ -8757,11 +8879,17 @@ export interface CreateSandboxRequest {
    */
   from_snapshot_id?: string;
   /**
+   * APIScopes is the inference.sh access the box gets beyond running
+   * its remote: reads, apps:execute, files:write and apps:write, cut to
+   * what the caller can hand on. Empty: the remote's alone. A sandbox an
+   * agent's sandbox_create makes takes the agent's
+   * (AgentVersionDTO.APIScopes) instead.
+   */
+  api_scopes?: Scope[];
+  /**
    * VaultID is the vault whose inference.sh access (VaultDTO.APIScopes)
    * the box gets, copied once now and cut to what the caller can hand
-   * on. Empty: the box holds what it needs to run its remote and
-   * nothing more. A sandbox an agent's sandbox_create makes takes the
-   * agent's vault (AgentVersionDTO.VaultID) instead.
+   * on; refused with APIScopes. Deprecated: name the scopes (APIScopes).
    */
   vault_id?: string;
 }
@@ -8893,8 +9021,8 @@ export interface SandboxDTO extends BaseModelDTO, PermissionModelDTO {
   last_activity_at?: string /* RFC3339 */;
   /**
    * APIScopes are what the box may do with our API beyond running its
-   * remote: copied from its vault when it was made (VaultID), for its
-   * whole life. Absent or empty: nothing beyond the remote.
+   * remote: copied when it was made (CreateSandboxRequest.APIScopes, or
+   * its agent's), for its whole life. Absent or empty: nothing beyond the remote.
    */
   api_scopes?: Scope[];
 }
@@ -10051,15 +10179,21 @@ export interface StoreAttestationInput {
 }
 /**
  * StoreSubmitRequest submits a resource version: the listing's first
- * version or an update. ResourceVersionID empty means the resource's
- * current version.
+ * version or an update. The listing is named by ListingID, or by
+ * ResourceType and ResourceID, in which case a listing is drafted when the
+ * resource has none. ResourceVersionID empty means the resource's current
+ * version. Attestation nil reuses the caller's attestation from the
+ * listing's last submission, when it is still on the current terms and
+ * policy; a first submission must carry it.
  */
 export interface StoreSubmitRequest {
-  listing_id: string;
+  listing_id?: string;
+  resource_type?: StoreResourceType;
+  resource_id?: string;
   resource_version_id?: string;
   changelog: string; // required for updates, public
   license?: string;
-  attestation: StoreAttestationInput;
+  attestation?: StoreAttestationInput;
 }
 /**
  * StoreCheckRequest runs the synchronous checks (validation, scan, policy)
@@ -14268,6 +14402,22 @@ export const ChannelTypeDiscord: ChannelType = "discord";
 export const ChannelTypeTeams: ChannelType = "teams";
 export const ChannelTypeTelegram: ChannelType = "telegram";
 /**
+ * ChatStrictness is what an agent does in a chat after the content guard
+ * flags a tool result it read (a web page, an app's output, an MCP reply):
+ *   - watch: the flag is recorded and the run goes on. The default.
+ *   - ask: every later tool call of the run that has side effects waits
+ *     for a person's approval (the tool-approval prompt).
+ *   - strict: the run is stopped.
+ * The agent's config sets the default (content_guard.strictness), a person
+ * changes it per chat (agent_data.strictness), and a team or org governance
+ * policy can set a minimum: the chat runs at the stricter of its own level
+ * and the minimum (EffectiveChatStrictness).
+ */
+export type ChatStrictness = "watch" | "ask" | "strict";
+export const ChatStrictnessWatch: ChatStrictness = "watch";
+export const ChatStrictnessAsk: ChatStrictness = "ask";
+export const ChatStrictnessStrict: ChatStrictness = "strict";
+/**
  * ChatData contains agent-specific data for a chat session
  */
 export interface ChatData {
@@ -14284,6 +14434,13 @@ export interface ChatData {
    * that reviews it.
    */
   disable_hooks?: boolean;
+  /**
+   * Strictness is what the agent does in this chat after the content
+   * guard flags something it read: watch, ask or strict. Empty is the
+   * agent's default (content_guard.strictness), itself watch when unset.
+   * A team or org minimum can raise it (ChatStrictnessDTO.Effective).
+   */
+  strictness?: ChatStrictness;
   /**
    * Client is the app the chat was started from (web, mac, ios, cli,
    * sdk-js), as the request named itself (X-Client-Source). Shown, never
@@ -14404,7 +14561,7 @@ export interface ChatBackgroundEvent {
  * RunEndReason is why a run that completed ended the way it did, when its
  * last turn did not end with a reply.
  */
-export type RunEndReason = "output_limit" | "no_reply" | "refusal";
+export type RunEndReason = "output_limit" | "no_reply" | "refusal" | "content_flagged";
 /**
  * RunEndReasonOutputLimit: the model's last turn hit its output limit
  * (max_tokens) before it replied or called a tool.
@@ -14422,6 +14579,12 @@ export const RunEndReasonNoReply: RunEndReason = "no_reply";
  * message is not refused for what this run held.
  */
 export const RunEndReasonRefusal: RunEndReason = "refusal";
+/**
+ * RunEndReasonContentFlagged: the content guard flagged a tool result
+ * the run read and the chat's strictness is strict, so the run was
+ * stopped there.
+ */
+export const RunEndReasonContentFlagged: RunEndReason = "content_flagged";
 /**
  * ChatRunEvent is how a run ended, on a run_ended event.
  */

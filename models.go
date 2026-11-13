@@ -445,9 +445,13 @@ type AgentVersionDTO struct {
 	// ContentGuard is the agent's tool-result guard; absent is the
 	// platform's mode.
 	ContentGuard *ContentGuardConfig `json:"content_guard,omitempty"`
+	// APIScopes is the inference.sh access the sandboxes its
+	// sandbox_create makes get, cut to what the run can hand on. Absent:
+	// the vault's (VaultID).
+	APIScopes []Scope `json:"api_scopes,omitempty"`
 	// VaultID is the agent's vault: the sandboxes its sandbox_create makes
-	// get the vault's inference.sh access (VaultDTO.APIScopes). Absent: no
-	// vault.
+	// get the vault's inference.sh access (VaultDTO.APIScopes) when the
+	// version has none of its own (APIScopes). Absent: no vault.
 	VaultID *string `json:"vault_id,omitempty"`
 	// VisitorReads is the scope groups of the team's resources (knowledge,
 	// files, artifacts, remotes) a visitor of an embed of this version can
@@ -494,8 +498,12 @@ type AgentConfigInput struct {
 	Hooks          []LifecycleHookConfig `json:"hooks,omitempty" yaml:"hooks,omitempty"`
 	OutputSchema   *json.RawMessage      `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
 	ContentGuard   *ContentGuardConfig   `json:"content_guard,omitempty" yaml:"content_guard,omitempty"`
+	// APIScopes is the inference.sh access the sandboxes it makes get:
+	// reads, apps:execute, files:write and apps:write, none the writer
+	// does not hold.
+	APIScopes []Scope `json:"api_scopes,omitempty" yaml:"api_scopes,omitempty"`
 	// VaultID picks the agent's vault, whose inference.sh access the
-	// sandboxes it makes get. Empty: no vault.
+	// sandboxes it makes get when APIScopes is absent. Empty: no vault.
 	VaultID *string `json:"vault_id,omitempty" yaml:"vault_id,omitempty"`
 }
 
@@ -1059,10 +1067,11 @@ type EngineEnrollRequest struct {
 	SigningPublicKey string `json:"signing_public_key,omitempty"`
 }
 
-// EngineEnrollResponse is the engine enrolled: its id, and for an engine
-// from before engine identities its API key, given once.
+// EngineEnrollResponse is the engine enrolled: its id, its name, and for
+// an engine from before engine identities its API key, given once.
 type EngineEnrollResponse struct {
 	EngineID string `json:"engine_id"`
+	Name     string `json:"name,omitempty"`
 	APIKey   string `json:"api_key,omitempty"`
 }
 
@@ -2680,6 +2689,11 @@ type ChatSettingsRequest struct {
 	// ForgetMemory removes these keys from the chat's memory, the notes the
 	// agent keeps for this conversation. A key that is not there is ignored.
 	ForgetMemory []string `json:"forget_memory,omitempty"`
+	// Strictness is what the agent does in this chat after the content
+	// guard flags something it read: watch, ask or strict. "" clears the
+	// chat's own level, so the agent's default applies. A team or org
+	// minimum still raises it (GET /chats/{id}/strictness).
+	Strictness *ChatStrictness `json:"strictness,omitempty"`
 }
 
 // ChatSettingsDTO is what POST /chats/{id}/settings answers with: the chat's
@@ -2695,6 +2709,39 @@ type ChatSettingsDTO struct {
 	DisableHooks  bool `json:"disable_hooks"`
 	// Memory is agent_data.memory after forget_memory removed its keys.
 	Memory StringEncodedMap `json:"memory"`
+	// Strictness is agent_data.strictness: the chat's own level, "" when
+	// it follows the agent's default.
+	Strictness ChatStrictness `json:"strictness"`
+}
+
+// ChatStrictnessDTO is GET /chats/{id}/strictness: what the agent does in
+// the chat after the content guard flags something it read, and where that
+// comes from. Effective is the strictest of the chat's level (Chat, else
+// AgentDefault, else watch), Minimum and Delegated.
+type ChatStrictnessDTO struct {
+	ChatID string `json:"chat_id"`
+	// Chat is the chat's own level; "" when it follows the agent.
+	Chat ChatStrictness `json:"chat"`
+	// AgentDefault is the agent's content_guard.strictness; "" for watch.
+	AgentDefault ChatStrictness `json:"agent_default"`
+	// Minimum is the strictest level the chat's team or org governance
+	// policy sets; "" when neither sets one. Levels below it are locked.
+	Minimum ChatStrictness `json:"minimum"`
+	// MinimumSetBy is the rung that set Minimum: team or org.
+	MinimumSetBy PolicySubject `json:"minimum_set_by,omitempty"`
+	// Delegated is, for a sub-agent's chat, the level the chat that
+	// delegated to it runs at: a floor, so a sub-agent never runs looser
+	// than its delegating chat. "" for a chat no agent delegated.
+	Delegated ChatStrictness `json:"delegated,omitempty"`
+	// Flagged reports that the content guard has flagged something an
+	// agent read in this chat, or in the chat that delegated to it. It
+	// lasts for the life of the chat: what was flagged stays in its
+	// history, so ask and strict apply to every later run of the chat.
+	// Lowering the chat's level (the person's sign-in) is how runs go on
+	// unasked again.
+	Flagged bool `json:"flagged"`
+	// Effective is the level the chat runs at.
+	Effective ChatStrictness `json:"effective"`
 }
 
 // ChatAgentDTO is what POST /chats/{id}/agent answers with: the agent the
@@ -3016,15 +3063,24 @@ type ContentGuardConfig struct {
 	// IgnoreRules are rule ids not to apply (INF-PI-005 for an agent whose
 	// job is reading Slack mentions).
 	IgnoreRules []string `json:"ignore_rules,omitempty" yaml:"ignore_rules,omitempty"`
+	// Strictness is what the agent's chats do after the guard flags a
+	// result, unless a chat sets its own: watch (default), ask or strict
+	// (shared.ChatStrictness). A team or org minimum still raises it.
+	Strictness ChatStrictness `json:"strictness,omitempty" yaml:"strictness,omitempty"`
 }
 
-// Validate checks the mode.
+// Validate checks the mode and the strictness.
 func (c *ContentGuardConfig) Validate() error {
 	if c == nil {
 		return nil
 	}
 	if !c.Mode.Valid() {
 		return fmt.Errorf("content_guard.mode %q: must be shadow, off, annotate or strict", c.Mode)
+	}
+	switch c.Strictness {
+	case "", ChatStrictnessWatch, ChatStrictnessAsk, ChatStrictnessStrict:
+	default:
+		return fmt.Errorf("content_guard.strictness %q: must be watch, ask or strict", c.Strictness)
 	}
 	return nil
 }
@@ -3146,6 +3202,11 @@ type CredentialConfigDTO struct {
 	// set up yet, or when it doesn't sign in through one. Credential is the
 	// login itself.
 	App *CredentialDTO `json:"app,omitempty"`
+	// OwnAppScope is where an app this caller saves without naming a scope
+	// lands, when that is not the workspace's own: "platform" for the
+	// platform team, whose usual app serves every workspace. The form then
+	// asks which is meant (CredentialAppRequest.Scope). Empty: the team's.
+	OwnAppScope CredentialScope `json:"own_app_scope,omitempty"`
 	// AppNoun is what that app is called ("GitHub App") when it is not an
 	// OAuth sign-in app: its logins connect something other than a person
 	// signing in (an installation). Empty: an OAuth app logins sign in
@@ -3978,6 +4039,10 @@ const (
 	// is not verified, or it is flagged (abuse.CheckPublish). Meta is
 	// PublishQuarantinedMeta; Until says from when a new account can.
 	ErrorCodePublishQuarantined ErrorCode = "publish_quarantined"
+	// ErrorCodeFileInUse (409): the file is used by live content (a skill's
+	// files, an artifact's assets) and was not deleted. Meta is FileInUseMeta:
+	// the content using it. Staff may delete it anyway (?force=true).
+	ErrorCodeFileInUse ErrorCode = "file_in_use"
 	// ErrorCodePersonRequired (403): only a person may do this, and the
 	// caller is a workspace's service account (a workspace API key), or the
 	// account is one and cannot sign in.
@@ -6470,11 +6535,15 @@ type CreateSandboxRequest struct {
 	// (INF-1251). Sizes left at zero take the snapshot's; the disk is never
 	// smaller than the snapshot's.
 	FromSnapshotID string `json:"from_snapshot_id,omitempty"`
+	// APIScopes is the inference.sh access the box gets beyond running
+	// its remote: reads, apps:execute, files:write and apps:write, cut to
+	// what the caller can hand on. Empty: the remote's alone. A sandbox an
+	// agent's sandbox_create makes takes the agent's
+	// (AgentVersionDTO.APIScopes) instead.
+	APIScopes []Scope `json:"api_scopes,omitempty"`
 	// VaultID is the vault whose inference.sh access (VaultDTO.APIScopes)
 	// the box gets, copied once now and cut to what the caller can hand
-	// on. Empty: the box holds what it needs to run its remote and
-	// nothing more. A sandbox an agent's sandbox_create makes takes the
-	// agent's vault (AgentVersionDTO.VaultID) instead.
+	// on; refused with APIScopes. Deprecated: name the scopes (APIScopes).
 	VaultID *string `json:"vault_id,omitempty"`
 }
 
@@ -6597,8 +6666,8 @@ type SandboxDTO struct {
 	// its box started, whichever is later.
 	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
 	// APIScopes are what the box may do with our API beyond running its
-	// remote: copied from its vault when it was made (VaultID), for its
-	// whole life. Absent or empty: nothing beyond the remote.
+	// remote: copied when it was made (CreateSandboxRequest.APIScopes, or
+	// its agent's), for its whole life. Absent or empty: nothing beyond the remote.
 	APIScopes []Scope `json:"api_scopes,omitempty"`
 }
 
@@ -6976,6 +7045,7 @@ type SDKTypes struct {
 	_chatDTO            ChatDTO
 	_chatSettings       ChatSettingsRequest
 	_chatSettingsDTO    ChatSettingsDTO
+	_chatStrictnessDTO  ChatStrictnessDTO
 	_chatAgentDTO       ChatAgentDTO
 	_chatMsg            ChatMessageDTO
 	_graphNode          GraphNodeDTO
@@ -10499,6 +10569,30 @@ const (
 )
 
 // --------------------
+// source: chat_strictness.go
+// --------------------
+
+// ChatStrictness is what an agent does in a chat after the content guard
+// flags a tool result it read (a web page, an app's output, an MCP reply):
+//
+//   - watch: the flag is recorded and the run goes on. The default.
+//   - ask: every later tool call of the run that has side effects waits
+//     for a person's approval (the tool-approval prompt).
+//   - strict: the run is stopped.
+//
+// The agent's config sets the default (content_guard.strictness), a person
+// changes it per chat (agent_data.strictness), and a team or org governance
+// policy can set a minimum: the chat runs at the stricter of its own level
+// and the minimum (EffectiveChatStrictness).
+type ChatStrictness string
+
+const (
+	ChatStrictnessWatch  ChatStrictness = "watch"
+	ChatStrictnessAsk    ChatStrictness = "ask"
+	ChatStrictnessStrict ChatStrictness = "strict"
+)
+
+// --------------------
 // source: chat_types.go
 // --------------------
 
@@ -10513,6 +10607,11 @@ type ChatData struct {
 	// review branch is opened with it set, so a review cannot fire the hook
 	// that reviews it.
 	DisableHooks bool `json:"disable_hooks,omitempty"`
+	// Strictness is what the agent does in this chat after the content
+	// guard flags something it read: watch, ask or strict. Empty is the
+	// agent's default (content_guard.strictness), itself watch when unset.
+	// A team or org minimum can raise it (ChatStrictnessDTO.Effective).
+	Strictness ChatStrictness `json:"strictness,omitempty"`
 	// Client is the app the chat was started from (web, mac, ios, cli,
 	// sdk-js), as the request named itself (X-Client-Source). Shown, never
 	// trusted or filtered on: Chat.Origin is what a chat list filters.
@@ -10612,6 +10711,10 @@ const (
 	// the context every later turn sends (BuildContext), so the next
 	// message is not refused for what this run held.
 	RunEndReasonRefusal RunEndReason = "refusal"
+	// RunEndReasonContentFlagged: the content guard flagged a tool result
+	// the run read and the chat's strictness is strict, so the run was
+	// stopped there.
+	RunEndReasonContentFlagged RunEndReason = "content_flagged"
 )
 
 // ChatRunEvent is how a run ended, on a run_ended event.
@@ -12336,6 +12439,24 @@ const (
 	// PolicyKindSecretSend: an agent of another team sending the runner's
 	// secrets to a host.
 	PolicyKindSecretSend PolicyKind = "SecretSend"
+)
+
+// PolicySubject is a rung of the subject ladder: what a policy is attached
+// to and what a decision names as its layer. Most specific first: remote,
+// chat, agent, user, team, org, platform. The values match CredentialScope
+// where both exist.
+type PolicySubject string
+
+const (
+	// PolicySubjectRemote is the machine a call runs on. Its policy is the
+	// machine owner's, and only narrows.
+	PolicySubjectRemote   PolicySubject = "remote"
+	PolicySubjectChat     PolicySubject = "chat"
+	PolicySubjectAgent    PolicySubject = "agent"
+	PolicySubjectUser     PolicySubject = "user"
+	PolicySubjectTeam     PolicySubject = "team"
+	PolicySubjectOrg      PolicySubject = "org"
+	PolicySubjectPlatform PolicySubject = "platform"
 )
 
 // --------------------
