@@ -341,15 +341,9 @@ export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
   /**
    * APIScopes is the inference.sh access the sandboxes its
    * sandbox_create makes get, cut to what the run can hand on. Absent:
-   * the vault's (VaultID).
+   * none.
    */
   api_scopes?: Scope[];
-  /**
-   * VaultID is the agent's vault: the sandboxes its sandbox_create makes
-   * get the vault's inference.sh access (VaultDTO.APIScopes) when the
-   * version has none of its own (APIScopes). Absent: no vault.
-   */
-  vault_id?: string;
   /**
    * VisitorReads is the scope groups of the team's resources (knowledge,
    * files, artifacts, remotes) a visitor of an embed of this version can
@@ -411,11 +405,6 @@ export interface AgentConfigInput {
    * does not hold.
    */
   api_scopes?: Scope[];
-  /**
-   * VaultID picks the agent's vault, whose inference.sh access the
-   * sandboxes it makes get when APIScopes is absent. Empty: no vault.
-   */
-  vault_id?: string;
 }
 /**
  * CoreAppConfigInput is the API input shape for core app configuration.
@@ -1511,8 +1500,9 @@ export interface ScopeDefinition {
    */
   costs_credits?: boolean;
   /**
-   * Sandbox: a vault may grant it to a sandbox (its inference.sh access,
-   * VaultDTO.APIScopes); the allowlist is models.SandboxMayHold.
+   * Sandbox: a sandbox may be granted it (its inference.sh access,
+   * AgentVersionDTO.APIScopes, CreateSandboxRequest.APIScopes); the
+   * allowlist is models.SandboxMayHold.
    */
   sandbox?: boolean;
 }
@@ -2529,8 +2519,9 @@ export interface ChatSettingsRequest {
    */
   forget_memory?: string[];
   /**
-   * Strictness is what the agent does in this chat after the content
-   * guard flags something it read: watch, ask or strict. "" clears the
+   * Strictness sets what the agent does in this chat after the content
+   * guard flags something it read: watch, ask or strict; anything else,
+   * "" included, is refused. DELETE /chats/{id}/strictness clears the
    * chat's own level, so the agent's default applies. A team or org
    * minimum still raises it (GET /chats/{id}/strictness).
    */
@@ -2556,32 +2547,35 @@ export interface ChatSettingsDTO {
    */
   memory: StringEncodedMap;
   /**
-   * Strictness is agent_data.strictness: the chat's own level, "" when
-   * it follows the agent's default.
+   * Strictness is agent_data.strictness: the chat's own level; absent
+   * when it follows the agent's default.
    */
-  strictness: ChatStrictness;
+  strictness?: ChatStrictness;
 }
 /**
  * ChatStrictnessDTO is GET /chats/{id}/strictness: what the agent does in
  * the chat after the content guard flags something it read, and where that
  * comes from. Effective is the strictest of the chat's level (Chat, else
- * AgentDefault, else watch), Minimum and Delegated.
+ * AgentDefault), Minimum and Delegated. A level that is not set is absent.
  */
 export interface ChatStrictnessDTO {
   chat_id: string;
   /**
-   * Chat is the chat's own level; "" when it follows the agent.
+   * Chat is the chat's own level (for a sub-agent's chat that sets none,
+   * its nearest ancestor's); absent when it follows the agent.
    */
-  chat: ChatStrictness;
+  chat?: ChatStrictness;
   /**
-   * AgentDefault is the agent's content_guard.strictness; "" for watch.
+   * AgentDefault is the agent's content_guard.strictness, watch when the
+   * agent sets none.
    */
   agent_default: ChatStrictness;
   /**
    * Minimum is the strictest level the chat's team or org governance
-   * policy sets; "" when neither sets one. Levels below it are locked.
+   * policy sets; absent when neither sets one. Levels below it are
+   * locked.
    */
-  minimum: ChatStrictness;
+  minimum?: ChatStrictness;
   /**
    * MinimumSetBy is the rung that set Minimum: team or org.
    */
@@ -2589,7 +2583,7 @@ export interface ChatStrictnessDTO {
   /**
    * Delegated is, for a sub-agent's chat, the level the chat that
    * delegated to it runs at: a floor, so a sub-agent never runs looser
-   * than its delegating chat. "" for a chat no agent delegated.
+   * than its delegating chat. Absent for a chat no agent delegated.
    */
   delegated?: ChatStrictness;
   /**
@@ -2963,8 +2957,9 @@ export interface ContentGuardConfig {
   ignore_rules?: string[];
   /**
    * Strictness is what the agent's chats do after the guard flags a
-   * result, unless a chat sets its own: watch (default), ask or strict
-   * (shared.ChatStrictness). A team or org minimum still raises it.
+   * result, unless a chat sets its own: watch, ask or strict
+   * (shared.ChatStrictness). Left out, it is watch; "" is refused. A
+   * team or org minimum still raises it.
    */
   strictness?: ChatStrictness;
 }
@@ -3874,6 +3869,7 @@ export type ErrorCode =
   | "expired"
   | "code_confirmation_required"
   | "app_retired"
+  | "listing_not_live"
   | "app_maintenance"
   | "invalid_transition"
   | "maintenance"
@@ -4110,6 +4106,13 @@ export const ErrorCodeCodeConfirmationRequired: ErrorCode = "code_confirmation_r
  * theirs. InvalidTransition (409): the task already moved on.
  */
 export const ErrorCodeAppRetired: ErrorCode = "app_retired";
+/**
+ * ListingNotLive (410): the app, agent, skill or knowledge entry is
+ * listed in the store and its listing serves no reviewed version now,
+ * so a caller who does not own it is not served it. One answer whatever
+ * took it down.
+ */
+export const ErrorCodeListingNotLive: ErrorCode = "listing_not_live";
 export const ErrorCodeAppMaintenance: ErrorCode = "app_maintenance";
 export const ErrorCodeInvalidTransition: ErrorCode = "invalid_transition";
 /**
@@ -5935,12 +5938,6 @@ export interface CreateSandboxRequest {
    * (AgentVersionDTO.APIScopes) instead.
    */
   api_scopes?: Scope[];
-  /**
-   * VaultID is the vault whose inference.sh access (VaultDTO.APIScopes)
-   * the box gets, copied once now and cut to what the caller can hand
-   * on; refused with APIScopes. Deprecated: name the scopes (APIScopes).
-   */
-  vault_id?: string;
 }
 /**
  * UpdateSandboxRequest is PATCH /sandboxes/{id}: the fields to change,
