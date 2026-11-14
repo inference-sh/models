@@ -640,7 +640,14 @@ type ApiAgentRunRequest struct {
 	AgentName      *string           `json:"agent_name,omitempty"`
 	Input          MessageInput      `json:"input" validate:"required"`
 	Context        map[string]string `json:"context,omitempty"`
-	Stream         bool              `json:"stream,omitempty"`
+	// Infra is where the tasks the agent's app tools run go, for the
+	// caller's workspace: cloud, private (its own engines only) or
+	// private_first (its own when one can take the task, cloud
+	// otherwise). It is kept on the chat, so it holds for the turns that
+	// follow until a later request or the chat's settings change it.
+	// Absent: the chat's, which starts as cloud.
+	Infra  Infra `json:"infra,omitempty"`
+	Stream bool  `json:"stream,omitempty"`
 	// ProjectID files the chat this message starts in a project. Ignored
 	// when the message posts into an existing chat (chat_id): a chat moves
 	// with POST /chats/{id}/project.
@@ -693,6 +700,7 @@ type AppVersionInput struct {
 	Kernel              string                 `json:"kernel,omitempty"`
 	RequiredSecrets     []SecretRequirement    `json:"required_secrets,omitempty"`
 	RequiredCredentials CredentialRequirements `json:"required_credentials,omitempty"`
+	RequiredVars        []VarRequirement       `json:"required_vars,omitempty"`
 	RequiredResources   AppResources           `json:"resources,omitempty"`
 }
 
@@ -2033,7 +2041,10 @@ type AppVersionDTO struct {
 	Kernel              string                 `json:"kernel"`
 	RequiredSecrets     []SecretRequirement    `json:"required_secrets,omitempty"`
 	RequiredCredentials CredentialRequirements `json:"required_credentials,omitempty"`
-	RequiredResources   AppResources           `json:"resources"`
+	// RequiredVars are the environment variables the version reads from
+	// the running team (vars: in inf.yml): plain configuration.
+	RequiredVars      []VarRequirement `json:"required_vars,omitempty"`
+	RequiredResources AppResources     `json:"resources"`
 	// Sandbox is the version's declared sandbox exceptions. Absent on a
 	// version deployed before the API recorded them (engines then read the
 	// package's inf.yml) and on a version with no package (a flow app).
@@ -2689,6 +2700,9 @@ type ChatSettingsRequest struct {
 	// chat's own level, so the agent's default applies. A team or org
 	// minimum still raises it (GET /chats/{id}/strictness).
 	Strictness *ChatStrictness `json:"strictness,omitempty"`
+	// Infra is where the tasks the agent's app tools run in this chat go:
+	// cloud, private or private_first.
+	Infra *Infra `json:"infra,omitempty"`
 }
 
 // ChatSettingsDTO is what POST /chats/{id}/settings answers with: the chat's
@@ -3701,6 +3715,14 @@ const (
 	// (WsSandboxStartPayload.FromSnapshot): it downloads the parts, checks
 	// each against the manifest, and rebuilds the disk.
 	EngineCapabilitySandboxSnapshotStore EngineCapability = "sandbox_snapshot_store"
+	// EngineCapabilityTaskEnv: the engine gives each task the app
+	// environment that task was dispatched with (TaskDispatchPayload.AppEnv):
+	// a worker whose visor was started with another environment is restarted
+	// before the task runs, as it is when its secrets change. Without it a
+	// warm worker keeps the environment of the first task it ran, so a task
+	// whose environment carries its team's variables (INF-1345) is sent
+	// only to an engine that has it.
+	EngineCapabilityTaskEnv EngineCapability = "task_env"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -6282,6 +6304,9 @@ const (
 	RequirementTypeSecret     RequirementType = "secret"
 	RequirementTypeCredential RequirementType = "credential"
 	RequirementTypeScope      RequirementType = "scope"
+	// RequirementTypeVariable: an environment variable the app declares
+	// under vars: that the team has not set and the app gives no default.
+	RequirementTypeVariable RequirementType = "variable"
 )
 
 // RequirementError represents a single missing requirement with actionable info
@@ -6299,6 +6324,9 @@ const (
 	SetupActionAddSecret SetupActionType = "add_secret"
 	SetupActionConnect   SetupActionType = "connect"
 	SetupActionAddScopes SetupActionType = "add_scopes"
+	// SetupActionAddVariable: set the team's variable RequirementError.Key
+	// (PUT /variables/{key}).
+	SetupActionAddVariable SetupActionType = "add_variable"
 )
 
 // SetupAction provides actionable info for resolving a missing requirement
@@ -6524,6 +6552,13 @@ type CreateSandboxRequest struct {
 	VCPUs     int    `json:"vcpus,omitempty"`      // default 2; at most the plan's largest sandbox (sandbox_max_vcpus)
 	MemoryMiB int64  `json:"memory_mib,omitempty"` // default 4096; at most the plan's largest sandbox (sandbox_max_vcpus)
 	DiskMiB   int64  `json:"disk_mib,omitempty"`   // default 10240, max 51200
+	// Infra is whose engines the sandbox runs on: cloud (the default),
+	// private (the workspace's own engines that host sandboxes, where it
+	// costs nothing and needs no credit) or private_first (the
+	// workspace's when one has room, the cloud otherwise). One made from
+	// a snapshot kept on an engine of the workspace alone is private
+	// when this is left out.
+	Infra Infra `json:"infra,omitempty"`
 	// Credentials are the logins the box gets, by provider (slug), as a
 	// run of its owner resolves them (e.g. [{"slug":"github-app"}]). Only
 	// keys a provider binds to hosts: the box holds placeholders, the
@@ -6637,14 +6672,17 @@ func (c SandboxCredential) Validate() error {
 type SandboxDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Name               string              `json:"name"`
-	Image              string              `json:"image"`
-	VCPUs              int                 `json:"vcpus"`
-	MemoryMiB          int64               `json:"memory_mib"`
-	DiskMiB            int64               `json:"disk_mib"`
-	DesiredState       SandboxDesiredState `json:"desired_state"`
-	Status             SandboxStatus       `json:"status"`
-	StatusReason       string              `json:"status_reason,omitempty"`
+	Name               string `json:"name"`
+	Image              string `json:"image"`
+	VCPUs              int    `json:"vcpus"`
+	MemoryMiB          int64  `json:"memory_mib"`
+	DiskMiB            int64  `json:"disk_mib"`
+	// Infra is whose engines the sandbox runs on: cloud, private or
+	// private_first.
+	Infra        Infra               `json:"infra"`
+	DesiredState SandboxDesiredState `json:"desired_state"`
+	Status       SandboxStatus       `json:"status"`
+	StatusReason string              `json:"status_reason,omitempty"`
 	// Generation counts starts, restarts included.
 	Generation int64 `json:"generation"`
 	// EngineID and WorkerID place the current generation; empty while
@@ -7221,6 +7259,10 @@ type SDKTypes struct {
 	_secretCreate   SecretCreateRequest
 	_secretUpdate   SecretUpdateRequest
 	_secretProvider SecretProviderRequest
+	// Environment variables
+	_variableDTO  VariableDTO
+	_variableSet  VariableSetRequest
+	_variableList VariableListResponse
 	// Projects
 	_projectDTO    ProjectDTO
 	_projectCreate ProjectCreateRequest
@@ -8759,6 +8801,49 @@ type UserMetadataDTO struct {
 	SignupSource        string     `json:"signup_source"`
 	TermsAcceptedAt     *time.Time `json:"terms_accepted_at"`
 	TermsVersion        string     `json:"terms_version"`
+}
+
+// --------------------
+// source: variables.go
+// --------------------
+
+// VarRequirement is an entry under vars: in inf.yml: a variable the app
+// reads from the running team. At run time the app gets the team's value
+// for Key, else Default; a variable with neither that is not Optional
+// fails the run as a missing requirement.
+type VarRequirement struct {
+	Key         string `json:"key" yaml:"key"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
+	Default     string `json:"default,omitempty" yaml:"default,omitempty"`
+}
+
+// VariableDTO is a team's variable. The value is plain by definition.
+type VariableDTO struct {
+	ID          string    `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	TeamID      string    `json:"team_id"`
+	UserID      string    `json:"user_id"`
+	Key         string    `json:"key"`
+	Value       string    `json:"value"`
+	Description string    `json:"description,omitempty"`
+}
+
+// VariableSetRequest is the body of PUT /variables/{key}: it creates the
+// variable or replaces its value. Description, when sent, replaces the
+// stored one.
+type VariableSetRequest struct {
+	Value       string  `json:"value"`
+	Description *string `json:"description,omitempty"`
+}
+
+// VariableListResponse is one page of a team's variables, by key.
+type VariableListResponse struct {
+	Items        []VariableDTO `json:"items"`
+	NextCursor   string        `json:"next_cursor"`
+	HasNext      bool          `json:"has_next"`
+	ItemsPerPage int           `json:"items_per_page"`
 }
 
 // --------------------
@@ -10612,6 +10697,13 @@ type ChatData struct {
 	// sdk-js), as the request named itself (X-Client-Source). Shown, never
 	// trusted or filtered on: Chat.Origin is what a chat list filters.
 	Client string `json:"client,omitempty"`
+	// Infra is where the tasks the agent's app tools run in this chat go,
+	// for the chat's team: its own engines (private), the cloud, or its
+	// engines when one can take the task and the cloud otherwise
+	// (private_first). Empty is the cloud. Whoever runs the agent sets it
+	// (ApiAgentRunRequest.Infra, ChatSettingsRequest.Infra); a sub-agent's
+	// chat takes its parent's.
+	Infra Infra `json:"infra,omitempty"`
 }
 
 // ChatOrigin is how a chat came to be. A chat list shows a person's own
@@ -12716,6 +12808,16 @@ type Infra string
 
 func (v Infra) Value() (driver.Value, error) {
 	return string(v), nil
+}
+
+// Valid reports whether i is a value a caller may set: one of the three,
+// or empty for the default (cloud).
+func (i Infra) Valid() bool {
+	switch i {
+	case "", InfraPrivate, InfraCloud, InfraPrivateFirst:
+		return true
+	}
+	return false
 }
 
 const (
