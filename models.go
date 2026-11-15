@@ -4769,35 +4769,35 @@ type ChatTraceDTO struct {
 // source: instance.go
 // --------------------
 
-// InstanceDTO is the API representation of a cloud instance.
+// InstanceDTO is the API representation of a cloud instance. It has no
+// launch_configuration and no envs: the boot script carries the engine's
+// enrollment token (models.ToInstanceDTO).
 type InstanceDTO struct {
-	BaseModelDTO        `tstype:",extends"`
-	PermissionModelDTO  `tstype:",extends"`
-	Cloud               InstanceCloudProvider `json:"cloud"`
-	Name                string                `json:"name"`
-	Region              string                `json:"region"`
-	ShadeCloud          bool                  `json:"shade_cloud"`
-	ShadeInstanceType   string                `json:"shade_instance_type"`
-	CloudInstanceType   string                `json:"cloud_instance_type"`
-	CloudAssignedID     string                `json:"cloud_assigned_id"`
-	OS                  string                `json:"os,omitempty"`
-	SSHKeyID            string                `json:"ssh_key_id,omitempty"`
-	SSHUser             string                `json:"ssh_user"`
-	SSHPort             int                   `json:"ssh_port"`
-	IP                  string                `json:"ip"`
-	Status              InstanceStatus        `json:"status"`
-	CostEstimate        string                `json:"cost_estimate"`
-	HourlyPrice         int                   `json:"hourly_price"`
-	RentalType          InstanceRentalType    `json:"rental_type,omitempty"`
-	TemplateID          string                `json:"template_id,omitempty"`
-	VolumeIDs           []string              `json:"volume_ids,omitempty"`
-	Tags                []string              `json:"tags,omitempty"`
-	Configuration       any                   `json:"configuration,omitempty"`
-	LaunchConfiguration any                   `json:"launch_configuration,omitempty"`
-	AutoDelete          any                   `json:"auto_delete,omitempty"`
-	Alert               any                   `json:"alert,omitempty"`
-	VolumeMount         any                   `json:"volume_mount,omitempty"`
-	Envs                any                   `json:"envs,omitempty"`
+	BaseModelDTO       `tstype:",extends"`
+	PermissionModelDTO `tstype:",extends"`
+	Cloud              InstanceCloudProvider `json:"cloud"`
+	Name               string                `json:"name"`
+	Region             string                `json:"region"`
+	ShadeCloud         bool                  `json:"shade_cloud"`
+	ShadeInstanceType  string                `json:"shade_instance_type"`
+	CloudInstanceType  string                `json:"cloud_instance_type"`
+	CloudAssignedID    string                `json:"cloud_assigned_id"`
+	OS                 string                `json:"os,omitempty"`
+	SSHKeyID           string                `json:"ssh_key_id,omitempty"`
+	SSHUser            string                `json:"ssh_user"`
+	SSHPort            int                   `json:"ssh_port"`
+	IP                 string                `json:"ip"`
+	Status             InstanceStatus        `json:"status"`
+	CostEstimate       string                `json:"cost_estimate"`
+	HourlyPrice        int                   `json:"hourly_price"`
+	RentalType         InstanceRentalType    `json:"rental_type,omitempty"`
+	TemplateID         string                `json:"template_id,omitempty"`
+	VolumeIDs          []string              `json:"volume_ids,omitempty"`
+	Tags               []string              `json:"tags,omitempty"`
+	Configuration      any                   `json:"configuration,omitempty"`
+	AutoDelete         any                   `json:"auto_delete,omitempty"`
+	Alert              any                   `json:"alert,omitempty"`
+	VolumeMount        any                   `json:"volume_mount,omitempty"`
 }
 
 // InstanceTypeDTO is the API representation of a cloud instance type.
