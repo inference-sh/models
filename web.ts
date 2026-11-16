@@ -5942,8 +5942,54 @@ export interface ExecRunCreateRequest {
   args?: string[];
   cwd?: string;
   env?: string[];
+  /**
+   * Stdin is written to the command's standard input, which is then
+   * closed. It is sent to the host and not stored: the run's record
+   * does not keep it. Not with Pty.
+   */
+  stdin?: string;
   pty?: boolean;
   timeout_ms?: number /* int */;
+}
+/**
+ * ExecCommand names a command an exec run gives the daemon.
+ */
+export type ExecCommand = "belt:fs";
+/**
+ * ExecFSCommand is the command belt's daemon answers itself, with no
+ * process and no shell: a file operation for the agent file tools. The
+ * run's Args are the operation (read, write, edit, glob, grep) and the
+ * path; its Stdin is an ExecFSInput as JSON.
+ */
+export const ExecFSCommand: ExecCommand = "belt:fs";
+/**
+ * ExecFSInput is a file operation's input (ExecFSCommand).
+ */
+export interface ExecFSInput {
+  /**
+   * read: the first line to return (1-based) and how many.
+   */
+  offset?: number /* int */;
+  limit?: number /* int */;
+  /**
+   * write
+   */
+  content?: string;
+  /**
+   * edit
+   */
+  old_string?: string;
+  new_string?: string;
+  replace_all?: boolean;
+  /**
+   * glob and grep: the pattern. grep: Glob keeps only files it matches.
+   */
+  pattern?: string;
+  glob?: string;
+  output_mode?: string;
+  ignore_case?: boolean;
+  context_lines?: number /* int */;
+  head_limit?: number /* int */;
 }
 /**
  * FileMetadata holds probed media metadata cached on File records.
@@ -12860,8 +12906,9 @@ export interface WsRemoteHeartbeatPayload {
 /**
  * WsRemoteExecStart asks the remote to start a command as a durable exec run,
  * e.g. Command "bash", Args ["-c","ls"]. The command runs as the daemon's user
- * in Cwd, Env appended to the daemon's env. Output streams back as sequenced
- * WsRemoteExecOutput frames, not a captured blob.
+ * in Cwd, Env appended to the daemon's env, Stdin on its standard input.
+ * Output streams back as sequenced WsRemoteExecOutput frames, not a
+ * captured blob.
  */
 export interface WsRemoteExecStart {
   exec_run_id: string;
@@ -12869,6 +12916,7 @@ export interface WsRemoteExecStart {
   args?: string[];
   cwd?: string;
   env?: string[];
+  stdin?: string;
   pty?: boolean;
   timeout_ms?: number /* int */;
 }
@@ -16870,6 +16918,7 @@ export type TeamCapability =
   | "manage_vault"
   | "view_billing"
   | "manage_billing"
+  | "rent_engines"
   | "view_policy"
   | "manage_policy"
   | "manage_org"
@@ -16899,6 +16948,11 @@ export const TeamCapabilityCreateKeys: TeamCapability = "create_keys";
 export const TeamCapabilityManageVault: TeamCapability = "manage_vault";
 export const TeamCapabilityViewBilling: TeamCapability = "view_billing";
 export const TeamCapabilityManageBilling: TeamCapability = "manage_billing";
+/**
+ * RentEngines: renting a cloud engine, and extending a rental, which
+ * debit the team's balance for up to the rental's whole span.
+ */
+export const TeamCapabilityRentEngines: TeamCapability = "rent_engines";
 export const TeamCapabilityViewPolicy: TeamCapability = "view_policy";
 export const TeamCapabilityManagePolicy: TeamCapability = "manage_policy";
 export const TeamCapabilityManageOrg: TeamCapability = "manage_org";

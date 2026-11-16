@@ -4318,12 +4318,45 @@ type ExecRunOutputDTO struct {
 // entry point (POST /remotes/{id}/execs); the agent-initiated ACP path lands on
 // the same domain later.
 type ExecRunCreateRequest struct {
-	Command   string   `json:"command"`
-	Args      []string `json:"args,omitempty"`
-	Cwd       string   `json:"cwd,omitempty"`
-	Env       []string `json:"env,omitempty"`
-	Pty       bool     `json:"pty,omitempty"`
-	TimeoutMs int      `json:"timeout_ms,omitempty"`
+	Command string   `json:"command"`
+	Args    []string `json:"args,omitempty"`
+	Cwd     string   `json:"cwd,omitempty"`
+	Env     []string `json:"env,omitempty"`
+	// Stdin is written to the command's standard input, which is then
+	// closed. It is sent to the host and not stored: the run's record
+	// does not keep it. Not with Pty.
+	Stdin     string `json:"stdin,omitempty"`
+	Pty       bool   `json:"pty,omitempty"`
+	TimeoutMs int    `json:"timeout_ms,omitempty"`
+}
+
+// ExecCommand names a command an exec run gives the daemon.
+type ExecCommand string
+
+// ExecFSCommand is the command belt's daemon answers itself, with no
+// process and no shell: a file operation for the agent file tools. The
+// run's Args are the operation (read, write, edit, glob, grep) and the
+// path; its Stdin is an ExecFSInput as JSON.
+const ExecFSCommand ExecCommand = "belt:fs"
+
+// ExecFSInput is a file operation's input (ExecFSCommand).
+type ExecFSInput struct {
+	// read: the first line to return (1-based) and how many.
+	Offset int `json:"offset,omitempty"`
+	Limit  int `json:"limit,omitempty"`
+	// write
+	Content string `json:"content,omitempty"`
+	// edit
+	OldString  string `json:"old_string,omitempty"`
+	NewString  string `json:"new_string,omitempty"`
+	ReplaceAll bool   `json:"replace_all,omitempty"`
+	// glob and grep: the pattern. grep: Glob keeps only files it matches.
+	Pattern    string `json:"pattern,omitempty"`
+	Glob       string `json:"glob,omitempty"`
+	OutputMode string `json:"output_mode,omitempty"`
+	IgnoreCase bool   `json:"ignore_case,omitempty"`
+	Context    int    `json:"context_lines,omitempty"`
+	HeadLimit  int    `json:"head_limit,omitempty"`
 }
 
 // --------------------
@@ -7533,6 +7566,9 @@ type ExecRunTypes struct {
 	_execStatus ExecRunStatus
 	_execStream ExecStream
 	_execReqBy  ExecRequestedBy
+	// The file operation belt's daemon answers (ExecFSCommand).
+	_execCommand ExecCommand
+	_execFSInput ExecFSInput
 }
 
 // --------------------
@@ -9217,14 +9253,16 @@ type WsRemoteHeartbeatPayload struct {
 
 // WsRemoteExecStart asks the remote to start a command as a durable exec run,
 // e.g. Command "bash", Args ["-c","ls"]. The command runs as the daemon's user
-// in Cwd, Env appended to the daemon's env. Output streams back as sequenced
-// WsRemoteExecOutput frames, not a captured blob.
+// in Cwd, Env appended to the daemon's env, Stdin on its standard input.
+// Output streams back as sequenced WsRemoteExecOutput frames, not a
+// captured blob.
 type WsRemoteExecStart struct {
 	ExecRunID string   `json:"exec_run_id"`
 	Command   string   `json:"command"`
 	Args      []string `json:"args,omitempty"`
 	Cwd       string   `json:"cwd,omitempty"`
 	Env       []string `json:"env,omitempty"`
+	Stdin     string   `json:"stdin,omitempty"`
 	Pty       bool     `json:"pty,omitempty"`
 	TimeoutMs int      `json:"timeout_ms,omitempty"`
 }
@@ -12923,13 +12961,16 @@ const (
 	TeamCapabilityManageVault   TeamCapability = "manage_vault"
 	TeamCapabilityViewBilling   TeamCapability = "view_billing"
 	TeamCapabilityManageBilling TeamCapability = "manage_billing"
-	TeamCapabilityViewPolicy    TeamCapability = "view_policy"
-	TeamCapabilityManagePolicy  TeamCapability = "manage_policy"
-	TeamCapabilityManageOrg     TeamCapability = "manage_org"
-	TeamCapabilityManageSSO     TeamCapability = "manage_sso"
-	TeamCapabilityArchive       TeamCapability = "archive"
-	TeamCapabilityCreateTeam    TeamCapability = "create_team"
-	TeamCapabilityCreateOrg     TeamCapability = "create_org"
+	// RentEngines: renting a cloud engine, and extending a rental, which
+	// debit the team's balance for up to the rental's whole span.
+	TeamCapabilityRentEngines  TeamCapability = "rent_engines"
+	TeamCapabilityViewPolicy   TeamCapability = "view_policy"
+	TeamCapabilityManagePolicy TeamCapability = "manage_policy"
+	TeamCapabilityManageOrg    TeamCapability = "manage_org"
+	TeamCapabilityManageSSO    TeamCapability = "manage_sso"
+	TeamCapabilityArchive      TeamCapability = "archive"
+	TeamCapabilityCreateTeam   TeamCapability = "create_team"
+	TeamCapabilityCreateOrg    TeamCapability = "create_org"
 	// Connecting a credential the whole org, or the whole platform, resolves.
 	// The workspace level is manage_vault.
 	TeamCapabilityConnectOrgCredential      TeamCapability = "connect_org_credential"
