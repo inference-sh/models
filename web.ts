@@ -6623,6 +6623,12 @@ export interface InterruptDTO extends BaseModelDTO, PermissionModelDTO {
   resolved_data?: any;
   expires_at?: string /* RFC3339 */;
   meta?: any;
+  /**
+   * Origin is the sub-agent that asked, on an interrupt a sub-agent's run
+   * raised. Shown on an ancestor chat (its pending_interrupts), ChatID
+   * is the sub-agent's chat, not the one read.
+   */
+  origin?: InterruptOrigin;
 }
 /**
  * InvoiceDTO is the API response for invoices
@@ -15277,6 +15283,34 @@ export const InterruptReasonWait: InterruptReason = "wait";
  */
 export const InterruptReasonEgressLogin: InterruptReason = "egress_login";
 /**
+ * InterruptReasonSubagent is a run's reason, never an interrupt's: the run
+ * waits on a question one of its sub-agents' runs asked, shown on its chat
+ * through an interrupt surface (INF-1291). The run's interrupt meta is
+ * SubagentWaitMeta.
+ */
+export const InterruptReasonSubagent: InterruptReason = "subagent";
+/**
+ * InterruptOrigin is the sub-agent an interrupt came from, on an interrupt
+ * a sub-agent's run raised: what an ancestor chat's card names.
+ */
+export interface InterruptOrigin {
+  /**
+   * AgentID and AgentRef ("namespace/name") are the sub-agent's.
+   */
+  agent_id?: string;
+  agent_ref?: string;
+  /**
+   * ToolInvocationID is the call in the parent chat that delegated to
+   * the sub-agent's chat (the interrupt's ChatID).
+   */
+  tool_invocation_id?: string;
+  /**
+   * Depth is the sub-agent chat's depth (Chat.Depth), 1 under a chat a
+   * person started.
+   */
+  depth: number /* int */;
+}
+/**
  * StreamDelta is the marker base for all streaming delta types.
  * Types embedding StreamDelta are routed through the delta channel.
  */
@@ -17280,6 +17314,7 @@ export const AgentRunStateRejected: AgentRunState = "rejected";
 export type InterruptReason =
   | "wait"
   | "egress_login"
+  | "subagent"
   | "tool_approval"
   | "client_tool"
   | "widget"

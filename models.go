@@ -4937,6 +4937,10 @@ type InterruptDTO struct {
 	ResolvedData       json.RawMessage       `json:"resolved_data,omitempty"`
 	ExpiresAt          *time.Time            `json:"expires_at,omitempty"`
 	Meta               json.RawMessage       `json:"meta,omitempty"`
+	// Origin is the sub-agent that asked, on an interrupt a sub-agent's run
+	// raised. Shown on an ancestor chat (its pending_interrupts), ChatID
+	// is the sub-agent's chat, not the one read.
+	Origin *InterruptOrigin `json:"origin,omitempty"`
 }
 
 // --------------------
@@ -11460,6 +11464,26 @@ const InterruptReasonWait InterruptReason = "wait"
 // (POST /engines/{id}/egress/resolve). Allow gives the login, deny or no
 // answer in time refuses it for the sandbox. Meta is EgressLoginAskMeta.
 const InterruptReasonEgressLogin InterruptReason = "egress_login"
+
+// InterruptReasonSubagent is a run's reason, never an interrupt's: the run
+// waits on a question one of its sub-agents' runs asked, shown on its chat
+// through an interrupt surface (INF-1291). The run's interrupt meta is
+// SubagentWaitMeta.
+const InterruptReasonSubagent InterruptReason = "subagent"
+
+// InterruptOrigin is the sub-agent an interrupt came from, on an interrupt
+// a sub-agent's run raised: what an ancestor chat's card names.
+type InterruptOrigin struct {
+	// AgentID and AgentRef ("namespace/name") are the sub-agent's.
+	AgentID  string `json:"agent_id,omitempty"`
+	AgentRef string `json:"agent_ref,omitempty"`
+	// ToolInvocationID is the call in the parent chat that delegated to
+	// the sub-agent's chat (the interrupt's ChatID).
+	ToolInvocationID string `json:"tool_invocation_id,omitempty"`
+	// Depth is the sub-agent chat's depth (Chat.Depth), 1 under a chat a
+	// person started.
+	Depth int `json:"depth"`
+}
 
 // --------------------
 // source: llm_types.go
