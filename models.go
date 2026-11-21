@@ -983,6 +983,11 @@ type CredentialConnectRequest struct {
 	// connected: the provider is asked to let the user choose the account
 	// rather than reuse the one it remembers.
 	AnotherAccount bool `json:"another_account,omitempty"`
+	// AppCredentialID is the OAuth app the login goes through: one of the
+	// provider's apps the caller can connect through
+	// (CredentialConfigDTO.Apps). Empty: the default one; refused when the
+	// caller has several and none is the default.
+	AppCredentialID string `json:"app_credential_id,omitempty"`
 }
 
 // CredentialCompleteOAuthRequest is what the provider's redirect delivered:
@@ -3161,6 +3166,22 @@ type CredentialDTO struct {
 	Secrets []CredentialSecretRef `json:"secrets,omitempty"`
 }
 
+// OAuthAppDTO is one OAuth app a provider's logins can go through
+// (grant=credentials), as the caller sees it. DisplayName tells it apart
+// from the provider's other apps.
+type OAuthAppDTO struct {
+	CredentialDTO `tstype:",extends"`
+	// HookURL is where the app delivers its events; empty when the
+	// provider's apps deliver none.
+	HookURL string `json:"hook_url,omitempty"`
+	// Default: a connect that names no app goes through this one.
+	Default bool `json:"default"`
+	// Usual: the owner's usual app for the provider (PUT
+	// /credentials/{provider}/app). Another app (POST
+	// /credentials/{provider}/apps) serves only a connect that names it.
+	Usual bool `json:"usual"`
+}
+
 // CredentialSecretRef names one secret linked to a credential: the row's
 // id, the key it is stored under and when its value last changed.
 type CredentialSecretRef struct {
@@ -3231,6 +3252,12 @@ type CredentialConfigDTO struct {
 	// URL, to paste in its settings). Empty when the provider's apps
 	// deliver none.
 	HookURL string `json:"hook_url,omitempty"`
+	// Apps is every OAuth app the caller can connect through for this
+	// provider: the workspace's own, its org's and the platform's, App
+	// among them. More than one when a workspace holds another app next to
+	// its usual one; a connect then names the one it goes through
+	// (CredentialConnectRequest.AppCredentialID).
+	Apps []*OAuthAppDTO `json:"apps,omitempty"`
 	// AuthProviderID is set when the provider is one the team defined
 	// itself (models.AuthProvider), so the UI can offer edit and remove.
 	AuthProviderID string `json:"auth_provider_id,omitempty"`

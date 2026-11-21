@@ -1449,6 +1449,13 @@ export interface CredentialConnectRequest {
    * rather than reuse the one it remembers.
    */
   another_account?: boolean;
+  /**
+   * AppCredentialID is the OAuth app the login goes through: one of the
+   * provider's apps the caller can connect through
+   * (CredentialConfigDTO.Apps). Empty: the default one; refused when the
+   * caller has several and none is the default.
+   */
+  app_credential_id?: string;
 }
 /**
  * CredentialCompleteOAuthRequest is what the provider's redirect delivered:
@@ -4442,8 +4449,9 @@ export const ContentTierContent: ContentTier = "content";
 export const ContentTierThirdParty: ContentTier = "third_party";
 /**
  * GenerateCoversRequest is the request body for POST
- * /admin/apps/{id}/covers/generate and /admin/agents/{id}/covers/generate:
- * staff have the platform generate an app's or agent's cover images.
+ * /apps/{id}/covers/generate and /agents/{id}/covers/generate, where the
+ * owning team (apps:write, agents:write) has the platform generate its
+ * app's or agent's cover images, and their /admin counterparts for staff.
  */
 export interface GenerateCoversRequest {
   prompt: string;
@@ -4500,6 +4508,28 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   secrets?: CredentialSecretRef[];
 }
 /**
+ * OAuthAppDTO is one OAuth app a provider's logins can go through
+ * (grant=credentials), as the caller sees it. DisplayName tells it apart
+ * from the provider's other apps.
+ */
+export interface OAuthAppDTO extends CredentialDTO {
+  /**
+   * HookURL is where the app delivers its events; empty when the
+   * provider's apps deliver none.
+   */
+  hook_url?: string;
+  /**
+   * Default: a connect that names no app goes through this one.
+   */
+  default: boolean;
+  /**
+   * Usual: the owner's usual app for the provider (PUT
+   * /credentials/{provider}/app). Another app (POST
+   * /credentials/{provider}/apps) serves only a connect that names it.
+   */
+  usual: boolean;
+}
+/**
  * CredentialSecretRef names one secret linked to a credential: the row's
  * id, the key it is stored under and when its value last changed.
  */
@@ -4509,14 +4539,23 @@ export interface CredentialSecretRef {
   updated_at: string /* RFC3339 */;
 }
 /**
- * CredentialAppRequest is the body of PUT /credentials/{provider}/app: the
- * OAuth app's keys by name (SLACK_CLIENT_ID). An omitted key keeps its
- * stored value.
+ * CredentialAppRequest is the body of PUT /credentials/{provider}/app (the
+ * provider's usual app), POST /credentials/{provider}/apps (another app) and
+ * PUT /credentials/{provider}/apps/{id} (one app): the OAuth app's keys by
+ * name (SLACK_CLIENT_ID). An omitted key keeps its stored value.
  */
 export interface CredentialAppRequest {
   values: { [key: string]: string};
   /**
-   * Scope names which of the caller's apps is written: empty for its usual
+   * Name tells the app apart from the provider's other apps
+   * (CredentialDTO.DisplayName). Required for another app; omitted keeps
+   * the stored name.
+   */
+  name?: string;
+  /**
+   * Scope names which of the caller's apps is written (PUT
+   * /credentials/{provider}/app), or where another app is held (POST
+   * /credentials/{provider}/apps): empty for its usual
    * one (the platform's for the platform team, else the team's), "team"
    * for the team's own. The platform team sends "team" for a client that
    * is its own account with the provider and must not serve every
@@ -4660,6 +4699,14 @@ export interface CredentialConfigDTO {
    * deliver none.
    */
   hook_url?: string;
+  /**
+   * Apps is every OAuth app the caller can connect through for this
+   * provider: the workspace's own, its org's and the platform's, App
+   * among them. More than one when a workspace holds another app next to
+   * its usual one; a connect then names the one it goes through
+   * (CredentialConnectRequest.AppCredentialID).
+   */
+  apps?: (OAuthAppDTO | undefined)[];
   /**
    * AuthProviderID is set when the provider is one the team defined
    * itself (models.AuthProvider), so the UI can offer edit and remove.
