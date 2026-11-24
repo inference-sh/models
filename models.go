@@ -128,13 +128,12 @@ type InternalToolsConfig struct {
 	Remote      *bool `json:"remote,omitempty" yaml:"remote,omitempty"`
 	Knowledge   *bool `json:"knowledge,omitempty" yaml:"knowledge,omitempty"`
 	Wait        *bool `json:"wait,omitempty" yaml:"wait,omitempty"`
-	// SandboxCredentials are the logins a sandbox sandbox_create makes gets
-	// (Remote on), declared as an app's credentials are (provider slug,
-	// scopes): the runner's own, as a task of theirs resolves it; a runner
-	// with none is asked to connect it and the call waits. None declared,
-	// none given. The model's arguments never add any. Each entry's mode
-	// says when the box gets it: auto (the default) at once, ask on first
-	// use once a person approves it (SandboxCredential).
+	// SandboxCredentials is the old place of the agent's credentials
+	// (AgentConfigInput.Credentials), still read: a write folds it into
+	// credentials (a credentials entry wins on a slug both name) and
+	// stores it empty; a read of a version stored with it does the same.
+	//
+	// Deprecated: use the agent's credentials.
 	SandboxCredentials []SandboxCredential `json:"sandbox_credentials,omitempty" yaml:"sandbox_credentials,omitempty"`
 }
 
@@ -431,17 +430,20 @@ func (a *AgentDTO) FullName() string {
 type AgentVersionDTO struct {
 	BaseModelDTO       `tstype:",extends"`
 	PermissionModelDTO `tstype:",extends"`
-	Description        string                `json:"description"`
-	SystemPrompt       string                `json:"system_prompt"`
-	ExamplePrompts     []string              `json:"example_prompts"`
-	CoreApp            *CoreAppConfigDTO     `json:"core_app"`
-	Tools              []*AgentToolDTO       `json:"tools"`
-	Skills             []SkillConfig         `json:"skills"`
-	Context            []ContextField        `json:"context,omitempty"`
-	InternalTools      *InternalToolsConfig  `json:"internal_tools"`
-	Permissions        *AgentPermissions     `json:"permissions,omitempty"`
-	Hooks              []LifecycleHookConfig `json:"hooks,omitempty"`
-	OutputSchema       *json.RawMessage      `json:"output_schema"`
+	Description        string               `json:"description"`
+	SystemPrompt       string               `json:"system_prompt"`
+	ExamplePrompts     []string             `json:"example_prompts"`
+	CoreApp            *CoreAppConfigDTO    `json:"core_app"`
+	Tools              []*AgentToolDTO      `json:"tools"`
+	Skills             []SkillConfig        `json:"skills"`
+	Context            []ContextField       `json:"context,omitempty"`
+	InternalTools      *InternalToolsConfig `json:"internal_tools"`
+	// Credentials are the logins the agent needs (AgentConfigInput.Credentials),
+	// with any entry of the old internal_tools.sandbox_credentials folded in.
+	Credentials  CredentialRequirements `json:"credentials,omitempty"`
+	Permissions  *AgentPermissions      `json:"permissions,omitempty"`
+	Hooks        []LifecycleHookConfig  `json:"hooks,omitempty"`
+	OutputSchema *json.RawMessage       `json:"output_schema"`
 	// ContentGuard is the agent's tool-result guard; absent is the
 	// platform's mode.
 	ContentGuard *ContentGuardConfig `json:"content_guard,omitempty"`
@@ -481,19 +483,28 @@ type CreateAgentRequest struct {
 // AgentConfigInput is the API input shape for agent version config.
 // Mirrors AgentConfig's JSON contract without gorm tags or runtime pointers.
 type AgentConfigInput struct {
-	Name           string                `json:"name,omitempty" yaml:"name,omitempty"`
-	Description    string                `json:"description,omitempty" yaml:"description,omitempty"`
-	SystemPrompt   string                `json:"system_prompt,omitempty" yaml:"system_prompt,omitempty"`
-	ExamplePrompts []string              `json:"example_prompts,omitempty" yaml:"example_prompts,omitempty"`
-	CoreApp        *CoreAppConfigInput   `json:"core_app,omitempty" yaml:"core_app,omitempty"`
-	Tools          []*AgentTool          `json:"tools,omitempty" yaml:"tools,omitempty"`
-	Skills         []SkillConfig         `json:"skills,omitempty" yaml:"skills,omitempty"`
-	Context        []ContextField        `json:"context,omitempty" yaml:"context,omitempty"`
-	InternalTools  *InternalToolsConfig  `json:"internal_tools,omitempty" yaml:"internal_tools,omitempty"`
-	Permissions    *AgentPermissions     `json:"permissions,omitempty" yaml:"permissions,omitempty"`
-	Hooks          []LifecycleHookConfig `json:"hooks,omitempty" yaml:"hooks,omitempty"`
-	OutputSchema   *json.RawMessage      `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
-	ContentGuard   *ContentGuardConfig   `json:"content_guard,omitempty" yaml:"content_guard,omitempty"`
+	Name           string               `json:"name,omitempty" yaml:"name,omitempty"`
+	Description    string               `json:"description,omitempty" yaml:"description,omitempty"`
+	SystemPrompt   string               `json:"system_prompt,omitempty" yaml:"system_prompt,omitempty"`
+	ExamplePrompts []string             `json:"example_prompts,omitempty" yaml:"example_prompts,omitempty"`
+	CoreApp        *CoreAppConfigInput  `json:"core_app,omitempty" yaml:"core_app,omitempty"`
+	Tools          []*AgentTool         `json:"tools,omitempty" yaml:"tools,omitempty"`
+	Skills         []SkillConfig        `json:"skills,omitempty" yaml:"skills,omitempty"`
+	Context        []ContextField       `json:"context,omitempty" yaml:"context,omitempty"`
+	InternalTools  *InternalToolsConfig `json:"internal_tools,omitempty" yaml:"internal_tools,omitempty"`
+	// Credentials are the logins the agent needs, declared as an app's
+	// credentials are (a map keyed by provider slug, or a list), each with
+	// a mode: the sandboxes its sandbox_create makes (Remote on) get them,
+	// the runner's own, as a task of theirs resolves them; a runner with
+	// none is asked to connect and the call waits. None declared, none
+	// given; the model's arguments never add any. Mode auto (the default)
+	// gives the login at once, ask on first use once a person approves it.
+	// Another team's agent may declare ask entries only.
+	Credentials  CredentialRequirements `json:"credentials,omitempty" yaml:"credentials,omitempty"`
+	Permissions  *AgentPermissions      `json:"permissions,omitempty" yaml:"permissions,omitempty"`
+	Hooks        []LifecycleHookConfig  `json:"hooks,omitempty" yaml:"hooks,omitempty"`
+	OutputSchema *json.RawMessage       `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
+	ContentGuard *ContentGuardConfig    `json:"content_guard,omitempty" yaml:"content_guard,omitempty"`
 	// APIScopes is the inference.sh access the sandboxes it makes get:
 	// reads, apps:execute, files:write and apps:write, none the writer
 	// does not hold.
@@ -507,6 +518,95 @@ type CoreAppConfigInput struct {
 	Ref       *string          `json:"ref,omitempty" yaml:"ref,omitempty"`
 	Setup     *json.RawMessage `json:"setup,omitempty" yaml:"setup,omitempty"`
 	Input     *json.RawMessage `json:"input,omitempty" yaml:"input,omitempty"`
+}
+
+// --------------------
+// source: agent_requirements.go
+// --------------------
+
+// AgentRequirementSourceKind is what in an agent needs a login.
+type AgentRequirementSourceKind string
+
+const (
+	// AgentRequirementFromAgent: the agent's own credentials (its
+	// sandboxes get them).
+	AgentRequirementFromAgent AgentRequirementSourceKind = "agent"
+	// AgentRequirementFromApp: an app tool's (or the core app's) version
+	// credentials: the pinned function's own list, else the app's.
+	AgentRequirementFromApp AgentRequirementSourceKind = "app"
+	// AgentRequirementFromMCP: an MCP tool's server: the entry a call sends
+	// (the server's first).
+	AgentRequirementFromMCP AgentRequirementSourceKind = "mcp"
+	// AgentRequirementFromHTTP: an HTTP or call tool whose auth is a
+	// credential.
+	AgentRequirementFromHTTP AgentRequirementSourceKind = "http"
+)
+
+// AgentRequirementSource is one thing in the agent that asks for the
+// requirement.
+type AgentRequirementSource struct {
+	Kind AgentRequirementSourceKind `json:"kind"`
+	// Name is the agent's, app's or MCP server's name (namespace/name for
+	// an agent or app), or the HTTP tool's URL host.
+	Name string `json:"name"`
+	// ID is the agent's, app's or MCP server's id, when it has one.
+	ID string `json:"id,omitempty"`
+	// Tool is the agent tool that asks for it; empty for the agent's own
+	// credentials. The core app's is "core_app".
+	Tool string `json:"tool,omitempty"`
+	// Agent is the agent the source belongs to when it is not the agent
+	// asked about: a sub-agent tool's (namespace/name).
+	Agent string `json:"agent,omitempty"`
+	// NotGiven: the agent's own mode auto entry, from an agent of another
+	// team. Its sandboxes are given only ask entries, so the runner's
+	// login is not given for this source.
+	NotGiven bool `json:"not_given,omitempty"`
+}
+
+// AgentRequirementStatus is whether the caller holds the requirement.
+type AgentRequirementStatus string
+
+const (
+	// AgentRequirementConnected: a login the caller's runs resolve (theirs,
+	// the team's, the org's or the platform's) covers it.
+	AgentRequirementConnected AgentRequirementStatus = "connected"
+	// AgentRequirementMissing: no usable login (none, disconnected,
+	// expired, or a key to add). Errors say what to do.
+	AgentRequirementMissing AgentRequirementStatus = "missing"
+	// AgentRequirementMissingScopes: a login is connected without some of
+	// the scopes. Errors name them.
+	AgentRequirementMissingScopes AgentRequirementStatus = "missing_scopes"
+	// AgentRequirementUnknown: a capability the platform does not define.
+	AgentRequirementUnknown AgentRequirementStatus = "unknown"
+	// AgentRequirementNotGiven: every source is NotGiven; no login is
+	// given for it, so it is not checked.
+	AgentRequirementNotGiven AgentRequirementStatus = "not_given"
+)
+
+// AgentRequirement is one credential slug the agent needs, merged from
+// every source that asks for it: capabilities, scopes and secrets are the
+// union; optional only when every source says optional; mode ask when an
+// entry of the agent's own says ask (auto when its entries say auto, empty
+// when the agent itself names none).
+type AgentRequirement struct {
+	Requirement CredentialRequirement    `json:"requirement"`
+	From        []AgentRequirementSource `json:"from"`
+	Status      AgentRequirementStatus   `json:"status"`
+	// Errors are what POST /credentials/check answers for the requirement:
+	// each missing login or scope with the action that sets it up
+	// (connect, add_scopes, add_secret; provider, provider name, scopes).
+	// Empty when connected or not_given.
+	Errors []RequirementError `json:"errors,omitempty"`
+}
+
+// AgentRequirementsResponse is GET /agents/{id}/requirements.
+type AgentRequirementsResponse struct {
+	AgentID   string `json:"agent_id"`
+	VersionID string `json:"version_id"`
+	// Satisfied: every requirement that is not optional is connected or
+	// not_given.
+	Satisfied    bool               `json:"satisfied"`
+	Requirements []AgentRequirement `json:"requirements"`
 }
 
 // --------------------
@@ -1613,6 +1713,12 @@ type CredentialRequirement struct {
 	Provider *CompanySeed `json:"provider,omitempty" yaml:"provider,omitempty"`
 	// Auth is the credential's auth provider, for a slug no row defines yet.
 	Auth *AuthMethod `json:"auth,omitempty" yaml:"auth,omitempty"`
+	// Mode is when a box gets the login: auto (empty) when the sandbox is
+	// made, ask on first use once a person approves it. It means something
+	// only where a box is given the login (a sandbox's credentials, an
+	// agent's credentials, which its sandboxes get); an app's or an MCP
+	// server's entry with a mode is refused (ValidateNoMode).
+	Mode SandboxCredentialMode `json:"mode,omitempty" yaml:"mode,omitempty"`
 	// The rest describe the platform api_key scheme a platform app's deploy
 	// catalogues for the slug: set on the scheme it creates, and filled into
 	// an existing one only where that is still empty (an admin's edit
@@ -1679,6 +1785,38 @@ func (r *CredentialRequirement) Normalize() {
 	if r.Provider != nil && r.Provider.Slug == "" {
 		r.Provider.Slug = r.Slug
 	}
+}
+
+// Asks reports whether the login is given only once a person approves it.
+func (r CredentialRequirement) Asks() bool {
+	return r.Mode == SandboxCredentialAsk
+}
+
+// EffectiveMode is the entry's mode, never empty: unset is auto.
+func (r CredentialRequirement) EffectiveMode() SandboxCredentialMode {
+	if r.Asks() {
+		return SandboxCredentialAsk
+	}
+	return SandboxCredentialAuto
+}
+
+// Validate refuses a mode other than auto and ask.
+func (r CredentialRequirement) Validate() error {
+	switch r.Mode {
+	case "", SandboxCredentialAuto, SandboxCredentialAsk:
+		return nil
+	}
+	return fmt.Errorf("credential %s: mode is auto or ask, not %q", r.Slug, r.Mode)
+}
+
+// ValidateNoMode refuses a mode where none means anything: an app's
+// credentials (inf.yml, a function's) and an MCP server's, whose logins
+// no box is given.
+func (r CredentialRequirement) ValidateNoMode() error {
+	if r.Mode != "" {
+		return fmt.Errorf("credential %s: mode applies only to the credentials a sandbox gets (a sandbox's, an agent's); remove it", r.Slug)
+	}
+	return nil
 }
 
 // Ref identifies the requirement in satisfied lists and requirement errors:
@@ -1752,28 +1890,29 @@ type CompanySeed struct {
 // generated copy of the type (the models module the CLI reads inf.yml with)
 // carries the same parsing.
 type CredentialRequirementWire struct {
-	Slug             string          `json:"slug" yaml:"slug"`
-	Capabilities     []string        `json:"capabilities" yaml:"capabilities"`
-	Description      string          `json:"description" yaml:"description"`
-	Optional         bool            `json:"optional" yaml:"optional"`
-	Secrets          []string        `json:"secrets" yaml:"secrets"`
-	Scopes           []string        `json:"scopes" yaml:"scopes"`
-	Provider         any             `json:"provider" yaml:"provider"`
-	Company          any             `json:"company" yaml:"company"`
-	Auth             any             `json:"auth" yaml:"auth"`
-	Key              string          `json:"key" yaml:"key"`
-	Name             string          `json:"name" yaml:"name"`
-	Website          string          `json:"website" yaml:"website"`
-	DisplayName      string          `json:"display_name" yaml:"display_name"`
-	ConnectionScope  CredentialScope `json:"connection_scope" yaml:"connection_scope"`
-	Instructions     string          `json:"instructions" yaml:"instructions"`
-	DocsURL          string          `json:"docs_url" yaml:"docs_url"`
-	ExpiresAfterDays int             `json:"expires_after_days" yaml:"expires_after_days"`
+	Slug             string                `json:"slug" yaml:"slug"`
+	Capabilities     []string              `json:"capabilities" yaml:"capabilities"`
+	Description      string                `json:"description" yaml:"description"`
+	Optional         bool                  `json:"optional" yaml:"optional"`
+	Secrets          []string              `json:"secrets" yaml:"secrets"`
+	Scopes           []string              `json:"scopes" yaml:"scopes"`
+	Provider         any                   `json:"provider" yaml:"provider"`
+	Company          any                   `json:"company" yaml:"company"`
+	Auth             any                   `json:"auth" yaml:"auth"`
+	Key              string                `json:"key" yaml:"key"`
+	Name             string                `json:"name" yaml:"name"`
+	Website          string                `json:"website" yaml:"website"`
+	Mode             SandboxCredentialMode `json:"mode" yaml:"mode"`
+	DisplayName      string                `json:"display_name" yaml:"display_name"`
+	ConnectionScope  CredentialScope       `json:"connection_scope" yaml:"connection_scope"`
+	Instructions     string                `json:"instructions" yaml:"instructions"`
+	DocsURL          string                `json:"docs_url" yaml:"docs_url"`
+	ExpiresAfterDays int                   `json:"expires_after_days" yaml:"expires_after_days"`
 }
 
 // Requirement is the entry the wire form means.
 func (w CredentialRequirementWire) Requirement() (CredentialRequirement, error) {
-	r := CredentialRequirement{Slug: w.Slug, Capabilities: w.Capabilities, Description: w.Description, Optional: w.Optional, Secrets: w.Secrets, Scopes: w.Scopes, DisplayName: w.DisplayName, ConnectionScope: w.ConnectionScope, Instructions: w.Instructions, DocsURL: w.DocsURL, ExpiresAfterDays: w.ExpiresAfterDays}
+	r := CredentialRequirement{Slug: w.Slug, Capabilities: w.Capabilities, Description: w.Description, Optional: w.Optional, Secrets: w.Secrets, Scopes: w.Scopes, Mode: w.Mode, DisplayName: w.DisplayName, ConnectionScope: w.ConnectionScope, Instructions: w.Instructions, DocsURL: w.DocsURL, ExpiresAfterDays: w.ExpiresAfterDays}
 	switch p := w.Provider.(type) {
 	case nil:
 	case string:
@@ -1859,6 +1998,44 @@ func (CredentialRequirementWire) DecodeInto(v any, out any) error {
 // both forms: a map keyed by credential slug (the current one) and a list
 // of entries; it is always written as a list.
 type CredentialRequirements []CredentialRequirement
+
+// Normalized is a copy of c with each entry Normalize()d: every entry
+// names its slug when a capability gives one. Nil stays nil.
+func (c CredentialRequirements) Normalized() CredentialRequirements {
+	if c == nil {
+		return nil
+	}
+	out := make(CredentialRequirements, len(c))
+	for i, r := range c {
+		if r.Provider != nil {
+			seed := *r.Provider
+			r.Provider = &seed
+		}
+		r.Normalize()
+		out[i] = r
+	}
+	return out
+}
+
+// MergedWith is c's entries in order, then the entries of older whose slug
+// none of c's names: on a slug both name, c wins. Both are Normalized; an
+// entry with no slug is kept as it is, for validation to refuse. Nil when
+// both are empty.
+func (c CredentialRequirements) MergedWith(older CredentialRequirements) CredentialRequirements {
+	if len(older) == 0 {
+		return c.Normalized()
+	}
+	out := c.Normalized()
+	for _, r := range older.Normalized() {
+		if r.Slug != "" && slices.ContainsFunc(out, func(o CredentialRequirement) bool {
+			return o.Slug == r.Slug
+		}) {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
 
 // Flatten gives every capability its own entry, so a check written for one
 // capability per entry applies to each.
@@ -2439,11 +2616,42 @@ type AuthProviderDTO struct {
 	Website         string          `json:"website,omitempty"`
 	ConnectionScope CredentialScope `json:"connection_scope,omitempty"`
 	// ExpiresAfterDays is how long a saved key lasts, in days; 0 is never.
-	ExpiresAfterDays int          `json:"expires_after_days"`
-	AuthMethods      []AuthMethod `json:"auth_methods"`
+	ExpiresAfterDays int `json:"expires_after_days"`
+	// AuthMethods are the provider's methods, each with the hosts its
+	// secrets are bound to (read-only).
+	AuthMethods []AuthMethodDTO `json:"auth_methods"`
 	// Where the OAuth app's client id and secret live in the team vault.
 	ClientIDKey     string `json:"client_id_key"`
 	ClientSecretKey string `json:"client_secret_key"`
+}
+
+// BoundHostsSource says where an auth method's effective bound hosts come from.
+type BoundHostsSource string
+
+const (
+	// BoundHostsSourceNone: no hosts bound.
+	BoundHostsSourceNone BoundHostsSource = ""
+	// BoundHostsSourceRow: the method's own hosts.
+	BoundHostsSourceRow BoundHostsSource = "row"
+	// BoundHostsSourceCatalog: the in-code catalog's hosts for the provider,
+	// the row naming none.
+	BoundHostsSourceCatalog BoundHostsSource = "catalog"
+)
+
+// AuthMethodDTO is an auth method as a reader sees it: the stored method plus
+// what binding makes of it. The bound_* fields are computed on read from the
+// same code the egress binder uses; they are not stored, and are ignored when
+// a create or update request carries them (those take shared.AuthMethod).
+type AuthMethodDTO struct {
+	AuthMethod `tstype:",extends"`
+	// BoundHosts are the hosts the method's secrets are bound to: the row's
+	// hosts, else the catalog's. Empty: not bound.
+	BoundHosts []string `json:"bound_hosts"`
+	// BoundHostsSource is "row" or "catalog"; empty when BoundHosts is.
+	BoundHostsSource BoundHostsSource `json:"bound_hosts_source"`
+	// BoundKeys are the secret keys that are bound (placeholders in a run);
+	// the method's other keys stay plain.
+	BoundKeys []string `json:"bound_keys"`
 }
 
 // AuthProviderCreateRequest registers how to connect to a team's own service.
@@ -2532,6 +2740,7 @@ type AuthProviderTypes struct {
 	_create     AuthProviderCreateRequest
 	_update     AuthProviderUpdateRequest
 	_spec       AuthMethod
+	_methodDTO  AuthMethodDTO
 	_specKind   AuthMethodKind
 	_clientAuth AuthMethodClientAuth
 }
@@ -3684,6 +3893,13 @@ type WorkerRAM struct {
 // a task to an engine that has every one it needs.
 type EngineCapability string
 
+// SignAlgorithm is the signing algorithm c names, when c is an
+// EngineCapabilityEgressSign.
+func (c EngineCapability) SignAlgorithm() (string, bool) {
+	algorithm, ok := strings.CutPrefix(string(c), "egress_sign:")
+	return algorithm, ok && algorithm != ""
+}
+
 const (
 	// EngineCapabilityEgressGateway: the engine runs its sandboxes behind
 	// the egress gateway, so it can take bound secrets (the v2 secrets
@@ -3750,11 +3966,42 @@ const (
 	// whose environment carries its team's variables (INF-1345) is sent
 	// only to an engine that has it.
 	EngineCapabilityTaskEnv EngineCapability = "task_env"
+	// EngineCapabilityEgressForms: the engine's gateway takes the forms a
+	// bound value goes by beyond a header or a query parameter: in a
+	// request body (BoundForm.Body) and as a token it signs with the value
+	// (BoundForm.JWT, HS256). A binding in such a form is sent to no other
+	// engine (EngineCapabilities.Takes), and a task that may get one
+	// requires it (Task.Requires).
+	EngineCapabilityEgressForms EngineCapability = "egress_forms"
+	// EngineCapabilityEgressH2: the engine's gateway speaks HTTP/2 with a
+	// sandbox whose TLS it terminates and with the bound host, so a client
+	// that speaks nothing else (gRPC) gets its bound value placed. A task
+	// given a key of a provider used over HTTP/2 (BoundKey.H2) requires it
+	// (Task.Requires): on any other engine the client could not connect.
+	EngineCapabilityEgressH2 EngineCapability = "egress_h2"
+	// EngineCapabilityEgressHostSuffix: the engine's gateway reads a bound
+	// host that begins with a dot (".example.com") as every host under
+	// that domain (models.HostBoundAt). Any other engine would read the
+	// entry as a name no host has: it is sent none
+	// (EngineCapabilities.Takes), and a task that may get one requires it.
+	EngineCapabilityEgressHostSuffix EngineCapability = "egress_host_suffix"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
 // empty are the same: nothing beyond the base contract.
 type EngineCapabilities []EngineCapability
+
+// TakesForms reports whether an engine with c takes BoundForm.Body and
+// BoundForm.JWT (EngineCapabilityEgressForms).
+func (c EngineCapabilities) TakesForms() bool {
+	return c.Has(EngineCapabilityEgressForms)
+}
+
+// TakesHostSuffixes reports whether an engine with c reads a bound host
+// that begins with a dot as a suffix (EngineCapabilityEgressHostSuffix).
+func (c EngineCapabilities) TakesHostSuffixes() bool {
+	return c.Has(EngineCapabilityEgressHostSuffix)
+}
 
 // SpeaksGrants reports whether an engine with c speaks the grants wire:
 // pending bindings, fetch on first use, keep times, egress_revoke. The
@@ -6670,67 +6917,11 @@ const (
 	SandboxCredentialAsk SandboxCredentialMode = "ask"
 )
 
-// SandboxCredential is a login a sandbox's box gets: a requirement by
-// provider, as an app declares one, and when it is given (Mode, auto when
-// unset). It reads and writes as the requirement's fields plus "mode", so
-// a plain requirement is an auto one.
-type SandboxCredential struct {
-	CredentialRequirement `yaml:",inline"`
-	Mode                  SandboxCredentialMode `json:"mode,omitempty" yaml:"mode,omitempty"`
-}
-
-// Asks reports whether the login is given only once a person approves it.
-func (c SandboxCredential) Asks() bool {
-	return c.Mode == SandboxCredentialAsk
-}
-
-// EffectiveMode is the declaration's mode, never empty: unset is auto.
-func (c SandboxCredential) EffectiveMode() SandboxCredentialMode {
-	if c.Asks() {
-		return SandboxCredentialAsk
-	}
-	return SandboxCredentialAuto
-}
-
-// UnmarshalJSON reads the requirement (in any form it takes) and the mode:
-// the requirement's own reader would otherwise drop the mode.
-func (c *SandboxCredential) UnmarshalJSON(data []byte) error {
-	var mode struct {
-		Mode SandboxCredentialMode `json:"mode"`
-	}
-	if err := json.Unmarshal(data, &mode); err != nil {
-		return err
-	}
-	if err := json.Unmarshal(data, &c.CredentialRequirement); err != nil {
-		return err
-	}
-	c.Mode = mode.Mode
-	return nil
-}
-
-// UnmarshalYAML is UnmarshalJSON for YAML.
-func (c *SandboxCredential) UnmarshalYAML(unmarshal func(any) error) error {
-	var mode struct {
-		Mode SandboxCredentialMode `yaml:"mode"`
-	}
-	if err := unmarshal(&mode); err != nil {
-		return err
-	}
-	if err := unmarshal(&c.CredentialRequirement); err != nil {
-		return err
-	}
-	c.Mode = mode.Mode
-	return nil
-}
-
-// Validate refuses a mode other than auto and ask.
-func (c SandboxCredential) Validate() error {
-	switch c.Mode {
-	case "", SandboxCredentialAuto, SandboxCredentialAsk:
-		return nil
-	}
-	return fmt.Errorf("credential %s: mode is auto or ask, not %q", c.Slug, c.Mode)
-}
+// SandboxCredential is a login a sandbox's box gets: a credential
+// requirement, as an app or an agent declares one, whose Mode says when
+// it is given (auto when unset). The same type: a plain requirement is an
+// auto one.
+type SandboxCredential CredentialRequirement
 
 // SandboxDTO is the API response for a sandbox.
 type SandboxDTO struct {
@@ -7241,6 +7432,7 @@ type SDKTypes struct {
 	// Requirements
 	_checkReqs     CheckRequirementsRequest
 	_checkReqsResp CheckRequirementsResponse
+	_agentReqsResp AgentRequirementsResponse
 	// Entitlements
 	_entitlementDTO     EntitlementDTO
 	_featureAccess      FeatureAccess
@@ -7732,10 +7924,48 @@ type BoundSecret struct {
 	// value filled in. false: the request already carried the login, and
 	// the host's answer stands.
 	Resend bool `json:"resend,omitempty"`
+	// H2: the value's provider is used over HTTP/2 (gRPC; the recipe's
+	// AuthMethod.Transport, BoundKey.H2). The gateway offers a sandbox h2
+	// only at the hosts of such a binding, and HTTP/1.1 alone at every
+	// other bound host. Sent with the binding, pending or not: the
+	// gateway decides at the sandbox's TLS hello, before any value is
+	// fetched. Only an engine reporting EngineCapabilityEgressH2 gets a
+	// task with such a key; any other engine ignores the field.
+	H2 bool `json:"h2,omitempty"`
+}
+
+// NeedsForms reports whether b is sent in a form only an engine reporting
+// EngineCapabilityEgressForms takes: its value goes in bodies, or signs a
+// token.
+func (b BoundSecret) NeedsForms() bool {
+	return b.Form != nil && (b.Form.Body || b.Form.JWT != nil)
+}
+
+// SignAlgorithm is the signing algorithm b's value is a secret key for
+// (BoundForm.Sign), "" for none: b is sent only to an engine reporting
+// EngineCapabilityEgressSign of it.
+func (b BoundSecret) SignAlgorithm() string {
+	if b.Form == nil || b.Form.Sign == nil {
+		return ""
+	}
+	return b.Form.Sign.Algorithm
+}
+
+// NeedsHostSuffix reports whether one of b's hosts is a suffix entry
+// (".example.com": every host under the domain), which only an engine
+// reporting EngineCapabilityEgressHostSuffix reads as one.
+func (b BoundSecret) NeedsHostSuffix() bool {
+	return slices.ContainsFunc(b.Hosts, isHostSuffix)
 }
 
 // BoundForm is how a bound value goes on a request: in Header, as Scheme
-// says, or as the query parameter Query.
+// says, or as the query parameter Query. A form naming neither writes no
+// credential of its own (a key that travels in the body alone).
+//
+// Body and JWT are sent only to an engine reporting
+// EngineCapabilityEgressForms (BoundSecret.NeedsForms,
+// EngineCapabilities.Takes): any other engine is not sent the binding at
+// all, never the value in another form.
 type BoundForm struct {
 	// Header is the header the value goes in ("Authorization",
 	// "x-api-key").
@@ -7748,7 +7978,78 @@ type BoundForm struct {
 	// Query is the query parameter the value goes in, for a provider that
 	// takes it there.
 	Query string `json:"query,omitempty"`
+	// Body: the value also replaces its placeholder in the body of a
+	// request to the binding's hosts (a key sent as a field of a JSON or
+	// form body). The gateway reads text bodies of at most 1 MiB for it
+	// and refuses one it cannot read whole. false: a body is content, and
+	// a placeholder in it leaves as it is.
+	Body bool `json:"body,omitempty"`
+	// JWT: the value is a signing key and never leaves the gateway. A
+	// token signed with it, as JWT says, goes wherever the value would:
+	// in the placeholder's place, and in Header as Scheme says.
+	JWT *BoundJWT `json:"jwt,omitempty"`
+	// Sign: the value is a secret key and never leaves the gateway.
+	// Requests to the binding's hosts that the run's client signed with
+	// the placeholders of the pair are signed again with it, as Sign says.
+	// Sent only to an engine reporting the algorithm's capability
+	// (EngineCapabilityEgressSign).
+	Sign *BoundSign `json:"sign,omitempty"`
 }
+
+// BoundSign is the request signature a binding's value is the secret key
+// of (BoundForm.Sign): the name of the bound secret of the same run that
+// holds the access key id, the region and service, and the signature as
+// data, resolved from the credential's recipe (shared.AuthMethodSign): the
+// gateway's algorithm by name and its parameters (shared.SignParams says
+// what each does). The engine implements the algorithm and knows no
+// vendor: a preset added here needs no engine release.
+type BoundSign struct {
+	Algorithm      string   `json:"algorithm"`
+	AccessKey      string   `json:"access_key"`
+	Region         string   `json:"region,omitempty"`
+	Service        string   `json:"service,omitempty"`
+	Label          string   `json:"label,omitempty"`
+	KeyPrefix      string   `json:"key_prefix,omitempty"`
+	Scope          []string `json:"scope,omitempty"`
+	DateFormat     string   `json:"date_format,omitempty"`
+	TimeHeader     string   `json:"time_header,omitempty"`
+	TimeFormat     string   `json:"time_format,omitempty"`
+	HashHeader     string   `json:"hash_header,omitempty"`
+	UnsignedHeader string   `json:"unsigned_header,omitempty"`
+	SignedHeaders  []string `json:"signed_headers,omitempty"`
+	HeaderValues   string   `json:"header_values,omitempty"`
+	URI            string   `json:"uri,omitempty"`
+	Host           string   `json:"host,omitempty"`
+	TokenHeader    string   `json:"token_header,omitempty"`
+}
+
+// BoundJWT is the token a binding's value signs (BoundForm.JWT): a JWT
+// with the header {"alg": Alg, "typ": "JWT"} and the claims iss (Issuer),
+// exp (now + TTL), nbf (now - NotBefore, when set) and Claims. The
+// gateway signs one per binding and sends it until shortly before it
+// expires.
+type BoundJWT struct {
+	// Alg is the signature. BoundJWTHS256 is the only one: another joins
+	// with a capability of its own, so no engine is asked for one it does
+	// not make.
+	Alg BoundJWTAlg `json:"alg"`
+	// Issuer is the iss claim: a value of the binding's credential
+	// (Kling's access key), filled when the binding gets its value.
+	Issuer string `json:"iss,omitempty"`
+	// TTL is the token's lifetime in seconds: exp is now + TTL.
+	TTL int `json:"ttl"`
+	// NotBefore is how many seconds before now nbf is set, for a host
+	// whose clock runs behind; 0 writes no nbf.
+	NotBefore int `json:"nbf,omitempty"`
+	// Claims are claims added as they are; iss, exp and nbf win.
+	Claims map[string]string `json:"claims,omitempty"`
+}
+
+// BoundJWTAlg is a token's signature (BoundJWT.Alg).
+type BoundJWTAlg string
+
+// BoundJWTHS256 is HMAC-SHA256 keyed by the binding's value.
+const BoundJWTHS256 BoundJWTAlg = "HS256"
 
 // BoundScheme is how a value is written in its header (BoundForm.Scheme).
 type BoundScheme string
@@ -8128,6 +8429,10 @@ type SystemInfo struct {
 	// HostCPU is how the host runs its CPUs (INF-1244); nil off Linux
 	// and from engines that predate it.
 	HostCPU *HostCPU `json:"host_cpu,omitempty"`
+	// Sandbox is the OS sandbox a remote's daemon confines commands with
+	// (Landlock on Linux, Seatbelt on macOS), as it found it at startup;
+	// nil from engines and from daemons that predate it.
+	Sandbox *RemoteSandbox `json:"sandbox,omitempty"`
 }
 
 func (s SystemInfo) Value() (driver.Value, error) {
@@ -8136,6 +8441,23 @@ func (s SystemInfo) Value() (driver.Value, error) {
 
 func (s *SystemInfo) Scan(value any) error {
 	return JSONScan(s, value, "SystemInfo")
+}
+
+// RemoteSandbox is what a remote's daemon can enforce of a run's file rules
+// (WsRemoteExecStart.FileRules) in the kernel.
+type RemoteSandbox struct {
+	// Mechanism is "landlock" (Linux), "seatbelt" (macOS) or "none".
+	Mechanism string `json:"mechanism"`
+	// Version is the mechanism's version when it has one: the Landlock ABI
+	// ("abi 6").
+	Version string `json:"version,omitempty"`
+	// Available says commands with file rules run confined. When false,
+	// Reason says why, and they run unconfined unless Required.
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+	// Required is the owner's choice (belt remote start --require-sandbox):
+	// a run with file rules the daemon cannot enforce is refused.
+	Required bool `json:"required,omitempty"`
 }
 
 // HostCPU is how a host runs its CPUs: the settings that make the same
@@ -9296,6 +9618,24 @@ type WsRemoteExecStart struct {
 	Stdin     string   `json:"stdin,omitempty"`
 	Pty       bool     `json:"pty,omitempty"`
 	TimeoutMs int      `json:"timeout_ms,omitempty"`
+	// FileRules are the Workspace rules in force for this run on this
+	// remote, for the daemon to enforce in the kernel where the files are
+	// opened (Landlock, Seatbelt). Nil when no Workspace rule applies; a
+	// daemon that predates the field ignores it.
+	FileRules *ExecFileRules `json:"file_rules,omitempty"`
+}
+
+// ExecFileRules is the file access a run is confined to: everything is
+// readable except Deny; writes are open, or, when Listed, only inside Write
+// (and the machine's temporary folders). Entries are Workspace patterns as
+// written (~/x/**, /abs/**, **/name, name); the daemon resolves them.
+type ExecFileRules struct {
+	// Listed says some layer lists folders for this remote; Write is then
+	// the listed folders the policy allows, possibly none.
+	Listed bool     `json:"listed,omitempty"`
+	Write  []string `json:"write,omitempty"`
+	// Deny are the folders and files no read or write may reach.
+	Deny []string `json:"deny,omitempty"`
 }
 
 // WsRemoteExecSignal asks the remote to terminate a running exec (cancel/kill).
@@ -10115,6 +10455,14 @@ const (
 	AuthMethodAPIKeyInQuery  AuthMethodAPIKeyIn = "query"
 )
 
+// AuthMethodTransport is the protocol a provider's API is spoken in, when
+// it matters to where a run may go (AuthMethod.Transport).
+type AuthMethodTransport string
+
+// AuthMethodTransportH2 is HTTP/2: gRPC, or an API that takes nothing
+// else.
+const AuthMethodTransportH2 AuthMethodTransport = "h2"
+
 // AuthMethodHTTPScheme is the Authorization scheme of an http scheme.
 type AuthMethodHTTPScheme string
 
@@ -10136,6 +10484,77 @@ type SecretField struct {
 	// match, so a pasted login link or the wrong key is refused on save
 	// instead of failing the first run ("^sk-ant-oat01-").
 	Pattern string `json:"pattern,omitempty" yaml:"pattern,omitempty"`
+}
+
+// AuthMethodSign is one key pair a scheme signs requests with
+// (AuthMethod.Sign), and how: which of the scheme's fields is the access
+// key id (sent in the clear, in the request's Authorization) and which
+// the secret key, the hosts the pair signs toward, and the signature
+// itself as data. Preset names a vendor's parameter set (SignPresets); a
+// parameter written out overrides the preset's, and with no preset the
+// recipe writes them all. The engines' egress gateway implements the
+// algorithm; the vendor is these parameters.
+type AuthMethodSign struct {
+	// Preset is a built-in parameter set: "volc-v4" (Volcengine, BytePlus)
+	// or "tc3" (Tencent Cloud). Empty: the parameters below say it all.
+	Preset string `json:"preset,omitempty" yaml:"preset,omitempty"`
+	// KeyID and Secret are the keys of the two fields: the access key id
+	// and the secret key.
+	KeyID  string `json:"key_id" yaml:"key_id"`
+	Secret string `json:"secret" yaml:"secret"`
+	// Region and Service fill the scope's {region} and {service} terms, as
+	// the vendor names them for Hosts ("ap-southeast-1", "ark"). Each is
+	// required when the scope has its term and refused when it does not.
+	Region  string `json:"region,omitempty" yaml:"region,omitempty"`
+	Service string `json:"service,omitempty" yaml:"service,omitempty"`
+	// Hosts are the hosts this pair signs toward, each exact; empty is
+	// the scheme's Hosts. One of the two is required.
+	Hosts []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	// The parameters (SignParams says what each does). The four that may
+	// be empty on purpose are pointers: "" overrides a preset's value,
+	// absent keeps it.
+	Algorithm      string   `json:"algorithm,omitempty" yaml:"algorithm,omitempty"`
+	Label          string   `json:"label,omitempty" yaml:"label,omitempty"`
+	KeyPrefix      *string  `json:"key_prefix,omitempty" yaml:"key_prefix,omitempty"`
+	Scope          []string `json:"scope,omitempty" yaml:"scope,omitempty"`
+	DateFormat     string   `json:"date_format,omitempty" yaml:"date_format,omitempty"`
+	TimeHeader     string   `json:"time_header,omitempty" yaml:"time_header,omitempty"`
+	TimeFormat     string   `json:"time_format,omitempty" yaml:"time_format,omitempty"`
+	HashHeader     *string  `json:"hash_header,omitempty" yaml:"hash_header,omitempty"`
+	UnsignedHeader *string  `json:"unsigned_header,omitempty" yaml:"unsigned_header,omitempty"`
+	SignedHeaders  []string `json:"signed_headers,omitempty" yaml:"signed_headers,omitempty"`
+	HeaderValues   string   `json:"header_values,omitempty" yaml:"header_values,omitempty"`
+	URI            string   `json:"uri,omitempty" yaml:"uri,omitempty"`
+	Host           string   `json:"host,omitempty" yaml:"host,omitempty"`
+	TokenHeader    *string  `json:"token_header,omitempty" yaml:"token_header,omitempty"`
+}
+
+// AuthMethodJWTAlg is a token's signature (AuthMethodJWT.Alg).
+type AuthMethodJWTAlg string
+
+// AuthMethodJWTHS256 is HMAC-SHA256 keyed by the signing field's value.
+const AuthMethodJWTHS256 AuthMethodJWTAlg = "HS256"
+
+// AuthMethodJWT is the token a scheme's key is made as (AuthMethod.JWT): a
+// JWT with the header {"alg": Alg, "typ": "JWT"} and the claims iss
+// (Issuer's value, when named), exp (now + TTL), nbf (now - NotBefore,
+// when set) and Claims, signed with Secret's value.
+type AuthMethodJWT struct {
+	// Key is the name a run presents as its bearer: the one placeholder it
+	// holds. A login holding a value under Key itself sends that value
+	// instead (a static API key); it need not be one of Fields.
+	Key string           `json:"key" yaml:"key"`
+	Alg AuthMethodJWTAlg `json:"alg" yaml:"alg"`
+	// Secret is the field whose value signs; Issuer the field whose value
+	// is the iss claim, "" for none. Neither is ever given to a run.
+	Secret string `json:"secret" yaml:"secret"`
+	Issuer string `json:"issuer,omitempty" yaml:"issuer,omitempty"`
+	// TTL is the token's lifetime in seconds, at most a day; NotBefore is
+	// how many seconds before now nbf is set, 0 for no nbf.
+	TTL       int `json:"ttl" yaml:"ttl"`
+	NotBefore int `json:"nbf,omitempty" yaml:"nbf,omitempty"`
+	// Claims are claims added as they are; iss, exp and nbf win.
+	Claims map[string]string `json:"claims,omitempty" yaml:"claims,omitempty"`
 }
 
 // AuthMethodClientAuth is how client_id/client_secret reach the token
@@ -10211,6 +10630,11 @@ type AuthMethodAppKey struct {
 	Sensitive   bool   `json:"sensitive,omitempty"`
 	// Optional is implied for every name but client_id and client_secret.
 	Optional bool `json:"optional,omitempty"`
+	// Token marks a key that is a token of its own, sent as
+	// Authorization: Bearer to the method's hosts (Slack's bot token): a
+	// run given it holds a placeholder, bound to Hosts like the login's
+	// access token. A key that never travels (a signing secret) is not one.
+	Token bool `json:"token,omitempty"`
 }
 
 // AuthMethodLookup is a call made after the token exchange, with the new
@@ -10306,20 +10730,53 @@ type AuthMethod struct {
 	In          AuthMethodAPIKeyIn `json:"in,omitempty" yaml:"in,omitempty"`
 	ParamName   string             `json:"param_name,omitempty" yaml:"param_name,omitempty"`
 	ValuePrefix string             `json:"value_prefix,omitempty" yaml:"value_prefix,omitempty"`
+	// InBody says an api_key key also travels in the body of a request to
+	// Hosts (a field of a JSON or form body): the egress gateway replaces
+	// the key's placeholder there too, toward Hosts only. With no In, the
+	// key goes in the body alone. It needs Hosts, the row's or the
+	// catalog's; without them the key is an environment variable as before.
+	InBody bool `json:"in_body,omitempty" yaml:"in_body,omitempty"`
 	// Scheme and BearerFormat describe an http kind's Authorization header.
 	Scheme       AuthMethodHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 	BearerFormat string               `json:"bearer_format,omitempty" yaml:"bearer_format,omitempty"`
 	// Hosts are the hosts the credential's value is sent to, each exact
-	// ("api.anthropic.com", "db.example.com:5432"): the key a person
+	// ("api.anthropic.com", "db.example.com:5432"), or, beginning with a
+	// dot, every host under a domain (".example.com": api.example.com and
+	// api.eu1.example.com, never example.com itself; the domain is never
+	// a top-level domain or a registry's suffix such as ".co.uk", and may
+	// be a company's shared domain such as ".googleapis.com", a broad
+	// destination; models.ValidHostSuffix): the key a person
 	// pastes, or an oauth2 scheme's access token. A scheme with hosts
 	// binds its secrets: a run behind the egress gateway holds a
 	// placeholder for each, and the gateway puts the value in only on the
 	// way to these hosts (authmethod.HostBinder). Empty: the secrets are
 	// environment variables, as they were. A catalogued provider's hosts
 	// come from the catalog when the row names none.
-	Hosts                 []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
-	AuthorizationEndpoint string   `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
-	Scopes                []string `json:"scopes,omitempty" yaml:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
+	Hosts []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	// Sign says the provider takes no key: each request is signed with a
+	// key pair of Fields (Volcengine and BytePlus, Tencent Cloud). Each
+	// entry binds one pair for signing and says how the signature is made
+	// (a preset, or its parameters): a run behind the egress gateway holds
+	// a placeholder for both halves, its client signs with them, and the
+	// gateway signs the request again with the real pair toward the
+	// entry's hosts only. The secret key is never an environment variable.
+	// api_key kind. A catalogued provider's come from the catalog when the
+	// row has none.
+	Sign []AuthMethodSign `json:"sign,omitempty" yaml:"sign,omitempty"`
+	// JWT says the provider takes a short-lived token the client signs
+	// with a key of Fields (Kling): the egress gateway signs it, and a run
+	// holds one placeholder, JWT.Key's, which leaves as the token toward
+	// Hosts. The signing fields are never given to a run. api_key kind. A
+	// catalogued provider's comes from the catalog when the row has none.
+	JWT *AuthMethodJWT `json:"jwt,omitempty" yaml:"jwt,omitempty"`
+	// Transport says the provider's API is spoken over HTTP/2
+	// (AuthMethodTransportH2: gRPC), so a run given one of the scheme's
+	// bound secrets goes only to an engine whose egress gateway speaks it
+	// (egress_h2). Empty: HTTP/1.1 serves, and any gateway does. It needs
+	// Hosts, as InBody does.
+	Transport             AuthMethodTransport `json:"transport,omitempty" yaml:"transport,omitempty"`
+	AuthorizationEndpoint string              `json:"authorization_endpoint,omitempty" yaml:"authorization_endpoint,omitempty"`
+	Scopes                []string            `json:"scopes,omitempty" yaml:"scopes,omitempty"` // requested by default; a connect request may override (RequiredScopes stay)
 	// ScopeAliases are shorthand a caller may write for a provider scope
 	// ("gmail.send" → "https://www.googleapis.com/auth/gmail.send"). They
 	// are accepted on input only: credentials, capabilities and allowed
@@ -14301,4 +14758,10 @@ func flowUnmarshalRecursive(data []byte, out *any) error {
 	}
 	*out = flowProcessRaw(raw)
 	return nil
+}
+
+// isHostSuffix reports whether a bound host entry is a suffix entry
+// (models.IsHostSuffix, which this package cannot import).
+func isHostSuffix(entry string) bool {
+	return strings.HasPrefix(strings.TrimSpace(entry), ".")
 }

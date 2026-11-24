@@ -87,13 +87,11 @@ export interface InternalToolsConfig {
   knowledge?: boolean;
   wait?: boolean;
   /**
-   * SandboxCredentials are the logins a sandbox sandbox_create makes gets
-   * (Remote on), declared as an app's credentials are (provider slug,
-   * scopes): the runner's own, as a task of theirs resolves it; a runner
-   * with none is asked to connect it and the call waits. None declared,
-   * none given. The model's arguments never add any. Each entry's mode
-   * says when the box gets it: auto (the default) at once, ask on first
-   * use once a person approves it (SandboxCredential).
+   * SandboxCredentials is the old place of the agent's credentials
+   * (AgentConfigInput.Credentials), still read: a write folds it into
+   * credentials (a credentials entry wins on a slug both name) and
+   * stores it empty; a read of a version stored with it does the same.
+   * Deprecated: use the agent's credentials.
    */
   sandbox_credentials?: SandboxCredential[];
 }
@@ -410,6 +408,11 @@ export interface AgentVersionDTO extends BaseModelDTO, PermissionModelDTO {
   skills: SkillConfig[];
   context?: ContextField[];
   internal_tools?: InternalToolsConfig;
+  /**
+   * Credentials are the logins the agent needs (AgentConfigInput.Credentials),
+   * with any entry of the old internal_tools.sandbox_credentials folded in.
+   */
+  credentials?: CredentialRequirements;
   permissions?: AgentPermissions;
   hooks?: LifecycleHookConfig[];
   output_schema?: any;
@@ -475,6 +478,17 @@ export interface AgentConfigInput {
   skills?: SkillConfig[];
   context?: ContextField[];
   internal_tools?: InternalToolsConfig;
+  /**
+   * Credentials are the logins the agent needs, declared as an app's
+   * credentials are (a map keyed by provider slug, or a list), each with
+   * a mode: the sandboxes its sandbox_create makes (Remote on) get them,
+   * the runner's own, as a task of theirs resolves them; a runner with
+   * none is asked to connect and the call waits. None declared, none
+   * given; the model's arguments never add any. Mode auto (the default)
+   * gives the login at once, ask on first use once a person approves it.
+   * Another team's agent may declare ask entries only.
+   */
+  credentials?: CredentialRequirements;
   permissions?: AgentPermissions;
   hooks?: LifecycleHookConfig[];
   output_schema?: any;
@@ -495,6 +509,127 @@ export interface CoreAppConfigInput {
   ref?: string;
   setup?: any;
   input?: any;
+}
+/**
+ * AgentRequirementSourceKind is what in an agent needs a login.
+ */
+export type AgentRequirementSourceKind = "agent" | "app" | "mcp" | "http";
+/**
+ * AgentRequirementFromAgent: the agent's own credentials (its
+ * sandboxes get them).
+ */
+export const AgentRequirementFromAgent: AgentRequirementSourceKind = "agent";
+/**
+ * AgentRequirementFromApp: an app tool's (or the core app's) version
+ * credentials: the pinned function's own list, else the app's.
+ */
+export const AgentRequirementFromApp: AgentRequirementSourceKind = "app";
+/**
+ * AgentRequirementFromMCP: an MCP tool's server: the entry a call sends
+ * (the server's first).
+ */
+export const AgentRequirementFromMCP: AgentRequirementSourceKind = "mcp";
+/**
+ * AgentRequirementFromHTTP: an HTTP or call tool whose auth is a
+ * credential.
+ */
+export const AgentRequirementFromHTTP: AgentRequirementSourceKind = "http";
+/**
+ * AgentRequirementSource is one thing in the agent that asks for the
+ * requirement.
+ */
+export interface AgentRequirementSource {
+  kind: AgentRequirementSourceKind;
+  /**
+   * Name is the agent's, app's or MCP server's name (namespace/name for
+   * an agent or app), or the HTTP tool's URL host.
+   */
+  name: string;
+  /**
+   * ID is the agent's, app's or MCP server's id, when it has one.
+   */
+  id?: string;
+  /**
+   * Tool is the agent tool that asks for it; empty for the agent's own
+   * credentials. The core app's is "core_app".
+   */
+  tool?: string;
+  /**
+   * Agent is the agent the source belongs to when it is not the agent
+   * asked about: a sub-agent tool's (namespace/name).
+   */
+  agent?: string;
+  /**
+   * NotGiven: the agent's own mode auto entry, from an agent of another
+   * team. Its sandboxes are given only ask entries, so the runner's
+   * login is not given for this source.
+   */
+  not_given?: boolean;
+}
+/**
+ * AgentRequirementStatus is whether the caller holds the requirement.
+ */
+export type AgentRequirementStatus =
+  | "connected"
+  | "missing"
+  | "missing_scopes"
+  | "unknown"
+  | "not_given";
+/**
+ * AgentRequirementConnected: a login the caller's runs resolve (theirs,
+ * the team's, the org's or the platform's) covers it.
+ */
+export const AgentRequirementConnected: AgentRequirementStatus = "connected";
+/**
+ * AgentRequirementMissing: no usable login (none, disconnected,
+ * expired, or a key to add). Errors say what to do.
+ */
+export const AgentRequirementMissing: AgentRequirementStatus = "missing";
+/**
+ * AgentRequirementMissingScopes: a login is connected without some of
+ * the scopes. Errors name them.
+ */
+export const AgentRequirementMissingScopes: AgentRequirementStatus = "missing_scopes";
+/**
+ * AgentRequirementUnknown: a capability the platform does not define.
+ */
+export const AgentRequirementUnknown: AgentRequirementStatus = "unknown";
+/**
+ * AgentRequirementNotGiven: every source is NotGiven; no login is
+ * given for it, so it is not checked.
+ */
+export const AgentRequirementNotGiven: AgentRequirementStatus = "not_given";
+/**
+ * AgentRequirement is one credential slug the agent needs, merged from
+ * every source that asks for it: capabilities, scopes and secrets are the
+ * union; optional only when every source says optional; mode ask when an
+ * entry of the agent's own says ask (auto when its entries say auto, empty
+ * when the agent itself names none).
+ */
+export interface AgentRequirement {
+  requirement: CredentialRequirement;
+  from: AgentRequirementSource[];
+  status: AgentRequirementStatus;
+  /**
+   * Errors are what POST /credentials/check answers for the requirement:
+   * each missing login or scope with the action that sets it up
+   * (connect, add_scopes, add_secret; provider, provider name, scopes).
+   * Empty when connected or not_given.
+   */
+  errors?: RequirementError[];
+}
+/**
+ * AgentRequirementsResponse is GET /agents/{id}/requirements.
+ */
+export interface AgentRequirementsResponse {
+  agent_id: string;
+  version_id: string;
+  /**
+   * Satisfied: every requirement that is not optional is connected or
+   * not_given.
+   */
+  satisfied: boolean;
+  requirements: AgentRequirement[];
 }
 export interface AgentRunDTO extends BaseModelDTO, PermissionModelDTO {
   agent_id: string;
@@ -2621,6 +2756,14 @@ export interface CredentialRequirement {
    */
   auth?: AuthMethod;
   /**
+   * Mode is when a box gets the login: auto (empty) when the sandbox is
+   * made, ask on first use once a person approves it. It means something
+   * only where a box is given the login (a sandbox's credentials, an
+   * agent's credentials, which its sandboxes get); an app's or an MCP
+   * server's entry with a mode is refused (ValidateNoMode).
+   */
+  mode?: SandboxCredentialMode;
+  /**
    * The rest describe the platform api_key scheme a platform app's deploy
    * catalogues for the slug: set on the scheme it creates, and filled into
    * an existing one only where that is still empty (an admin's edit
@@ -3273,12 +3416,55 @@ export interface AuthProviderDTO extends BaseModelDTO, PermissionModelDTO {
    * ExpiresAfterDays is how long a saved key lasts, in days; 0 is never.
    */
   expires_after_days: number /* int */;
-  auth_methods: AuthMethod[];
+  /**
+   * AuthMethods are the provider's methods, each with the hosts its
+   * secrets are bound to (read-only).
+   */
+  auth_methods: AuthMethodDTO[];
   /**
    * Where the OAuth app's client id and secret live in the team vault.
    */
   client_id_key: string;
   client_secret_key: string;
+}
+/**
+ * BoundHostsSource says where an auth method's effective bound hosts come from.
+ */
+export type BoundHostsSource = "" | "row" | "catalog";
+/**
+ * BoundHostsSourceNone: no hosts bound.
+ */
+export const BoundHostsSourceNone: BoundHostsSource = "";
+/**
+ * BoundHostsSourceRow: the method's own hosts.
+ */
+export const BoundHostsSourceRow: BoundHostsSource = "row";
+/**
+ * BoundHostsSourceCatalog: the in-code catalog's hosts for the provider,
+ * the row naming none.
+ */
+export const BoundHostsSourceCatalog: BoundHostsSource = "catalog";
+/**
+ * AuthMethodDTO is an auth method as a reader sees it: the stored method plus
+ * what binding makes of it. The bound_* fields are computed on read from the
+ * same code the egress binder uses; they are not stored, and are ignored when
+ * a create or update request carries them (those take shared.AuthMethod).
+ */
+export interface AuthMethodDTO extends AuthMethod {
+  /**
+   * BoundHosts are the hosts the method's secrets are bound to: the row's
+   * hosts, else the catalog's. Empty: not bound.
+   */
+  bound_hosts: string[];
+  /**
+   * BoundHostsSource is "row" or "catalog"; empty when BoundHosts is.
+   */
+  bound_hosts_source: BoundHostsSource;
+  /**
+   * BoundKeys are the secret keys that are bound (placeholders in a run);
+   * the method's other keys stay plain.
+   */
+  bound_keys: string[];
 }
 /**
  * AuthProviderCreateRequest registers how to connect to a team's own service.
@@ -5222,7 +5408,10 @@ export type EngineCapability =
   | "sized_workers"
   | "sandbox_snapshots"
   | "sandbox_snapshot_store"
-  | "task_env";
+  | "task_env"
+  | "egress_forms"
+  | "egress_h2"
+  | "egress_host_suffix";
 /**
  * EngineCapabilityEgressGateway: the engine runs its sandboxes behind
  * the egress gateway, so it can take bound secrets (the v2 secrets
@@ -5310,6 +5499,31 @@ export const EngineCapabilitySandboxSnapshotStore: EngineCapability = "sandbox_s
  * only to an engine that has it.
  */
 export const EngineCapabilityTaskEnv: EngineCapability = "task_env";
+/**
+ * EngineCapabilityEgressForms: the engine's gateway takes the forms a
+ * bound value goes by beyond a header or a query parameter: in a
+ * request body (BoundForm.Body) and as a token it signs with the value
+ * (BoundForm.JWT, HS256). A binding in such a form is sent to no other
+ * engine (EngineCapabilities.Takes), and a task that may get one
+ * requires it (Task.Requires).
+ */
+export const EngineCapabilityEgressForms: EngineCapability = "egress_forms";
+/**
+ * EngineCapabilityEgressH2: the engine's gateway speaks HTTP/2 with a
+ * sandbox whose TLS it terminates and with the bound host, so a client
+ * that speaks nothing else (gRPC) gets its bound value placed. A task
+ * given a key of a provider used over HTTP/2 (BoundKey.H2) requires it
+ * (Task.Requires): on any other engine the client could not connect.
+ */
+export const EngineCapabilityEgressH2: EngineCapability = "egress_h2";
+/**
+ * EngineCapabilityEgressHostSuffix: the engine's gateway reads a bound
+ * host that begins with a dot (".example.com") as every host under
+ * that domain (models.HostBoundAt). Any other engine would read the
+ * entry as a name no host has: it is sent none
+ * (EngineCapabilities.Takes), and a task that may get one requires it.
+ */
+export const EngineCapabilityEgressHostSuffix: EngineCapability = "egress_host_suffix";
 /**
  * EngineCapabilities is a set of capabilities, kept as a list. Nil and
  * empty are the same: nothing beyond the base contract.
@@ -9068,58 +9282,12 @@ export const SandboxCredentialAuto: SandboxCredentialMode = "auto";
  */
 export const SandboxCredentialAsk: SandboxCredentialMode = "ask";
 /**
- * SandboxCredential is a login a sandbox's box gets: a requirement by
- * provider, as an app declares one, and when it is given (Mode, auto when
- * unset). It reads and writes as the requirement's fields plus "mode", so
- * a plain requirement is an auto one.
+ * SandboxCredential is a login a sandbox's box gets: a credential
+ * requirement, as an app or an agent declares one, whose Mode says when
+ * it is given (auto when unset). The same type: a plain requirement is an
+ * auto one.
  */
-export interface SandboxCredential {
-  slug?: string;
-  capabilities?: string[];
-  description?: string;
-  optional?: boolean;
-  secrets?: string[];
-  scopes?: string[];
-  /**
-   * Provider describes the company the credential belongs to, for a
-   * catalog row that does not exist yet. Its slug defaults to the
-   * credential slug.
-   */
-  provider?: CompanySeed;
-  /**
-   * Auth is the credential's auth provider, for a slug no row defines yet.
-   */
-  auth?: AuthMethod;
-  /**
-   * The rest describe the platform api_key scheme a platform app's deploy
-   * catalogues for the slug: set on the scheme it creates, and filled into
-   * an existing one only where that is still empty (an admin's edit
-   * stands). Any other deploy ignores them.
-   * DisplayName is the scheme's name ("Claude Code"); at most
-   * MaxCredentialDisplayName characters.
-   */
-  display_name?: string;
-  /**
-   * ConnectionScope is who a connection belongs to: team (empty) or user.
-   */
-  connection_scope?: CredentialScope;
-  /**
-   * Instructions tell a person how to get the key (markdown, at most
-   * MaxAuthProviderInstructions characters).
-   */
-  instructions?: string;
-  /**
-   * DocsURL is the scheme's documentation link.
-   */
-  docs_url?: string;
-  /**
-   * ExpiresAfterDays is how long a saved key lasts: it counts as expired
-   * this many days after it is saved. 0 is never; at most
-   * MaxExpiresAfterDays.
-   */
-  expires_after_days?: number /* int */;
-  mode?: SandboxCredentialMode;
-}
+export type SandboxCredential = CredentialRequirement;
 /**
  * SandboxDTO is the API response for a sandbox.
  */
@@ -9874,10 +10042,25 @@ export interface BoundSecret {
    * the host's answer stands.
    */
   resend?: boolean;
+  /**
+   * H2: the value's provider is used over HTTP/2 (gRPC; the recipe's
+   * AuthMethod.Transport, BoundKey.H2). The gateway offers a sandbox h2
+   * only at the hosts of such a binding, and HTTP/1.1 alone at every
+   * other bound host. Sent with the binding, pending or not: the
+   * gateway decides at the sandbox's TLS hello, before any value is
+   * fetched. Only an engine reporting EngineCapabilityEgressH2 gets a
+   * task with such a key; any other engine ignores the field.
+   */
+  h2?: boolean;
 }
 /**
  * BoundForm is how a bound value goes on a request: in Header, as Scheme
- * says, or as the query parameter Query.
+ * says, or as the query parameter Query. A form naming neither writes no
+ * credential of its own (a key that travels in the body alone).
+ * Body and JWT are sent only to an engine reporting
+ * EngineCapabilityEgressForms (BoundSecret.NeedsForms,
+ * EngineCapabilities.Takes): any other engine is not sent the binding at
+ * all, never the value in another form.
  */
 export interface BoundForm {
   /**
@@ -9897,7 +10080,98 @@ export interface BoundForm {
    * takes it there.
    */
   query?: string;
+  /**
+   * Body: the value also replaces its placeholder in the body of a
+   * request to the binding's hosts (a key sent as a field of a JSON or
+   * form body). The gateway reads text bodies of at most 1 MiB for it
+   * and refuses one it cannot read whole. false: a body is content, and
+   * a placeholder in it leaves as it is.
+   */
+  body?: boolean;
+  /**
+   * JWT: the value is a signing key and never leaves the gateway. A
+   * token signed with it, as JWT says, goes wherever the value would:
+   * in the placeholder's place, and in Header as Scheme says.
+   */
+  jwt?: BoundJWT;
+  /**
+   * Sign: the value is a secret key and never leaves the gateway.
+   * Requests to the binding's hosts that the run's client signed with
+   * the placeholders of the pair are signed again with it, as Sign says.
+   * Sent only to an engine reporting the algorithm's capability
+   * (EngineCapabilityEgressSign).
+   */
+  sign?: BoundSign;
 }
+/**
+ * BoundSign is the request signature a binding's value is the secret key
+ * of (BoundForm.Sign): the name of the bound secret of the same run that
+ * holds the access key id, the region and service, and the signature as
+ * data, resolved from the credential's recipe (shared.AuthMethodSign): the
+ * gateway's algorithm by name and its parameters (shared.SignParams says
+ * what each does). The engine implements the algorithm and knows no
+ * vendor: a preset added here needs no engine release.
+ */
+export interface BoundSign {
+  algorithm: string;
+  access_key: string;
+  region?: string;
+  service?: string;
+  label?: string;
+  key_prefix?: string;
+  scope?: string[];
+  date_format?: string;
+  time_header?: string;
+  time_format?: string;
+  hash_header?: string;
+  unsigned_header?: string;
+  signed_headers?: string[];
+  header_values?: string;
+  uri?: string;
+  host?: string;
+  token_header?: string;
+}
+/**
+ * BoundJWT is the token a binding's value signs (BoundForm.JWT): a JWT
+ * with the header {"alg": Alg, "typ": "JWT"} and the claims iss (Issuer),
+ * exp (now + TTL), nbf (now - NotBefore, when set) and Claims. The
+ * gateway signs one per binding and sends it until shortly before it
+ * expires.
+ */
+export interface BoundJWT {
+  /**
+   * Alg is the signature. BoundJWTHS256 is the only one: another joins
+   * with a capability of its own, so no engine is asked for one it does
+   * not make.
+   */
+  alg: BoundJWTAlg;
+  /**
+   * Issuer is the iss claim: a value of the binding's credential
+   * (Kling's access key), filled when the binding gets its value.
+   */
+  iss?: string;
+  /**
+   * TTL is the token's lifetime in seconds: exp is now + TTL.
+   */
+  ttl: number /* int */;
+  /**
+   * NotBefore is how many seconds before now nbf is set, for a host
+   * whose clock runs behind; 0 writes no nbf.
+   */
+  nbf?: number /* int */;
+  /**
+   * Claims are claims added as they are; iss, exp and nbf win.
+   */
+  claims?: { [key: string]: string};
+}
+/**
+ * BoundJWTAlg is a token's signature (BoundJWT.Alg).
+ */
+export type BoundJWTAlg = "HS256";
+/**
+ * BoundJWTHS256 is HMAC-SHA256 keyed by the binding's value.
+ */
+export const BoundJWTHS256: BoundJWTAlg = "HS256";
 /**
  * BoundScheme is how a value is written in its header (BoundForm.Scheme).
  */
@@ -11072,6 +11346,38 @@ export interface SystemInfo {
    * and from engines that predate it.
    */
   host_cpu?: HostCPU;
+  /**
+   * Sandbox is the OS sandbox a remote's daemon confines commands with
+   * (Landlock on Linux, Seatbelt on macOS), as it found it at startup;
+   * nil from engines and from daemons that predate it.
+   */
+  sandbox?: RemoteSandbox;
+}
+/**
+ * RemoteSandbox is what a remote's daemon can enforce of a run's file rules
+ * (WsRemoteExecStart.FileRules) in the kernel.
+ */
+export interface RemoteSandbox {
+  /**
+   * Mechanism is "landlock" (Linux), "seatbelt" (macOS) or "none".
+   */
+  mechanism: string;
+  /**
+   * Version is the mechanism's version when it has one: the Landlock ABI
+   * ("abi 6").
+   */
+  version?: string;
+  /**
+   * Available says commands with file rules run confined. When false,
+   * Reason says why, and they run unconfined unless Required.
+   */
+  available: boolean;
+  reason?: string;
+  /**
+   * Required is the owner's choice (belt remote start --require-sandbox):
+   * a run with file rules the daemon cannot enforce is refused.
+   */
+  required?: boolean;
 }
 /**
  * HostCPU is how a host runs its CPUs: the settings that make the same
@@ -12972,6 +13278,31 @@ export interface WsRemoteExecStart {
   stdin?: string;
   pty?: boolean;
   timeout_ms?: number /* int */;
+  /**
+   * FileRules are the Workspace rules in force for this run on this
+   * remote, for the daemon to enforce in the kernel where the files are
+   * opened (Landlock, Seatbelt). Nil when no Workspace rule applies; a
+   * daemon that predates the field ignores it.
+   */
+  file_rules?: ExecFileRules;
+}
+/**
+ * ExecFileRules is the file access a run is confined to: everything is
+ * readable except Deny; writes are open, or, when Listed, only inside Write
+ * (and the machine's temporary folders). Entries are Workspace patterns as
+ * written (~/x/**, /abs/**, **\/name, name); the daemon resolves them.
+ */
+export interface ExecFileRules {
+  /**
+   * Listed says some layer lists folders for this remote; Write is then
+   * the listed folders the policy allows, possibly none.
+   */
+  listed?: boolean;
+  write?: string[];
+  /**
+   * Deny are the folders and files no read or write may reach.
+   */
+  deny?: string[];
 }
 /**
  * WsRemoteExecSignal asks the remote to terminate a running exec (cancel/kill).
@@ -13929,6 +14260,16 @@ export type AuthMethodAPIKeyIn = "header" | "query";
 export const AuthMethodAPIKeyInHeader: AuthMethodAPIKeyIn = "header";
 export const AuthMethodAPIKeyInQuery: AuthMethodAPIKeyIn = "query";
 /**
+ * AuthMethodTransport is the protocol a provider's API is spoken in, when
+ * it matters to where a run may go (AuthMethod.Transport).
+ */
+export type AuthMethodTransport = "h2";
+/**
+ * AuthMethodTransportH2 is HTTP/2: gRPC, or an API that takes nothing
+ * else.
+ */
+export const AuthMethodTransportH2: AuthMethodTransport = "h2";
+/**
  * AuthMethodHTTPScheme is the Authorization scheme of an http scheme.
  */
 export type AuthMethodHTTPScheme = "bearer" | "basic";
@@ -13951,6 +14292,99 @@ export interface SecretField {
    * instead of failing the first run ("^sk-ant-oat01-").
    */
   pattern?: string;
+}
+/**
+ * AuthMethodSign is one key pair a scheme signs requests with
+ * (AuthMethod.Sign), and how: which of the scheme's fields is the access
+ * key id (sent in the clear, in the request's Authorization) and which
+ * the secret key, the hosts the pair signs toward, and the signature
+ * itself as data. Preset names a vendor's parameter set (SignPresets); a
+ * parameter written out overrides the preset's, and with no preset the
+ * recipe writes them all. The engines' egress gateway implements the
+ * algorithm; the vendor is these parameters.
+ */
+export interface AuthMethodSign {
+  /**
+   * Preset is a built-in parameter set: "volc-v4" (Volcengine, BytePlus)
+   * or "tc3" (Tencent Cloud). Empty: the parameters below say it all.
+   */
+  preset?: string;
+  /**
+   * KeyID and Secret are the keys of the two fields: the access key id
+   * and the secret key.
+   */
+  key_id: string;
+  secret: string;
+  /**
+   * Region and Service fill the scope's {region} and {service} terms, as
+   * the vendor names them for Hosts ("ap-southeast-1", "ark"). Each is
+   * required when the scope has its term and refused when it does not.
+   */
+  region?: string;
+  service?: string;
+  /**
+   * Hosts are the hosts this pair signs toward, each exact; empty is
+   * the scheme's Hosts. One of the two is required.
+   */
+  hosts?: string[];
+  /**
+   * The parameters (SignParams says what each does). The four that may
+   * be empty on purpose are pointers: "" overrides a preset's value,
+   * absent keeps it.
+   */
+  algorithm?: string;
+  label?: string;
+  key_prefix?: string;
+  scope?: string[];
+  date_format?: string;
+  time_header?: string;
+  time_format?: string;
+  hash_header?: string;
+  unsigned_header?: string;
+  signed_headers?: string[];
+  header_values?: string;
+  uri?: string;
+  host?: string;
+  token_header?: string;
+}
+/**
+ * AuthMethodJWTAlg is a token's signature (AuthMethodJWT.Alg).
+ */
+export type AuthMethodJWTAlg = "HS256";
+/**
+ * AuthMethodJWTHS256 is HMAC-SHA256 keyed by the signing field's value.
+ */
+export const AuthMethodJWTHS256: AuthMethodJWTAlg = "HS256";
+/**
+ * AuthMethodJWT is the token a scheme's key is made as (AuthMethod.JWT): a
+ * JWT with the header {"alg": Alg, "typ": "JWT"} and the claims iss
+ * (Issuer's value, when named), exp (now + TTL), nbf (now - NotBefore,
+ * when set) and Claims, signed with Secret's value.
+ */
+export interface AuthMethodJWT {
+  /**
+   * Key is the name a run presents as its bearer: the one placeholder it
+   * holds. A login holding a value under Key itself sends that value
+   * instead (a static API key); it need not be one of Fields.
+   */
+  key: string;
+  alg: AuthMethodJWTAlg;
+  /**
+   * Secret is the field whose value signs; Issuer the field whose value
+   * is the iss claim, "" for none. Neither is ever given to a run.
+   */
+  secret: string;
+  issuer?: string;
+  /**
+   * TTL is the token's lifetime in seconds, at most a day; NotBefore is
+   * how many seconds before now nbf is set, 0 for no nbf.
+   */
+  ttl: number /* int */;
+  nbf?: number /* int */;
+  /**
+   * Claims are claims added as they are; iss, exp and nbf win.
+   */
+  claims?: { [key: string]: string};
 }
 /**
  * AuthMethodClientAuth is how client_id/client_secret reach the token
@@ -14038,6 +14472,13 @@ export interface AuthMethodAppKey {
    * Optional is implied for every name but client_id and client_secret.
    */
   optional?: boolean;
+  /**
+   * Token marks a key that is a token of its own, sent as
+   * Authorization: Bearer to the method's hosts (Slack's bot token): a
+   * run given it holds a placeholder, bound to Hosts like the login's
+   * access token. A key that never travels (a signing secret) is not one.
+   */
+  token?: boolean;
 }
 /**
  * AuthMethodLookup is a call made after the token exchange, with the new
@@ -14153,13 +14594,26 @@ export interface AuthMethod {
   param_name?: string;
   value_prefix?: string;
   /**
+   * InBody says an api_key key also travels in the body of a request to
+   * Hosts (a field of a JSON or form body): the egress gateway replaces
+   * the key's placeholder there too, toward Hosts only. With no In, the
+   * key goes in the body alone. It needs Hosts, the row's or the
+   * catalog's; without them the key is an environment variable as before.
+   */
+  in_body?: boolean;
+  /**
    * Scheme and BearerFormat describe an http kind's Authorization header.
    */
   scheme?: AuthMethodHTTPScheme;
   bearer_format?: string;
   /**
    * Hosts are the hosts the credential's value is sent to, each exact
-   * ("api.anthropic.com", "db.example.com:5432"): the key a person
+   * ("api.anthropic.com", "db.example.com:5432"), or, beginning with a
+   * dot, every host under a domain (".example.com": api.example.com and
+   * api.eu1.example.com, never example.com itself; the domain is never
+   * a top-level domain or a registry's suffix such as ".co.uk", and may
+   * be a company's shared domain such as ".googleapis.com", a broad
+   * destination; models.ValidHostSuffix): the key a person
    * pastes, or an oauth2 scheme's access token. A scheme with hosts
    * binds its secrets: a run behind the egress gateway holds a
    * placeholder for each, and the gateway puts the value in only on the
@@ -14168,6 +14622,34 @@ export interface AuthMethod {
    * come from the catalog when the row names none.
    */
   hosts?: string[];
+  /**
+   * Sign says the provider takes no key: each request is signed with a
+   * key pair of Fields (Volcengine and BytePlus, Tencent Cloud). Each
+   * entry binds one pair for signing and says how the signature is made
+   * (a preset, or its parameters): a run behind the egress gateway holds
+   * a placeholder for both halves, its client signs with them, and the
+   * gateway signs the request again with the real pair toward the
+   * entry's hosts only. The secret key is never an environment variable.
+   * api_key kind. A catalogued provider's come from the catalog when the
+   * row has none.
+   */
+  sign?: AuthMethodSign[];
+  /**
+   * JWT says the provider takes a short-lived token the client signs
+   * with a key of Fields (Kling): the egress gateway signs it, and a run
+   * holds one placeholder, JWT.Key's, which leaves as the token toward
+   * Hosts. The signing fields are never given to a run. api_key kind. A
+   * catalogued provider's comes from the catalog when the row has none.
+   */
+  jwt?: AuthMethodJWT;
+  /**
+   * Transport says the provider's API is spoken over HTTP/2
+   * (AuthMethodTransportH2: gRPC), so a run given one of the scheme's
+   * bound secrets goes only to an engine whose egress gateway speaks it
+   * (egress_h2). Empty: HTTP/1.1 serves, and any gateway does. It needs
+   * Hosts, as InBody does.
+   */
+  transport?: AuthMethodTransport;
   authorization_endpoint?: string;
   scopes?: string[]; // requested by default; a connect request may override (RequiredScopes stay)
   /**
