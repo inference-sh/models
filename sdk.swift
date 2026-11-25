@@ -122,6 +122,10 @@ public struct InternalToolsConfig: Codable, Sendable {
     public var remote: Bool?
     public var knowledge: Bool?
     public var wait: Bool?
+    /// Credentials offers credentials_search and credentials_ask: the agent
+    /// reads which logins the person running it has, finds a provider, and
+    /// asks them to connect one in the chat. Opt-in.
+    public var credentials: Bool?
     /// SandboxCredentials is the old place of the agent's credentials
     /// (AgentConfigInput.Credentials), still read: a write folds it into
     /// credentials (a credentials entry wins on a slug both name) and
@@ -143,6 +147,7 @@ public struct InternalToolsConfig: Codable, Sendable {
         remote: Bool? = nil,
         knowledge: Bool? = nil,
         wait: Bool? = nil,
+        credentials: Bool? = nil,
         sandboxCredentials: [SandboxCredential]? = nil
     ) {
         self.plan = plan
@@ -157,6 +162,7 @@ public struct InternalToolsConfig: Codable, Sendable {
         self.remote = remote
         self.knowledge = knowledge
         self.wait = wait
+        self.credentials = credentials
         self.sandboxCredentials = sandboxCredentials
     }
 
@@ -173,6 +179,7 @@ public struct InternalToolsConfig: Codable, Sendable {
         case remote = "remote"
         case knowledge = "knowledge"
         case wait = "wait"
+        case credentials = "credentials"
         case sandboxCredentials = "sandbox_credentials"
     }
 }

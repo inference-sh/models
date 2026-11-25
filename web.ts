@@ -87,6 +87,12 @@ export interface InternalToolsConfig {
   knowledge?: boolean;
   wait?: boolean;
   /**
+   * Credentials offers credentials_search and credentials_ask: the agent
+   * reads which logins the person running it has, finds a provider, and
+   * asks them to connect one in the chat. Opt-in.
+   */
+  credentials?: boolean;
+  /**
    * SandboxCredentials is the old place of the agent's credentials
    * (AgentConfigInput.Credentials), still read: a write folds it into
    * credentials (a credentials entry wins on a slug both name) and

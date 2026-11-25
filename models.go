@@ -128,6 +128,10 @@ type InternalToolsConfig struct {
 	Remote      *bool `json:"remote,omitempty" yaml:"remote,omitempty"`
 	Knowledge   *bool `json:"knowledge,omitempty" yaml:"knowledge,omitempty"`
 	Wait        *bool `json:"wait,omitempty" yaml:"wait,omitempty"`
+	// Credentials offers credentials_search and credentials_ask: the agent
+	// reads which logins the person running it has, finds a provider, and
+	// asks them to connect one in the chat. Opt-in.
+	Credentials *bool `json:"credentials,omitempty" yaml:"credentials,omitempty"`
 	// SandboxCredentials is the old place of the agent's credentials
 	// (AgentConfigInput.Credentials), still read: a write folds it into
 	// credentials (a credentials entry wins on a slug both name) and
