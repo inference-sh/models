@@ -11378,6 +11378,15 @@ export interface RemoteSandbox {
    * a run with file rules the daemon cannot enforce is refused.
    */
   required?: boolean;
+  /**
+   * MountNS says denied paths are covered in a mount view of the
+   * program's own (Linux, where unprivileged user namespaces are
+   * allowed): exact, and the folder holding one still takes new files.
+   * False with Landlock means Landlock alone, which leaves such a folder
+   * unable to take a new entry; NoMountNS says why.
+   */
+  mount_ns?: boolean;
+  no_mount_ns?: string;
 }
 /**
  * HostCPU is how a host runs its CPUs: the settings that make the same
@@ -13281,8 +13290,10 @@ export interface WsRemoteExecStart {
   /**
    * FileRules are the Workspace rules in force for this run on this
    * remote, for the daemon to enforce in the kernel where the files are
-   * opened (Landlock, Seatbelt). Nil when no Workspace rule applies; a
-   * daemon that predates the field ignores it.
+   * opened (Landlock, Seatbelt). A file operation (ExecFSCommand) carries
+   * them too, and runs in a confined process of its own when it does.
+   * Nil when no Workspace rule applies; a daemon that predates the field
+   * ignores it.
    */
   file_rules?: ExecFileRules;
 }
@@ -13345,6 +13356,11 @@ export interface WsRemoteTerminalOpen {
   cwd?: string;
   cols?: number /* uint16 */;
   rows?: number /* uint16 */;
+  /**
+   * FileRules confine the shell and everything started from it, as
+   * WsRemoteExecStart.FileRules confine a run.
+   */
+  file_rules?: ExecFileRules;
 }
 /**
  * WsRemoteTerminalInput carries keystrokes toward a running PTY.
@@ -13559,6 +13575,13 @@ export interface WsRemoteSessionOpen {
    * than caller tools ignores them.
    */
   tools?: Tool[];
+  /**
+   * FileRules confine the harness and every tool it runs, as
+   * WsRemoteExecStart.FileRules confine a run, from the open on: a
+   * session already live keeps the rules it opened with. The harness's
+   * own folders (~/.claude, ~/.codex) stay writable under a listing.
+   */
+  file_rules?: ExecFileRules;
 }
 /**
  * WsRemoteSessionPrompt sends a user message into a chat's session. RunID is

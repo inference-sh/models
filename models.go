@@ -8458,6 +8458,13 @@ type RemoteSandbox struct {
 	// Required is the owner's choice (belt remote start --require-sandbox):
 	// a run with file rules the daemon cannot enforce is refused.
 	Required bool `json:"required,omitempty"`
+	// MountNS says denied paths are covered in a mount view of the
+	// program's own (Linux, where unprivileged user namespaces are
+	// allowed): exact, and the folder holding one still takes new files.
+	// False with Landlock means Landlock alone, which leaves such a folder
+	// unable to take a new entry; NoMountNS says why.
+	MountNS   bool   `json:"mount_ns,omitempty"`
+	NoMountNS string `json:"no_mount_ns,omitempty"`
 }
 
 // HostCPU is how a host runs its CPUs: the settings that make the same
@@ -9620,8 +9627,10 @@ type WsRemoteExecStart struct {
 	TimeoutMs int      `json:"timeout_ms,omitempty"`
 	// FileRules are the Workspace rules in force for this run on this
 	// remote, for the daemon to enforce in the kernel where the files are
-	// opened (Landlock, Seatbelt). Nil when no Workspace rule applies; a
-	// daemon that predates the field ignores it.
+	// opened (Landlock, Seatbelt). A file operation (ExecFSCommand) carries
+	// them too, and runs in a confined process of its own when it does.
+	// Nil when no Workspace rule applies; a daemon that predates the field
+	// ignores it.
 	FileRules *ExecFileRules `json:"file_rules,omitempty"`
 }
 
@@ -9674,6 +9683,9 @@ type WsRemoteTerminalOpen struct {
 	Cwd       string   `json:"cwd,omitempty"`
 	Cols      uint16   `json:"cols,omitempty"`
 	Rows      uint16   `json:"rows,omitempty"`
+	// FileRules confine the shell and everything started from it, as
+	// WsRemoteExecStart.FileRules confine a run.
+	FileRules *ExecFileRules `json:"file_rules,omitempty"`
 }
 
 // WsRemoteTerminalInput carries keystrokes toward a running PTY.
@@ -9813,6 +9825,11 @@ type WsRemoteSessionOpen struct {
 	// comes back to the api as a WsRemoteSessionToolCall. A daemon older
 	// than caller tools ignores them.
 	Tools []Tool `json:"tools,omitempty"`
+	// FileRules confine the harness and every tool it runs, as
+	// WsRemoteExecStart.FileRules confine a run, from the open on: a
+	// session already live keeps the rules it opened with. The harness's
+	// own folders (~/.claude, ~/.codex) stay writable under a listing.
+	FileRules *ExecFileRules `json:"file_rules,omitempty"`
 }
 
 // WsRemoteSessionPrompt sends a user message into a chat's session. RunID is

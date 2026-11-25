@@ -15685,19 +15685,30 @@ public struct RemoteSandbox: Codable, Sendable {
     /// Required is the owner's choice (belt remote start --require-sandbox):
     /// a run with file rules the daemon cannot enforce is refused.
     public var required: Bool?
+    /// MountNS says denied paths are covered in a mount view of the
+    /// program's own (Linux, where unprivileged user namespaces are
+    /// allowed): exact, and the folder holding one still takes new files.
+    /// False with Landlock means Landlock alone, which leaves such a folder
+    /// unable to take a new entry; NoMountNS says why.
+    public var mountNs: Bool?
+    public var noMountNs: String?
 
     public init(
         mechanism: String = "",
         version: String? = nil,
         available: Bool = false,
         reason: String? = nil,
-        required: Bool? = nil
+        required: Bool? = nil,
+        mountNs: Bool? = nil,
+        noMountNs: String? = nil
     ) {
         self.mechanism = mechanism
         self.version = version
         self.available = available
         self.reason = reason
         self.required = required
+        self.mountNs = mountNs
+        self.noMountNs = noMountNs
     }
 
     enum CodingKeys: String, CodingKey {
@@ -15706,6 +15717,8 @@ public struct RemoteSandbox: Codable, Sendable {
         case available = "available"
         case reason = "reason"
         case required = "required"
+        case mountNs = "mount_ns"
+        case noMountNs = "no_mount_ns"
     }
 }
 

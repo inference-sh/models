@@ -6719,6 +6719,15 @@ export interface RemoteSandbox {
    * a run with file rules the daemon cannot enforce is refused.
    */
   required?: boolean;
+  /**
+   * MountNS says denied paths are covered in a mount view of the
+   * program's own (Linux, where unprivileged user namespaces are
+   * allowed): exact, and the folder holding one still takes new files.
+   * False with Landlock means Landlock alone, which leaves such a folder
+   * unable to take a new entry; NoMountNS says why.
+   */
+  mount_ns?: boolean;
+  no_mount_ns?: string;
 }
 /**
  * HostCPU is how a host runs its CPUs: the settings that make the same
