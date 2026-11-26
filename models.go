@@ -10754,8 +10754,8 @@ type AuthMethod struct {
 	// InBody says an api_key key also travels in the body of a request to
 	// Hosts (a field of a JSON or form body): the egress gateway replaces
 	// the key's placeholder there too, toward Hosts only. With no In, the
-	// key goes in the body alone. It needs Hosts, the row's or the
-	// catalog's; without them the key is an environment variable as before.
+	// key goes in the body alone. It needs Hosts; without them the key is
+	// an environment variable as before.
 	InBody bool `json:"in_body,omitempty" yaml:"in_body,omitempty"`
 	// Scheme and BearerFormat describe an http kind's Authorization header.
 	Scheme       AuthMethodHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
@@ -10771,8 +10771,8 @@ type AuthMethod struct {
 	// binds its secrets: a run behind the egress gateway holds a
 	// placeholder for each, and the gateway puts the value in only on the
 	// way to these hosts (authmethod.HostBinder). Empty: the secrets are
-	// environment variables, as they were. A catalogued provider's hosts
-	// come from the catalog when the row names none.
+	// environment variables, as they were. Nothing but the row says them:
+	// a row gets its provider's seed hosts when it is created.
 	Hosts []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 	// Sign says the provider takes no key: each request is signed with a
 	// key pair of Fields (Volcengine and BytePlus, Tencent Cloud). Each
@@ -10781,14 +10781,12 @@ type AuthMethod struct {
 	// a placeholder for both halves, its client signs with them, and the
 	// gateway signs the request again with the real pair toward the
 	// entry's hosts only. The secret key is never an environment variable.
-	// api_key kind. A catalogued provider's come from the catalog when the
-	// row has none.
+	// api_key kind.
 	Sign []AuthMethodSign `json:"sign,omitempty" yaml:"sign,omitempty"`
 	// JWT says the provider takes a short-lived token the client signs
 	// with a key of Fields (Kling): the egress gateway signs it, and a run
 	// holds one placeholder, JWT.Key's, which leaves as the token toward
-	// Hosts. The signing fields are never given to a run. api_key kind. A
-	// catalogued provider's comes from the catalog when the row has none.
+	// Hosts. The signing fields are never given to a run. api_key kind.
 	JWT *AuthMethodJWT `json:"jwt,omitempty" yaml:"jwt,omitempty"`
 	// Transport says the provider's API is spoken over HTTP/2
 	// (AuthMethodTransportH2: gRPC), so a run given one of the scheme's
