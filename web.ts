@@ -9435,8 +9435,10 @@ export interface SandboxDTO extends BaseModelDTO, PermissionModelDTO {
   last_activity_at?: string /* RFC3339 */;
   /**
    * APIScopes are what the box may do with our API beyond running its
-   * remote: copied when it was made (CreateSandboxRequest.APIScopes, or
-   * its agent's), for its whole life. Absent or empty: nothing beyond the remote.
+   * remote, now: for a sandbox a person made, what its create asked
+   * (CreateSandboxRequest.APIScopes); for an agent's, what its run's
+   * agent version declares, cut to what the run's starter holds. Absent
+   * or empty: nothing beyond the remote.
    */
   api_scopes?: Scope[];
 }

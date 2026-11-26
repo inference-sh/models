@@ -5549,8 +5549,10 @@ class SandboxDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     # its box started, whichever is later.
     last_activity_at: Optional[str]
     # APIScopes are what the box may do with our API beyond running its
-    # remote: copied when it was made (CreateSandboxRequest.APIScopes, or
-    # its agent's), for its whole life. Absent or empty: nothing beyond the remote.
+    # remote, now: for a sandbox a person made, what its create asked
+    # (CreateSandboxRequest.APIScopes); for an agent's, what its run's
+    # agent version declares, cut to what the run's starter holds. Absent
+    # or empty: nothing beyond the remote.
     api_scopes: List[Scope]
 
 # SecretDTO for API responses - VALUE IS NEVER EXPOSED
