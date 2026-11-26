@@ -1891,6 +1891,24 @@ export interface CELEvalResponse {
   partner_fee: CELEvalResult;
   total: CELEvalResult;
   description: CELStringResult;
+  /**
+   * Estimate is what the run-button estimate returns for these task_inputs
+   * once this pricing is published, so a draft's estimate is tested before
+   * it goes live. An estimate expression that fails sets its EstimateError.
+   */
+  estimate?: EstimateCostResponse;
+  /**
+   * CompileErrors lists every expression of the pricing that does not
+   * compile, the estimate included. Any entry means the pricing is broken.
+   */
+  compile_errors?: CELCompileError[];
+}
+/**
+ * CELCompileError is one pricing expression that does not compile.
+ */
+export interface CELCompileError {
+  field: string; // partner_expression, estimate, description, …
+  error: string;
 }
 /**
  * EstimateCostRequest is the request for POST /store/apps/{appId}/estimate.
