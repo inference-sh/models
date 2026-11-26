@@ -5908,6 +5908,11 @@ class Scope(str, Enum):
     # Action-level scopes for Remotes
     REMOTES_READ = "remotes:read"
     REMOTES_WRITE = "remotes:write"
+    # ScopeRemotesExecute starts commands, terminals and agent sessions on
+    # a remote (drives it). remotes:write registers, connects and manages
+    # remotes, and implies it except in a list of remotes scopes alone (a
+    # daemon's key).
+    REMOTES_EXECUTE = "remotes:execute"
     # Action-level scopes for Sandboxes (managed boxes that run a remote)
     SANDBOXES_READ = "sandboxes:read"
     SANDBOXES_WRITE = "sandboxes:write"

@@ -1381,6 +1381,11 @@ const (
 	// Action-level scopes for Remotes
 	ScopeRemotesRead  Scope = "remotes:read"
 	ScopeRemotesWrite Scope = "remotes:write"
+	// ScopeRemotesExecute starts commands, terminals and agent sessions on
+	// a remote (drives it). remotes:write registers, connects and manages
+	// remotes, and implies it except in a list of remotes scopes alone (a
+	// daemon's key).
+	ScopeRemotesExecute Scope = "remotes:execute"
 	// Action-level scopes for Sandboxes (managed boxes that run a remote)
 	ScopeSandboxesRead  Scope = "sandboxes:read"
 	ScopeSandboxesWrite Scope = "sandboxes:write"

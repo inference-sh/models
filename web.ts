@@ -2025,6 +2025,7 @@ export type Scope =
   | "engines:write"
   | "remotes:read"
   | "remotes:write"
+  | "remotes:execute"
   | "sandboxes:read"
   | "sandboxes:write"
   | "apikeys:read"
@@ -2285,6 +2286,13 @@ export const ScopeRemotesRead: Scope = "remotes:read";
  * Empty scopes = full access (for backwards compatibility with existing keys).
  */
 export const ScopeRemotesWrite: Scope = "remotes:write";
+/**
+ * ScopeRemotesExecute starts commands, terminals and agent sessions on
+ * a remote (drives it). remotes:write registers, connects and manages
+ * remotes, and implies it except in a list of remotes scopes alone (a
+ * daemon's key).
+ */
+export const ScopeRemotesExecute: Scope = "remotes:execute";
 /**
  * Action-level scopes for Sandboxes (managed boxes that run a remote)
  */

@@ -3040,6 +3040,11 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     /// Action-level scopes for Remotes
     public static let remotesRead = Scope(rawValue: "remotes:read")
     public static let remotesWrite = Scope(rawValue: "remotes:write")
+    /// ScopeRemotesExecute starts commands, terminals and agent sessions on
+    /// a remote (drives it). remotes:write registers, connects and manages
+    /// remotes, and implies it except in a list of remotes scopes alone (a
+    /// daemon's key).
+    public static let remotesExecute = Scope(rawValue: "remotes:execute")
     /// Action-level scopes for Sandboxes (managed boxes that run a remote)
     public static let sandboxesRead = Scope(rawValue: "sandboxes:read")
     public static let sandboxesWrite = Scope(rawValue: "sandboxes:write")
