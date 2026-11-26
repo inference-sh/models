@@ -4109,6 +4109,7 @@ export type ErrorCode =
   | "already_claimed"
   | "already_entitled"
   | "request_open"
+  | "nothing_to_invoice"
   | "invalid_code"
   | "already_processed"
   | "expired"
@@ -4333,6 +4334,12 @@ export const ErrorCodeAlreadyClaimed: ErrorCode = "already_claimed";
  */
 export const ErrorCodeAlreadyEntitled: ErrorCode = "already_entitled";
 export const ErrorCodeRequestOpen: ErrorCode = "request_open";
+/**
+ * ErrorCodeNothingToInvoice (409): a statement was asked for a payer
+ * that owes nothing beyond its open invoices (GET /admin/invoices/preview
+ * shows the due amount).
+ */
+export const ErrorCodeNothingToInvoice: ErrorCode = "nothing_to_invoice";
 /**
  * Authorization codes (device sign-in, admin elevation) (400): the code
  * is unknown, already approved or denied, or past its expiry.

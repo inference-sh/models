@@ -8743,6 +8743,10 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
     /// already has an open request for it.
     public static let alreadyEntitled = ErrorCode(rawValue: "already_entitled")
     public static let requestOpen = ErrorCode(rawValue: "request_open")
+    /// ErrorCodeNothingToInvoice (409): a statement was asked for a payer
+    /// that owes nothing beyond its open invoices (GET /admin/invoices/preview
+    /// shows the due amount).
+    public static let nothingToInvoice = ErrorCode(rawValue: "nothing_to_invoice")
     /// Authorization codes (device sign-in, admin elevation) (400): the code
     /// is unknown, already approved or denied, or past its expiry.
     public static let invalidCode = ErrorCode(rawValue: "invalid_code")

@@ -5796,6 +5796,7 @@ export type ErrorCode =
   | "already_claimed"
   | "already_entitled"
   | "request_open"
+  | "nothing_to_invoice"
   | "invalid_code"
   | "already_processed"
   | "expired"
@@ -6020,6 +6021,12 @@ export const ErrorCodeAlreadyClaimed: ErrorCode = "already_claimed";
  */
 export const ErrorCodeAlreadyEntitled: ErrorCode = "already_entitled";
 export const ErrorCodeRequestOpen: ErrorCode = "request_open";
+/**
+ * ErrorCodeNothingToInvoice (409): a statement was asked for a payer
+ * that owes nothing beyond its open invoices (GET /admin/invoices/preview
+ * shows the due amount).
+ */
+export const ErrorCodeNothingToInvoice: ErrorCode = "nothing_to_invoice";
 /**
  * Authorization codes (device sign-in, admin elevation) (400): the code
  * is unknown, already approved or denied, or past its expiry.
@@ -6912,6 +6919,57 @@ export interface InvoiceDTO extends BaseModelDTO, PermissionModelDTO {
   tax_mode: TaxMode;
   pdf_path?: string;
   original_invoice_id?: string;
+  /**
+   * Postpaid. A receipt has kind "receipt" and payment_status "".
+   */
+  kind: InvoiceKind;
+  payment_status: InvoicePaymentStatus;
+  due_date?: string /* RFC3339 */;
+  amount_paid: number /* int64 */; // Cents received, tax included
+  paid_at?: string /* RFC3339 */;
+  amount_due: number /* int64 */; // total_amount - amount_paid while open, else 0
+  overdue: boolean; // open and past due_date
+}
+/**
+ * InvoicePreviewDTO is what a statement for a payer would be for
+ * (GET /admin/invoices/preview). Amounts in cents.
+ */
+export interface InvoicePreviewDTO {
+  owed: number /* int64 */; // max(0, -(balance + open_holds))
+  open_holds: number /* int64 */; // reserved by holds not yet settled or released
+  open_receivable: number /* int64 */; // credit still unpaid on the payer's open invoices
+  due: number /* int64 */; // owed - open_receivable: what a statement would be for
+  currency: string;
+}
+/**
+ * AdminInvoiceCreateRequest issues a statement or prepaid invoice (POST /admin/invoices).
+ */
+export interface AdminInvoiceCreateRequest {
+  team_id: string;
+  kind: InvoiceKind; // "statement" or "prepaid"
+  amount?: number /* int64 */; // Cents of credit; required for prepaid, ignored for statement
+  /**
+   * DueDays is the days from issue to the due date (default 14).
+   */
+  due_days?: number /* int */;
+  memo?: string;
+  charge_saved_card?: boolean; // charge the payer's saved card at once
+  send_email?: boolean; // email the invoice with its pay link
+}
+/**
+ * AdminInvoiceMarkPaidRequest records money received outside Stripe toward
+ * an invoice (POST /admin/invoices/{id}/mark-paid).
+ */
+export interface AdminInvoiceMarkPaidRequest {
+  amount: number /* int64 */; // Cents received, tax included; at most the amount due
+  type: PaymentRecordType; // "manual" or "bank_transfer"
+  notes?: string;
+}
+/**
+ * InvoicePayResponse is the checkout a customer pays an invoice through (POST /invoices/{id}/pay).
+ */
+export interface InvoicePayResponse {
+  url: string;
 }
 /**
  * KnowledgeFile represents a file in a knowledge entry
@@ -7965,6 +8023,10 @@ export interface PaymentRecordDTO extends BaseModelDTO, PermissionModelDTO {
    */
   invoice?: InvoiceDTO;
   invoices?: InvoiceDTO[];
+  /**
+   * PaidInvoiceID is the statement or prepaid invoice this payment pays, if any.
+   */
+  invoice_id?: string;
 }
 /**
  * TaxBreakdownItem represents a single tax component
@@ -14980,6 +15042,35 @@ export const InvoiceStatusDraft: InvoiceStatus = "draft";
 export const InvoiceStatusFinalized: InvoiceStatus = "finalized";
 export const InvoiceStatusCorrected: InvoiceStatus = "corrected";
 export const InvoiceStatusVoided: InvoiceStatus = "voided";
+/**
+ * InvoiceKind says how an invoice came to be and what it asks of the customer.
+ */
+export type InvoiceKind = "receipt" | "statement" | "prepaid";
+/**
+ * InvoiceKindReceipt documents a payment already made (the payment precedes the invoice).
+ */
+export const InvoiceKindReceipt: InvoiceKind = "receipt";
+/**
+ * InvoiceKindStatement is a postpaid statement: a credit purchase sized to
+ * the payer's uninvoiced overdraft, paid after it is issued.
+ */
+export const InvoiceKindStatement: InvoiceKind = "statement";
+/**
+ * InvoiceKindPrepaid is a credit purchase of an amount staff chose, paid after it is issued.
+ */
+export const InvoiceKindPrepaid: InvoiceKind = "prepaid";
+/**
+ * InvoicePaymentStatus is whether an invoice that asks for payment has been paid.
+ * A receipt asks for none and has the empty status.
+ */
+export type InvoicePaymentStatus = "" | "open" | "paid" | "void";
+export const InvoicePaymentStatusNone: InvoicePaymentStatus = "";
+export const InvoicePaymentStatusOpen: InvoicePaymentStatus = "open";
+export const InvoicePaymentStatusPaid: InvoicePaymentStatus = "paid";
+/**
+ * InvoicePaymentStatusVoid: credit-noted while open; nothing is owed on it.
+ */
+export const InvoicePaymentStatusVoid: InvoicePaymentStatus = "void";
 /**
  * TaxMode determines how tax is handled on the invoice
  */

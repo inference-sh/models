@@ -6315,6 +6315,10 @@ class ErrorCode(str, Enum):
     # already has an open request for it.
     ALREADY_ENTITLED = "already_entitled"
     REQUEST_OPEN = "request_open"
+    # ErrorCodeNothingToInvoice (409): a statement was asked for a payer
+    # that owes nothing beyond its open invoices (GET /admin/invoices/preview
+    # shows the due amount).
+    NOTHING_TO_INVOICE = "nothing_to_invoice"
     # Authorization codes (device sign-in, admin elevation) (400): the code
     # is unknown, already approved or denied, or past its expiry.
     INVALID_CODE = "invalid_code"

@@ -4436,6 +4436,10 @@ const (
 	// already has an open request for it.
 	ErrorCodeAlreadyEntitled ErrorCode = "already_entitled"
 	ErrorCodeRequestOpen     ErrorCode = "request_open"
+	// ErrorCodeNothingToInvoice (409): a statement was asked for a payer
+	// that owes nothing beyond its open invoices (GET /admin/invoices/preview
+	// shows the due amount).
+	ErrorCodeNothingToInvoice ErrorCode = "nothing_to_invoice"
 	// Authorization codes (device sign-in, admin elevation) (400): the code
 	// is unknown, already approved or denied, or past its expiry.
 	ErrorCodeInvalidCode      ErrorCode = "invalid_code"
