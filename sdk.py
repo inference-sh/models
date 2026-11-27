@@ -2162,6 +2162,10 @@ class CreateFormRequest(TypedDict, total=False):
     schema: Any
     submit_policy: FormSubmitPolicy
     visibility: Visibility
+    # NotifyOnSubmission and WeeklyDigest switch on the owner's emails
+    # (FormDTO); both default to off.
+    notify_on_submission: bool
+    weekly_digest: bool
 
 # UpdateFormRequest patches a form; nil fields are left as they are.
 class UpdateFormRequest(TypedDict, total=False):
@@ -2170,6 +2174,8 @@ class UpdateFormRequest(TypedDict, total=False):
     schema: Any
     status: Optional[FormStatus]
     submit_policy: Optional[FormSubmitPolicy]
+    notify_on_submission: Optional[bool]
+    weekly_digest: Optional[bool]
 
 # SubmitFormRequest is one person's answers to a form. data is validated
 # against the form's schema.
@@ -5349,6 +5355,10 @@ class FormDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
     schema: Any
     status: FormStatus
     submit_policy: FormSubmitPolicy
+    # NotifyOnSubmission emails the form's creator on each new submission;
+    # WeeklyDigest emails them a weekly summary. Both off by default.
+    notify_on_submission: bool
+    weekly_digest: bool
 
 # FormSubmissionDTO is one set of answers to a form.
 class FormSubmissionDTO(BaseModelDTO, PermissionModelDTO, TypedDict, total=False):
@@ -7483,6 +7493,9 @@ class NotificationType(str, Enum):
     TEAM_INVITE = "team_invite"
     # An admin decided the team's entitlement request
     ENTITLEMENT_REQUEST = "entitlement_request"
+    # Form notifications, to a form's owner when the form asks for them
+    FORM_SUBMISSION = "form_submission"
+    FORM_DIGEST = "form_digest"
 
 class NotificationStatus(str, Enum):
     PENDING = "pending"

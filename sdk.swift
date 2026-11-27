@@ -10016,6 +10016,10 @@ public struct FormDTO: Codable, Sendable {
     public var schema: JSONValue
     public var status: FormStatus
     public var submitPolicy: FormSubmitPolicy
+    /// NotifyOnSubmission emails the form's creator on each new submission;
+    /// WeeklyDigest emails them a weekly summary. Both off by default.
+    public var notifyOnSubmission: Bool
+    public var weeklyDigest: Bool
 
     public init(
         id: String = "",
@@ -10034,7 +10038,9 @@ public struct FormDTO: Codable, Sendable {
         description: String = "",
         schema: JSONValue = .null,
         status: FormStatus,
-        submitPolicy: FormSubmitPolicy
+        submitPolicy: FormSubmitPolicy,
+        notifyOnSubmission: Bool = false,
+        weeklyDigest: Bool = false
     ) {
         self.id = id
         self.shortId = shortId
@@ -10053,6 +10059,8 @@ public struct FormDTO: Codable, Sendable {
         self.schema = schema
         self.status = status
         self.submitPolicy = submitPolicy
+        self.notifyOnSubmission = notifyOnSubmission
+        self.weeklyDigest = weeklyDigest
     }
 
     enum CodingKeys: String, CodingKey {
@@ -10073,6 +10081,8 @@ public struct FormDTO: Codable, Sendable {
         case schema = "schema"
         case status = "status"
         case submitPolicy = "submit_policy"
+        case notifyOnSubmission = "notify_on_submission"
+        case weeklyDigest = "weekly_digest"
     }
 }
 
@@ -10164,6 +10174,10 @@ public struct CreateFormRequest: Codable, Sendable {
     public var schema: JSONValue?
     public var submitPolicy: FormSubmitPolicy?
     public var visibility: Visibility?
+    /// NotifyOnSubmission and WeeklyDigest switch on the owner's emails
+    /// (FormDTO); both default to off.
+    public var notifyOnSubmission: Bool?
+    public var weeklyDigest: Bool?
 
     public init(
         name: String = "",
@@ -10171,7 +10185,9 @@ public struct CreateFormRequest: Codable, Sendable {
         description: String? = nil,
         schema: JSONValue? = nil,
         submitPolicy: FormSubmitPolicy? = nil,
-        visibility: Visibility? = nil
+        visibility: Visibility? = nil,
+        notifyOnSubmission: Bool? = nil,
+        weeklyDigest: Bool? = nil
     ) {
         self.name = name
         self.title = title
@@ -10179,6 +10195,8 @@ public struct CreateFormRequest: Codable, Sendable {
         self.schema = schema
         self.submitPolicy = submitPolicy
         self.visibility = visibility
+        self.notifyOnSubmission = notifyOnSubmission
+        self.weeklyDigest = weeklyDigest
     }
 
     enum CodingKeys: String, CodingKey {
@@ -10188,6 +10206,8 @@ public struct CreateFormRequest: Codable, Sendable {
         case schema = "schema"
         case submitPolicy = "submit_policy"
         case visibility = "visibility"
+        case notifyOnSubmission = "notify_on_submission"
+        case weeklyDigest = "weekly_digest"
     }
 }
 
@@ -10198,19 +10218,25 @@ public struct UpdateFormRequest: Codable, Sendable {
     public var schema: JSONValue?
     public var status: FormStatus?
     public var submitPolicy: FormSubmitPolicy?
+    public var notifyOnSubmission: Bool?
+    public var weeklyDigest: Bool?
 
     public init(
         title: String? = nil,
         description: String? = nil,
         schema: JSONValue? = nil,
         status: FormStatus? = nil,
-        submitPolicy: FormSubmitPolicy? = nil
+        submitPolicy: FormSubmitPolicy? = nil,
+        notifyOnSubmission: Bool? = nil,
+        weeklyDigest: Bool? = nil
     ) {
         self.title = title
         self.description = description
         self.schema = schema
         self.status = status
         self.submitPolicy = submitPolicy
+        self.notifyOnSubmission = notifyOnSubmission
+        self.weeklyDigest = weeklyDigest
     }
 
     enum CodingKeys: String, CodingKey {
@@ -10219,6 +10245,8 @@ public struct UpdateFormRequest: Codable, Sendable {
         case schema = "schema"
         case status = "status"
         case submitPolicy = "submit_policy"
+        case notifyOnSubmission = "notify_on_submission"
+        case weeklyDigest = "weekly_digest"
     }
 }
 
@@ -21842,6 +21870,9 @@ public struct NotificationType: RawRepresentable, Codable, Hashable, Sendable {
     public static let teamInvite = NotificationType(rawValue: "team_invite")
     /// An admin decided the team's entitlement request
     public static let entitlementRequest = NotificationType(rawValue: "entitlement_request")
+    /// Form notifications, to a form's owner when the form asks for them
+    public static let formSubmission = NotificationType(rawValue: "form_submission")
+    public static let formDigest = NotificationType(rawValue: "form_digest")
 }
 
 /// NotificationStatus represents the status of a notification

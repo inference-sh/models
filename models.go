@@ -4983,6 +4983,10 @@ type FormDTO struct {
 	Schema             json.RawMessage  `json:"schema"`
 	Status             FormStatus       `json:"status"`
 	SubmitPolicy       FormSubmitPolicy `json:"submit_policy"`
+	// NotifyOnSubmission emails the form's creator on each new submission;
+	// WeeklyDigest emails them a weekly summary. Both off by default.
+	NotifyOnSubmission bool `json:"notify_on_submission"`
+	WeeklyDigest       bool `json:"weekly_digest"`
 }
 
 // FormSubmissionDTO is one set of answers to a form.
@@ -5007,15 +5011,21 @@ type CreateFormRequest struct {
 	Schema       json.RawMessage  `json:"schema,omitempty"`
 	SubmitPolicy FormSubmitPolicy `json:"submit_policy,omitempty"`
 	Visibility   Visibility       `json:"visibility,omitempty"`
+	// NotifyOnSubmission and WeeklyDigest switch on the owner's emails
+	// (FormDTO); both default to off.
+	NotifyOnSubmission bool `json:"notify_on_submission,omitempty"`
+	WeeklyDigest       bool `json:"weekly_digest,omitempty"`
 }
 
 // UpdateFormRequest patches a form; nil fields are left as they are.
 type UpdateFormRequest struct {
-	Title        *string           `json:"title,omitempty"`
-	Description  *string           `json:"description,omitempty"`
-	Schema       json.RawMessage   `json:"schema,omitempty"`
-	Status       *FormStatus       `json:"status,omitempty"`
-	SubmitPolicy *FormSubmitPolicy `json:"submit_policy,omitempty"`
+	Title              *string           `json:"title,omitempty"`
+	Description        *string           `json:"description,omitempty"`
+	Schema             json.RawMessage   `json:"schema,omitempty"`
+	Status             *FormStatus       `json:"status,omitempty"`
+	SubmitPolicy       *FormSubmitPolicy `json:"submit_policy,omitempty"`
+	NotifyOnSubmission *bool             `json:"notify_on_submission,omitempty"`
+	WeeklyDigest       *bool             `json:"weekly_digest,omitempty"`
 }
 
 // SubmitFormRequest is one person's answers to a form. data is validated
@@ -13138,6 +13148,9 @@ const (
 	NotificationTypeTeamInvite NotificationType = "team_invite"
 	// An admin decided the team's entitlement request
 	NotificationTypeEntitlementRequest NotificationType = "entitlement_request"
+	// Form notifications, to a form's owner when the form asks for them
+	NotificationTypeFormSubmission NotificationType = "form_submission"
+	NotificationTypeFormDigest     NotificationType = "form_digest"
 )
 
 // NotificationStatus represents the status of a notification

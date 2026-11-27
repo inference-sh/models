@@ -4860,6 +4860,12 @@ export interface FormDTO extends BaseModelDTO, PermissionModelDTO {
   schema: any;
   status: FormStatus;
   submit_policy: FormSubmitPolicy;
+  /**
+   * NotifyOnSubmission emails the form's creator on each new submission;
+   * WeeklyDigest emails them a weekly summary. Both off by default.
+   */
+  notify_on_submission: boolean;
+  weekly_digest: boolean;
 }
 /**
  * FormSubmissionDTO is one set of answers to a form.
@@ -4884,6 +4890,12 @@ export interface CreateFormRequest {
   schema?: any;
   submit_policy?: FormSubmitPolicy;
   visibility?: Visibility;
+  /**
+   * NotifyOnSubmission and WeeklyDigest switch on the owner's emails
+   * (FormDTO); both default to off.
+   */
+  notify_on_submission?: boolean;
+  weekly_digest?: boolean;
 }
 /**
  * UpdateFormRequest patches a form; nil fields are left as they are.
@@ -4894,6 +4906,8 @@ export interface UpdateFormRequest {
   schema?: any;
   status?: FormStatus;
   submit_policy?: FormSubmitPolicy;
+  notify_on_submission?: boolean;
+  weekly_digest?: boolean;
 }
 /**
  * SubmitFormRequest is one person's answers to a form. data is validated
@@ -10290,7 +10304,9 @@ export type NotificationType =
   | "tos_update"
   | "service_notice"
   | "team_invite"
-  | "entitlement_request";
+  | "entitlement_request"
+  | "form_submission"
+  | "form_digest";
 /**
  * Billing notifications
  */
@@ -10342,6 +10358,11 @@ export const NotificationTypeTeamInvite: NotificationType = "team_invite";
  * An admin decided the team's entitlement request
  */
 export const NotificationTypeEntitlementRequest: NotificationType = "entitlement_request";
+/**
+ * Form notifications, to a form's owner when the form asks for them
+ */
+export const NotificationTypeFormSubmission: NotificationType = "form_submission";
+export const NotificationTypeFormDigest: NotificationType = "form_digest";
 /**
  * NotificationStatus represents the status of a notification
  */
