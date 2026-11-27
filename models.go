@@ -1053,6 +1053,11 @@ type SecretCreateRequest struct {
 	// personal): a new label adds a key beside the others, the same label
 	// replaces that key's value. Empty: the owner's default key.
 	Label string `json:"label,omitempty"`
+	// Hosts are the sites the key may go to, written by its owner: each is
+	// a SecretSend allow rule for the key (SecretHostsSetRequest's rules).
+	// For a plain secret or a key of a provider whose row names no hosts;
+	// a key its provider binds to hosts is refused them.
+	Hosts []string `json:"hosts,omitempty"`
 }
 
 // SecretProviderRequest attaches an existing secret to a provider's
@@ -1071,6 +1076,9 @@ type SecretProviderRequest struct {
 type SecretUpdateRequest struct {
 	Value       string  `json:"value"`
 	Description *string `json:"description,omitempty"`
+	// Hosts, when given, replaces the sites the key may go to, as PUT
+	// /secrets/{key}/hosts does; absent leaves them.
+	Hosts *[]string `json:"hosts,omitempty"`
 }
 
 type CredentialConnectRequest struct {
@@ -1419,6 +1427,9 @@ const (
 	// chat's approval policy (allow every tool, skip hooks, allow rules).
 	// Held only by the account holder's own sign-in.
 	ScopeApprovalsWrite Scope = "approvals:write"
+	// ScopeApprovalsRead lists the approval requests the caller may answer
+	// and their history (GET /interrupts).
+	ScopeApprovalsRead Scope = "approvals:read"
 	// ScopeAdminRead views platform administration (/admin GET). Held
 	// only by an admin's own sign-in; the route's admin gate decides
 	// whether it carries power.
@@ -1688,6 +1699,11 @@ type SecretRequirement struct {
 	Key         string `json:"key" yaml:"key"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
+	// Hosts are where the app sends the secret (api.acme.com, or
+	// .acme.com for every host under acme.com), by the rule a provider's
+	// hosts follow (models.ValidBoundHost). A suggestion shown to the
+	// secret's owner, who may allow them up front; never a grant.
+	Hosts []string `json:"hosts,omitempty" yaml:"hosts,omitempty"`
 }
 
 // CredentialRequirement is an entry under credentials: in inf.yml: a
@@ -2252,7 +2268,8 @@ type AppVersionDTO struct {
 // use.
 type DeployWarning struct {
 	// Code identifies the check: readonly_broad_credential,
-	// unused_credential, missing_annotations, unapproved_platform_scope.
+	// unused_credential, missing_annotations, unapproved_platform_scope,
+	// ram_capped, secret_without_hosts.
 	Code string `json:"code"`
 	// Function is the function the warning is about, when it is about one.
 	Function string `json:"function,omitempty"`
@@ -3130,32 +3147,53 @@ type AlwaysAllowOptionsDTO struct {
 	Options []AlwaysAllowOptionDTO `json:"options"`
 	// Default is the key of the narrowest option, "" when there is none.
 	Default string `json:"default,omitempty"`
+	// DenyOptions are "always deny" on a secret send interrupt: rules of
+	// effect deny on the secret owner's rung, saved by the same POST
+	// .../always-allow with their key. Saved, every later send of the
+	// secret to the host is refused without asking. Empty elsewhere.
+	DenyOptions []AlwaysAllowOptionDTO `json:"deny_options,omitempty"`
 	// Unavailable says why there are no options: a policy allows only its
 	// own rules, or no chat rule could allow this call.
 	Unavailable string `json:"unavailable,omitempty"`
-	// SecretSend is set when the call is an agent of another team sending
-	// the runner's own secrets: what it sends and where. Approving the call
-	// sends them; the prompt names them.
+	// SecretSend is set when the call sends secrets: an agent of another
+	// team sending the runner's own with a call, or a secret send
+	// interrupt (a task's, a sandbox's) asking about one secret and host.
+	// Approving sends them; the prompt names them.
 	SecretSend *SecretSendDTO `json:"secret_send,omitempty"`
 }
 
-// SecretSendDTO is an agent of another team asking to send the runner's
-// secrets with a call: "alice/helper wants to send OPENAI_API_KEY to
-// alice.example". It rides on the call's approval interrupt (meta
-// secret_send) and on its always-allow options.
+// SecretSendDTO is something asking to send secrets to a host: "alice/helper
+// wants to send OPENAI_API_KEY to alice.example". It rides on a call's
+// approval interrupt (meta secret_send) and on always-allow options.
 type SecretSendDTO struct {
+	// Subject is what sends them, as a SecretSend rule names it: agent:<id>,
+	// app:<id>, sandbox:<id>; SubjectName is how people know it (the
+	// agent's or app's namespace/name, the sandbox's name).
+	Subject     string `json:"subject,omitempty"`
+	SubjectName string `json:"subject_name,omitempty"`
+	// TaskID is the task that asked, on a task's send; SandboxID the
+	// sandbox's.
+	TaskID    string `json:"task_id,omitempty"`
+	SandboxID string `json:"sandbox_id,omitempty"`
 	// Agent is the agent as people know it (namespace/name); AgentID is
-	// its id.
-	Agent   string `json:"agent"`
-	AgentID string `json:"agent_id"`
+	// its id. Set for an agent's call.
+	Agent   string `json:"agent,omitempty"`
+	AgentID string `json:"agent_id,omitempty"`
 	// AgentVersionID is the agent version making the call: approving the
 	// prompt approves this version's send only.
-	AgentVersionID string `json:"agent_version_id"`
-	// Host is where the call sends them.
+	AgentVersionID string `json:"agent_version_id,omitempty"`
+	// Host is where they are sent; "*" on a send that stands for many
+	// hosts.
 	Host string `json:"host"`
-	// Secrets are the runner's secrets the call sends, by name: secret
-	// keys (OPENAI_API_KEY) and logins (credential:github).
+	// Secret is the one secret a secret send interrupt asks about, by
+	// name; Secrets holds it too.
+	Secret string `json:"secret,omitempty"`
+	// Secrets are the secrets sent, by name: secret keys (OPENAI_API_KEY)
+	// and logins (credential:github).
 	Secrets []string `json:"secrets"`
+	// DeclaredByApp: the app that asked lists Host under the secret's
+	// hosts: in inf.yml. A suggestion its author made, not a grant.
+	DeclaredByApp bool `json:"declared_by_app,omitempty"`
 }
 
 // AlwaysAllowRequest is POST /chats/{id}/tools/{toolId}/always-allow. The
@@ -3519,6 +3557,9 @@ type SecretFieldConfig struct {
 	Placeholder string `json:"placeholder"`
 	Sensitive   bool   `json:"sensitive"`
 	Optional    bool   `json:"optional"`
+	// Plain: the value is not a secret (shared.SecretField.Plain), a
+	// setting the form may show as typed.
+	Plain bool `json:"plain,omitempty"`
 	// Pattern is the scheme field's pattern (shared.SecretField.Pattern).
 	Pattern string `json:"pattern,omitempty"`
 }
@@ -3633,6 +3674,9 @@ const (
 	EgressGrantReasonScopesMissing     EgressGrantReason = "scopes_missing"
 	EgressGrantReasonScopeEnded        EgressGrantReason = "scope_ended"
 	EgressGrantReasonRevokedByOwner    EgressGrantReason = "revoked_by_owner"
+	// EgressGrantReasonRulesChanged: a secret's grant a rule allowed, whose
+	// owner's rules no longer allow it. The next use decides again.
+	EgressGrantReasonRulesChanged EgressGrantReason = "rules_changed"
 )
 
 // EgressGrantDTO is one decision that a task or a sandbox may use a
@@ -4010,6 +4054,13 @@ const (
 	// entry as a name no host has: it is sent none
 	// (EngineCapabilities.Takes), and a task that may get one requires it.
 	EngineCapabilityEgressHostSuffix EngineCapability = "egress_host_suffix"
+	// EngineCapabilityEgressHostAny: the engine's gateway reads a binding
+	// whose hosts are BoundHostAny as one for any host, asked about per
+	// host: it is sent pending, and the API gives its value toward a host
+	// only when the egress decision allows it there. Any other engine is
+	// sent none (EngineCapabilities.Takes), and a task that may get one
+	// requires it.
+	EngineCapabilityEgressHostAny EngineCapability = "egress_host_any"
 )
 
 // EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -8002,6 +8053,14 @@ func (b BoundSecret) NeedsHostSuffix() bool {
 	return slices.ContainsFunc(b.Hosts, isHostSuffix)
 }
 
+// NeedsHostAny reports whether b is a binding for any host (its hosts
+// are BoundHostAny), which only an engine reporting
+// EngineCapabilityEgressHostAny is sent. Such a binding is always
+// pending: its value is given per host, by the egress decision.
+func (b BoundSecret) NeedsHostAny() bool {
+	return isHostAny(b.Hosts)
+}
+
 // BoundForm is how a bound value goes on a request: in Header, as Scheme
 // says, or as the query parameter Query. A form naming neither writes no
 // credential of its own (a key that travels in the body alone).
@@ -10541,6 +10600,12 @@ type SecretField struct {
 	Placeholder string `json:"placeholder,omitempty" yaml:"placeholder,omitempty"`
 	Sensitive   bool   `json:"sensitive,omitempty" yaml:"sensitive,omitempty"`
 	Optional    bool   `json:"optional,omitempty" yaml:"optional,omitempty"`
+	// Plain marks a value that is not a secret (a bucket, a project id),
+	// written by the provider's recipe or row: the one way a field reaches
+	// a run as plain configuration (authmethods.RowSettings). A field not
+	// marked is a secret, whatever its name; Sensitive and Plain together
+	// are refused.
+	Plain bool `json:"plain,omitempty" yaml:"plain,omitempty"`
 	// Pattern, when set, is a regular expression (RE2) a saved value must
 	// match, so a pasted login link or the wrong key is refused on save
 	// instead of failing the first run ("^sk-ant-oat01-").
@@ -12072,6 +12137,13 @@ const InterruptReasonWait InterruptReason = "wait"
 // answer in time refuses it for the sandbox. Meta is EgressLoginAskMeta.
 const InterruptReasonEgressLogin InterruptReason = "egress_login"
 
+// InterruptResourceSecretSend is a request to send a secret to a host its
+// owner has not approved (INF-1404). Its ResourceID is "<secret ref>|<host>",
+// one pending per pair; its reason is InterruptReasonEgressLogin and its
+// meta an EgressLoginAskMeta naming the Secret and the Approver. It may
+// have no run and no chat (run_id, chat_id "").
+const InterruptResourceSecretSend InterruptResourceType = "secret_send"
+
 // InterruptReasonSubagent is a run's reason, never an interrupt's: the run
 // waits on a question one of its sub-agents' runs asked, shown on its chat
 // through an interrupt surface (INF-1291). The run's interrupt meta is
@@ -13148,6 +13220,8 @@ const (
 	NotificationTypeTeamInvite NotificationType = "team_invite"
 	// An admin decided the team's entitlement request
 	NotificationTypeEntitlementRequest NotificationType = "entitlement_request"
+	// A request waits for the recipient's approval (an interrupt with no chat)
+	NotificationTypeApprovalRequest NotificationType = "approval_request"
 	// Form notifications, to a form's owner when the form asks for them
 	NotificationTypeFormSubmission NotificationType = "form_submission"
 	NotificationTypeFormDigest     NotificationType = "form_digest"
@@ -14884,6 +14958,13 @@ func flowUnmarshalRecursive(data []byte, out *any) error {
 	}
 	*out = flowProcessRaw(raw)
 	return nil
+}
+
+// isHostAny holds for hosts naming BoundHostAny at all: an engine without
+// the capability is sent none of them, mixed with other hosts or not. The
+// literal, as the generated copies of this func have no untyped const.
+func isHostAny(hosts []string) bool {
+	return slices.Contains(hosts, "*")
 }
 
 // isHostSuffix reports whether a bound host entry is a suffix entry

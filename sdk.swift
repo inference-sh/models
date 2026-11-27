@@ -2582,6 +2582,11 @@ public struct SecretCreateRequest: Codable, Sendable {
     /// personal): a new label adds a key beside the others, the same label
     /// replaces that key's value. Empty: the owner's default key.
     public var label: String?
+    /// Hosts are the sites the key may go to, written by its owner: each is
+    /// a SecretSend allow rule for the key (SecretHostsSetRequest's rules).
+    /// For a plain secret or a key of a provider whose row names no hosts;
+    /// a key its provider binds to hosts is refused them.
+    public var hosts: [String]?
 
     public init(
         key: String = "",
@@ -2591,7 +2596,8 @@ public struct SecretCreateRequest: Codable, Sendable {
         connectionScope: CredentialScope? = nil,
         providerName: String? = nil,
         providerWebsite: String? = nil,
-        label: String? = nil
+        label: String? = nil,
+        hosts: [String]? = nil
     ) {
         self.key = key
         self.value = value
@@ -2601,6 +2607,7 @@ public struct SecretCreateRequest: Codable, Sendable {
         self.providerName = providerName
         self.providerWebsite = providerWebsite
         self.label = label
+        self.hosts = hosts
     }
 
     enum CodingKeys: String, CodingKey {
@@ -2612,6 +2619,7 @@ public struct SecretCreateRequest: Codable, Sendable {
         case providerName = "provider_name"
         case providerWebsite = "provider_website"
         case label = "label"
+        case hosts = "hosts"
     }
 }
 
@@ -2653,18 +2661,24 @@ public struct SecretProviderRequest: Codable, Sendable {
 public struct SecretUpdateRequest: Codable, Sendable {
     public var value: String
     public var description: String?
+    /// Hosts, when given, replaces the sites the key may go to, as PUT
+    /// /secrets/{key}/hosts does; absent leaves them.
+    public var hosts: [String]?
 
     public init(
         value: String = "",
-        description: String? = nil
+        description: String? = nil,
+        hosts: [String]? = nil
     ) {
         self.value = value
         self.description = description
+        self.hosts = hosts
     }
 
     enum CodingKeys: String, CodingKey {
         case value = "value"
         case description = "description"
+        case hosts = "hosts"
     }
 }
 
@@ -3077,6 +3091,9 @@ public struct Scope: RawRepresentable, Codable, Hashable, Sendable {
     /// chat's approval policy (allow every tool, skip hooks, allow rules).
     /// Held only by the account holder's own sign-in.
     public static let approvalsWrite = Scope(rawValue: "approvals:write")
+    /// ScopeApprovalsRead lists the approval requests the caller may answer
+    /// and their history (GET /interrupts).
+    public static let approvalsRead = Scope(rawValue: "approvals:read")
     /// ScopeAdminRead views platform administration (/admin GET). Held
     /// only by an admin's own sign-in; the route's admin gate decides
     /// whether it carries power.
@@ -3631,21 +3648,29 @@ public struct SecretRequirement: Codable, Sendable {
     public var key: String
     public var description: String?
     public var optional: Bool?
+    /// Hosts are where the app sends the secret (api.acme.com, or
+    /// .acme.com for every host under acme.com), by the rule a provider's
+    /// hosts follow (models.ValidBoundHost). A suggestion shown to the
+    /// secret's owner, who may allow them up front; never a grant.
+    public var hosts: [String]?
 
     public init(
         key: String = "",
         description: String? = nil,
-        optional: Bool? = nil
+        optional: Bool? = nil,
+        hosts: [String]? = nil
     ) {
         self.key = key
         self.description = description
         self.optional = optional
+        self.hosts = hosts
     }
 
     enum CodingKeys: String, CodingKey {
         case key = "key"
         case description = "description"
         case optional = "optional"
+        case hosts = "hosts"
     }
 }
 
@@ -4107,7 +4132,8 @@ public struct AppVersionDTO: Codable, Sendable {
 /// use.
 public struct DeployWarning: Codable, Sendable {
     /// Code identifies the check: readonly_broad_credential,
-    /// unused_credential, missing_annotations, unapproved_platform_scope.
+    /// unused_credential, missing_annotations, unapproved_platform_scope,
+    /// ram_capped, secret_without_hosts.
     public var code: String
     /// Function is the function the warning is about, when it is about one.
     public var function: String?
@@ -6231,22 +6257,30 @@ public struct AlwaysAllowOptionsDTO: Codable, Sendable {
     public var options: [AlwaysAllowOptionDTO]?
     /// Default is the key of the narrowest option, "" when there is none.
     public var `default`: String?
+    /// DenyOptions are "always deny" on a secret send interrupt: rules of
+    /// effect deny on the secret owner's rung, saved by the same POST
+    /// .../always-allow with their key. Saved, every later send of the
+    /// secret to the host is refused without asking. Empty elsewhere.
+    public var denyOptions: [AlwaysAllowOptionDTO]?
     /// Unavailable says why there are no options: a policy allows only its
     /// own rules, or no chat rule could allow this call.
     public var unavailable: String?
-    /// SecretSend is set when the call is an agent of another team sending
-    /// the runner's own secrets: what it sends and where. Approving the call
-    /// sends them; the prompt names them.
+    /// SecretSend is set when the call sends secrets: an agent of another
+    /// team sending the runner's own with a call, or a secret send
+    /// interrupt (a task's, a sandbox's) asking about one secret and host.
+    /// Approving sends them; the prompt names them.
     @Indirect public var secretSend: SecretSendDTO?
 
     public init(
         options: [AlwaysAllowOptionDTO]? = nil,
         `default`: String? = nil,
+        denyOptions: [AlwaysAllowOptionDTO]? = nil,
         unavailable: String? = nil,
         secretSend: SecretSendDTO? = nil
     ) {
         self.options = options
         self.`default` = `default`
+        self.denyOptions = denyOptions
         self.unavailable = unavailable
         self.secretSend = secretSend
     }
@@ -6254,49 +6288,83 @@ public struct AlwaysAllowOptionsDTO: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case options = "options"
         case `default` = "default"
+        case denyOptions = "deny_options"
         case unavailable = "unavailable"
         case secretSend = "secret_send"
     }
 }
 
-/// SecretSendDTO is an agent of another team asking to send the runner's
-/// secrets with a call: "alice/helper wants to send OPENAI_API_KEY to
-/// alice.example". It rides on the call's approval interrupt (meta
-/// secret_send) and on its always-allow options.
+/// SecretSendDTO is something asking to send secrets to a host: "alice/helper
+/// wants to send OPENAI_API_KEY to alice.example". It rides on a call's
+/// approval interrupt (meta secret_send) and on always-allow options.
 public struct SecretSendDTO: Codable, Sendable {
+    /// Subject is what sends them, as a SecretSend rule names it: agent:<id>,
+    /// app:<id>, sandbox:<id>; SubjectName is how people know it (the
+    /// agent's or app's namespace/name, the sandbox's name).
+    public var subject: String?
+    public var subjectName: String?
+    /// TaskID is the task that asked, on a task's send; SandboxID the
+    /// sandbox's.
+    public var taskId: String?
+    public var sandboxId: String?
     /// Agent is the agent as people know it (namespace/name); AgentID is
-    /// its id.
-    public var agent: String
-    public var agentId: String
+    /// its id. Set for an agent's call.
+    public var agent: String?
+    public var agentId: String?
     /// AgentVersionID is the agent version making the call: approving the
     /// prompt approves this version's send only.
-    public var agentVersionId: String
-    /// Host is where the call sends them.
+    public var agentVersionId: String?
+    /// Host is where they are sent; "*" on a send that stands for many
+    /// hosts.
     public var host: String
-    /// Secrets are the runner's secrets the call sends, by name: secret
-    /// keys (OPENAI_API_KEY) and logins (credential:github).
+    /// Secret is the one secret a secret send interrupt asks about, by
+    /// name; Secrets holds it too.
+    public var secret: String?
+    /// Secrets are the secrets sent, by name: secret keys (OPENAI_API_KEY)
+    /// and logins (credential:github).
     public var secrets: [String]?
+    /// DeclaredByApp: the app that asked lists Host under the secret's
+    /// hosts: in inf.yml. A suggestion its author made, not a grant.
+    public var declaredByApp: Bool?
 
     public init(
-        agent: String = "",
-        agentId: String = "",
-        agentVersionId: String = "",
+        subject: String? = nil,
+        subjectName: String? = nil,
+        taskId: String? = nil,
+        sandboxId: String? = nil,
+        agent: String? = nil,
+        agentId: String? = nil,
+        agentVersionId: String? = nil,
         host: String = "",
-        secrets: [String]? = nil
+        secret: String? = nil,
+        secrets: [String]? = nil,
+        declaredByApp: Bool? = nil
     ) {
+        self.subject = subject
+        self.subjectName = subjectName
+        self.taskId = taskId
+        self.sandboxId = sandboxId
         self.agent = agent
         self.agentId = agentId
         self.agentVersionId = agentVersionId
         self.host = host
+        self.secret = secret
         self.secrets = secrets
+        self.declaredByApp = declaredByApp
     }
 
     enum CodingKeys: String, CodingKey {
+        case subject = "subject"
+        case subjectName = "subject_name"
+        case taskId = "task_id"
+        case sandboxId = "sandbox_id"
         case agent = "agent"
         case agentId = "agent_id"
         case agentVersionId = "agent_version_id"
         case host = "host"
+        case secret = "secret"
         case secrets = "secrets"
+        case declaredByApp = "declared_by_app"
     }
 }
 
@@ -7038,6 +7106,9 @@ public struct SecretFieldConfig: Codable, Sendable {
     public var placeholder: String
     public var sensitive: Bool
     public var optional: Bool
+    /// Plain: the value is not a secret (shared.SecretField.Plain), a
+    /// setting the form may show as typed.
+    public var plain: Bool?
     /// Pattern is the scheme field's pattern (shared.SecretField.Pattern).
     public var pattern: String?
 
@@ -7047,6 +7118,7 @@ public struct SecretFieldConfig: Codable, Sendable {
         placeholder: String = "",
         sensitive: Bool = false,
         optional: Bool = false,
+        plain: Bool? = nil,
         pattern: String? = nil
     ) {
         self.key = key
@@ -7054,6 +7126,7 @@ public struct SecretFieldConfig: Codable, Sendable {
         self.placeholder = placeholder
         self.sensitive = sensitive
         self.optional = optional
+        self.plain = plain
         self.pattern = pattern
     }
 
@@ -7063,6 +7136,7 @@ public struct SecretFieldConfig: Codable, Sendable {
         case placeholder = "placeholder"
         case sensitive = "sensitive"
         case optional = "optional"
+        case plain = "plain"
         case pattern = "pattern"
     }
 }
@@ -7296,6 +7370,9 @@ public struct EgressGrantReason: RawRepresentable, Codable, Hashable, Sendable {
     public static let scopesMissing = EgressGrantReason(rawValue: "scopes_missing")
     public static let scopeEnded = EgressGrantReason(rawValue: "scope_ended")
     public static let revokedByOwner = EgressGrantReason(rawValue: "revoked_by_owner")
+    /// EgressGrantReasonRulesChanged: a secret's grant a rule allowed, whose
+    /// owner's rules no longer allow it. The next use decides again.
+    public static let rulesChanged = EgressGrantReason(rawValue: "rules_changed")
 }
 
 /// EgressGrantDTO is one decision that a task or a sandbox may use a
@@ -8085,6 +8162,13 @@ public struct EngineCapability: RawRepresentable, Codable, Hashable, Sendable {
     /// entry as a name no host has: it is sent none
     /// (EngineCapabilities.Takes), and a task that may get one requires it.
     public static let egressHostSuffix = EngineCapability(rawValue: "egress_host_suffix")
+    /// EngineCapabilityEgressHostAny: the engine's gateway reads a binding
+    /// whose hosts are BoundHostAny as one for any host, asked about per
+    /// host: it is sent pending, and the API gives its value toward a host
+    /// only when the egress decision allows it there. Any other engine is
+    /// sent none (EngineCapabilities.Takes), and a task that may get one
+    /// requires it.
+    public static let egressHostAny = EngineCapability(rawValue: "egress_host_any")
 }
 
 /// EngineCapabilities is a set of capabilities, kept as a list. Nil and
@@ -18580,6 +18664,12 @@ public struct SecretField: Codable, Sendable {
     public var placeholder: String?
     public var sensitive: Bool?
     public var optional: Bool?
+    /// Plain marks a value that is not a secret (a bucket, a project id),
+    /// written by the provider's recipe or row: the one way a field reaches
+    /// a run as plain configuration (authmethods.RowSettings). A field not
+    /// marked is a secret, whatever its name; Sensitive and Plain together
+    /// are refused.
+    public var plain: Bool?
     /// Pattern, when set, is a regular expression (RE2) a saved value must
     /// match, so a pasted login link or the wrong key is refused on save
     /// instead of failing the first run ("^sk-ant-oat01-").
@@ -18591,6 +18681,7 @@ public struct SecretField: Codable, Sendable {
         placeholder: String? = nil,
         sensitive: Bool? = nil,
         optional: Bool? = nil,
+        plain: Bool? = nil,
         pattern: String? = nil
     ) {
         self.key = key
@@ -18598,6 +18689,7 @@ public struct SecretField: Codable, Sendable {
         self.placeholder = placeholder
         self.sensitive = sensitive
         self.optional = optional
+        self.plain = plain
         self.pattern = pattern
     }
 
@@ -18607,6 +18699,7 @@ public struct SecretField: Codable, Sendable {
         case placeholder = "placeholder"
         case sensitive = "sensitive"
         case optional = "optional"
+        case plain = "plain"
         case pattern = "pattern"
     }
 }
@@ -21870,6 +21963,8 @@ public struct NotificationType: RawRepresentable, Codable, Hashable, Sendable {
     public static let teamInvite = NotificationType(rawValue: "team_invite")
     /// An admin decided the team's entitlement request
     public static let entitlementRequest = NotificationType(rawValue: "entitlement_request")
+    /// A request waits for the recipient's approval (an interrupt with no chat)
+    public static let approvalRequest = NotificationType(rawValue: "approval_request")
     /// Form notifications, to a form's owner when the form asks for them
     public static let formSubmission = NotificationType(rawValue: "form_submission")
     public static let formDigest = NotificationType(rawValue: "form_digest")
@@ -22843,6 +22938,7 @@ public struct InterruptResourceType: RawRepresentable, Codable, Hashable, Sendab
     public init(rawValue: String) { self.rawValue = rawValue }
 
     public static let interruptResourceTurn = InterruptResourceType(rawValue: "turn")
+    public static let interruptResourceSecretSend = InterruptResourceType(rawValue: "secret_send")
     public static let interruptResourceToolInvocation = InterruptResourceType(rawValue: "tool_invocation")
     public static let interruptResourceHookEvent = InterruptResourceType(rawValue: "hook_event")
 }
