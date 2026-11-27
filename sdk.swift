@@ -6910,6 +6910,9 @@ public struct CredentialConfigDTO: Codable, Sendable {
     /// by side, each addressed by its account_id; the default (is_primary) is
     /// used where none is named.
     public var multiAccount: Bool
+    /// Methods are the ways to connect a login, one action each, Type's
+    /// first: a sign-in, or a key pasted into its Fields. Slack has both.
+    public var methods: [CredentialMethodDTO]?
 
     public init(
         slug: String = "",
@@ -6937,7 +6940,8 @@ public struct CredentialConfigDTO: Codable, Sendable {
         authProviderId: String? = nil,
         credential: CredentialDTO? = nil,
         accounts: [CredentialDTO]? = nil,
-        multiAccount: Bool = false
+        multiAccount: Bool = false,
+        methods: [CredentialMethodDTO]? = nil
     ) {
         self.slug = slug
         self.provider = provider
@@ -6965,6 +6969,7 @@ public struct CredentialConfigDTO: Codable, Sendable {
         self.credential = credential
         self.accounts = accounts
         self.multiAccount = multiAccount
+        self.methods = methods
     }
 
     enum CodingKeys: String, CodingKey {
@@ -6994,6 +6999,35 @@ public struct CredentialConfigDTO: Codable, Sendable {
         case credential = "credential"
         case accounts = "accounts"
         case multiAccount = "multi_account"
+        case methods = "methods"
+    }
+}
+
+/// CredentialMethodDTO is one way to connect a login to a provider.
+public struct CredentialMethodDTO: Codable, Sendable {
+    /// Type is the login it makes: oauth to sign in (through the config's
+    /// app, whose keys are the config's SecretFields), api_key and the
+    /// other key types to paste Fields.
+    public var type: String
+    /// Fields are what a person pastes. None for a sign-in.
+    public var fields: [SecretFieldConfig]?
+    /// Instructions tell a person how to get them (markdown).
+    public var instructions: String?
+
+    public init(
+        type: String = "",
+        fields: [SecretFieldConfig]? = nil,
+        instructions: String? = nil
+    ) {
+        self.type = type
+        self.fields = fields
+        self.instructions = instructions
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type = "type"
+        case fields = "fields"
+        case instructions = "instructions"
     }
 }
 
@@ -14233,6 +14267,9 @@ public struct SetupAction: Codable, Sendable {
     /// Instructions tell a person how to get what the provider's scheme
     /// asks for (markdown, links allowed).
     public var instructions: String?
+    /// Or is another way to meet the requirement: an add_secret pasting
+    /// the provider's key method instead of a connect (Slack's bot token).
+    @Indirect public var or: SetupAction?
 
     public init(
         type: SetupActionType,
@@ -14242,7 +14279,8 @@ public struct SetupAction: Codable, Sendable {
         scopeDescriptions: [String: String]? = nil,
         secrets: [String]? = nil,
         providerWebsite: String? = nil,
-        instructions: String? = nil
+        instructions: String? = nil,
+        or: SetupAction? = nil
     ) {
         self.type = type
         self.provider = provider
@@ -14252,6 +14290,7 @@ public struct SetupAction: Codable, Sendable {
         self.secrets = secrets
         self.providerWebsite = providerWebsite
         self.instructions = instructions
+        self.or = or
     }
 
     enum CodingKeys: String, CodingKey {
@@ -14263,6 +14302,7 @@ public struct SetupAction: Codable, Sendable {
         case secrets = "secrets"
         case providerWebsite = "provider_website"
         case instructions = "instructions"
+        case or = "or"
     }
 }
 
@@ -18789,6 +18829,61 @@ public struct AuthMethodRevoke: Codable, Sendable {
     }
 }
 
+/// AuthMethodKeyCheck is a call that asks the provider whether a pasted key
+/// works and whose it is (Slack's auth.test). The method's first required
+/// field goes on it as the method sends it (In, ParamName, ValuePrefix),
+/// to a URL on one of the method's Hosts. A 4xx answer refuses the key, as
+/// does OK not rendering "true"; a 5xx or no answer is the provider's
+/// failure, not the key's. Templates read the JSON answer as
+/// {{response.*}} and its headers, lower-cased, as {{headers.*}}.
+public struct AuthMethodKeyCheck: Codable, Sendable {
+    public var url: String
+    /// Method is GET or POST; default GET.
+    public var method: String?
+    /// OK must render "true" for a key to be accepted, for a provider that
+    /// refuses with a 200 ("{{response.ok}}"). Empty: any 2xx accepts it.
+    public var ok: String?
+    /// Error is the provider's reason for a refusal ("{{response.error}}").
+    public var error: String?
+    /// Name is the account the key acts as, shown on its login.
+    public var name: String?
+    /// BotScopes are the scopes granted to a key that is a bot's, comma or
+    /// space separated ("{{headers.x-oauth-scopes}}"): its login holds them
+    /// as a sign-in that installs the bot does (BotScopePrefix).
+    public var botScopes: String?
+    /// Metadata is what the login stores about the account, by key, as an
+    /// oauth2 method's Metadata.
+    public var metadata: [String: String]?
+
+    public init(
+        url: String = "",
+        method: String? = nil,
+        ok: String? = nil,
+        error: String? = nil,
+        name: String? = nil,
+        botScopes: String? = nil,
+        metadata: [String: String]? = nil
+    ) {
+        self.url = url
+        self.method = method
+        self.ok = ok
+        self.error = error
+        self.name = name
+        self.botScopes = botScopes
+        self.metadata = metadata
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case url = "url"
+        case method = "method"
+        case ok = "ok"
+        case error = "error"
+        case name = "name"
+        case botScopes = "bot_scopes"
+        case metadata = "metadata"
+    }
+}
+
 /// AuthMethodAppKey is one key of the OAuth app a login goes through. The
 /// client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
 /// listing them only overrides their label and placeholder. Other keys
@@ -18997,6 +19092,10 @@ public struct AuthMethodCapability: Codable, Sendable {
 /// omitted from env and metadata, blank as identifier or name.
 public struct AuthMethod: Codable, Sendable {
     public var kind: AuthMethodKind
+    /// Instructions tell a person how to get what this method asks for
+    /// (markdown). Set on a method beside another (Slack's bot token beside
+    /// its sign-in): the provider's own instructions are the other's.
+    public var instructions: String?
     /// Flow is the oauth2 grant; empty means authorization_code.
     public var flow: AuthMethodFlow?
     /// Fields are what a person pastes (api_key and http kinds).
@@ -19013,6 +19112,9 @@ public struct AuthMethod: Codable, Sendable {
     /// key goes in the body alone. It needs Hosts; without them the key is
     /// an environment variable as before.
     public var inBody: Bool?
+    /// KeyCheck asks the provider about a pasted key before it is stored.
+    /// None: the fields' patterns are the only check.
+    @Indirect public var keyCheck: AuthMethodKeyCheck?
     /// Scheme and BearerFormat describe an http kind's Authorization header.
     public var scheme: AuthMethodHTTPScheme?
     public var bearerFormat: String?
@@ -19181,12 +19283,14 @@ public struct AuthMethod: Codable, Sendable {
 
     public init(
         kind: AuthMethodKind,
+        instructions: String? = nil,
         flow: AuthMethodFlow? = nil,
         fields: [SecretField]? = nil,
         `in`: AuthMethodAPIKeyIn? = nil,
         paramName: String? = nil,
         valuePrefix: String? = nil,
         inBody: Bool? = nil,
+        keyCheck: AuthMethodKeyCheck? = nil,
         scheme: AuthMethodHTTPScheme? = nil,
         bearerFormat: String? = nil,
         hosts: [String]? = nil,
@@ -19236,12 +19340,14 @@ public struct AuthMethod: Codable, Sendable {
         capabilities: [AuthMethodCapability]? = nil
     ) {
         self.kind = kind
+        self.instructions = instructions
         self.flow = flow
         self.fields = fields
         self.`in` = `in`
         self.paramName = paramName
         self.valuePrefix = valuePrefix
         self.inBody = inBody
+        self.keyCheck = keyCheck
         self.scheme = scheme
         self.bearerFormat = bearerFormat
         self.hosts = hosts
@@ -19293,12 +19399,14 @@ public struct AuthMethod: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case kind = "kind"
+        case instructions = "instructions"
         case flow = "flow"
         case fields = "fields"
         case `in` = "in"
         case paramName = "param_name"
         case valuePrefix = "value_prefix"
         case inBody = "in_body"
+        case keyCheck = "key_check"
         case scheme = "scheme"
         case bearerFormat = "bearer_format"
         case hosts = "hosts"

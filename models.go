@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"slices"
 	"sort"
 	"strconv"
@@ -3490,6 +3491,21 @@ type CredentialConfigDTO struct {
 	// by side, each addressed by its account_id; the default (is_primary) is
 	// used where none is named.
 	MultiAccount bool `json:"multi_account"`
+	// Methods are the ways to connect a login, one action each, Type's
+	// first: a sign-in, or a key pasted into its Fields. Slack has both.
+	Methods []CredentialMethodDTO `json:"methods,omitempty"`
+}
+
+// CredentialMethodDTO is one way to connect a login to a provider.
+type CredentialMethodDTO struct {
+	// Type is the login it makes: oauth to sign in (through the config's
+	// app, whose keys are the config's SecretFields), api_key and the
+	// other key types to paste Fields.
+	Type string `json:"type"`
+	// Fields are what a person pastes. None for a sign-in.
+	Fields []SecretFieldConfig `json:"fields,omitempty"`
+	// Instructions tell a person how to get them (markdown).
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // --------------------
@@ -6669,6 +6685,9 @@ type SetupAction struct {
 	// Instructions tell a person how to get what the provider's scheme
 	// asks for (markdown, links allowed).
 	Instructions string `json:"instructions,omitempty"`
+	// Or is another way to meet the requirement: an add_secret pasting
+	// the provider's key method instead of a connect (Slack's bot token).
+	Or *SetupAction `json:"or,omitempty"`
 }
 
 // Capability represents a credential capability that can be requested by apps
@@ -10647,6 +10666,33 @@ type AuthMethodRevoke struct {
 	ClientAuth bool `json:"client_auth,omitempty"`
 }
 
+// AuthMethodKeyCheck is a call that asks the provider whether a pasted key
+// works and whose it is (Slack's auth.test). The method's first required
+// field goes on it as the method sends it (In, ParamName, ValuePrefix),
+// to a URL on one of the method's Hosts. A 4xx answer refuses the key, as
+// does OK not rendering "true"; a 5xx or no answer is the provider's
+// failure, not the key's. Templates read the JSON answer as
+// {{response.*}} and its headers, lower-cased, as {{headers.*}}.
+type AuthMethodKeyCheck struct {
+	URL string `json:"url" yaml:"url"`
+	// Method is GET or POST; default GET.
+	Method string `json:"method,omitempty" yaml:"method,omitempty"`
+	// OK must render "true" for a key to be accepted, for a provider that
+	// refuses with a 200 ("{{response.ok}}"). Empty: any 2xx accepts it.
+	OK string `json:"ok,omitempty" yaml:"ok,omitempty"`
+	// Error is the provider's reason for a refusal ("{{response.error}}").
+	Error string `json:"error,omitempty" yaml:"error,omitempty"`
+	// Name is the account the key acts as, shown on its login.
+	Name string `json:"name,omitempty" yaml:"name,omitempty"`
+	// BotScopes are the scopes granted to a key that is a bot's, comma or
+	// space separated ("{{headers.x-oauth-scopes}}"): its login holds them
+	// as a sign-in that installs the bot does (BotScopePrefix).
+	BotScopes string `json:"bot_scopes,omitempty" yaml:"bot_scopes,omitempty"`
+	// Metadata is what the login stores about the account, by key, as an
+	// oauth2 method's Metadata.
+	Metadata map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+}
+
 // AuthMethodAppKey is one key of the OAuth app a login goes through. The
 // client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
 // listing them only overrides their label and placeholder. Other keys
@@ -10752,6 +10798,10 @@ type AuthMethodCapability struct {
 // omitted from env and metadata, blank as identifier or name.
 type AuthMethod struct {
 	Kind AuthMethodKind `json:"kind" yaml:"kind"`
+	// Instructions tell a person how to get what this method asks for
+	// (markdown). Set on a method beside another (Slack's bot token beside
+	// its sign-in): the provider's own instructions are the other's.
+	Instructions string `json:"instructions,omitempty" yaml:"instructions,omitempty"`
 	// Flow is the oauth2 grant; empty means authorization_code.
 	Flow AuthMethodFlow `json:"flow,omitempty" yaml:"flow,omitempty"`
 	// Fields are what a person pastes (api_key and http kinds).
@@ -10768,6 +10818,9 @@ type AuthMethod struct {
 	// key goes in the body alone. It needs Hosts; without them the key is
 	// an environment variable as before.
 	InBody bool `json:"in_body,omitempty" yaml:"in_body,omitempty"`
+	// KeyCheck asks the provider about a pasted key before it is stored.
+	// None: the fields' patterns are the only check.
+	KeyCheck *AuthMethodKeyCheck `json:"key_check,omitempty" yaml:"key_check,omitempty"`
 	// Scheme and BearerFormat describe an http kind's Authorization header.
 	Scheme       AuthMethodHTTPScheme `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 	BearerFormat string               `json:"bearer_format,omitempty" yaml:"bearer_format,omitempty"`
@@ -10960,6 +11013,36 @@ func (s *AuthMethod) WireScopes(scopes []string) []string {
 // gotypegen copies this method into the generated types, not the constant.
 func (s *AuthMethod) IsBotScope(scope string) bool {
 	return s.Bot != nil && s.Bot.ScopeParam != "" && strings.HasPrefix(scope, "bot:")
+}
+
+// KeyCheckError is why s.KeyCheck may not be its check, "" when it may:
+// an https URL on one of s's Hosts, the only ones its key is sent to,
+// called with GET or POST. A Basic pair is two values and a key sent only
+// in a body has no place on the call, so neither is checked.
+func (s *AuthMethod) KeyCheckError() string {
+	c := s.KeyCheck
+	if c == nil {
+		return ""
+	}
+	if s.Kind == AuthMethodHTTP && s.Scheme == AuthMethodHTTPBasic {
+		return "key_check is not supported for a basic pair"
+	}
+	if s.InBody && s.In == "" {
+		return "key_check needs a method whose key goes in a header or query"
+	}
+	u, err := url.Parse(c.URL)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return "key_check.url must be an https URL"
+	}
+	if m := strings.ToUpper(c.Method); m != "" && m != "GET" && m != "POST" {
+		return "key_check.method must be GET or POST"
+	}
+	for _, h := range s.Hosts {
+		if strings.EqualFold(h, u.Host) {
+			return ""
+		}
+	}
+	return "key_check.url must be on one of the method's hosts: the key is sent only there"
 }
 
 // BotScopes are the scopes installing the bot asks for (Bot.Scopes). None

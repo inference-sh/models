@@ -4947,6 +4947,30 @@ export interface CredentialConfigDTO {
    * used where none is named.
    */
   multi_account: boolean;
+  /**
+   * Methods are the ways to connect a login, one action each, Type's
+   * first: a sign-in, or a key pasted into its Fields. Slack has both.
+   */
+  methods?: CredentialMethodDTO[];
+}
+/**
+ * CredentialMethodDTO is one way to connect a login to a provider.
+ */
+export interface CredentialMethodDTO {
+  /**
+   * Type is the login it makes: oauth to sign in (through the config's
+   * app, whose keys are the config's SecretFields), api_key and the
+   * other key types to paste Fields.
+   */
+  type: string;
+  /**
+   * Fields are what a person pastes. None for a sign-in.
+   */
+  fields?: SecretFieldConfig[];
+  /**
+   * Instructions tell a person how to get them (markdown).
+   */
+  instructions?: string;
 }
 /**
  * SecretFieldConfig defines a secret field for the UI
@@ -9070,6 +9094,11 @@ export interface SetupAction {
    * asks for (markdown, links allowed).
    */
   instructions?: string;
+  /**
+   * Or is another way to meet the requirement: an add_secret pasting
+   * the provider's key method instead of a connect (Slack's bot token).
+   */
+  or?: SetupAction;
 }
 /**
  * Capability represents a credential capability that can be requested by apps
@@ -14569,6 +14598,46 @@ export interface AuthMethodRevoke {
   client_auth?: boolean;
 }
 /**
+ * AuthMethodKeyCheck is a call that asks the provider whether a pasted key
+ * works and whose it is (Slack's auth.test). The method's first required
+ * field goes on it as the method sends it (In, ParamName, ValuePrefix),
+ * to a URL on one of the method's Hosts. A 4xx answer refuses the key, as
+ * does OK not rendering "true"; a 5xx or no answer is the provider's
+ * failure, not the key's. Templates read the JSON answer as
+ * {{response.*}} and its headers, lower-cased, as {{headers.*}}.
+ */
+export interface AuthMethodKeyCheck {
+  url: string;
+  /**
+   * Method is GET or POST; default GET.
+   */
+  method?: string;
+  /**
+   * OK must render "true" for a key to be accepted, for a provider that
+   * refuses with a 200 ("{{response.ok}}"). Empty: any 2xx accepts it.
+   */
+  ok?: string;
+  /**
+   * Error is the provider's reason for a refusal ("{{response.error}}").
+   */
+  error?: string;
+  /**
+   * Name is the account the key acts as, shown on its login.
+   */
+  name?: string;
+  /**
+   * BotScopes are the scopes granted to a key that is a bot's, comma or
+   * space separated ("{{headers.x-oauth-scopes}}"): its login holds them
+   * as a sign-in that installs the bot does (BotScopePrefix).
+   */
+  bot_scopes?: string;
+  /**
+   * Metadata is what the login stores about the account, by key, as an
+   * oauth2 method's Metadata.
+   */
+  metadata?: { [key: string]: string};
+}
+/**
  * AuthMethodAppKey is one key of the OAuth app a login goes through. The
  * client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
  * listing them only overrides their label and placeholder. Other keys
@@ -14697,6 +14766,12 @@ export interface AuthMethodCapability {
 export interface AuthMethod {
   kind: AuthMethodKind;
   /**
+   * Instructions tell a person how to get what this method asks for
+   * (markdown). Set on a method beside another (Slack's bot token beside
+   * its sign-in): the provider's own instructions are the other's.
+   */
+  instructions?: string;
+  /**
    * Flow is the oauth2 grant; empty means authorization_code.
    */
   flow?: AuthMethodFlow;
@@ -14720,6 +14795,11 @@ export interface AuthMethod {
    * an environment variable as before.
    */
   in_body?: boolean;
+  /**
+   * KeyCheck asks the provider about a pasted key before it is stored.
+   * None: the fields' patterns are the only check.
+   */
+  key_check?: AuthMethodKeyCheck;
   /**
    * Scheme and BearerFormat describe an http kind's Authorization header.
    */

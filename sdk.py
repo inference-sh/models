@@ -1658,6 +1658,20 @@ class CredentialConfigDTO(TypedDict, total=False):
     # by side, each addressed by its account_id; the default (is_primary) is
     # used where none is named.
     multi_account: bool
+    # Methods are the ways to connect a login, one action each, Type's
+    # first: a sign-in, or a key pasted into its Fields. Slack has both.
+    methods: List[CredentialMethodDTO]
+
+# CredentialMethodDTO is one way to connect a login to a provider.
+class CredentialMethodDTO(TypedDict, total=False):
+    # Type is the login it makes: oauth to sign in (through the config's
+    # app, whose keys are the config's SecretFields), api_key and the
+    # other key types to paste Fields.
+    type: str
+    # Fields are what a person pastes. None for a sign-in.
+    fields: List[SecretFieldConfig]
+    # Instructions tell a person how to get them (markdown).
+    instructions: str
 
 # SecretFieldConfig defines a secret field for the UI
 class SecretFieldConfig(TypedDict, total=False):
@@ -2724,21 +2738,25 @@ class RequirementError(TypedDict, total=False):
     action: Optional[SetupAction]
 
 # SetupAction provides actionable info for resolving a missing requirement
-class SetupAction(TypedDict, total=False):
-    type: SetupActionType
-    provider: str
-    provider_name: str
-    scopes: List[str]
-    scope_descriptions: Dict[str, str]
+SetupAction = TypedDict('SetupAction', {
+    'type': 'SetupActionType',
+    'provider': 'str',
+    'provider_name': 'str',
+    'scopes': 'List[str]',
+    'scope_descriptions': 'Dict[str, str]',
     # Secrets are the keys to supply for an add_secret action on a
     # provider: saved against Provider, they become its credential.
-    secrets: List[str]
+    'secrets': 'List[str]',
     # ProviderWebsite is where the logo of a provider the platform does not
     # list comes from; sent back when the keys are saved.
-    provider_website: str
+    'provider_website': 'str',
     # Instructions tell a person how to get what the provider's scheme
     # asks for (markdown, links allowed).
-    instructions: str
+    'instructions': 'str',
+    # Or is another way to meet the requirement: an add_secret pasting
+    # the provider's key method instead of a connect (Slack's bot token).
+    'or': 'Optional[SetupAction]',
+}, total=False)
 
 # CheckRequirementsRequest is the request body for checking requirements
 class CheckRequirementsRequest(TypedDict, total=False):
@@ -3668,6 +3686,32 @@ class AuthMethodRevoke(TypedDict, total=False):
     # (Discord).
     client_auth: bool
 
+# AuthMethodKeyCheck is a call that asks the provider whether a pasted key
+# works and whose it is (Slack's auth.test). The method's first required
+# field goes on it as the method sends it (In, ParamName, ValuePrefix),
+# to a URL on one of the method's Hosts. A 4xx answer refuses the key, as
+# does OK not rendering "true"; a 5xx or no answer is the provider's
+# failure, not the key's. Templates read the JSON answer as
+# {{response.*}} and its headers, lower-cased, as {{headers.*}}.
+class AuthMethodKeyCheck(TypedDict, total=False):
+    url: str
+    # Method is GET or POST; default GET.
+    method: str
+    # OK must render "true" for a key to be accepted, for a provider that
+    # refuses with a 200 ("{{response.ok}}"). Empty: any 2xx accepts it.
+    ok: str
+    # Error is the provider's reason for a refusal ("{{response.error}}").
+    error: str
+    # Name is the account the key acts as, shown on its login.
+    name: str
+    # BotScopes are the scopes granted to a key that is a bot's, comma or
+    # space separated ("{{headers.x-oauth-scopes}}"): its login holds them
+    # as a sign-in that installs the bot does (BotScopePrefix).
+    bot_scopes: str
+    # Metadata is what the login stores about the account, by key, as an
+    # oauth2 method's Metadata.
+    metadata: Dict[str, str]
+
 # AuthMethodAppKey is one key of the OAuth app a login goes through. The
 # client id and secret are implied (PREFIX_CLIENT_ID, PREFIX_CLIENT_SECRET);
 # listing them only overrides their label and placeholder. Other keys
@@ -3769,6 +3813,10 @@ class AuthMethodCapability(TypedDict, total=False):
 # omitted from env and metadata, blank as identifier or name.
 AuthMethod = TypedDict('AuthMethod', {
     'kind': 'AuthMethodKind',
+    # Instructions tell a person how to get what this method asks for
+    # (markdown). Set on a method beside another (Slack's bot token beside
+    # its sign-in): the provider's own instructions are the other's.
+    'instructions': 'str',
     # Flow is the oauth2 grant; empty means authorization_code.
     'flow': 'AuthMethodFlow',
     # Fields are what a person pastes (api_key and http kinds).
@@ -3785,6 +3833,9 @@ AuthMethod = TypedDict('AuthMethod', {
     # key goes in the body alone. It needs Hosts; without them the key is
     # an environment variable as before.
     'in_body': 'bool',
+    # KeyCheck asks the provider about a pasted key before it is stored.
+    # None: the fields' patterns are the only check.
+    'key_check': 'Optional[AuthMethodKeyCheck]',
     # Scheme and BearerFormat describe an http kind's Authorization header.
     'scheme': 'AuthMethodHTTPScheme',
     'bearer_format': 'str',
