@@ -276,14 +276,6 @@ export interface SecretField {
   sensitive?: boolean;
   optional?: boolean;
   /**
-   * Plain marks a value that is not a secret (a bucket, a project id),
-   * written by the provider's recipe or row: the one way a field reaches
-   * a run as plain configuration (authmethods.RowSettings). A field not
-   * marked is a secret, whatever its name; Sensitive and Plain together
-   * are refused.
-   */
-  plain?: boolean;
-  /**
    * Pattern, when set, is a regular expression (RE2) a saved value must
    * match, so a pasted login link or the wrong key is refused on save
    * instead of failing the first run ("^sk-ant-oat01-").

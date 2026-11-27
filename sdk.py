@@ -672,11 +672,6 @@ class SecretCreateRequest(TypedDict, total=False):
     # personal): a new label adds a key beside the others, the same label
     # replaces that key's value. Empty: the owner's default key.
     label: str
-    # Hosts are the sites the key may go to, written by its owner: each is
-    # a SecretSend allow rule for the key (SecretHostsSetRequest's rules).
-    # For a plain secret or a key of a provider whose row names no hosts;
-    # a key its provider binds to hosts is refused them.
-    hosts: List[str]
 
 # SecretProviderRequest attaches an existing secret to a provider's
 # credential — the link a secret gets when it is created against a provider.
@@ -693,9 +688,6 @@ class SecretProviderRequest(TypedDict, total=False):
 class SecretUpdateRequest(TypedDict, total=False):
     value: str
     description: Optional[str]
-    # Hosts, when given, replaces the sites the key may go to, as PUT
-    # /secrets/{key}/hosts does; absent leaves them.
-    hosts: Optional[List[str]]
 
 class CredentialConnectRequest(TypedDict, total=False):
     provider: str
@@ -933,11 +925,6 @@ class SecretRequirement(TypedDict, total=False):
     key: str
     description: str
     optional: bool
-    # Hosts are where the app sends the secret (api.acme.com, or
-    # .acme.com for every host under acme.com), by the rule a provider's
-    # hosts follow (models.ValidBoundHost). A suggestion shown to the
-    # secret's owner, who may allow them up front; never a grant.
-    hosts: List[str]
 
 # CredentialRequirement is an entry under credentials: in inf.yml: a
 # credential the app uses, keyed by the credential's slug (what
@@ -1053,8 +1040,7 @@ class AppSandbox(TypedDict, total=False):
 # use.
 class DeployWarning(TypedDict, total=False):
     # Code identifies the check: readonly_broad_credential,
-    # unused_credential, missing_annotations, unapproved_platform_scope,
-    # ram_capped, secret_without_hosts.
+    # unused_credential, missing_annotations, unapproved_platform_scope.
     code: str
     # Function is the function the warning is about, when it is about one.
     function: str
@@ -1505,52 +1491,31 @@ class AlwaysAllowOptionsDTO(TypedDict, total=False):
     options: List[AlwaysAllowOptionDTO]
     # Default is the key of the narrowest option, "" when there is none.
     default: str
-    # DenyOptions are "always deny" on a secret send interrupt: rules of
-    # effect deny on the secret owner's rung, saved by the same POST
-    # .../always-allow with their key. Saved, every later send of the
-    # secret to the host is refused without asking. Empty elsewhere.
-    deny_options: List[AlwaysAllowOptionDTO]
     # Unavailable says why there are no options: a policy allows only its
     # own rules, or no chat rule could allow this call.
     unavailable: str
-    # SecretSend is set when the call sends secrets: an agent of another
-    # team sending the runner's own with a call, or a secret send
-    # interrupt (a task's, a sandbox's) asking about one secret and host.
-    # Approving sends them; the prompt names them.
+    # SecretSend is set when the call is an agent of another team sending
+    # the runner's own secrets: what it sends and where. Approving the call
+    # sends them; the prompt names them.
     secret_send: Optional[SecretSendDTO]
 
-# SecretSendDTO is something asking to send secrets to a host: "alice/helper
-# wants to send OPENAI_API_KEY to alice.example". It rides on a call's
-# approval interrupt (meta secret_send) and on always-allow options.
+# SecretSendDTO is an agent of another team asking to send the runner's
+# secrets with a call: "alice/helper wants to send OPENAI_API_KEY to
+# alice.example". It rides on the call's approval interrupt (meta
+# secret_send) and on its always-allow options.
 class SecretSendDTO(TypedDict, total=False):
-    # Subject is what sends them, as a SecretSend rule names it: agent:<id>,
-    # app:<id>, sandbox:<id>; SubjectName is how people know it (the
-    # agent's or app's namespace/name, the sandbox's name).
-    subject: str
-    subject_name: str
-    # TaskID is the task that asked, on a task's send; SandboxID the
-    # sandbox's.
-    task_id: str
-    sandbox_id: str
     # Agent is the agent as people know it (namespace/name); AgentID is
-    # its id. Set for an agent's call.
+    # its id.
     agent: str
     agent_id: str
     # AgentVersionID is the agent version making the call: approving the
     # prompt approves this version's send only.
     agent_version_id: str
-    # Host is where they are sent; "*" on a send that stands for many
-    # hosts.
+    # Host is where the call sends them.
     host: str
-    # Secret is the one secret a secret send interrupt asks about, by
-    # name; Secrets holds it too.
-    secret: str
-    # Secrets are the secrets sent, by name: secret keys (OPENAI_API_KEY)
-    # and logins (credential:github).
+    # Secrets are the runner's secrets the call sends, by name: secret
+    # keys (OPENAI_API_KEY) and logins (credential:github).
     secrets: List[str]
-    # DeclaredByApp: the app that asked lists Host under the secret's
-    # hosts: in inf.yml. A suggestion its author made, not a grant.
-    declared_by_app: bool
 
 # AlwaysAllowRequest is POST /chats/{id}/tools/{toolId}/always-allow. The
 # api saves the option's rules to the chat and approves the call once.
@@ -1715,9 +1680,6 @@ class SecretFieldConfig(TypedDict, total=False):
     placeholder: str
     sensitive: bool
     optional: bool
-    # Plain: the value is not a secret (shared.SecretField.Plain), a
-    # setting the form may show as typed.
-    plain: bool
     # Pattern is the scheme field's pattern (shared.SecretField.Pattern).
     pattern: str
 
@@ -3654,12 +3616,6 @@ class SecretField(TypedDict, total=False):
     placeholder: str
     sensitive: bool
     optional: bool
-    # Plain marks a value that is not a secret (a bucket, a project id),
-    # written by the provider's recipe or row: the one way a field reaches
-    # a run as plain configuration (authmethods.RowSettings). A field not
-    # marked is a secret, whatever its name; Sensitive and Plain together
-    # are refused.
-    plain: bool
     # Pattern, when set, is a regular expression (RE2) a saved value must
     # match, so a pasted login link or the wrong key is refused on save
     # instead of failing the first run ("^sk-ant-oat01-").
@@ -6052,9 +6008,6 @@ class Scope(str, Enum):
     # chat's approval policy (allow every tool, skip hooks, allow rules).
     # Held only by the account holder's own sign-in.
     APPROVALS_WRITE = "approvals:write"
-    # ScopeApprovalsRead lists the approval requests the caller may answer
-    # and their history (GET /interrupts).
-    APPROVALS_READ = "approvals:read"
     # ScopeAdminRead views platform administration (/admin GET). Held
     # only by an admin's own sign-in; the route's admin gate decides
     # whether it carries power.
@@ -6187,9 +6140,6 @@ class EgressGrantReason(str, Enum):
     SCOPES_MISSING = "scopes_missing"
     SCOPE_ENDED = "scope_ended"
     REVOKED_BY_OWNER = "revoked_by_owner"
-    # EgressGrantReasonRulesChanged: a secret's grant a rule allowed, whose
-    # owner's rules no longer allow it. The next use decides again.
-    RULES_CHANGED = "rules_changed"
 
 class EngineCapability(str, Enum):
     # EngineCapabilityEgressGateway: the engine runs its sandboxes behind
@@ -6276,13 +6226,6 @@ class EngineCapability(str, Enum):
     # entry as a name no host has: it is sent none
     # (EngineCapabilities.Takes), and a task that may get one requires it.
     EGRESS_HOST_SUFFIX = "egress_host_suffix"
-    # EngineCapabilityEgressHostAny: the engine's gateway reads a binding
-    # whose hosts are BoundHostAny as one for any host, asked about per
-    # host: it is sent pending, and the API gives its value toward a host
-    # only when the egress decision allows it there. Any other engine is
-    # sent none (EngineCapabilities.Takes), and a task that may get one
-    # requires it.
-    EGRESS_HOST_ANY = "egress_host_any"
 
 # MaxOvercommit and MaxCPUSlots bound what EngineCapacityPolicy may say.
 class EngineCapacityLimit(IntEnum):
@@ -7099,12 +7042,6 @@ class GraphEdgeType(str, Enum):
 # allow starts the turn, a deny ends the run.
 class InterruptResourceType(str, Enum):
     INTERRUPT_RESOURCE_TURN = "turn"
-    # InterruptResourceSecretSend is a request to send a secret to a host its
-    # owner has not approved (INF-1404). Its ResourceID is "<secret ref>|<host>",
-    # one pending per pair; its reason is InterruptReasonEgressLogin and its
-    # meta an EgressLoginAskMeta naming the Secret and the Approver. It may
-    # have no run and no chat (run_id, chat_id "").
-    INTERRUPT_RESOURCE_SECRET_SEND = "secret_send"
     INTERRUPT_RESOURCE_TOOL_INVOCATION = "tool_invocation"
     INTERRUPT_RESOURCE_HOOK_EVENT = "hook_event"
 
@@ -7524,6 +7461,7 @@ class NotificationType(str, Enum):
     AUTO_RECHARGE = "auto_recharge"
     PAYMENT_SUCCESS = "payment_success"
     PAYMENT_FAILED = "payment_failed"
+    PAYMENT_INCOMPLETE = "payment_incomplete"
     USAGE_SUMMARY = "usage_summary"
     SPENDING_LIMIT = "spending_limit"
     INVOICE = "invoice"
@@ -7556,8 +7494,6 @@ class NotificationType(str, Enum):
     TEAM_INVITE = "team_invite"
     # An admin decided the team's entitlement request
     ENTITLEMENT_REQUEST = "entitlement_request"
-    # A request waits for the recipient's approval (an interrupt with no chat)
-    APPROVAL_REQUEST = "approval_request"
     # Form notifications, to a form's owner when the form asks for them
     FORM_SUBMISSION = "form_submission"
     FORM_DIGEST = "form_digest"

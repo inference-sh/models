@@ -1550,13 +1550,6 @@ export interface SecretCreateRequest {
    * replaces that key's value. Empty: the owner's default key.
    */
   label?: string;
-  /**
-   * Hosts are the sites the key may go to, written by its owner: each is
-   * a SecretSend allow rule for the key (SecretHostsSetRequest's rules).
-   * For a plain secret or a key of a provider whose row names no hosts;
-   * a key its provider binds to hosts is refused them.
-   */
-  hosts?: string[];
 }
 /**
  * SecretProviderRequest attaches an existing secret to a provider's
@@ -1577,11 +1570,6 @@ export interface SecretProviderRequest {
 export interface SecretUpdateRequest {
   value: string;
   description?: string;
-  /**
-   * Hosts, when given, replaces the sites the key may go to, as PUT
-   * /secrets/{key}/hosts does; absent leaves them.
-   */
-  hosts?: string[];
 }
 export interface CredentialConnectRequest {
   provider: string;
@@ -2056,7 +2044,6 @@ export type Scope =
   | "settings:read"
   | "settings:write"
   | "approvals:write"
-  | "approvals:read"
   | "admin:read"
   | "admin:write"
   | "store:pricing"
@@ -2401,11 +2388,6 @@ export const ScopeSettingsWrite: Scope = "settings:write";
  * Held only by the account holder's own sign-in.
  */
 export const ScopeApprovalsWrite: Scope = "approvals:write";
-/**
- * ScopeApprovalsRead lists the approval requests the caller may answer
- * and their history (GET /interrupts).
- */
-export const ScopeApprovalsRead: Scope = "approvals:read";
 /**
  * ScopeAdminRead views platform administration (/admin GET). Held
  * only by an admin's own sign-in; the route's admin gate decides
@@ -2767,13 +2749,6 @@ export interface SecretRequirement {
   key: string;
   description?: string;
   optional?: boolean;
-  /**
-   * Hosts are where the app sends the secret (api.acme.com, or
-   * .acme.com for every host under acme.com), by the rule a provider's
-   * hosts follow (models.ValidBoundHost). A suggestion shown to the
-   * secret's owner, who may allow them up front; never a grant.
-   */
-  hosts?: string[];
 }
 /**
  * CredentialRequirement is an entry under credentials: in inf.yml: a
@@ -2995,8 +2970,7 @@ export interface AppVersionDTO extends BaseModelDTO {
 export interface DeployWarning {
   /**
    * Code identifies the check: readonly_broad_credential,
-   * unused_credential, missing_annotations, unapproved_platform_scope,
-   * ram_capped, secret_without_hosts.
+   * unused_credential, missing_annotations, unapproved_platform_scope.
    */
   code: string;
   /**
@@ -4213,20 +4187,6 @@ export interface PolicyLayerDTO {
    * an editable layer.
    */
   lint?: PolicyLintDTO[];
-  /**
-   * Inherited is the layer above this one (a team's org's) as far as
-   * this one leaves it in force: this layer takes over a usage kind only
-   * by setting a reach for it, so the org's reach and rules hold for
-   * every other kind, and its enforced ones for all. Absent when nothing
-   * of it is left, or when there is none.
-   */
-  inherited?: PolicyLayerDTO;
-  /**
-   * Revocable are the kinds of rule the caller may revoke on a layer
-   * that is not editable: a team's vault manager revokes its SecretSend
-   * rules, which "always" on a secret send wrote.
-   */
-  revocable?: PolicyKind[];
 }
 /**
  * PolicyRuleKindDTO is a kind a rule may have on a layer.
@@ -4448,136 +4408,44 @@ export interface AlwaysAllowOptionsDTO {
    */
   default?: string;
   /**
-   * DenyOptions are "always deny" on a secret send interrupt: rules of
-   * effect deny on the secret owner's rung, saved by the same POST
-   * .../always-allow with their key. Saved, every later send of the
-   * secret to the host is refused without asking. Empty elsewhere.
-   */
-  deny_options?: AlwaysAllowOptionDTO[];
-  /**
    * Unavailable says why there are no options: a policy allows only its
    * own rules, or no chat rule could allow this call.
    */
   unavailable?: string;
   /**
-   * SecretSend is set when the call sends secrets: an agent of another
-   * team sending the runner's own with a call, or a secret send
-   * interrupt (a task's, a sandbox's) asking about one secret and host.
-   * Approving sends them; the prompt names them.
+   * SecretSend is set when the call is an agent of another team sending
+   * the runner's own secrets: what it sends and where. Approving the call
+   * sends them; the prompt names them.
    */
   secret_send?: SecretSendDTO;
 }
 /**
- * SecretSendDTO is something asking to send secrets to a host: "alice/helper
- * wants to send OPENAI_API_KEY to alice.example". It rides on a call's
- * approval interrupt (meta secret_send) and on always-allow options.
+ * SecretSendDTO is an agent of another team asking to send the runner's
+ * secrets with a call: "alice/helper wants to send OPENAI_API_KEY to
+ * alice.example". It rides on the call's approval interrupt (meta
+ * secret_send) and on its always-allow options.
  */
 export interface SecretSendDTO {
   /**
-   * Subject is what sends them, as a SecretSend rule names it: agent:<id>,
-   * app:<id>, sandbox:<id>; SubjectName is how people know it (the
-   * agent's or app's namespace/name, the sandbox's name).
-   */
-  subject?: string;
-  subject_name?: string;
-  /**
-   * TaskID is the task that asked, on a task's send; SandboxID the
-   * sandbox's.
-   */
-  task_id?: string;
-  sandbox_id?: string;
-  /**
    * Agent is the agent as people know it (namespace/name); AgentID is
-   * its id. Set for an agent's call.
+   * its id.
    */
-  agent?: string;
-  agent_id?: string;
+  agent: string;
+  agent_id: string;
   /**
    * AgentVersionID is the agent version making the call: approving the
    * prompt approves this version's send only.
    */
-  agent_version_id?: string;
+  agent_version_id: string;
   /**
-   * Host is where they are sent; "*" on a send that stands for many
-   * hosts.
+   * Host is where the call sends them.
    */
   host: string;
   /**
-   * Secret is the one secret a secret send interrupt asks about, by
-   * name; Secrets holds it too.
-   */
-  secret?: string;
-  /**
-   * Secrets are the secrets sent, by name: secret keys (OPENAI_API_KEY)
-   * and logins (credential:github).
+   * Secrets are the runner's secrets the call sends, by name: secret
+   * keys (OPENAI_API_KEY) and logins (credential:github).
    */
   secrets: string[];
-  /**
-   * DeclaredByApp: the app that asked lists Host under the secret's
-   * hosts: in inf.yml. A suggestion its author made, not a grant.
-   */
-  declared_by_app?: boolean;
-}
-/**
- * AppSecretHostsDTO is GET /apps/{id}/secret-hosts: the hosts the app's
- * version says each of its secrets goes to, and which of them the
- * caller's workspace already allows for its own secret of that name
- * (INF-1417). A declared host is never allowed by being declared.
- */
-export interface AppSecretHostsDTO {
-  app_id: string;
-  version_id: string;
-  /**
-   * CanAllow: the caller may allow a declared host up front (a vault
-   * manager of the workspace).
-   */
-  can_allow: boolean;
-  secrets: AppSecretHostsSecret[];
-}
-/**
- * AppSecretHostsSecret is one secrets: entry and its declared hosts;
- * Hosts is empty for an entry that names none.
- */
-export interface AppSecretHostsSecret {
-  key: string;
-  optional?: boolean;
-  hosts: AppSecretHostDTO[];
-}
-/**
- * AppSecretHostDTO is one declared host of a secret.
- */
-export interface AppSecretHostDTO {
-  host: string;
-  /**
-   * Allowed: the workspace's rules allow its secret of this name to go
-   * to Host from this app (a SecretSend rule).
-   */
-  allowed: boolean;
-  /**
-   * Unavailable says why Host cannot be allowed up front: a suffix
-   * entry (.example.com) is asked host by host when a run sends to it.
-   */
-  unavailable?: string;
-}
-/**
- * AppSecretHostAllowRequest is POST /apps/{id}/secret-hosts/always-allow:
- * allow the workspace's secret Key to go to Host, one the app's version
- * declares, before any run asks. It saves what "always" on that send's
- * interrupt saves (SecretSend *@<host>/team:<id>/<KEY>), and answers
- * AlwaysAllowResultDTO.
- */
-export interface AppSecretHostAllowRequest {
-  key: string;
-  host: string;
-  /**
-   * VersionID is the app version whose hosts: are read; "" the version
-   * the caller runs.
-   */
-  version_id?: string;
-  /**
-   * Option is an option key, as on the interrupt's; "" the default.
-   */
-  option?: string;
 }
 /**
  * AlwaysAllowRequest is POST /chats/{id}/tools/{toolId}/always-allow. The
@@ -5114,11 +4982,6 @@ export interface SecretFieldConfig {
   sensitive: boolean;
   optional: boolean;
   /**
-   * Plain: the value is not a secret (shared.SecretField.Plain), a
-   * setting the form may show as typed.
-   */
-  plain?: boolean;
-  /**
    * Pattern is the scheme field's pattern (shared.SecretField.Pattern).
    */
   pattern?: string;
@@ -5295,8 +5158,7 @@ export type EgressGrantReason =
   | "expired_lifetime"
   | "scopes_missing"
   | "scope_ended"
-  | "revoked_by_owner"
-  | "rules_changed";
+  | "revoked_by_owner";
 export const EgressGrantReasonDeclined: EgressGrantReason = "declined";
 export const EgressGrantReasonLoginDeleted: EgressGrantReason = "login_deleted";
 export const EgressGrantReasonLoginDisconnected: EgressGrantReason = "login_disconnected";
@@ -5305,11 +5167,6 @@ export const EgressGrantReasonExpiredLifetime: EgressGrantReason = "expired_life
 export const EgressGrantReasonScopesMissing: EgressGrantReason = "scopes_missing";
 export const EgressGrantReasonScopeEnded: EgressGrantReason = "scope_ended";
 export const EgressGrantReasonRevokedByOwner: EgressGrantReason = "revoked_by_owner";
-/**
- * EgressGrantReasonRulesChanged: a secret's grant a rule allowed, whose
- * owner's rules no longer allow it. The next use decides again.
- */
-export const EgressGrantReasonRulesChanged: EgressGrantReason = "rules_changed";
 /**
  * EgressGrantDTO is one decision that a task or a sandbox may use a
  * provider's login through the engine's egress gateway: what was allowed,
@@ -5392,56 +5249,6 @@ export interface WsEgressAnswerPayload {
   task_id?: string;
   sandbox_id?: string;
   names: string[];
-}
-/**
- * SecretHostsRequest is POST /secrets/hosts: the team's secret keys to
- * read where they went, at most MaxSecretHostsKeys.
- */
-export interface SecretHostsRequest {
-  keys: string[];
-}
-/**
- * SecretHostsResponse is POST /secrets/hosts: where each of the
- * team's secrets named went, by key, as GET /secrets/{key}/hosts says it
- * for one (the newest grant that gave it, per host). Every key asked
- * about is present; one that went nowhere has none.
- */
-export interface SecretHostsResponse {
-  hosts: { [key: string]: EgressGrantDTO[]};
-  /**
-   * Allowed are the hosts each key's owner allows it to go to
-   * (SecretAllowedHostDTO), by key; every key asked about is present.
-   */
-  allowed: { [key: string]: SecretAllowedHostDTO[]};
-}
-/**
- * SecretAllowedHostDTO is one host a secret's owner allows it to go to:
- * the SecretSend allow rule "*@<host>/<owner>/<KEY>" on the owner's rung
- * (the team's governance policy for a team's secret, the person's own
- * rules for theirs), as "always" on a send of it writes. The rule is the
- * store: removing the host removes it.
- */
-export interface SecretAllowedHostDTO {
-  host: string;
-  rule_id: string;
-}
-/**
- * SecretHostsSetRequest is PUT /secrets/{key}/hosts: every host the key
- * may go to, as its owner writes them (api.example.com, a port when not
- * the default; no scheme, path, wildcard or .suffix entry), at most
- * MaxSecretAllowedHosts. A host not listed that was allowed is removed,
- * and its live grants end. Empty removes them all.
- */
-export interface SecretHostsSetRequest {
-  hosts: string[];
-}
-/**
- * SecretAllowedHostsDTO is PUT /secrets/{key}/hosts' answer: the key's
- * allowed hosts after the write.
- */
-export interface SecretAllowedHostsDTO {
-  key: string;
-  hosts: SecretAllowedHostDTO[];
 }
 /**
  * EngineConfig holds engine configuration (no gorm tags).
@@ -5660,8 +5467,7 @@ export type EngineCapability =
   | "task_env"
   | "egress_forms"
   | "egress_h2"
-  | "egress_host_suffix"
-  | "egress_host_any";
+  | "egress_host_suffix";
 /**
  * EngineCapabilityEgressGateway: the engine runs its sandboxes behind
  * the egress gateway, so it can take bound secrets (the v2 secrets
@@ -5774,15 +5580,6 @@ export const EngineCapabilityEgressH2: EngineCapability = "egress_h2";
  * (EngineCapabilities.Takes), and a task that may get one requires it.
  */
 export const EngineCapabilityEgressHostSuffix: EngineCapability = "egress_host_suffix";
-/**
- * EngineCapabilityEgressHostAny: the engine's gateway reads a binding
- * whose hosts are BoundHostAny as one for any host, asked about per
- * host: it is sent pending, and the API gives its value toward a host
- * only when the egress decision allows it there. Any other engine is
- * sent none (EngineCapabilities.Takes), and a task that may get one
- * requires it.
- */
-export const EngineCapabilityEgressHostAny: EngineCapability = "egress_host_any";
 /**
  * EngineCapabilities is a set of capabilities, kept as a list. Nil and
  * empty are the same: nothing beyond the base contract.
@@ -14652,14 +14449,6 @@ export interface SecretField {
   sensitive?: boolean;
   optional?: boolean;
   /**
-   * Plain marks a value that is not a secret (a bucket, a project id),
-   * written by the provider's recipe or row: the one way a field reaches
-   * a run as plain configuration (authmethods.RowSettings). A field not
-   * marked is a secret, whatever its name; Sensitive and Plain together
-   * are refused.
-   */
-  plain?: boolean;
-  /**
    * Pattern, when set, is a regular expression (RE2) a saved value must
    * match, so a pasted login link or the wrong key is refused on save
    * instead of failing the first run ("^sk-ant-oat01-").
@@ -16263,69 +16052,6 @@ export const InterruptReasonWait: InterruptReason = "wait";
  */
 export const InterruptReasonEgressLogin: InterruptReason = "egress_login";
 /**
- * InterruptResourceSecretSend is a request to send a secret to a host its
- * owner has not approved (INF-1404). Its ResourceID is "<secret ref>|<host>",
- * one pending per pair; its reason is InterruptReasonEgressLogin and its
- * meta an EgressLoginAskMeta naming the Secret and the Approver. It may
- * have no run and no chat (run_id, chat_id "").
- */
-export const InterruptResourceSecretSend: InterruptResourceType = "secret_send";
-/**
- * InterruptApprover is who may answer an interrupt that is not a chat's,
- * carried in its meta under "approver": anyone holding Capability on
- * TeamID (a team secret's vault managers), or the one person UserID.
- */
-export interface InterruptApprover {
-  team_id?: string;
-  capability?: TeamCapability;
-  user_id?: string;
-}
-/**
- * EgressLoginAskMeta is an egress login interrupt's meta: the sandbox, the
- * provider and the host its box asked for, and whether its owner has a
- * login of that provider (without one the card asks to connect one). On a
- * secret send (InterruptResourceSecretSend) Secret names the secret
- * (SecretSendRef),
- * Approver who answers, and the subject fields what asked first: one send
- * stands for every run asking about that secret and host.
- */
-export interface EgressLoginAskMeta {
-  sandbox_id: string;
-  provider: string;
-  host: string;
-  connected: boolean;
-  secret?: string;
-  approver?: InterruptApprover;
-  /**
-   * ManyHosts: the secret was asked about for too many hosts at once;
-   * this send stands for the rest, Host "", and is answered host by host.
-   */
-  many_hosts?: boolean;
-  /**
-   * Subject is what sends the secret as a SecretSend rule names it
-   * (app:<id>, sandbox:<id>); SubjectName is how people know it: the
-   * app's namespace/name, the sandbox's name.
-   */
-  subject?: string;
-  subject_name?: string;
-  /**
-   * TaskID and AppID are the task that asked and its app.
-   */
-  task_id?: string;
-  app_id?: string;
-  /**
-   * DeclaredByApp: the task's app version names Host under the secret's
-   * hosts: in inf.yml. Said on the card; it allows nothing by itself.
-   */
-  declared_by_app?: boolean;
-  /**
-   * AgentID and Agent (namespace/name) are the agent whose run made the
-   * sandbox that asked.
-   */
-  agent_id?: string;
-  agent?: string;
-}
-/**
  * InterruptReasonSubagent is a run's reason, never an interrupt's: the run
  * waits on a question one of its sub-agents' runs asked, shown on its chat
  * through an interrupt surface (INF-1291). The run's interrupt meta is
@@ -17350,6 +17076,7 @@ export type NotificationType =
   | "auto_recharge"
   | "payment_success"
   | "payment_failed"
+  | "payment_incomplete"
   | "usage_summary"
   | "spending_limit"
   | "invoice"
@@ -17376,7 +17103,6 @@ export type NotificationType =
   | "service_notice"
   | "team_invite"
   | "entitlement_request"
-  | "approval_request"
   | "form_submission"
   | "form_digest";
 /**
@@ -17386,6 +17112,7 @@ export const NotificationTypeLowBalance: NotificationType = "low_balance";
 export const NotificationTypeAutoRecharge: NotificationType = "auto_recharge";
 export const NotificationTypePaymentSuccess: NotificationType = "payment_success";
 export const NotificationTypePaymentFailed: NotificationType = "payment_failed";
+export const NotificationTypePaymentIncomplete: NotificationType = "payment_incomplete";
 export const NotificationTypeUsageSummary: NotificationType = "usage_summary";
 export const NotificationTypeSpendingLimit: NotificationType = "spending_limit";
 export const NotificationTypeInvoice: NotificationType = "invoice";
@@ -17430,10 +17157,6 @@ export const NotificationTypeTeamInvite: NotificationType = "team_invite";
  * An admin decided the team's entitlement request
  */
 export const NotificationTypeEntitlementRequest: NotificationType = "entitlement_request";
-/**
- * A request waits for the recipient's approval (an interrupt with no chat)
- */
-export const NotificationTypeApprovalRequest: NotificationType = "approval_request";
 /**
  * Form notifications, to a form's owner when the form asks for them
  */
@@ -18574,7 +18297,7 @@ export const InterruptResolutionDeny: InterruptResolution = "deny";
 /**
  * InterruptResourceType identifies the kind of resource an interrupt gates.
  */
-export type InterruptResourceType = "turn" | "secret_send" | "tool_invocation" | "hook_event";
+export type InterruptResourceType = "turn" | "tool_invocation" | "hook_event";
 export const InterruptResourceToolInvocation: InterruptResourceType = "tool_invocation";
 export const InterruptResourceHookEvent: InterruptResourceType = "hook_event";
 /**
