@@ -91,7 +91,7 @@ export interface CredentialRequirement {
   expires_after_days?: number /* int */;
 }
 /**
- * CompanySeed is a provider (the company behind a credential) as an app
+ * CompanySeed is a company (the one behind a credential) as an app
  * declares it: enough to create its catalog row when none exists.
  */
 export interface CompanySeed {

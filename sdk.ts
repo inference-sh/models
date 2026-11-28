@@ -1057,6 +1057,13 @@ export interface CredentialConnectRequest {
    * caller has several and none is the default.
    */
   app_credential_id?: string;
+  /**
+   * Hosts are where the login this connect creates sends its keys
+   * (CredentialHosts), checked by the auth provider's host rules.
+   * Omitted: its auth provider's. A reconnect keeps the login's hosts:
+   * PUT /credentials/{provider}/hosts changes them.
+   */
+  hosts?: CredentialHosts;
 }
 /**
  * CredentialCompleteOAuthRequest is what the provider's redirect delivered:
@@ -1980,7 +1987,7 @@ export interface CredentialRequirement {
   expires_after_days?: number /* int */;
 }
 /**
- * CompanySeed is a provider (the company behind a credential) as an app
+ * CompanySeed is a company (the one behind a credential) as an app
  * declares it: enough to create its catalog row when none exists.
  */
 export interface CompanySeed {
@@ -3248,12 +3255,46 @@ export interface CredentialDTO extends BaseModelDTO, PermissionModelDTO {
   is_primary: boolean;
   error_message?: string;
   /**
+   * Hosts are where the credential's keys go (CredentialHosts): copied
+   * from its auth provider when it was created, its owner's to change
+   * (PUT /credentials/{provider}/hosts). Absent on an OAuth app.
+   */
+  hosts?: CredentialHosts;
+  /**
    * Secrets are the secret rows linked to the credential (a key's values),
    * by row and key, never by value. Filled on the vault's api_key configs,
    * on a config's app when it is the caller's workspace's own (which of
    * its keys are set) and on the admin provider tree.
    */
   secrets?: CredentialSecretRef[];
+}
+/**
+ * CredentialHosts are where a credential's keys go: the host fields of its
+ * auth provider's method (shared.AuthMethod Hosts, Sign[].Hosts,
+ * Bot.Hosts), copied from the auth provider when the credential is created
+ * and its owner's to change after. Only these are read when the
+ * credential's keys are bound; how each key is placed (in, param_name,
+ * value_prefix, in_body, jwt, sign, transport) stays the auth provider's.
+ * Each entry is a host as an auth method's hosts take one: exact, with its
+ * port when not the default, or beginning with a dot for every host under
+ * a domain (models.ValidBoundHost). No host: the key is bound nowhere.
+ */
+export interface CredentialHosts {
+  /**
+   * Hosts are where every key the method binds goes (AuthMethod.Hosts):
+   * a pasted key's fields, a minted token, an access token. A signing
+   * pair with hosts of its own and the bot token go to theirs.
+   */
+  hosts: string[];
+  /**
+   * Sign are the hosts a signing pair signs toward, by the pair's key_id
+   * (AuthMethodSign.Hosts); a pair not named here signs toward Hosts.
+   */
+  sign?: { [key: string]: string[]};
+  /**
+   * Bot are the hosts the login's bot token goes to (AuthMethodBot.Hosts).
+   */
+  bot?: string[];
 }
 /**
  * OAuthAppDTO is one OAuth app a provider's logins can go through
@@ -3288,7 +3329,7 @@ export interface CredentialSecretRef {
 }
 /**
  * CompanySummary is the company a credential slug belongs to: the
- * providers row's identity, for grouping and display.
+ * companies row's identity, for grouping and display.
  */
 export interface CompanySummary {
   slug: string;

@@ -1101,6 +1101,11 @@ type CredentialConnectRequest struct {
 	// (CredentialConfigDTO.Apps). Empty: the default one; refused when the
 	// caller has several and none is the default.
 	AppCredentialID string `json:"app_credential_id,omitempty"`
+	// Hosts are where the login this connect creates sends its keys
+	// (CredentialHosts), checked by the auth provider's host rules.
+	// Omitted: its auth provider's. A reconnect keeps the login's hosts:
+	// PUT /credentials/{provider}/hosts changes them.
+	Hosts *CredentialHosts `json:"hosts,omitempty"`
 }
 
 // CredentialCompleteOAuthRequest is what the provider's redirect delivered:
@@ -1897,7 +1902,7 @@ func (r *CredentialRequirement) KeyedAs(slug string) error {
 	return nil
 }
 
-// CompanySeed is a provider (the company behind a credential) as an app
+// CompanySeed is a company (the one behind a credential) as an app
 // declares it: enough to create its catalog row when none exists.
 type CompanySeed struct {
 	Slug        string `json:"slug,omitempty" yaml:"slug,omitempty"`
@@ -3416,11 +3421,36 @@ type CredentialDTO struct {
 	Metadata      map[string]any `json:"metadata,omitempty"`
 	IsPrimary     bool           `json:"is_primary"`
 	ErrorMessage  string         `json:"error_message,omitempty"`
+	// Hosts are where the credential's keys go (CredentialHosts): copied
+	// from its auth provider when it was created, its owner's to change
+	// (PUT /credentials/{provider}/hosts). Absent on an OAuth app.
+	Hosts *CredentialHosts `json:"hosts,omitempty"`
 	// Secrets are the secret rows linked to the credential (a key's values),
 	// by row and key, never by value. Filled on the vault's api_key configs,
 	// on a config's app when it is the caller's workspace's own (which of
 	// its keys are set) and on the admin provider tree.
 	Secrets []CredentialSecretRef `json:"secrets,omitempty"`
+}
+
+// CredentialHosts are where a credential's keys go: the host fields of its
+// auth provider's method (shared.AuthMethod Hosts, Sign[].Hosts,
+// Bot.Hosts), copied from the auth provider when the credential is created
+// and its owner's to change after. Only these are read when the
+// credential's keys are bound; how each key is placed (in, param_name,
+// value_prefix, in_body, jwt, sign, transport) stays the auth provider's.
+// Each entry is a host as an auth method's hosts take one: exact, with its
+// port when not the default, or beginning with a dot for every host under
+// a domain (models.ValidBoundHost). No host: the key is bound nowhere.
+type CredentialHosts struct {
+	// Hosts are where every key the method binds goes (AuthMethod.Hosts):
+	// a pasted key's fields, a minted token, an access token. A signing
+	// pair with hosts of its own and the bot token go to theirs.
+	Hosts []string `json:"hosts"`
+	// Sign are the hosts a signing pair signs toward, by the pair's key_id
+	// (AuthMethodSign.Hosts); a pair not named here signs toward Hosts.
+	Sign map[string][]string `json:"sign,omitempty"`
+	// Bot are the hosts the login's bot token goes to (AuthMethodBot.Hosts).
+	Bot []string `json:"bot,omitempty"`
 }
 
 // OAuthAppDTO is one OAuth app a provider's logins can go through
@@ -3448,7 +3478,7 @@ type CredentialSecretRef struct {
 }
 
 // CompanySummary is the company a credential slug belongs to: the
-// providers row's identity, for grouping and display.
+// companies row's identity, for grouping and display.
 type CompanySummary struct {
 	Slug       string `json:"slug"`
 	Name       string `json:"name"`
@@ -7811,7 +7841,7 @@ type EngineTypes struct {
 	_integDTO           CredentialDTO
 	_vaultDTO           VaultDTO
 	_credentialDTO      CredentialDTO
-	// The providers catalogue and a company's tree (admin, read by the CLI)
+	// The company catalogue and a company's tree (admin, read by the CLI)
 	_providerDTO       CompanyDTO
 	_providerTreeDTO   CompanyTreeDTO
 	_skillResolve      SkillResolveResult
@@ -8296,7 +8326,10 @@ type EgressResolveResponse struct {
 	HoldOffMs int `json:"hold_off_ms,omitempty"`
 	// MaxHoldMs is, for pending_approval and retry, the longest the
 	// request is held from its first ask; past it the gateway sends it
-	// without a login. Sent to egress_decide engines.
+	// without a login. For pending_approval it is what is left of the
+	// ask's hold window (which runs from the ask, not the request), 1 when
+	// the window is over: not held, sent now. Never 0 for those statuses.
+	// Sent to egress_decide engines.
 	MaxHoldMs int `json:"max_hold_ms,omitempty"`
 	// Reason is, for EgressStatusDeclined, the text the gateway answers
 	// the refused request with, naming the provider by its display name

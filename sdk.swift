@@ -2702,6 +2702,11 @@ public struct CredentialConnectRequest: Codable, Sendable {
     /// (CredentialConfigDTO.Apps). Empty: the default one; refused when the
     /// caller has several and none is the default.
     public var appCredentialId: String?
+    /// Hosts are where the login this connect creates sends its keys
+    /// (CredentialHosts), checked by the auth provider's host rules.
+    /// Omitted: its auth provider's. A reconnect keeps the login's hosts:
+    /// PUT /credentials/{provider}/hosts changes them.
+    @Indirect public var hosts: CredentialHosts?
 
     public init(
         provider: String = "",
@@ -2711,7 +2716,8 @@ public struct CredentialConnectRequest: Codable, Sendable {
         metadata: [String: JSONValue]? = nil,
         connectionScope: CredentialScope? = nil,
         anotherAccount: Bool? = nil,
-        appCredentialId: String? = nil
+        appCredentialId: String? = nil,
+        hosts: CredentialHosts? = nil
     ) {
         self.provider = provider
         self.type = type
@@ -2721,6 +2727,7 @@ public struct CredentialConnectRequest: Codable, Sendable {
         self.connectionScope = connectionScope
         self.anotherAccount = anotherAccount
         self.appCredentialId = appCredentialId
+        self.hosts = hosts
     }
 
     enum CodingKeys: String, CodingKey {
@@ -2732,6 +2739,7 @@ public struct CredentialConnectRequest: Codable, Sendable {
         case connectionScope = "connection_scope"
         case anotherAccount = "another_account"
         case appCredentialId = "app_credential_id"
+        case hosts = "hosts"
     }
 }
 
@@ -3783,7 +3791,7 @@ public struct CredentialRequirement: Codable, Sendable {
     }
 }
 
-/// CompanySeed is a provider (the company behind a credential) as an app
+/// CompanySeed is a company (the one behind a credential) as an app
 /// declares it: enough to create its catalog row when none exists.
 public struct CompanySeed: Codable, Sendable {
     public var slug: String?
@@ -6586,6 +6594,10 @@ public struct CredentialDTO: Codable, Sendable {
     public var metadata: [String: JSONValue]?
     public var isPrimary: Bool
     public var errorMessage: String?
+    /// Hosts are where the credential's keys go (CredentialHosts): copied
+    /// from its auth provider when it was created, its owner's to change
+    /// (PUT /credentials/{provider}/hosts). Absent on an OAuth app.
+    @Indirect public var hosts: CredentialHosts?
     /// Secrets are the secret rows linked to the credential (a key's values),
     /// by row and key, never by value. Filled on the vault's api_key configs,
     /// on a config's app when it is the caller's workspace's own (which of
@@ -6621,6 +6633,7 @@ public struct CredentialDTO: Codable, Sendable {
         metadata: [String: JSONValue]? = nil,
         isPrimary: Bool = false,
         errorMessage: String? = nil,
+        hosts: CredentialHosts? = nil,
         secrets: [CredentialSecretRef]? = nil
     ) {
         self.id = id
@@ -6651,6 +6664,7 @@ public struct CredentialDTO: Codable, Sendable {
         self.metadata = metadata
         self.isPrimary = isPrimary
         self.errorMessage = errorMessage
+        self.hosts = hosts
         self.secrets = secrets
     }
 
@@ -6683,7 +6697,45 @@ public struct CredentialDTO: Codable, Sendable {
         case metadata = "metadata"
         case isPrimary = "is_primary"
         case errorMessage = "error_message"
+        case hosts = "hosts"
         case secrets = "secrets"
+    }
+}
+
+/// CredentialHosts are where a credential's keys go: the host fields of its
+/// auth provider's method (shared.AuthMethod Hosts, Sign[].Hosts,
+/// Bot.Hosts), copied from the auth provider when the credential is created
+/// and its owner's to change after. Only these are read when the
+/// credential's keys are bound; how each key is placed (in, param_name,
+/// value_prefix, in_body, jwt, sign, transport) stays the auth provider's.
+/// Each entry is a host as an auth method's hosts take one: exact, with its
+/// port when not the default, or beginning with a dot for every host under
+/// a domain (models.ValidBoundHost). No host: the key is bound nowhere.
+public struct CredentialHosts: Codable, Sendable {
+    /// Hosts are where every key the method binds goes (AuthMethod.Hosts):
+    /// a pasted key's fields, a minted token, an access token. A signing
+    /// pair with hosts of its own and the bot token go to theirs.
+    public var hosts: [String]?
+    /// Sign are the hosts a signing pair signs toward, by the pair's key_id
+    /// (AuthMethodSign.Hosts); a pair not named here signs toward Hosts.
+    public var sign: [String: [String]]?
+    /// Bot are the hosts the login's bot token goes to (AuthMethodBot.Hosts).
+    public var bot: [String]?
+
+    public init(
+        hosts: [String]? = nil,
+        sign: [String: [String]]? = nil,
+        bot: [String]? = nil
+    ) {
+        self.hosts = hosts
+        self.sign = sign
+        self.bot = bot
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case hosts = "hosts"
+        case sign = "sign"
+        case bot = "bot"
     }
 }
 
@@ -6725,6 +6777,10 @@ public struct OAuthAppDTO: Codable, Sendable {
     public var metadata: [String: JSONValue]?
     public var isPrimary: Bool
     public var errorMessage: String?
+    /// Hosts are where the credential's keys go (CredentialHosts): copied
+    /// from its auth provider when it was created, its owner's to change
+    /// (PUT /credentials/{provider}/hosts). Absent on an OAuth app.
+    @Indirect public var hosts: CredentialHosts?
     /// Secrets are the secret rows linked to the credential (a key's values),
     /// by row and key, never by value. Filled on the vault's api_key configs,
     /// on a config's app when it is the caller's workspace's own (which of
@@ -6769,6 +6825,7 @@ public struct OAuthAppDTO: Codable, Sendable {
         metadata: [String: JSONValue]? = nil,
         isPrimary: Bool = false,
         errorMessage: String? = nil,
+        hosts: CredentialHosts? = nil,
         secrets: [CredentialSecretRef]? = nil,
         hookUrl: String? = nil,
         `default`: Bool = false,
@@ -6802,6 +6859,7 @@ public struct OAuthAppDTO: Codable, Sendable {
         self.metadata = metadata
         self.isPrimary = isPrimary
         self.errorMessage = errorMessage
+        self.hosts = hosts
         self.secrets = secrets
         self.hookUrl = hookUrl
         self.`default` = `default`
@@ -6837,6 +6895,7 @@ public struct OAuthAppDTO: Codable, Sendable {
         case metadata = "metadata"
         case isPrimary = "is_primary"
         case errorMessage = "error_message"
+        case hosts = "hosts"
         case secrets = "secrets"
         case hookUrl = "hook_url"
         case `default` = "default"
@@ -6869,7 +6928,7 @@ public struct CredentialSecretRef: Codable, Sendable {
 }
 
 /// CompanySummary is the company a credential slug belongs to: the
-/// providers row's identity, for grouping and display.
+/// companies row's identity, for grouping and display.
 public struct CompanySummary: Codable, Sendable {
     public var slug: String
     public var name: String
